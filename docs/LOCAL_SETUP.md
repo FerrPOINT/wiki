@@ -1,0 +1,155 @@
+# Local Setup
+
+## 1. Требования
+
+| Инструмент | Минимальная версия | Примечание |
+|---|---|---|
+| Docker + Compose | 24.x | для Postgres, Redis, Traefik |
+| Rust | 1.80+ | backend |
+| cargo | 1.80+ | backend |
+| Node.js | 22 LTS | frontend |
+| pnpm | 9.x | frontend package manager |
+| just | — | task runner (опционально) |
+| git | 2.40+ | — |
+
+## 2. Быстрый старт
+
+```bash
+git clone git@github.com:FerrPOINT/wiki.git /opt/dev/wiki
+cd /opt/dev/wiki
+
+cp .env.example .env
+# отредактируй .env под себя
+
+docker compose up -d postgres
+cd backend && cargo run --bin server
+cd frontend && pnpm install && pnpm dev
+```
+
+Приложение доступно по `http://localhost:19876`.
+
+## 3. Переменные окружения
+
+Основные для локальной разработки:
+
+```env
+WIKI_DATABASE__URL=postgres://wiki:[CHANGE_ME]@localhost:5432/wiki
+WIKI_JWT_SECRET=[CHANGE_ME_32BYTES_MIN]
+WIKI_REFRESH_SECRET=[CHANGE_ME_32BYTES_MIN]
+WIKI_ADMIN_EMAIL=admin@example.com
+WIKI_ADMIN_PASSWORD=[CHANGE_ME]
+VITE_API_URL=/api/v1
+VITE_WS_URL=/ws/v1
+```
+
+Полный список — в `.env.example`.
+
+## 4. Backend
+
+```bash
+cd backend
+
+# Установка зависимостей
+cargo build
+
+# Запуск миграций
+cargo run -p migration -- up
+
+# Запуск API сервера
+cargo run --bin server
+
+# Запуск тестов
+cargo test
+
+# Запуск с watch
+cargo watch -x run --bin server
+```
+
+## 5. Frontend
+
+```bash
+cd frontend
+
+pnpm install
+pnpm dev
+
+# Типизация
+pnpm typecheck
+
+# Линтер
+pnpm lint
+
+# Тесты
+pnpm test
+pnpm test:e2e
+```
+
+## 6. Docker
+
+```bash
+# Всё через compose
+docker compose up -d --build
+
+# Только инфраструктура
+docker compose up -d postgres
+
+# Пересоздать контейнеры после изменений
+docker compose build
+docker compose up -d
+
+# Логи
+docker compose logs -f api
+```
+
+## 7. Тестовые данные
+
+После первого запуска:
+
+```bash
+# Автосоздание admin пользователя из .env
+./scripts/init-admin.sh
+
+# Seed demo-проекта и задач (опционально)
+./scripts/seed-demo.sh
+```
+
+## 8. IDE
+
+Рекомендуемые расширения:
+
+- Rust Analyzer
+- Tailwind CSS IntelliSense
+- ESLint
+- Prettier
+- GitLens
+- Docker
+
+## 9. Частые проблемы
+
+| Проблема | Решение |
+|---|---|
+| Порт 19876 занят | `WIKI_SERVER__PORT` в `.env` / `docker-compose.override.yml` |
+| Postgres не стартует | `docker compose down -v` и пересоздать volume |
+| Redis connection refused | Redis не используется бекендом (event bus in-process); сервис в compose опционален |
+| `cargo` долго компилирует | `sccache` + `cargo nextest` |
+
+Больше диагностики — в `docs/TROUBLESHOOTING.md`.
+
+## 10. Pre-commit
+
+```bash
+# Установить hooks (после создания)
+just install-hooks
+# или
+pre-commit install
+```
+
+## 11. References
+
+- `.env.example`
+- `docker-compose.yml`
+- `docs/DEPLOYMENT.md`
+- `docs/TESTING.md`
+- `docs/TROUBLESHOOTING.md`
+- `docs/CODE_STYLE.md`
+- `docs/AGENTS.md`

@@ -1,0 +1,25 @@
+{
+  "common": {
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "edit": "Edit",
+    "loading": "Loading...",
+    "save": "Save",
+    "saving": "Saving...",
+    "theme": "Switch theme: {{theme}}"
+  },
+  "auth": {
+    "confirmPassword": "Repeat password",
+    "createAccount": "Create account",
+    "email": "Email",
+    "haveAccount": "Already have an account",
+    "login": "Log in",
+    "loginDemo": "Use demo@example.com / demo for local demos.",
+    "password": "Password",
+    "passwordMismatch": "Passwords do not match",
+    "register": "Sign up",
+    "registerDemo": "A local admin can disable public registration later.",
+    "username": "Username"
+  }
+}

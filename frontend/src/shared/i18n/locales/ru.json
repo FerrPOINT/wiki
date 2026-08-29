@@ -1,0 +1,25 @@
+{
+  "common": {
+    "cancel": "Отмена",
+    "confirm": "Подтвердить",
+    "delete": "Удалить",
+    "edit": "Изменить",
+    "loading": "Загрузка...",
+    "save": "Сохранить",
+    "saving": "Сохранение...",
+    "theme": "Переключить тему: {{theme}}"
+  },
+  "auth": {
+    "confirmPassword": "Повтор пароля",
+    "createAccount": "Создать аккаунт",
+    "email": "Email",
+    "haveAccount": "Уже есть аккаунт",
+    "login": "Войти",
+    "loginDemo": "Для локального демо: demo@example.com / demo.",
+    "password": "Пароль",
+    "passwordMismatch": "Пароли не совпадают",
+    "register": "Зарегистрироваться",
+    "registerDemo": "Публичную регистрацию позже можно закрыть настройкой инстанса.",
+    "username": "Имя пользователя"
+  }
+}

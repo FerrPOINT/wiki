@@ -1,0 +1,162 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --check
+      - run: cargo clippy --workspace -- -D warnings
+      - run: cargo test --workspace
+
+  openapi-check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+      - name: Regenerate OpenAPI
+        run: |
+          mkdir -p openapi
+          cargo run -p api --bin gen-openapi > openapi/openapi.json
+      - name: Check committed spec matches code
+        run: diff -u ../openapi/openapi.json openapi/openapi.json
+
+  migrations:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:17.6-alpine
+        env:
+          POSTGRES_USER: wiki
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: wiki
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wiki"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Apply all migrations to clean DB
+        run: cargo run -p migration -- up
+        env:
+          DATABASE_URL: postgres://wiki:test@localhost:5432/wiki
+      - name: Verify migration status
+        run: cargo run -p migration -- status
+        env:
+          DATABASE_URL: postgres://wiki:test@localhost:5432/wiki
+
+  coverage:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Run tests with coverage
+        run: cargo llvm-cov --workspace --summary-only 2>&1 | tee /tmp/cov.txt
+      - name: Enforce coverage threshold (60%)
+        run: |
+          COV=$(grep '^TOTAL' /tmp/cov.txt | awk '{print $NF}' | tr -d '%')
+          echo "Coverage: ${COV}%"
+          if (( $(echo "$COV < 60" | bc -l) )); then
+            echo "::error::Coverage ${COV}% is below 60% threshold"
+            exit 1
+          fi
+
+  audit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@cargo-audit
+      - run: cargo audit
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install
+      - run: pnpm generate:api
+      - run: pnpm typecheck
+      - run: pnpm test -- --run
+      - run: pnpm build
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install
+        working-directory: frontend
+      - run: pnpm build
+        working-directory: frontend
+      - run: docker compose up -d postgres redis backend
+        working-directory: ${{ github.workspace }}
+      - run: sleep 20
+        working-directory: ${{ github.workspace }}
+      - run: curl -sf http://localhost:3456/api/v1/health
+        working-directory: ${{ github.workspace }}
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: frontend
+      - run: pnpm exec playwright test e2e/smoke.spec.ts --project=chromium
+        working-directory: frontend
+        env:
+          VITE_API_BASE_URL: http://localhost:3456/api/v1
+      - run: docker compose down -v
+        working-directory: ${{ github.workspace }}

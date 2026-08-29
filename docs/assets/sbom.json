@@ -1,0 +1,56 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "version": 1,
+  "metadata": {
+    "component": {
+      "type": "application",
+      "name": "wiki",
+      "version": "0.1.0",
+      "description": "Self-hosted SDLC knowledge base for documents, dossiers and evidence"
+    },
+    "properties": [
+      {
+        "name": "status",
+        "value": "manual baseline; regenerate after backend domain migration"
+      }
+    ]
+  },
+  "components": [
+    {
+      "type": "framework",
+      "name": "axum",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "name": "sqlx",
+      "scope": "required"
+    },
+    {
+      "type": "framework",
+      "name": "react",
+      "scope": "required"
+    },
+    {
+      "type": "framework",
+      "name": "vite",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "name": "tailwindcss",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "name": "tanstack-query",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "name": "zustand",
+      "scope": "required"
+    }
+  ]
+}
