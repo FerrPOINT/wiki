@@ -95,6 +95,8 @@ target\debug\wiki.exe evidence add-link --task SDLC-42 --phase testing --title "
 
 | Route | Назначение |
 |---|---|
+| `/login` | Вход пользователя |
+| `/register` | Регистрация пользователя |
 | `/` | Dashboard: последние документы и незакрытые связи |
 | `/spaces` | Пространства и дерево документов |
 | `/documents/new` | Создание документа |
