@@ -1,6 +1,6 @@
 import { FormEvent, useMemo, useState } from 'react'
 import { Link } from 'react-router'
-import { CheckCircle2, ExternalLink, FileText, Filter, Link2, Upload } from 'lucide-react'
+import { CheckCircle2, ExternalLink, FileText, Link2, RotateCcw, Upload } from 'lucide-react'
 import {
   defaultSpaceKey,
   useCreateEvidence,
@@ -28,10 +28,24 @@ export function EvidencePage() {
   const [title, setTitle] = useState('Проверка сборки')
   const [url, setUrl] = useState('https://ci.local/jobs/wiki-smoke')
   const [space, setSpace] = useState(defaultSpaceKey)
+  const [documentId, setDocumentId] = useState('product-requirements')
   const [task, setTask] = useState('SDLC-42')
   const [phase, setPhase] = useState('implementation')
+  const [filterSpace, setFilterSpace] = useState(defaultSpaceKey)
+  const [filterDocument, setFilterDocument] = useState('')
+  const [filterTask, setFilterTask] = useState('')
+  const [filterPhase, setFilterPhase] = useState('')
   const [file, setFile] = useState<File | null>(null)
-  const evidenceQuery = useEvidence({ space })
+  const evidenceParams = useMemo(
+    () => ({
+      space: optional(filterSpace) ?? defaultSpaceKey,
+      document_id: optional(filterDocument) ?? undefined,
+      task_key: optional(filterTask) ?? undefined,
+      phase_key: optional(filterPhase) ?? undefined,
+    }),
+    [filterDocument, filterPhase, filterSpace, filterTask],
+  )
+  const evidenceQuery = useEvidence(evidenceParams)
   const createLink = useCreateEvidence()
   const createFile = useCreateFileEvidence()
   const items = useMemo(() => evidenceQuery.data?.evidence ?? [], [evidenceQuery.data?.evidence])
@@ -39,7 +53,7 @@ export function EvidencePage() {
     const needle = query.trim().toLowerCase()
     if (!needle) return items
     return items.filter((item) =>
-      [item.title, item.task_key, item.phase_key, item.url, item.evidence_type]
+      [item.title, item.document_id, item.task_key, item.phase_key, item.url, item.evidence_type]
         .filter(Boolean)
         .some((value) => value?.toLowerCase().includes(needle)),
     )
@@ -55,11 +69,19 @@ export function EvidencePage() {
     setFile(null)
   }
 
+  function resetFilters() {
+    setQuery('')
+    setFilterSpace(defaultSpaceKey)
+    setFilterDocument('')
+    setFilterTask('')
+    setFilterPhase('')
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const evidence = {
       space: optional(space) ?? defaultSpaceKey,
-      document_id: null,
+      document_id: optional(documentId),
       task_key: optional(task),
       phase_key: optional(phase),
       title: title.trim(),
@@ -87,7 +109,7 @@ export function EvidencePage() {
         <div>
           <h1 className="text-2xl font-bold">Материалы</h1>
           <p className="mt-1 max-w-3xl text-sm text-text-muted">
-            Артефакты, ссылки и файлы, подтверждающие выполнение задач и фаз процесса.
+            Артефакты, ссылки и файлы, подтверждающие документ, задачу или фазу процесса.
           </p>
         </div>
       </section>
@@ -114,7 +136,7 @@ export function EvidencePage() {
           </Button>
         </div>
 
-        <div className="mt-3 grid gap-3 lg:grid-cols-[10rem_1fr_10rem_10rem]">
+        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-[10rem_13rem_minmax(0,1fr)_10rem_10rem]">
           <div className="space-y-1.5">
             <Label htmlFor="evidence-space">Пространство</Label>
             <Input
@@ -122,6 +144,15 @@ export function EvidencePage() {
               value={space}
               onChange={(event) => setSpace(event.target.value.toUpperCase())}
               required
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="evidence-document">Документ</Label>
+            <Input
+              id="evidence-document"
+              value={documentId}
+              onChange={(event) => setDocumentId(event.target.value)}
+              placeholder="product-requirements"
             />
           </div>
           <div className="space-y-1.5">
@@ -178,18 +209,39 @@ export function EvidencePage() {
         {saveError && <p className="mt-2 text-sm text-danger">{saveError}</p>}
       </form>
 
-      <section className="grid gap-3 rounded-md border border-border bg-surface p-3 md:grid-cols-[1fr_auto_auto]">
+      <section className="grid gap-3 rounded-md border border-border bg-surface p-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1.3fr)_8rem_13rem_10rem_10rem_auto]">
         <Input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Поиск по материалам, задаче или типу"
+          placeholder="Поиск по материалам, документу или типу"
           aria-label="Поиск материалов"
         />
-        <Button size="sm" variant="secondary" type="button">
-          <Filter className="h-4 w-4" />
-          {space}
-        </Button>
-        <Button size="sm" variant="outline" type="button" onClick={() => setQuery('')}>
+        <Input
+          value={filterSpace}
+          onChange={(event) => setFilterSpace(event.target.value.toUpperCase())}
+          placeholder="SDLC"
+          aria-label="Фильтр пространства"
+        />
+        <Input
+          value={filterDocument}
+          onChange={(event) => setFilterDocument(event.target.value)}
+          placeholder="Документ"
+          aria-label="Фильтр документа"
+        />
+        <Input
+          value={filterTask}
+          onChange={(event) => setFilterTask(event.target.value)}
+          placeholder="Задача"
+          aria-label="Фильтр задачи"
+        />
+        <Input
+          value={filterPhase}
+          onChange={(event) => setFilterPhase(event.target.value)}
+          placeholder="Фаза"
+          aria-label="Фильтр фазы"
+        />
+        <Button size="sm" variant="outline" type="button" onClick={resetFilters}>
+          <RotateCcw className="h-4 w-4" />
           Сбросить
         </Button>
       </section>
@@ -250,6 +302,7 @@ export function EvidencePage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Материал</TableHead>
+                  <TableHead>Документ</TableHead>
                   <TableHead>Задача</TableHead>
                   <TableHead>Фаза</TableHead>
                   <TableHead>Тип</TableHead>
@@ -271,6 +324,19 @@ export function EvidencePage() {
                         </a>
                       ) : (
                         item.title
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {item.document_id ? (
+                        <Link
+                          to={`/documents/${item.document_id}`}
+                          className="block max-w-[13rem] truncate text-accent hover:text-accent-hover"
+                          title={item.document_id}
+                        >
+                          {item.document_id}
+                        </Link>
+                      ) : (
+                        <span className="text-text-muted">-</span>
                       )}
                     </TableCell>
                     <TableCell>

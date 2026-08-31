@@ -97,7 +97,7 @@ Phase dossier в MVP - это представление документов/ev
 | `GET` | `/attachments/{attachment_id}` | Metadata файла |
 | `GET` | `/attachments/{attachment_id}/download` | Скачать файл |
 
-Canonical `evidence_type` values for MVP are `external_url` and `uploaded_file`. `external_url` accepts `url` without `attachment_id`; `uploaded_file` accepts `attachment_id` without `url`. Specific source categories such as CI job, pull request, deployment or test artifact are metadata, not separate evidence types.
+Canonical `evidence_type` values for MVP are `external_url` and `uploaded_file`. `external_url` accepts `url` without `attachment_id`; `uploaded_file` accepts `attachment_id` without `url`. Evidence can be linked to `document_id`, `task_key`, `phase_key` or their combination inside one space. `GET /evidence` supports `space`, `document_id`, `task_key` and `phase_key` filters. Specific source categories such as CI job, pull request, deployment or test artifact are metadata, not separate evidence types.
 
 ## 10. Search
 

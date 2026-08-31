@@ -28,7 +28,7 @@ Traceability links requirements to API, data model, UI, tests and evidence.
 | REQ-PHASE-002 | Phase page | `/spaces/{space_key}/phases/{phase_key}` | `phase_dossiers`, links, evidence | `/phases`, `/phases/:phaseId`, `wiki phase get/docs/evidence` | dossier API + visual smoke |
 | REQ-EVID-001 | Link evidence | `/evidence` | `evidence_items` | `/evidence`, `wiki evidence add-link` | evidence API tests |
 | REQ-EVID-002 | File evidence | `/attachments`, `/attachments/{attachment_id}/download`, `/evidence` | `attachments`, `evidence_items` | `/evidence`, `wiki evidence add-file` | upload/download tests |
-| REQ-EVID-003 | Evidence list | `/evidence`, owner evidence endpoints | `evidence_items` | `/evidence`, task/phase pages | list/filter tests |
+| REQ-EVID-003 | Evidence list | `/evidence`, owner evidence endpoints | `evidence_items` | `/evidence`, document/task/phase pages, `wiki evidence list` | list/filter tests |
 | REQ-SRCH-001 | Search | `/search` | PostgreSQL FTS projection | `/search`, `wiki search query` | search API tests |
 | REQ-SRCH-002 | Search filters | `/search` query filters | FTS projection + ACL joins | `/search` filters | permission/filter tests |
 | REQ-TPL-001 | Templates | `/templates` | `document_templates` | `/templates`, `wiki template list/apply` | template API + component |

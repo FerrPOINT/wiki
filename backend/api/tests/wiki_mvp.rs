@@ -366,6 +366,40 @@ async fn wiki_mvp_routes_cover_public_contract() {
     .await;
     assert_eq!(status, StatusCode::CREATED);
 
+    let (status, document_evidence) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(token),
+        Some(json!({
+            "space": "SDLC",
+            "document_id": document_id,
+            "title": "Document evidence",
+            "evidence_type": "external_url",
+            "url": "https://ci.local/jobs/wiki-document-smoke"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(document_evidence["document_id"], document_id);
+
+    let (status, document_evidence_list) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/evidence?document_id={document_id}"),
+        Some(token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        document_evidence_list["evidence"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["title"] == "Document evidence")
+    );
+
     let (status, _) = call(
         &app,
         Method::POST,

@@ -203,6 +203,8 @@ enum EvidenceCommands {
         #[arg(long)]
         space: Option<String>,
         #[arg(long)]
+        document: Option<String>,
+        #[arg(long)]
         task: Option<String>,
         #[arg(long)]
         phase: Option<String>,
@@ -213,6 +215,8 @@ enum EvidenceCommands {
 struct EvidenceLinkArgs {
     #[arg(long)]
     space: Option<String>,
+    #[arg(long)]
+    document: Option<String>,
     #[arg(long)]
     task: Option<String>,
     #[arg(long)]
@@ -229,6 +233,8 @@ struct EvidenceLinkArgs {
 struct EvidenceFileArgs {
     #[arg(long)]
     space: Option<String>,
+    #[arg(long)]
+    document: Option<String>,
     #[arg(long)]
     task: Option<String>,
     #[arg(long)]
@@ -517,6 +523,7 @@ async fn execute_evidence(api: &ApiClient, command: EvidenceCommands) -> Result<
                 "/evidence",
                 json!({
                     "space": args.space,
+                    "document_id": args.document,
                     "task_key": args.task,
                     "phase_key": args.phase,
                     "evidence_type": args.evidence_type,
@@ -543,6 +550,7 @@ async fn execute_evidence(api: &ApiClient, command: EvidenceCommands) -> Result<
                 "/evidence",
                 json!({
                     "space": args.space,
+                    "document_id": args.document,
                     "task_key": args.task,
                     "phase_key": args.phase,
                     "evidence_type": args.evidence_type,
@@ -556,8 +564,18 @@ async fn execute_evidence(api: &ApiClient, command: EvidenceCommands) -> Result<
         EvidenceCommands::Get { evidence_id } => {
             api.get(&format!("/evidence/{}", enc(&evidence_id))).await
         }
-        EvidenceCommands::List { space, task, phase } => {
-            let query = query_string([("space", space), ("task_key", task), ("phase_key", phase)]);
+        EvidenceCommands::List {
+            space,
+            document,
+            task,
+            phase,
+        } => {
+            let query = query_string([
+                ("space", space),
+                ("document_id", document),
+                ("task_key", task),
+                ("phase_key", phase),
+            ]);
             api.get(&format!("/evidence{}", query)).await
         }
     }
@@ -689,6 +707,7 @@ fn compact_line(value: &Value) -> String {
             let preferred = [
                 "id",
                 "key",
+                "document_id",
                 "task_key",
                 "phase_key",
                 "title",
@@ -944,6 +963,50 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn add_link_sends_document_task_phase_json() {
+        let server = spawn_mock_server().await;
+        let api = ApiClient::new(server.api_url.clone(), Some("secret-token".to_string()));
+
+        let value = execute(
+            &api,
+            Commands::Evidence {
+                command: EvidenceCommands::AddLink(EvidenceLinkArgs {
+                    space: Some("SDLC".to_string()),
+                    document: Some("product-requirements".to_string()),
+                    task: Some("SDLC-42".to_string()),
+                    phase: Some("testing".to_string()),
+                    evidence_type: "external_url".to_string(),
+                    title: "CLI link evidence".to_string(),
+                    url: "https://ci.local/jobs/42".to_string(),
+                }),
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(value["status"], "ok");
+        let requests = server.requests();
+        assert_eq!(requests.len(), 1);
+        let request = &requests[0];
+        assert_eq!(request.method, Method::POST);
+        assert_eq!(request.path, "/api/v1/evidence");
+        assert!(
+            request
+                .idempotency_key
+                .as_deref()
+                .is_some_and(|value| value.starts_with("wiki-cli-write-"))
+        );
+        let body: Value = serde_json::from_slice(&request.body).unwrap();
+        assert_eq!(body["space"], "SDLC");
+        assert_eq!(body["document_id"], "product-requirements");
+        assert_eq!(body["task_key"], "SDLC-42");
+        assert_eq!(body["phase_key"], "testing");
+        assert_eq!(body["evidence_type"], "external_url");
+        assert_eq!(body["title"], "CLI link evidence");
+        assert_eq!(body["url"], "https://ci.local/jobs/42");
+    }
+
+    #[tokio::test]
     async fn add_file_uploads_attachment_then_creates_file_evidence() {
         let server = spawn_mock_server().await;
         let api = ApiClient::new(server.api_url.clone(), Some("secret-token".to_string()));
@@ -954,6 +1017,7 @@ mod tests {
             Commands::Evidence {
                 command: EvidenceCommands::AddFile(EvidenceFileArgs {
                     space: Some("SDLC".to_string()),
+                    document: Some("product-requirements".to_string()),
                     task: Some("SDLC-42".to_string()),
                     phase: Some("testing".to_string()),
                     evidence_type: "uploaded_file".to_string(),
@@ -997,12 +1061,47 @@ mod tests {
         );
         let body: Value = serde_json::from_slice(&evidence.body).unwrap();
         assert_eq!(body["space"], "SDLC");
+        assert_eq!(body["document_id"], "product-requirements");
         assert_eq!(body["task_key"], "SDLC-42");
         assert_eq!(body["phase_key"], "testing");
         assert_eq!(body["evidence_type"], "uploaded_file");
         assert_eq!(body["title"], "CLI file evidence");
         assert_eq!(body["attachment_id"], "attachment-1");
         assert_eq!(body["checksum"], "sha256-test");
+    }
+
+    #[tokio::test]
+    async fn evidence_list_builds_owner_filter_query() {
+        let server = spawn_mock_server().await;
+        let api = ApiClient::new(server.api_url.clone(), Some("secret-token".to_string()));
+
+        let value = execute(
+            &api,
+            Commands::Evidence {
+                command: EvidenceCommands::List {
+                    space: Some("SDLC KB".to_string()),
+                    document: Some("product-requirements".to_string()),
+                    task: Some("SDLC-42".to_string()),
+                    phase: Some("testing".to_string()),
+                },
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(value["status"], "ok");
+        let requests = server.requests();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].method, Method::GET);
+        assert_eq!(
+            requests[0].path,
+            "/api/v1/evidence?space=SDLC%20KB&document_id=product-requirements&task_key=SDLC-42&phase_key=testing"
+        );
+        assert_eq!(
+            requests[0].authorization.as_deref(),
+            Some("Bearer secret-token")
+        );
+        assert!(requests[0].idempotency_key.is_none());
     }
 
     #[tokio::test]

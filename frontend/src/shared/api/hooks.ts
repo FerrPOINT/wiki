@@ -20,6 +20,7 @@ import {
   searchWiki,
   type CreateDocumentRequest,
   type CreateEvidenceRequest,
+  type EvidenceListParams,
   type SearchParams,
   uploadAttachment,
   type CreateUserRequest,
@@ -44,7 +45,7 @@ export const wikiKeys = {
   phases: (spaceKey: string) => ['wiki', 'spaces', spaceKey, 'phases'] as const,
   phase: (spaceKey: string, phaseKey: string) =>
     ['wiki', 'spaces', spaceKey, 'phases', phaseKey] as const,
-  evidence: (params: Partial<SearchParams>) => ['wiki', 'evidence', params] as const,
+  evidence: (params: EvidenceListParams) => ['wiki', 'evidence', params] as const,
   templates: ['wiki', 'templates'] as const,
   auditLog: ['wiki', 'audit-log'] as const,
   users: ['wiki', 'users'] as const,
@@ -177,7 +178,7 @@ export function usePhase(phaseKey: string, spaceKey = defaultSpaceKey) {
   })
 }
 
-export function useEvidence(params: Partial<SearchParams> = {}) {
+export function useEvidence(params: EvidenceListParams = {}) {
   return useQuery({
     queryKey: wikiKeys.evidence(params),
     queryFn: () => listEvidence(params),

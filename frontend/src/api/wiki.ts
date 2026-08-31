@@ -165,6 +165,14 @@ export type SearchParams = {
   limit?: number
 }
 
+export type EvidenceListParams = {
+  space?: string
+  document_id?: string
+  task_key?: string
+  phase_key?: string
+  limit?: number
+}
+
 export type CreateEvidenceRequest = {
   space?: string | null
   document_id?: string | null
@@ -233,9 +241,7 @@ export function getPhase(spaceKey: string, phaseKey: string): Promise<PhasePage>
   )
 }
 
-export function listEvidence(
-  params: Partial<SearchParams> = {},
-): Promise<{ evidence: Evidence[] }> {
+export function listEvidence(params: EvidenceListParams = {}): Promise<{ evidence: Evidence[] }> {
   return apiRequest(`/api/v1/evidence${queryString(params)}`)
 }
 

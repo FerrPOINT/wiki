@@ -63,10 +63,10 @@ wiki phase link-doc --space SDLC --key implementation --document <document-id>
 ### Evidence
 
 ```bash
-wiki evidence add-link --space SDLC --task SDLC-42 --phase testing --title "Smoke test" --url "https://ci.local/jobs/42"
-wiki evidence add-file --space SDLC --task SDLC-42 --phase testing --file ./screen.png
+wiki evidence add-link --space SDLC --document <document-id> --task SDLC-42 --phase testing --title "Smoke test" --url "https://ci.local/jobs/42"
+wiki evidence add-file --space SDLC --document <document-id> --task SDLC-42 --phase testing --file ./screen.png
 wiki evidence get <evidence-id>
-wiki evidence list --space SDLC --task SDLC-42
+wiki evidence list --space SDLC --document <document-id>
 ```
 
 ### Templates and Search

@@ -60,7 +60,7 @@ set WIKI_TOKEN=<jwt_token>
 
 target\debug\wiki.exe space list
 target\debug\wiki.exe doc create --space SDLC --title "Requirements" --from-file requirements.md
-target\debug\wiki.exe evidence add-link --task SDLC-42 --phase testing --title "Smoke-проверка" --url "https://ci.local/jobs/42"
+target\debug\wiki.exe evidence add-link --space SDLC --document product-requirements --task SDLC-42 --phase testing --title "Smoke-проверка" --url "https://ci.local/jobs/42"
 ```
 
 ## Документация
