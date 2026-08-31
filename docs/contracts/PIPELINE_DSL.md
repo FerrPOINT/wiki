@@ -103,7 +103,7 @@ Evaluation returns:
 
 - Workflow phase requirements can be represented without application code changes.
 - Dashboard can show missing documents/evidence by phase.
-- Approved API/CLI clients can upsert phase pages idempotently.
+- API/CLI clients can link documents and evidence to phase keys idempotently.
 - Invalid DSL is rejected with line/field diagnostics.
 - DSL changes are audited and versioned.
 

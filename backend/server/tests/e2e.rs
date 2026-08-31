@@ -2,19 +2,11 @@ use std::sync::Arc;
 
 use serial_test::serial;
 use server::run;
-use shared::{AppConfig, AuthConfig, DatabaseConfig, EmailConfig, ServerConfig};
+use shared::{AppConfig, AuthConfig, EmailConfig, ServerConfig};
 
 fn test_config() -> Arc<AppConfig> {
-    let url = std::env::var("WIKI_DATABASE_URL")
-        .expect("set WIKI_DATABASE_URL, e.g. postgres://wiki:[CHANGE_ME]@127.0.0.1:3458/wiki_test");
     Arc::new(AppConfig {
-        database: DatabaseConfig {
-            url,
-            max_connections: 5,
-            min_connections: 1,
-            connect_timeout_seconds: 10,
-            idle_timeout_seconds: 600,
-        },
+        database: shared::DatabaseConfig::default(),
         server: ServerConfig {
             address: "127.0.0.1".to_string(),
             port: 0,
@@ -38,8 +30,7 @@ fn test_config() -> Arc<AppConfig> {
 
 #[tokio::test]
 #[serial]
-#[ignore = "requires docker test stack"]
-async fn server_starts_runs_migrations_and_serves_health() {
+async fn server_starts_and_serves_health() {
     let config = test_config();
     let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
     let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
@@ -78,8 +69,7 @@ async fn server_starts_runs_migrations_and_serves_health() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "requires docker test stack"]
-async fn full_smoke_with_real_repositories() {
+async fn full_smoke_with_wiki_api_shell() {
     let config = test_config();
     let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
     let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
@@ -104,27 +94,25 @@ async fn full_smoke_with_real_repositories() {
         .unwrap()
         .to_string();
 
-    let projects = client
-        .get(format!("{}/api/v1/projects", url))
+    let spaces = client
+        .get(format!("{}/api/v1/spaces", url))
         .bearer_auth(&token)
         .send()
         .await
         .unwrap();
-    assert_eq!(projects.status(), 200);
-    let body: serde_json::Value = projects.json().await.unwrap();
-    let projects_arr = body["projects"].as_array().unwrap();
-    assert!(!projects_arr.is_empty());
-    let project_key = projects_arr[0]["key"].as_str().unwrap();
+    assert_eq!(spaces.status(), 200);
+    let body: serde_json::Value = spaces.json().await.unwrap();
+    assert_eq!(body["spaces"][0]["key"], "SDLC");
 
-    let board = client
-        .get(format!("{}/api/v1/projects/{}/board", url, project_key))
+    let task = client
+        .get(format!("{}/api/v1/spaces/SDLC/tasks/SDLC-42", url))
         .bearer_auth(&token)
         .send()
         .await
         .unwrap();
-    assert_eq!(board.status(), 200);
-    let body: serde_json::Value = board.json().await.unwrap();
-    assert!(!body["columns"].as_array().unwrap().is_empty());
+    assert_eq!(task.status(), 200);
+    let body: serde_json::Value = task.json().await.unwrap();
+    assert_eq!(body["task_key"], "SDLC-42");
 
     let _ = shutdown_tx.send(());
     let result = tokio::time::timeout(std::time::Duration::from_secs(5), handle).await;

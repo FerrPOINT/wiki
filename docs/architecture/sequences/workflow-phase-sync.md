@@ -5,16 +5,15 @@ sequenceDiagram
     participant W as UI or CLI
     participant A as Wiki API
     participant D as PostgreSQL
-    W->>A: create/update task or phase link
-    A->>D: upsert task dossier
-    A->>D: upsert phase dossier
+    W->>A: link document/evidence to task_key or phase_key
+    A->>D: record task/phase link
     A->>D: check linked documents/materials
     A-->>W: accepted
 ```
 
 ## Rules
 
-- Wiki stores task and phase snapshots from API/CLI clients.
+- Wiki stores task and phase links created through API/CLI clients.
 - Wiki tracks documentation completeness from linked documents and materials.
 - Completed phase can still receive additional materials, but the original completion snapshot stays auditable.
 
@@ -23,9 +22,9 @@ sequenceDiagram
 | Failure | Handling |
 |---|---|
 | Unknown phase | Create pending mapping or reject by project policy |
-| Missing task dossier | Upsert task page from submitted snapshot |
+| Missing task/phase key | Create dossier projection from linked documents/materials |
 | Missing materials | Accept update and show dashboard gap |
-| Duplicate phase update | Return existing phase page id |
+| Duplicate phase link | Return existing phase page state |
 
 ## Acceptance Criteria
 

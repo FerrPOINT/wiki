@@ -2,11 +2,15 @@ use anyhow::{Context, Result, bail};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use reqwest::{Client, Method, multipart};
 use serde_json::{Value, json};
-use std::path::PathBuf;
+use std::{
+    io::Read,
+    path::PathBuf,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 #[derive(Parser)]
 #[command(name = "wiki")]
-#[command(about = "Wiki CLI -- manage spaces, documents, task dossiers and evidence")]
+#[command(about = "Wiki CLI -- HTTP client for spaces, documents, task/phase links and evidence")]
 struct Cli {
     #[arg(
         long,
@@ -58,6 +62,10 @@ enum Commands {
         #[command(subcommand)]
         command: EvidenceCommands,
     },
+    Template {
+        #[command(subcommand)]
+        command: TemplateCommands,
+    },
     Search {
         #[command(subcommand)]
         command: SearchCommands,
@@ -72,16 +80,8 @@ enum AuthCommands {
         #[arg(long)]
         password: String,
     },
+    Logout,
     Whoami,
-    TokenCreate {
-        #[arg(long)]
-        name: String,
-        #[arg(long)]
-        scope: Vec<String>,
-    },
-    TokenRevoke {
-        token_id: String,
-    },
 }
 
 #[derive(Subcommand)]
@@ -101,6 +101,9 @@ enum SpaceCommands {
     Tree {
         key: String,
     },
+    Members {
+        key: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -115,24 +118,16 @@ enum DocCommands {
         #[arg(long)]
         summary: Option<String>,
     },
-    Approve {
-        document_id: String,
-    },
     Archive {
         document_id: String,
     },
-    Restore {
+    Move {
         document_id: String,
+        #[arg(long)]
+        parent: Option<String>,
     },
     History {
         document_id: String,
-    },
-    Diff {
-        document_id: String,
-        #[arg(long)]
-        from: String,
-        #[arg(long)]
-        to: String,
     },
 }
 
@@ -165,70 +160,36 @@ struct DocContentArgs {
 
 #[derive(Subcommand)]
 enum TaskCommands {
-    Upsert {
-        #[arg(long)]
-        space: String,
-        #[arg(long)]
-        source: String,
-        #[arg(long)]
-        key: String,
-        #[arg(long)]
-        title: Option<String>,
-        #[arg(long)]
-        url: Option<String>,
-        #[arg(long)]
-        status: Option<String>,
-    },
-    Get {
-        #[arg(long)]
-        space: String,
-        #[arg(long)]
-        source: String,
-        #[arg(long)]
-        key: String,
-    },
-    Docs {
-        task_key: String,
-    },
-    Phases {
-        task_key: String,
-    },
+    Get(LinkTargetArgs),
+    Docs(LinkTargetArgs),
+    Evidence(LinkTargetArgs),
+    LinkDoc(LinkDocumentArgs),
 }
 
 #[derive(Subcommand)]
 enum PhaseCommands {
-    Upsert {
-        #[arg(long)]
-        task: String,
-        #[arg(long)]
-        workflow_run: Option<String>,
-        #[arg(long)]
-        phase_code: String,
-        #[arg(long)]
-        phase_name: String,
-        #[arg(long)]
-        status: Option<String>,
-    },
-    Complete {
-        #[arg(long)]
-        task: String,
-        #[arg(long)]
-        phase: String,
-        #[arg(long)]
-        verdict: Option<String>,
-    },
-    Docs {
-        #[arg(long)]
-        task: String,
-        #[arg(long)]
-        phase: String,
-    },
-    Evidence {
-        #[arg(long)]
-        task: String,
-        #[arg(long)]
-        phase: String,
-    },
+    Get(LinkTargetArgs),
+    Docs(LinkTargetArgs),
+    Evidence(LinkTargetArgs),
+    LinkDoc(LinkDocumentArgs),
+}
+
+#[derive(Args)]
+struct LinkTargetArgs {
+    #[arg(long)]
+    space: String,
+    #[arg(long)]
+    key: String,
+}
+
+#[derive(Args)]
+struct LinkDocumentArgs {
+    #[arg(long)]
+    space: String,
+    #[arg(long)]
+    key: String,
+    #[arg(long)]
+    document: String,
 }
 
 #[derive(Subcommand)]
@@ -240,6 +201,8 @@ enum EvidenceCommands {
     },
     List {
         #[arg(long)]
+        space: Option<String>,
+        #[arg(long)]
         task: Option<String>,
         #[arg(long)]
         phase: Option<String>,
@@ -248,6 +211,8 @@ enum EvidenceCommands {
 
 #[derive(Args)]
 struct EvidenceLinkArgs {
+    #[arg(long)]
+    space: Option<String>,
     #[arg(long)]
     task: Option<String>,
     #[arg(long)]
@@ -263,6 +228,8 @@ struct EvidenceLinkArgs {
 #[derive(Args)]
 struct EvidenceFileArgs {
     #[arg(long)]
+    space: Option<String>,
+    #[arg(long)]
     task: Option<String>,
     #[arg(long)]
     phase: Option<String>,
@@ -272,6 +239,27 @@ struct EvidenceFileArgs {
     title: String,
     #[arg(long)]
     file: PathBuf,
+}
+
+#[derive(Subcommand)]
+enum TemplateCommands {
+    List,
+    Apply(TemplateApplyArgs),
+}
+
+#[derive(Args)]
+struct TemplateApplyArgs {
+    template: String,
+    #[arg(long)]
+    space: String,
+    #[arg(long)]
+    title: String,
+    #[arg(long)]
+    parent_id: Option<String>,
+    #[arg(long)]
+    task: Option<String>,
+    #[arg(long)]
+    phase: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -306,27 +294,26 @@ impl ApiClient {
         self.request(Method::GET, path).send_json().await
     }
 
-    async fn delete(&self, path: &str) -> Result<Value> {
-        self.request(Method::DELETE, path).send_json().await
-    }
-
     async fn post_json(&self, path: &str, body: Value) -> Result<Value> {
-        self.request(Method::POST, path)
-            .json(&body)
-            .send_json()
-            .await
+        self.write_json(Method::POST, path, body).await
     }
 
     async fn put_json(&self, path: &str, body: Value) -> Result<Value> {
-        self.request(Method::PUT, path)
-            .json(&body)
-            .send_json()
-            .await
+        self.write_json(Method::PUT, path, body).await
     }
 
     async fn post_multipart(&self, path: &str, form: multipart::Form) -> Result<Value> {
         self.request(Method::POST, path)
+            .header("Idempotency-Key", idempotency_key("upload"))
             .multipart(form)
+            .send_json()
+            .await
+    }
+
+    async fn write_json(&self, method: Method, path: &str, body: Value) -> Result<Value> {
+        self.request(method, path)
+            .header("Idempotency-Key", idempotency_key("write"))
+            .json(&body)
             .send_json()
             .await
     }
@@ -377,6 +364,7 @@ async fn execute(api: &ApiClient, command: Commands) -> Result<Value> {
         Commands::Task { command } => execute_task(api, command).await,
         Commands::Phase { command } => execute_phase(api, command).await,
         Commands::Evidence { command } => execute_evidence(api, command).await,
+        Commands::Template { command } => execute_template(api, command).await,
         Commands::Search { command } => execute_search(api, command).await,
     }
 }
@@ -390,15 +378,8 @@ async fn execute_auth(api: &ApiClient, command: AuthCommands) -> Result<Value> {
             )
             .await
         }
+        AuthCommands::Logout => api.post_json("/auth/logout", json!({})).await,
         AuthCommands::Whoami => api.get("/users/me").await,
-        AuthCommands::TokenCreate { name, scope } => {
-            api.post_json("/users/me/tokens", json!({ "name": name, "scopes": scope }))
-                .await
-        }
-        AuthCommands::TokenRevoke { token_id } => {
-            api.delete(&format!("/users/me/tokens/{}", enc(&token_id)))
-                .await
-        }
     }
 }
 
@@ -418,13 +399,14 @@ async fn execute_space(api: &ApiClient, command: SpaceCommands) -> Result<Value>
         }
         SpaceCommands::Get { key } => api.get(&format!("/spaces/{}", enc(&key))).await,
         SpaceCommands::Tree { key } => api.get(&format!("/spaces/{}/tree", enc(&key))).await,
+        SpaceCommands::Members { key } => api.get(&format!("/spaces/{}/members", enc(&key))).await,
     }
 }
 
 async fn execute_doc(api: &ApiClient, command: DocCommands) -> Result<Value> {
     match command {
         DocCommands::Create(args) => {
-            let content = read_file(&args.from_file).await?;
+            let content = read_markdown(&args.from_file)?;
             api.post_json(
                 &format!("/spaces/{}/documents", enc(&args.space)),
                 json!({
@@ -433,7 +415,7 @@ async fn execute_doc(api: &ApiClient, command: DocCommands) -> Result<Value> {
                     "parent_id": args.parent_id,
                     "slug": args.slug,
                     "task_key": args.task,
-                    "phase_code": args.phase,
+                    "phase_key": args.phase,
                     "content_markdown": content
                 }),
             )
@@ -443,7 +425,7 @@ async fn execute_doc(api: &ApiClient, command: DocCommands) -> Result<Value> {
             api.get(&format!("/documents/{}", enc(&document_id))).await
         }
         DocCommands::Draft(args) => {
-            let content = read_file(&args.from_file).await?;
+            let content = read_markdown(&args.from_file)?;
             api.put_json(
                 &format!("/documents/{}/draft", enc(&args.document_id)),
                 json!({ "content_markdown": content }),
@@ -456,14 +438,7 @@ async fn execute_doc(api: &ApiClient, command: DocCommands) -> Result<Value> {
         } => {
             api.post_json(
                 &format!("/documents/{}/publish", enc(&document_id)),
-                json!({ "change_summary": summary }),
-            )
-            .await
-        }
-        DocCommands::Approve { document_id } => {
-            api.post_json(
-                &format!("/documents/{}/approve", enc(&document_id)),
-                json!({}),
+                json!({ "summary": summary }),
             )
             .await
         }
@@ -474,10 +449,13 @@ async fn execute_doc(api: &ApiClient, command: DocCommands) -> Result<Value> {
             )
             .await
         }
-        DocCommands::Restore { document_id } => {
+        DocCommands::Move {
+            document_id,
+            parent,
+        } => {
             api.post_json(
-                &format!("/documents/{}/restore", enc(&document_id)),
-                json!({}),
+                &format!("/documents/{}/move", enc(&document_id)),
+                json!({ "parent_id": parent }),
             )
             .await
         }
@@ -485,113 +463,46 @@ async fn execute_doc(api: &ApiClient, command: DocCommands) -> Result<Value> {
             api.get(&format!("/documents/{}/revisions", enc(&document_id)))
                 .await
         }
-        DocCommands::Diff {
-            document_id,
-            from,
-            to,
-        } => {
-            api.get(&format!(
-                "/documents/{}/diff?from={}&to={}",
-                enc(&document_id),
-                enc(&from),
-                enc(&to)
-            ))
-            .await
-        }
     }
 }
 
 async fn execute_task(api: &ApiClient, command: TaskCommands) -> Result<Value> {
     match command {
-        TaskCommands::Upsert {
-            space,
-            source,
-            key,
-            title,
-            url,
-            status,
-        } => {
+        TaskCommands::Get(args) => api.get(&task_path(&args.space, &args.key)).await,
+        TaskCommands::Docs(args) => {
+            api.get(&format!("{}/documents", task_path(&args.space, &args.key)))
+                .await
+        }
+        TaskCommands::Evidence(args) => {
+            api.get(&format!("{}/evidence", task_path(&args.space, &args.key)))
+                .await
+        }
+        TaskCommands::LinkDoc(args) => {
             api.post_json(
-                &format!("/spaces/{}/tasks", enc(&space)),
-                json!({
-                    "source_system": source,
-                    "external_task_key": key,
-                    "title_snapshot": title,
-                    "external_task_url": url,
-                    "status_snapshot": status
-                }),
+                &format!("{}/links/documents", task_path(&args.space, &args.key)),
+                json!({ "document_id": args.document }),
             )
             .await
-        }
-        TaskCommands::Get { space, source, key } => {
-            api.get(&format!(
-                "/spaces/{}/tasks/{}/{}",
-                enc(&space),
-                enc(&source),
-                enc(&key)
-            ))
-            .await
-        }
-        TaskCommands::Docs { task_key } => {
-            api.get(&format!("/task-dossiers/{}/documents", enc(&task_key)))
-                .await
-        }
-        TaskCommands::Phases { task_key } => {
-            api.get(&format!("/task-dossiers/{}/phases", enc(&task_key)))
-                .await
         }
     }
 }
 
 async fn execute_phase(api: &ApiClient, command: PhaseCommands) -> Result<Value> {
     match command {
-        PhaseCommands::Upsert {
-            task,
-            workflow_run,
-            phase_code,
-            phase_name,
-            status,
-        } => {
+        PhaseCommands::Get(args) => api.get(&phase_path(&args.space, &args.key)).await,
+        PhaseCommands::Docs(args) => {
+            api.get(&format!("{}/documents", phase_path(&args.space, &args.key)))
+                .await
+        }
+        PhaseCommands::Evidence(args) => {
+            api.get(&format!("{}/evidence", phase_path(&args.space, &args.key)))
+                .await
+        }
+        PhaseCommands::LinkDoc(args) => {
             api.post_json(
-                &format!("/task-dossiers/{}/phases", enc(&task)),
-                json!({
-                    "workflow_run_id": workflow_run,
-                    "phase_code": phase_code,
-                    "phase_name": phase_name,
-                    "phase_status": status
-                }),
+                &format!("{}/links/documents", phase_path(&args.space, &args.key)),
+                json!({ "document_id": args.document }),
             )
-            .await
-        }
-        PhaseCommands::Complete {
-            task,
-            phase,
-            verdict,
-        } => {
-            api.post_json(
-                &format!(
-                    "/task-dossiers/{}/phases/{}/complete",
-                    enc(&task),
-                    enc(&phase)
-                ),
-                json!({ "supervisor_verdict": verdict }),
-            )
-            .await
-        }
-        PhaseCommands::Docs { task, phase } => {
-            api.get(&format!(
-                "/task-dossiers/{}/phases/{}/documents",
-                enc(&task),
-                enc(&phase)
-            ))
-            .await
-        }
-        PhaseCommands::Evidence { task, phase } => {
-            api.get(&format!(
-                "/task-dossiers/{}/phases/{}/evidence",
-                enc(&task),
-                enc(&phase)
-            ))
             .await
         }
     }
@@ -603,8 +514,9 @@ async fn execute_evidence(api: &ApiClient, command: EvidenceCommands) -> Result<
             api.post_json(
                 "/evidence",
                 json!({
+                    "space": args.space,
                     "task_key": args.task,
-                    "phase_code": args.phase,
+                    "phase_key": args.phase,
                     "evidence_type": args.evidence_type,
                     "title": args.title,
                     "url": args.url
@@ -613,8 +525,7 @@ async fn execute_evidence(api: &ApiClient, command: EvidenceCommands) -> Result<
             .await
         }
         EvidenceCommands::AddFile(args) => {
-            let bytes = tokio::fs::read(&args.file)
-                .await
+            let bytes = std::fs::read(&args.file)
                 .with_context(|| format!("failed to read {}", args.file.display()))?;
             let filename = args
                 .file
@@ -629,12 +540,13 @@ async fn execute_evidence(api: &ApiClient, command: EvidenceCommands) -> Result<
             api.post_json(
                 "/evidence",
                 json!({
+                    "space": args.space,
                     "task_key": args.task,
-                    "phase_code": args.phase,
+                    "phase_key": args.phase,
                     "evidence_type": args.evidence_type,
                     "title": args.title,
-                    "filename": filename,
-                    "attachment": attachment
+                    "attachment_id": attachment.get("id").cloned().unwrap_or(Value::Null),
+                    "checksum": attachment.get("checksum").cloned().unwrap_or(Value::Null)
                 }),
             )
             .await
@@ -642,9 +554,37 @@ async fn execute_evidence(api: &ApiClient, command: EvidenceCommands) -> Result<
         EvidenceCommands::Get { evidence_id } => {
             api.get(&format!("/evidence/{}", enc(&evidence_id))).await
         }
-        EvidenceCommands::List { task, phase } => {
-            let query = query_string([("task_key", task), ("phase_code", phase)]);
+        EvidenceCommands::List { space, task, phase } => {
+            let query = query_string([("space", space), ("task_key", task), ("phase_key", phase)]);
             api.get(&format!("/evidence{}", query)).await
+        }
+    }
+}
+
+async fn execute_template(api: &ApiClient, command: TemplateCommands) -> Result<Value> {
+    match command {
+        TemplateCommands::List => api.get("/templates").await,
+        TemplateCommands::Apply(args) => {
+            let templates = api.get("/templates").await?;
+            let template = find_template(&templates, &args.template)?;
+            api.post_json(
+                &format!("/spaces/{}/documents", enc(&args.space)),
+                json!({
+                    "title": args.title,
+                    "document_type": template
+                        .get("document_type")
+                        .cloned()
+                        .unwrap_or_else(|| json!("page")),
+                    "parent_id": args.parent_id,
+                    "task_key": args.task,
+                    "phase_key": args.phase,
+                    "content_markdown": template
+                        .get("body_markdown")
+                        .cloned()
+                        .unwrap_or_else(|| json!(""))
+                }),
+            )
+            .await
         }
     }
 }
@@ -661,17 +601,43 @@ async fn execute_search(api: &ApiClient, command: SearchCommands) -> Result<Valu
                 ("q", Some(query)),
                 ("space", space),
                 ("task_key", task),
-                ("phase_code", phase),
+                ("phase_key", phase),
             ]);
             api.get(&format!("/search{}", query)).await
         }
     }
 }
 
-async fn read_file(path: &PathBuf) -> Result<String> {
-    tokio::fs::read_to_string(path)
-        .await
-        .with_context(|| format!("failed to read {}", path.display()))
+fn find_template<'a>(value: &'a Value, requested: &str) -> Result<&'a Value> {
+    let templates = value
+        .get("templates")
+        .and_then(Value::as_array)
+        .context("API response does not contain templates array")?;
+    let requested_lower = requested.to_ascii_lowercase();
+    templates
+        .iter()
+        .find(|template| {
+            template
+                .get("id")
+                .and_then(Value::as_str)
+                .is_some_and(|id| id.eq_ignore_ascii_case(requested))
+                || template
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .is_some_and(|name| name.to_ascii_lowercase() == requested_lower)
+        })
+        .with_context(|| format!("template {requested} not found"))
+}
+
+fn read_markdown(path: &PathBuf) -> Result<String> {
+    if path.as_os_str() == "-" {
+        let mut input = String::new();
+        std::io::stdin()
+            .read_to_string(&mut input)
+            .context("failed to read stdin")?;
+        return Ok(input);
+    }
+    std::fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))
 }
 
 fn print_value(value: &Value, output: OutputFormat) -> Result<()> {
@@ -692,6 +658,15 @@ fn print_table(value: &Value) {
                 println!("{}", compact_line(item));
             }
         }
+        Value::Object(map) => {
+            if let Some(items) = map.values().find_map(Value::as_array) {
+                for item in items {
+                    println!("{}", compact_line(item));
+                }
+            } else {
+                println!("{}", compact_line(value));
+            }
+        }
         other => println!("{}", compact_line(other)),
     }
 }
@@ -706,10 +681,11 @@ fn compact_line(value: &Value) -> String {
             let preferred = [
                 "id",
                 "key",
+                "task_key",
+                "phase_key",
                 "title",
                 "name",
                 "status",
-                "phase_code",
                 "document_type",
                 "url",
             ];
@@ -734,6 +710,14 @@ fn scalar_to_string(key: &str, value: &Value) -> String {
     }
 }
 
+fn task_path(space: &str, key: &str) -> String {
+    format!("/spaces/{}/tasks/{}", enc(space), enc(key))
+}
+
+fn phase_path(space: &str, key: &str) -> String {
+    format!("/spaces/{}/phases/{}", enc(space), enc(key))
+}
+
 fn query_string<const N: usize>(pairs: [(&str, Option<String>); N]) -> String {
     let parts: Vec<String> = pairs
         .into_iter()
@@ -748,4 +732,12 @@ fn query_string<const N: usize>(pairs: [(&str, Option<String>); N]) -> String {
 
 fn enc(value: &str) -> String {
     urlencoding::encode(value).into_owned()
+}
+
+fn idempotency_key(scope: &str) -> String {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or_default();
+    format!("wiki-cli-{scope}-{nanos}")
 }

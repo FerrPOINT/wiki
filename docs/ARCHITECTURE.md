@@ -156,7 +156,7 @@ MVP pages:
 - templates;
 - users/settings/audit for admin.
 
-Текущий React shell уже заменён на Wiki-навигацию и статические страницы целевого продукта. Backend API пока остаётся legacy seed, поэтому страницы постепенно подключаются к новым endpoint'ам по мере реализации Wiki domain/API.
+Текущий React shell уже заменён на Wiki-навигацию и статические страницы целевого продукта. Backend API переключён на Wiki MVP in-memory shell: публичный router/OpenAPI больше не экспонирует task-tracker endpoints, но полноценные PostgreSQL repositories и migrations ещё должны заменить унаследованный backend domain.
 
 ## 11. CLI
 
@@ -180,9 +180,11 @@ MVP pages:
 | Идентичность проекта `wiki`/`WIKI_` | Готово |
 | Product requirements reduced to base app | Готово |
 | Удаление task-tracker-only documentation/screenshots/frontend pages | Готово |
-| Замена domain/app/api на Wiki сущности | Следующий шаг |
+| Замена публичного API/router на Wiki MVP | Готово для in-memory shell |
+| Замена domain/app/repositories/migrations на Wiki сущности | Следующий шаг |
 | Замена frontend страниц на Wiki UI | Готово |
-| Перегенерация OpenAPI и frontend client | После backend domain/API migration |
+| Перегенерация OpenAPI | Готово для MVP API shell |
+| Generated frontend client | После стабилизации PostgreSQL-backed API |
 
 ## References
 

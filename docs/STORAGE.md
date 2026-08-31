@@ -52,8 +52,8 @@ pub trait FileStore: Send + Sync {
 attachments/
   documents/{document_id}/{attachment_id}/{sanitized_filename}
   revisions/{revision_id}/{attachment_id}/{sanitized_filename}
-  task-dossiers/{task_dossier_id}/{attachment_id}/{sanitized_filename}
-  phase-dossiers/{phase_dossier_id}/{attachment_id}/{sanitized_filename}
+  tasks/{space_key}/{task_key}/{attachment_id}/{sanitized_filename}
+  phases/{space_key}/{phase_key}/{attachment_id}/{sanitized_filename}
   evidence/{evidence_id}/{attachment_id}/{sanitized_filename}
 previews/
   attachments/{attachment_id}.webp

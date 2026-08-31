@@ -9,7 +9,7 @@
 | Tool | Purpose |
 |------|---------|
 | `sea-orm-migration` | Применение миграций при старте сервера |
-| `cargo build --bin gen-openapi` | Генерация OpenAPI spec |
+| `cargo build --bin openapi-gen` | Генерация OpenAPI spec |
 | `sea-orm-cli generate entity` | Генерация сущностей из схемы (опционально) |
 
 ## 3. Folder Structure

@@ -4,7 +4,7 @@
 
 REST API Wiki предоставляет базовые операции продукта: auth, users, spaces, documents, revisions, task links, phase links, evidence, attachments, templates, search и audit.
 
-Текущий `openapi/openapi.json` унаследован из `task-tracker` и должен быть заменён после реализации Wiki API. Нормативный источник для целевого API на этом этапе - `docs/PRODUCT_REQUIREMENTS.md`.
+Текущий `openapi/openapi.json` зафиксирован под Wiki MVP API shell. До завершения PostgreSQL domain/repository migration он описывает целевой публичный контракт и in-memory прототип, а не финальную персистентную реализацию.
 
 ## 2. Общие правила
 
@@ -21,7 +21,9 @@ REST API Wiki предоставляет базовые операции про�
 
 | Method | Path | Назначение |
 |---|---|---|
+| `POST` | `/auth/register` | Регистрация пользователя |
 | `POST` | `/auth/login` | Вход |
+| `POST` | `/auth/refresh` | Обновление access token |
 | `POST` | `/auth/logout` | Завершение сессии |
 | `GET` | `/users/me` | Текущий пользователь |
 

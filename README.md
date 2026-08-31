@@ -4,7 +4,7 @@ Self-hosted база знаний для SDLC: документы, ревизи�
 
 ## Статус
 
-Проект находится в стадии подготовки MVP. Кодовая база скопирована из `task-tracker`, но целевая доменная модель Wiki уже зафиксирована в документации и frontend-shell.
+Проект находится в стадии подготовки MVP. Кодовая база скопирована из `task-tracker`, но публичный Wiki router/OpenAPI, CLI surface, документация и frontend-shell уже сведены к базовому Wiki scope.
 
 | Capability | Статус |
 |---|---|
@@ -131,7 +131,7 @@ target\debug\wiki.exe evidence add-link --task SDLC-42 --phase testing --title "
 
 ![Document view](docs/screenshots/06-document-view.png)
 
-### Dossiers and Workflow
+### Задачи и фазы workflow
 
 ![Задачи](docs/screenshots/07-task-dossiers.png)
 
@@ -175,11 +175,11 @@ target\debug\wiki.exe evidence add-link --task SDLC-42 --phase testing --title "
 
 ```text
 wiki/
-├── backend/         # Rust workspace inherited from task-tracker, to be migrated
+├── backend/         # Rust workspace; public API shell is Wiki MVP, domain persistence still being migrated
 ├── frontend/        # React/Vite Wiki shell and pages
 ├── cli/             # CLI usage notes
 ├── docs/            # requirements, architecture, contracts, operations, quality
-├── openapi/         # target API artifact; inherited spec to be replaced
+├── openapi/         # Wiki MVP API artifact
 ├── scripts/         # helper scripts
 └── docker-compose.yml
 ```

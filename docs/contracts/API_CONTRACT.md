@@ -14,12 +14,12 @@
 | Auth | `/auth/*`, `/users/me` |
 | Spaces | `/spaces`, `/spaces/{space_key}` |
 | Documents | `/documents/*`, `/spaces/{space_key}/documents` |
-| Task dossiers | `/task-dossiers/*`, `/spaces/{space_key}/tasks` |
-| Phase dossiers | `/phase-dossiers/*` |
-| Evidence | `/evidence`, `/phase-dossiers/{id}/evidence` |
+| Task dossiers | `/spaces/{space_key}/tasks/*` |
+| Phase dossiers | `/spaces/{space_key}/phases/*` |
+| Evidence | `/evidence`, `/spaces/{space_key}/tasks/{task_key}/evidence`, `/spaces/{space_key}/phases/{phase_key}/evidence` |
 | Attachments | `/attachments/*` |
 | Search | `/search` |
-| Admin | `/admin/*`, `/audit-log` |
+| Admin | `/users`, `/settings`, `/audit-log` |
 
 ## 3. Rules
 

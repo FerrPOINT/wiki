@@ -42,7 +42,7 @@ wiki doc move <document-id> --parent <parent-document-id>
 wiki doc history <document-id>
 ```
 
-### Task Dossiers
+### Task Pages
 
 ```bash
 wiki task get --space SDLC --key SDLC-42
@@ -51,7 +51,7 @@ wiki task evidence --space SDLC --key SDLC-42
 wiki task link-doc --space SDLC --key SDLC-42 --document <document-id>
 ```
 
-### Phase Dossiers
+### Phase Pages
 
 ```bash
 wiki phase get --space SDLC --key implementation
@@ -72,7 +72,7 @@ wiki evidence list --space SDLC --task SDLC-42
 ### Templates and Search
 
 ```bash
-wiki template list --space SDLC
+wiki template list
 wiki template apply requirements --space SDLC --title "Requirements"
 wiki search query "authorization" --space SDLC
 ```

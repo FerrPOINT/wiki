@@ -22,10 +22,10 @@
 - Вложенность допускается там, где она выражает ownership:
   - `/spaces/{space_key}/documents`
   - `/documents/{document_id}/revisions`
-  - `/task-dossiers/{task_dossier_id}/phases`
-  - `/phase-dossiers/{phase_dossier_id}/evidence`
+  - `/spaces/{space_key}/phases/{phase_key}`
+  - `/spaces/{space_key}/phases/{phase_key}/evidence`
 - UUID ресурсов - UUIDv7.
-- Внешние task keys передаются URL-encoded и всегда сопровождаются `source_system`, если возможна неоднозначность.
+- Внешние task keys передаются URL-encoded как непрозрачные строки; Wiki не управляет внешним task tracker state.
 
 ## 4. HTTP Methods
 
@@ -68,9 +68,9 @@
 
 ## 8. Realtime Events
 
-- MVP может использовать SSE endpoint `/api/v1/events`.
-- События и payloads описаны в `docs/EVENTS.md`.
-- Клиент обязан уметь refetch-ить документ/dossier после reconnect.
+- MVP не требует realtime endpoint.
+- Если SSE/WebSocket будут добавлены позже, они оформляются отдельным scope и не меняют базовый REST contract.
+- Клиенты должны уметь обновлять документ/dossier обычным refetch без realtime зависимости.
 
 ## 9. Idempotency
 

@@ -16,7 +16,6 @@ path = "src/lib.rs"
 shared = { path = "../shared" }
 domain = { path = "../domain" }
 app = { path = "../app" }
-infra = { path = "../infra" }
 api = { path = "../api" }
 axum.workspace = true
 tokio.workspace = true
@@ -26,5 +25,4 @@ tracing-subscriber.workspace = true
 [dev-dependencies]
 reqwest = { workspace = true, features = ["json"] }
 serde_json.workspace = true
-sea-orm.workspace = true
 serial_test = "3.2"

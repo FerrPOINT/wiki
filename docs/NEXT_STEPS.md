@@ -14,7 +14,7 @@ The remaining work is implementation, not product-scope expansion.
 
 ## 1. Backend Domain Migration
 
-Replace the inherited task-tracker domain with Wiki-owned modules:
+The public API/router is now a Wiki MVP in-memory shell. Replace the inherited task-tracker domain behind it with Wiki-owned modules:
 
 - `spaces` and `space_members`;
 - `documents`, `document_drafts`, `document_revisions`;
@@ -26,12 +26,14 @@ Replace the inherited task-tracker domain with Wiki-owned modules:
 - audit log;
 - PostgreSQL full-text search.
 
-Remove or quarantine inherited tracker concepts from runtime API:
+Remove or quarantine remaining inherited tracker concepts from backend internals:
 
 - issues, boards, sprints and worklogs;
 - watchers, votes, labels and issue links;
 - custom fields, components and versions;
 - reports and notifications runtime services.
+
+Current status: runtime router, OpenAPI, API route files and default API tests are reduced to Wiki MVP; persistence/domain internals still need replacement.
 
 ## 2. Database And Migrations
 
@@ -43,19 +45,17 @@ Remove or quarantine inherited tracker concepts from runtime API:
 
 ## 3. API And OpenAPI
 
-- Implement `/api/v1` endpoints from `docs/API.md` and `docs/contracts/API_CONTRACT.md`.
-- Remove inherited tracker routes from the runtime router.
-- Regenerate `openapi/openapi.json` from the implemented Wiki API.
+- Replace in-memory API handlers with application use cases backed by Wiki repositories.
+- Keep inherited tracker routes out of the runtime router.
+- Regenerate `openapi/openapi.json` after any handler DTO/route change.
 - Add generated frontend API types after OpenAPI is stable.
 - Keep UI and CLI as ordinary clients of the same public API.
 
 ## 4. CLI Parity
 
-- Align `backend/cli/src/main.rs` with `docs/CLI.md`.
-- Add missing MVP commands for templates, document move, task evidence, phase get and auth logout.
-- Normalize task/phase command flags so they match the API contract.
-- Add idempotency keys for repeated write commands.
+- Keep `backend/cli/src/main.rs` aligned with `docs/CLI.md`.
 - Add CLI smoke tests against mocked HTTP responses.
+- Add idempotency keys for repeated write commands.
 
 ## 5. Frontend Integration
 
@@ -100,7 +100,7 @@ Remove or quarantine inherited tracker concepts from runtime API:
 7. Implement evidence and attachment storage.
 8. Add templates, search and audit coverage.
 9. Bring CLI to parity with the public API.
-10. Remove inherited tracker runtime routes and regenerate clients/specs.
+10. Remove remaining inherited tracker backend internals and regenerate clients/specs.
 
 ## 10. Done Criteria For Backend Start
 

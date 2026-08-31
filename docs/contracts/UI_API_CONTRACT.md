@@ -2,7 +2,7 @@
 
 ## 1. Rule
 
-Target frontend uses generated OpenAPI types for API calls. Current MVP shell keeps a thin handwritten auth client until the Wiki backend domain and OpenAPI schema replace inherited task-tracker contracts.
+Target frontend uses generated OpenAPI types for API calls. Current MVP shell keeps a thin handwritten auth client while the Wiki backend moves from the in-memory API shell to PostgreSQL-backed domain repositories.
 
 ## 2. Required UI States
 
