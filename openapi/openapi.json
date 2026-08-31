@@ -845,6 +845,34 @@
         ]
       }
     },
+    "/api/v1/settings": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "operationId": "get_settings",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WikiSettingsResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/spaces": {
       "get": {
         "tags": [
@@ -2946,6 +2974,62 @@
           }
         }
       },
+      "WikiSettingsResponse": {
+        "type": "object",
+        "required": [
+          "instance_name",
+          "api_base_path",
+          "default_space_key",
+          "default_language",
+          "timezone",
+          "registration_enabled",
+          "public_links_enabled",
+          "search_backend",
+          "storage_backend",
+          "max_upload_bytes",
+          "markdown_renderer",
+          "html_sanitizer"
+        ],
+        "properties": {
+          "api_base_path": {
+            "type": "string"
+          },
+          "default_language": {
+            "type": "string"
+          },
+          "default_space_key": {
+            "type": "string"
+          },
+          "html_sanitizer": {
+            "type": "string"
+          },
+          "instance_name": {
+            "type": "string"
+          },
+          "markdown_renderer": {
+            "type": "string"
+          },
+          "max_upload_bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "public_links_enabled": {
+            "type": "boolean"
+          },
+          "registration_enabled": {
+            "type": "boolean"
+          },
+          "search_backend": {
+            "type": "string"
+          },
+          "storage_backend": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          }
+        }
+      },
       "WikiUpdateUserRequest": {
         "type": "object",
         "properties": {
@@ -3085,6 +3169,10 @@
     {
       "name": "templates",
       "description": "Document templates"
+    },
+    {
+      "name": "settings",
+      "description": "Instance settings"
     },
     {
       "name": "audit",

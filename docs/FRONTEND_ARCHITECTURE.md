@@ -96,7 +96,7 @@ app -> pages -> widgets -> features -> entities -> shared
 
 ## 6. Server State
 
-Current frontend uses generated OpenAPI DTO types in `frontend/src/api/generated.ts`, a thin handwritten HTTP wrapper in `frontend/src/api/wiki.ts` / `frontend/src/api/auth.ts`, and TanStack Query hooks in `frontend/src/shared/api/hooks.ts`. `npm run generate:api` refreshes DTO schemas from `openapi/openapi.json`; full operation-client generation remains deferred until the app/infra repository boundary stabilizes.
+Current frontend uses generated OpenAPI DTO types in `frontend/src/api/generated.ts`, a thin handwritten HTTP wrapper in `frontend/src/api/wiki.ts` / `frontend/src/api/auth.ts`, and TanStack Query hooks in `frontend/src/shared/api/hooks.ts`. Dashboard, admin overview and all MVP feature pages read their displayed runtime data from the public Wiki API; deterministic mocks remain only in tests and screenshot capture. `npm run generate:api` refreshes DTO schemas from `openapi/openapi.json`; full operation-client generation remains deferred until the app/infra repository boundary stabilizes.
 
 Query key examples:
 

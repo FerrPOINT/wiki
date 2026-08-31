@@ -18,7 +18,7 @@ Self-hosted SDLC knowledge base для FerrPOINT: spaces, documents, revisions, 
 - Task and phase dossiers linked to evidence, checks and SDLC workflow context.
 - Evidence registry for links, screenshots, files, PRs, pipeline runs and release checks.
 - Templates, audit log, users/settings/admin pages and global search surface.
-- CLI binary `wiki` for spaces, documents and evidence operations.
+- CLI binary `wiki` for spaces, documents, evidence and settings operations.
 - Architecture, operations, threat model, traceability and visual screenshot evidence.
 
 ## Границы
@@ -58,6 +58,7 @@ set WIKI_TOKEN=<jwt_token>
 
 target\debug\wiki.exe space list
 target\debug\wiki.exe doc create --space SDLC --title "Requirements" --from-file requirements.md
+target\debug\wiki.exe settings get
 ```
 
 ## Frontend routes
@@ -72,6 +73,32 @@ target\debug\wiki.exe doc create --space SDLC --title "Requirements" --from-file
 | `/evidence`, `/templates`, `/audit-log`               | Evidence and operations |
 | `/users`, `/settings`, `/admin`                       | Administration          |
 | `/search`                                             | Global search           |
+
+## Скриншоты
+
+Полные параметры пересъемки: [docs/assets/screens/manifest.md](docs/assets/screens/manifest.md).
+
+| Route                    | Скриншот                                                                    |
+| ------------------------ | --------------------------------------------------------------------------- |
+| `/login`                 | [01-login.png](docs/screenshots/01-login.png)                               |
+| `/register`              | [02-register.png](docs/screenshots/02-register.png)                         |
+| `/`                      | [03-dashboard.png](docs/screenshots/03-dashboard.png)                       |
+| `/spaces`                | [04-spaces.png](docs/screenshots/04-spaces.png)                             |
+| `/documents/new`         | [05-document-compose.png](docs/screenshots/05-document-compose.png)         |
+| `/documents/:documentId` | [06-document-view.png](docs/screenshots/06-document-view.png)               |
+| `/tasks`                 | [07-task-dossiers.png](docs/screenshots/07-task-dossiers.png)               |
+| `/tasks/:taskKey`        | [08-task-dossier-detail.png](docs/screenshots/08-task-dossier-detail.png)   |
+| `/phases`                | [09-phase-dossiers.png](docs/screenshots/09-phase-dossiers.png)             |
+| `/phases/:phaseId`       | [10-phase-dossier-detail.png](docs/screenshots/10-phase-dossier-detail.png) |
+| `/evidence`              | [11-evidence.png](docs/screenshots/11-evidence.png)                         |
+| `/templates`             | [12-templates.png](docs/screenshots/12-templates.png)                       |
+| `/audit-log`             | [13-audit-log.png](docs/screenshots/13-audit-log.png)                       |
+| `/users`                 | [14-users.png](docs/screenshots/14-users.png)                               |
+| `/settings`              | [15-settings.png](docs/screenshots/15-settings.png)                         |
+| `/search`                | [16-search.png](docs/screenshots/16-search.png)                             |
+| `/admin`                 | [17-admin.png](docs/screenshots/17-admin.png)                               |
+
+Mobile smoke: [dashboard](docs/screenshots/m-dashboard.png), [spaces](docs/screenshots/m-spaces.png), [document](docs/screenshots/m-document-view.png), [task](docs/screenshots/m-task-dossier.png), [search](docs/screenshots/m-search.png).
 
 ## Структура
 

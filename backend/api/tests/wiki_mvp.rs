@@ -268,6 +268,66 @@ async fn wiki_register_respects_instance_registration_setting() {
 }
 
 #[tokio::test]
+async fn wiki_settings_are_admin_only_and_config_backed() {
+    let app = test_app_with_config(test_config_with_registration(false));
+
+    let (status, login) = call(
+        &app,
+        Method::POST,
+        "/api/v1/auth/login",
+        None,
+        Some(json!({ "email": "demo@example.com", "password": "demo" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let admin_token = login["access_token"].as_str().unwrap();
+
+    let (status, settings) = call(
+        &app,
+        Method::GET,
+        "/api/v1/settings",
+        Some(admin_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(settings["instance_name"], "Wiki");
+    assert_eq!(settings["api_base_path"], "/api/v1");
+    assert_eq!(settings["default_space_key"], "SDLC");
+    assert_eq!(settings["registration_enabled"], false);
+    assert_eq!(settings["storage_backend"], "local");
+    assert_eq!(settings["search_backend"], "PostgreSQL FTS");
+    assert_eq!(settings["max_upload_bytes"], 25 * 1024 * 1024);
+
+    let app = test_app();
+    let (status, user) = call(
+        &app,
+        Method::POST,
+        "/api/v1/auth/register",
+        None,
+        Some(json!({
+            "email": "regular@example.com",
+            "username": "regular",
+            "password": "regular-password",
+            "name": "Regular User"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let user_token = user["access_token"].as_str().unwrap();
+    let (status, body) = call(
+        &app,
+        Method::GET,
+        "/api/v1/settings",
+        Some(user_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(body["error"]["code"], "FORBIDDEN");
+}
+
+#[tokio::test]
 async fn wiki_postgres_register_respects_instance_registration_setting() {
     let Ok(database_url) = env::var("WIKI_TEST_DATABASE_URL") else {
         eprintln!("skipping postgres registration test: WIKI_TEST_DATABASE_URL is not set");
@@ -318,6 +378,12 @@ async fn wiki_mvp_routes_cover_public_contract() {
     .await;
     assert_eq!(status, StatusCode::OK);
     let token = login["access_token"].as_str().unwrap();
+
+    let (status, settings) = call(&app, Method::GET, "/api/v1/settings", Some(token), None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(settings["instance_name"], "Wiki");
+    assert_eq!(settings["registration_enabled"], true);
+    assert_eq!(settings["default_space_key"], "SDLC");
 
     let (status, spaces) = call(&app, Method::GET, "/api/v1/spaces", Some(token), None).await;
     assert_eq!(status, StatusCode::OK);

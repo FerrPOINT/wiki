@@ -54,3 +54,16 @@ export function shortText(value: string | undefined | null, fallback = 'Без �
   const text = value?.trim()
   return text && text.length > 0 ? text : fallback
 }
+
+export function formatBytes(value: number | undefined): string {
+  if (value === undefined || !Number.isFinite(value)) return 'не задано'
+  const units = ['Б', 'КБ', 'МБ', 'ГБ']
+  let size = value
+  let unit = 0
+  while (size >= 1024 && unit < units.length - 1) {
+    size /= 1024
+    unit += 1
+  }
+  const precision = unit === 0 || size >= 10 ? 0 : 1
+  return `${size.toFixed(precision)} ${units[unit]}`
+}

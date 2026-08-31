@@ -83,6 +83,20 @@ const phase = {
   documents: [documentSummary],
   evidence: [evidence],
 }
+const settings = {
+  instance_name: 'Wiki',
+  api_base_path: '/api/v1',
+  default_space_key: 'SDLC',
+  default_language: 'ru',
+  timezone: 'Europe/Moscow',
+  registration_enabled: true,
+  public_links_enabled: false,
+  search_backend: 'PostgreSQL FTS',
+  storage_backend: 'local',
+  max_upload_bytes: 26214400,
+  markdown_renderer: 'comrak',
+  html_sanitizer: 'ammonia',
+}
 
 function routeJson(route: Route, body: unknown, status = 200) {
   return route.fulfill({
@@ -123,6 +137,7 @@ async function installWikiApiMocks(page: Page) {
     if (method === 'POST' && path === '/auth/logout') return route.fulfill({ status: 204 })
     if (method === 'GET' && path === '/users/me') return routeJson(route, user)
     if (method === 'GET' && path === '/users') return routeJson(route, { users: [user] })
+    if (method === 'GET' && path === '/settings') return routeJson(route, settings)
     if (method === 'GET' && path === '/spaces') {
       return routeJson(route, {
         spaces: [
@@ -334,5 +349,14 @@ test.describe('wiki smoke', () => {
         apiMocks.searchRequests.some((query) => query.includes('document_type=requirements')),
       )
       .toBe(true)
+
+    await page.goto(`${baseURL}/settings`)
+    await expect(page.getByRole('heading', { name: 'Настройки' })).toBeVisible()
+    await expect(page.locator('input[value="PostgreSQL FTS"]')).toBeVisible()
+
+    await page.goto(`${baseURL}/admin`)
+    await expect(page.getByRole('heading', { name: 'Администрирование' })).toBeVisible()
+    await expect(page.getByText('Состояние инстанса')).toBeVisible()
+    await expect(page.getByText('Файлы до 25 МБ')).toBeVisible()
   })
 })

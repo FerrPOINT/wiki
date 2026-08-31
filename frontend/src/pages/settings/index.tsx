@@ -1,59 +1,101 @@
-import { Database, Globe2, KeyRound, Save, Settings2 } from 'lucide-react'
-import { Button } from '@/shared/ui/button'
+import { Database, Globe2, KeyRound, Settings2 } from 'lucide-react'
+import { useWikiSettings } from '@/shared/api/hooks'
+import { ErrorState, LoadingState } from '@/shared/ui/async-states'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
+import { formatBytes } from '@/shared/lib/wiki-format'
 
-const settingsGroups = [
-  {
-    title: 'Инстанс',
-    icon: Settings2,
-    fields: [
-      { id: 'instance-name', label: 'Название инстанса', value: 'Wiki' },
-      { id: 'base-url', label: 'Base URL', value: 'https://wiki.local' },
-    ],
-  },
-  {
-    title: 'Поиск',
-    icon: Database,
-    fields: [
-      { id: 'index-backend', label: 'Индекс', value: 'PostgreSQL FTS' },
-      { id: 'index-lag-slo', label: 'SLO обновления индекса', value: '30 секунд' },
-    ],
-  },
-  {
-    title: 'Доступ',
-    icon: KeyRound,
-    fields: [
-      { id: 'default-role', label: 'Роль по умолчанию', value: 'читатель' },
-      { id: 'public-links', label: 'Публичные ссылки', value: 'выключены' },
-    ],
-  },
-  {
-    title: 'Локализация',
-    icon: Globe2,
-    fields: [
-      { id: 'default-language', label: 'Язык по умолчанию', value: 'ru' },
-      { id: 'timezone', label: 'Часовой пояс', value: 'Europe/Moscow' },
-    ],
-  },
-]
+function enabledLabel(value: boolean): string {
+  return value ? 'включено' : 'выключено'
+}
 
 export function SettingsPage() {
+  const settingsQuery = useWikiSettings()
+  const settings = settingsQuery.data
+  const settingsGroups = settings
+    ? [
+        {
+          title: 'Инстанс',
+          icon: Settings2,
+          fields: [
+            { id: 'instance-name', label: 'Название инстанса', value: settings.instance_name },
+            { id: 'api-base-path', label: 'Путь API', value: settings.api_base_path },
+            {
+              id: 'default-space-key',
+              label: 'Пространство по умолчанию',
+              value: settings.default_space_key,
+            },
+          ],
+        },
+        {
+          title: 'Поиск и Markdown',
+          icon: Database,
+          fields: [
+            { id: 'search-backend', label: 'Поиск', value: settings.search_backend },
+            {
+              id: 'markdown-renderer',
+              label: 'Рендер Markdown',
+              value: settings.markdown_renderer,
+            },
+            { id: 'html-sanitizer', label: 'Очистка HTML', value: settings.html_sanitizer },
+          ],
+        },
+        {
+          title: 'Доступ',
+          icon: KeyRound,
+          fields: [
+            {
+              id: 'registration-enabled',
+              label: 'Публичная регистрация',
+              value: enabledLabel(settings.registration_enabled),
+            },
+            {
+              id: 'public-links',
+              label: 'Публичные ссылки',
+              value: enabledLabel(settings.public_links_enabled),
+            },
+          ],
+        },
+        {
+          title: 'Файлы и локализация',
+          icon: Globe2,
+          fields: [
+            { id: 'storage-backend', label: 'Хранилище файлов', value: settings.storage_backend },
+            {
+              id: 'max-upload-bytes',
+              label: 'Максимальный размер файла',
+              value: formatBytes(settings.max_upload_bytes),
+            },
+            {
+              id: 'default-language',
+              label: 'Язык по умолчанию',
+              value: settings.default_language,
+            },
+            { id: 'timezone', label: 'Часовой пояс', value: settings.timezone },
+          ],
+        },
+      ]
+    : []
+
   return (
     <div className="space-y-5">
       <section className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Настройки</h1>
           <p className="mt-1 max-w-3xl text-sm text-text-muted">
-            Инстанс, поиск, доступы и локализация Wiki. Значения здесь отражают целевой MVP.
+            Текущие политики инстанса, поиска, доступа, файлов и локализации Wiki.
           </p>
         </div>
-        <Button size="sm">
-          <Save className="h-4 w-4" />
-          Сохранить
-        </Button>
       </section>
+
+      {settingsQuery.isLoading && <LoadingState message="Загружаем настройки" />}
+      {settingsQuery.isError && (
+        <ErrorState
+          message="Не удалось загрузить настройки"
+          onRetry={() => settingsQuery.refetch()}
+        />
+      )}
 
       <section className="grid gap-4 lg:grid-cols-2">
         {settingsGroups.map((group) => {

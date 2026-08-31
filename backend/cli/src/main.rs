@@ -70,6 +70,10 @@ enum Commands {
         #[command(subcommand)]
         command: SearchCommands,
     },
+    Settings {
+        #[command(subcommand)]
+        command: SettingsCommands,
+    },
 }
 
 #[derive(Subcommand)]
@@ -283,6 +287,11 @@ enum SearchCommands {
     },
 }
 
+#[derive(Subcommand)]
+enum SettingsCommands {
+    Get,
+}
+
 struct ApiClient {
     base_url: String,
     token: Option<String>,
@@ -446,6 +455,7 @@ async fn execute(api: &ApiClient, command: Commands) -> Result<Value> {
         Commands::Evidence { command } => execute_evidence(api, command).await,
         Commands::Template { command } => execute_template(api, command).await,
         Commands::Search { command } => execute_search(api, command).await,
+        Commands::Settings { command } => execute_settings(api, command).await,
     }
 }
 
@@ -702,6 +712,12 @@ async fn execute_search(api: &ApiClient, command: SearchCommands) -> Result<Valu
     }
 }
 
+async fn execute_settings(api: &ApiClient, command: SettingsCommands) -> Result<Value> {
+    match command {
+        SettingsCommands::Get => api.get("/settings").await,
+    }
+}
+
 fn find_template<'a>(value: &'a Value, requested: &str) -> Result<&'a Value> {
     let templates = value
         .get("templates")
@@ -947,6 +963,23 @@ mod tests {
                         "document_type": "requirements",
                         "body_markdown": "# Requirements\n\nTemplate body"
                     }]
+                }),
+            ),
+            "/api/v1/settings" => (
+                StatusCode::OK,
+                json!({
+                    "instance_name": "Wiki",
+                    "api_base_path": "/api/v1",
+                    "default_space_key": "SDLC",
+                    "default_language": "ru",
+                    "timezone": "Europe/Moscow",
+                    "registration_enabled": true,
+                    "public_links_enabled": false,
+                    "search_backend": "PostgreSQL FTS",
+                    "storage_backend": "local",
+                    "max_upload_bytes": 26214400,
+                    "markdown_renderer": "comrak",
+                    "html_sanitizer": "ammonia"
                 }),
             ),
             _ => (StatusCode::OK, json!({ "status": "ok" })),
@@ -1397,13 +1430,22 @@ mod tests {
         )
         .await
         .unwrap();
+        let settings = execute(
+            &api,
+            Commands::Settings {
+                command: SettingsCommands::Get,
+            },
+        )
+        .await
+        .unwrap();
 
         assert_eq!(document["status"], "ok");
         assert_eq!(evidence["status"], "ok");
         assert!(templates["templates"].is_array());
+        assert_eq!(settings["instance_name"], "Wiki");
 
         let requests = server.requests();
-        assert_eq!(requests.len(), 3);
+        assert_eq!(requests.len(), 4);
         assert_eq!(requests[0].method, Method::GET);
         assert_eq!(requests[0].path, "/api/v1/documents/product%20requirements");
         assert!(requests[0].idempotency_key.is_none());
@@ -1413,6 +1455,13 @@ mod tests {
         assert_eq!(requests[2].method, Method::GET);
         assert_eq!(requests[2].path, "/api/v1/templates");
         assert!(requests[2].idempotency_key.is_none());
+        assert_eq!(requests[3].method, Method::GET);
+        assert_eq!(requests[3].path, "/api/v1/settings");
+        assert_eq!(
+            requests[3].authorization.as_deref(),
+            Some("Bearer secret-token")
+        );
+        assert!(requests[3].idempotency_key.is_none());
     }
 
     #[tokio::test]

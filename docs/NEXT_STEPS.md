@@ -12,7 +12,7 @@ The documentation, screenshots, API-backed frontend MVP pages and SQLx-backed MV
 - migration docs direct new Wiki persistence work toward SQLx and quarantine inherited SeaORM task-tracker migrations;
 - Wiki-owned domain value objects/invariants exist in `domain::wiki`;
 - a fresh SQLx MVP schema baseline exists in `backend/migrations/202608310001_create_wiki_mvp.*.sql`;
-- frontend MVP pages read from the public Wiki API; create document, edit/publish/archive/move document, create user, evidence and search flows call the same API;
+- frontend MVP pages read from the public Wiki API; create document, edit/publish/archive/move document, create user, evidence, settings/admin overview and search flows call the same API;
 - production server runtime stores users, sessions, spaces, documents, revisions, task/phase links, evidence, attachments, templates, audit and search in PostgreSQL and refuses to start without `WIKI_DATABASE__URL`;
 - PostgreSQL runtime persistence is behind internal `WikiBackendPort`; the concrete SQLx adapter is private in `api::routes::wiki::postgres`, while the main Wiki route module keeps router/DTO responsibilities and an explicit memory test/dev backend;
 - API/server runtime uses `app::WikiAppContext` and no longer constructs the inherited task-tracker `AppContext`, repository bundle or report/notification/issue service graph;
@@ -23,7 +23,7 @@ The documentation, screenshots, API-backed frontend MVP pages and SQLx-backed MV
 - shared Wiki normalization, access predicates, content helpers, storage-name helpers, password hashing, Wiki JWT/session token helpers and access/refresh token-pair TTL assembly are in `app::wiki`;
 - search q/filter/limit normalization is in `app::wiki`; the PostgreSQL adapter still owns the SQL query and ranking details;
 - the API crate no longer declares direct Wiki auth crypto dependencies after the helper extraction;
-- CLI has mocked HTTP smoke coverage for auth, spaces, documents, task/phase dossiers, templates, search, URL/file evidence request flows and API error envelopes; compiled-binary smoke verifies non-zero exit for API errors;
+- CLI has mocked HTTP smoke coverage for auth, spaces, documents, task/phase dossiers, templates, settings, search, URL/file evidence request flows and API error envelopes; compiled-binary smoke verifies non-zero exit for API errors;
 - deferred areas are documented as reference only.
 
 The remaining work is hardening and architecture cleanup, not product-scope expansion.
@@ -75,7 +75,6 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 
 ## 5. Frontend Integration
 
-- Replace the remaining static settings/admin readiness values with API-backed data after settings endpoints are approved.
 - Add broader permission denied and validation error coverage on API-backed pages.
 - Extract the current page-level document editor, document tree, revision panel and evidence feed into reusable widgets/features as the UI hardens.
 - Keep visible UI text Russian by default.
@@ -127,4 +126,4 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 - Route handlers do not depend on the concrete PostgreSQL implementation.
 - Postgres persistence smoke passes across router rebuilds.
 - Non-member/viewer/editor/admin access boundaries are enforced by the PostgreSQL runtime.
-- Static frontend data is limited to settings/admin readiness copy and deterministic test/screenshot fixtures.
+- Static frontend data is limited to deterministic test/screenshot fixtures.

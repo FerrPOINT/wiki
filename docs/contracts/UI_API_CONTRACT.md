@@ -16,17 +16,17 @@ Every API-backed page has:
 
 ## 3. Route Mapping
 
-| UI Route                 | API Group               |
-| ------------------------ | ----------------------- |
-| `/spaces`                | spaces                  |
-| `/documents/:documentId` | documents/revisions     |
-| `/documents/new`         | documents/drafts        |
-| `/tasks/:taskKey`        | task dossiers           |
-| `/phases/:phaseId`       | phase dossiers/evidence |
-| `/evidence`              | evidence/attachments    |
-| `/templates`             | document templates      |
-| `/search`                | search                  |
-| `/audit-log`             | audit                   |
-| `/users`                 | users/roles             |
-| `/settings`              | instance settings       |
-| `/admin`                 | admin overview          |
+| UI Route                 | API Group                            |
+| ------------------------ | ------------------------------------ |
+| `/spaces`                | spaces                               |
+| `/documents/:documentId` | documents/revisions                  |
+| `/documents/new`         | documents/drafts                     |
+| `/tasks/:taskKey`        | task dossiers                        |
+| `/phases/:phaseId`       | phase dossiers/evidence              |
+| `/evidence`              | evidence/attachments                 |
+| `/templates`             | document templates                   |
+| `/search`                | search                               |
+| `/audit-log`             | audit                                |
+| `/users`                 | users/roles                          |
+| `/settings`              | `GET /settings`                      |
+| `/admin`                 | users/spaces/audit/settings overview |

@@ -6,34 +6,33 @@ Space administration covers permissions and templates for a Wiki space.
 
 ## 2. Space Settings
 
-| Field | Description |
-|---|---|
-| `key` | Stable short key, for example `ENG` |
-| `name` | Human-readable name |
-| `description` | Purpose of the space |
-| `owner_id` | Space owner |
-| `default_template_id` | Optional default document template |
+| Field         | Description                         |
+| ------------- | ----------------------------------- |
+| `key`         | Stable short key, for example `ENG` |
+| `name`        | Human-readable name                 |
+| `description` | Purpose of the space                |
+| `owner_id`    | Space owner                         |
 
 ## 3. Roles
 
-| Role | Description |
-|---|---|
-| `admin` | Full control over space settings and members |
-| `editor` | Create, edit, publish documents and evidence |
+| Role     | Description                                   |
+| -------- | --------------------------------------------- |
+| `admin`  | Full control over space settings and members  |
+| `editor` | Create, edit, publish documents and evidence  |
 | `viewer` | Read published documents and allowed evidence |
 
 ## 4. Permissions
 
-| Permission | Admin | Editor | Viewer |
-|---|---|---|---|
-| View published documents | yes | yes | yes |
-| Create documents | yes | yes | no |
-| Edit drafts | yes | yes | no |
-| Publish revisions | yes | yes | no |
-| Archive documents | yes | yes | no |
-| Manage members | yes | no | no |
-| Manage templates | yes | no | no |
-| Attach evidence | yes | yes | no |
+| Permission               | Admin | Editor | Viewer |
+| ------------------------ | ----- | ------ | ------ |
+| View published documents | yes   | yes    | yes    |
+| Create documents         | yes   | yes    | no     |
+| Edit drafts              | yes   | yes    | no     |
+| Publish revisions        | yes   | yes    | no     |
+| Archive documents        | yes   | yes    | no     |
+| Manage members           | yes   | no     | no     |
+| Use templates            | yes   | yes    | no     |
+| Attach evidence          | yes   | yes    | no     |
 
 ## 5. Templates
 

@@ -2,54 +2,54 @@
 
 ## 1. Scope
 
-System administration in Wiki MVP covers users, roles, instance settings, audit visibility, storage checks and operational health. It does not include plugin systems, notification delivery, report builders, external source sync, marketplace features or workflow execution controls.
+System administration in Wiki MVP covers users, roles, a safe read-only instance settings snapshot, audit visibility, storage checks and operational health. It does not include plugin systems, notification delivery, report builders, external source sync, marketplace features or workflow execution controls.
 
 ## 2. Users
 
-| Field | Description |
-|---|---|
-| `id` | UUIDv7 |
-| `username` | Unique login |
-| `email` | Unique email |
-| `display_name` | User-visible name |
-| `active` | Whether the user can authenticate |
-| `locale` | `ru` or `en` |
-| `timezone` | User timezone |
-| `created_at` | Creation timestamp |
-| `last_login_at` | Last successful login |
+| Field          | Description                       |
+| -------------- | --------------------------------- |
+| `id`           | UUIDv7                            |
+| `username`     | Unique login                      |
+| `email`        | Unique email                      |
+| `display_name` | User-visible name                 |
+| `active`       | Whether the user can authenticate |
+| `created_at`   | Creation timestamp                |
+| `global_role`  | `admin` or `user`                 |
 
 MVP user management supports:
 
 - create user;
 - deactivate user;
 - reactivate user;
-- update display name, locale and timezone;
-- reset password through an admin action or documented manual operation.
+- update email, username, display name and global role.
 
 ## 3. Roles
 
-| Role | Scope | Description |
-|---|---|---|
-| `system_admin` | instance | Full administrative access |
-| `space_owner` | space | Manage members, templates and settings in owned spaces |
-| `editor` | space | Create drafts, publish documents and attach evidence |
-| `viewer` | space | Read published documents and permitted evidence |
+| Role           | Scope    | Description                                          |
+| -------------- | -------- | ---------------------------------------------------- |
+| `system_admin` | instance | Full administrative access                           |
+| `admin`        | space    | Manage members, templates and space metadata         |
+| `editor`       | space    | Create drafts, publish documents and attach evidence |
+| `viewer`       | space    | Read published documents and permitted evidence      |
 
 Roles are explicit and auditable. Groups, LDAP, SAML and SCIM are deferred until after MVP.
 
 ## 4. Instance Settings
 
-| Setting | Default | Description |
-|---|---|---|
-| `application_title` | `Wiki` | Header/product name |
-| `base_url` | `http://localhost:19877` | Public frontend URL |
-| `default_locale` | `ru` | Default UI locale |
-| `default_timezone` | `Europe/Moscow` | Default timezone |
-| `default_role` | `viewer` | Space role for invited users unless overridden |
-| `public_links_enabled` | `false` | Public document links are disabled in MVP |
-| `max_attachment_size` | `50 MiB` | Per-file upload limit |
+| Setting                | Source                            | Description                               |
+| ---------------------- | --------------------------------- | ----------------------------------------- |
+| `instance_name`        | fixed MVP value                   | Header/product name                       |
+| `api_base_path`        | fixed MVP value                   | Public API base path                      |
+| `default_space_key`    | bootstrap/default                 | Default SDLC knowledge space              |
+| `registration_enabled` | `WIKI_AUTH__REGISTRATION_ENABLED` | Whether public registration is allowed    |
+| `public_links_enabled` | fixed MVP value                   | Public document links are disabled in MVP |
+| `search_backend`       | fixed MVP value                   | PostgreSQL full-text search               |
+| `storage_backend`      | fixed MVP value                   | Local attachment storage adapter          |
+| `max_upload_bytes`     | `WIKI_STORAGE__MAX_UPLOAD_BYTES`  | Per-file upload limit; default is 25 MiB  |
+| `default_language`     | fixed MVP value                   | Default UI language                       |
+| `timezone`             | fixed MVP value                   | Default displayed timezone                |
 
-Settings changes require `system_admin` and produce audit entries.
+The current MVP exposes `GET /api/v1/settings` as an admin-only read-only snapshot. Editable settings and their audit entries require a separate requirement before implementation.
 
 ## 5. Authentication
 
@@ -72,7 +72,7 @@ System administrators can inspect:
 - role and membership changes;
 - document create/edit/publish/archive events;
 - evidence create/archive events;
-- settings changes.
+- future settings changes after editable settings are approved.
 
 Audit entries are append-only. Any retention change requires a separate security decision.
 

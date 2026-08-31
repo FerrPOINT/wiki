@@ -2,7 +2,7 @@
 
 ## 1. Назначение
 
-REST API Wiki предоставляет базовые операции продукта: auth, users, spaces, documents, revisions, task links, phase links, evidence, attachments, templates, search и audit.
+REST API Wiki предоставляет базовые операции продукта: auth, users, spaces, documents, revisions, task links, phase links, evidence, attachments, templates, settings, search и audit.
 
 Текущий `openapi/openapi.json` зафиксирован под Wiki MVP API. Production server требует `WIKI_DATABASE__URL` и использует SQLx/PostgreSQL persistence; memory backend остаётся только явным test/dev router mode для быстрых API tests.
 
@@ -107,13 +107,16 @@ Canonical `evidence_type` values for MVP are `external_url` and `uploaded_file`.
 
 Фильтры MVP: `space`, `task_key`, `phase_key`, `document_type`, `include_archived`.
 
-## 11. Templates and Audit
+## 11. Templates, Settings and Audit
 
-| Method | Path         | Назначение             |
-| ------ | ------------ | ---------------------- |
-| `GET`  | `/templates` | Список шаблонов        |
-| `POST` | `/templates` | Создать шаблон         |
-| `GET`  | `/audit-log` | Audit log для admin UI |
+| Method | Path         | Назначение                                                         |
+| ------ | ------------ | ------------------------------------------------------------------ |
+| `GET`  | `/templates` | Список шаблонов                                                    |
+| `POST` | `/templates` | Создать шаблон                                                     |
+| `GET`  | `/settings`  | Admin-only read-only snapshot безопасных runtime настроек инстанса |
+| `GET`  | `/audit-log` | Audit log для admin UI                                             |
+
+`GET /settings` не возвращает секреты, connection strings, storage paths или bootstrap credentials. MVP endpoint показывает только значения, нужные UI/CLI: API path, регистрацию, storage/search backend, лимит загрузки, язык и timezone.
 
 ## 12. Deferred API Areas
 

@@ -17,6 +17,7 @@ struct PostgresWikiBackend {
     auth: shared::AuthConfig,
     storage: Arc<dyn domain::wiki::WikiAttachmentStorage>,
     max_upload_bytes: usize,
+    settings: WikiSettingsResponse,
 }
 
 pub(super) async fn connect_persistent_backend(
@@ -24,10 +25,8 @@ pub(super) async fn connect_persistent_backend(
     storage: Arc<dyn domain::wiki::WikiAttachmentStorage>,
 ) -> Result<WikiBackend, shared::AppError> {
     let backend = PostgresWikiBackend::connect(config, storage).await?;
-    Ok(WikiBackend::persistent(
-        Arc::new(backend),
-        config.auth.registration_enabled,
-    ))
+    let settings = backend.settings.clone();
+    Ok(WikiBackend::persistent(Arc::new(backend), settings))
 }
 
 impl PostgresWikiBackend {
@@ -58,6 +57,7 @@ impl PostgresWikiBackend {
             auth: config.auth.clone(),
             storage,
             max_upload_bytes: config.storage.max_upload_bytes,
+            settings: WikiSettingsResponse::from_config(config),
         };
         backend.bootstrap(&config.bootstrap).await?;
         Ok(backend)
@@ -456,6 +456,14 @@ impl PostgresWikiBackend {
         Ok(WikiUserListResponse {
             users: rows.iter().map(user_response_from_row).collect(),
         })
+    }
+
+    async fn get_settings(
+        &self,
+        claims: &WikiClaims,
+    ) -> Result<WikiSettingsResponse, shared::AppError> {
+        self.ensure_admin(claims).await?;
+        Ok(self.settings.clone())
     }
 
     async fn create_user(
@@ -3003,6 +3011,13 @@ impl WikiBackendPort for PostgresWikiBackend {
         body: WikiUpdateUserRequest,
     ) -> Result<WikiUserResponse, shared::AppError> {
         PostgresWikiBackend::update_user(self, claims, user_id, body).await
+    }
+
+    async fn get_settings(
+        &self,
+        claims: &WikiClaims,
+    ) -> Result<WikiSettingsResponse, shared::AppError> {
+        PostgresWikiBackend::get_settings(self, claims).await
     }
 
     async fn list_spaces(

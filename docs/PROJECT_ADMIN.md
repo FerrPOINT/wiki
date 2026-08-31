@@ -8,13 +8,13 @@ Project administration is deferred reference material. Wiki MVP manages spaces d
 
 ## 2. Project Mapping
 
-| Wiki Object | External Mapping |
-|---|---|
-| Space | Product/team/project area |
-| Task dossier | External task key |
-| Phase dossier | project-workflow phase instance |
-| Source link | Repository/PR/commit |
-| Evidence | URL or uploaded file for CI/CD artifact, deployment or review proof |
+| Wiki Object   | External Mapping                                                    |
+| ------------- | ------------------------------------------------------------------- |
+| Space         | Product/team/project area                                           |
+| Task dossier  | External task key                                                   |
+| Phase dossier | project-workflow phase instance                                     |
+| Source link   | Repository/PR/commit                                                |
+| Evidence      | URL or uploaded file for CI/CD artifact, deployment or review proof |
 
 One space may contain multiple external projects. One external project should map to one default space unless migration requires a temporary split.
 
@@ -35,28 +35,28 @@ They cannot bypass system-wide retention, security, audit or secret policies.
 
 ## 4. Permissions
 
-| Role | Capability |
-|---|---|
-| System admin | All spaces and mappings |
-| Space owner | Mappings inside owned spaces |
-| Editor | Create documents/evidence inside permitted spaces |
-| Reader | View permitted documents and evidence |
+| Role                 | Capability                                                    |
+| -------------------- | ------------------------------------------------------------- |
+| System admin         | All spaces and mappings                                       |
+| Space admin          | Mappings inside administered spaces                           |
+| Editor               | Create documents/evidence inside permitted spaces             |
+| Viewer               | View permitted documents and evidence                         |
 | Future service token | Deferred; scoped source writes only after a separate approval |
 
 All project admin actions produce audit entries.
 
 ## 5. Required Fields
 
-| Field | Description |
-|---|---|
-| `space_id` | Owning Wiki space |
-| `project_key` | Human-readable external project key |
-| `source_system` | Source system name |
-| `display_name` | UI label |
-| `base_url` | Optional source URL |
-| `task_key_pattern` | Optional validation regexp |
+| Field               | Description                         |
+| ------------------- | ----------------------------------- |
+| `space_id`          | Owning Wiki space                   |
+| `project_key`       | Human-readable external project key |
+| `source_system`     | Source system name                  |
+| `display_name`      | UI label                            |
+| `base_url`          | Optional source URL                 |
+| `task_key_pattern`  | Optional validation regexp          |
 | `default_templates` | Template ids by document/phase type |
-| `required_evidence` | Evidence rules by phase |
+| `required_evidence` | Evidence rules by phase             |
 
 ## 6. Operational Rules
 
@@ -68,7 +68,7 @@ All project admin actions produce audit entries.
 ## 7. Acceptance Criteria
 
 - A system admin can see all mappings.
-- A space owner can configure mappings only for owned spaces.
+- A space admin can configure mappings only for administered spaces.
 - An approved source sync can create a task page in the configured default space.
 - Future reporting can show evidence coverage by project mapping.
 - Archived mappings remain visible in audit and historical documents.

@@ -68,6 +68,7 @@ pub use routes::*;
         routes::wiki::refresh,
         routes::wiki::logout,
         routes::wiki::get_current_user,
+        routes::wiki::get_settings,
         routes::wiki::list_users,
         routes::wiki::create_user,
         routes::wiki::update_user,
@@ -118,6 +119,7 @@ pub use routes::*;
         routes::wiki::WikiUserListResponse,
         routes::wiki::WikiCreateUserRequest,
         routes::wiki::WikiUpdateUserRequest,
+        routes::wiki::WikiSettingsResponse,
         routes::wiki::SpaceResponse,
         routes::wiki::SpaceListResponse,
         routes::wiki::CreateSpaceRequest,
@@ -164,6 +166,7 @@ pub use routes::*;
         (name = "evidence", description = "Links and file evidence"),
         (name = "attachments", description = "Attachment metadata and download"),
         (name = "templates", description = "Document templates"),
+        (name = "settings", description = "Instance settings"),
         (name = "audit", description = "Audit log"),
         (name = "search", description = "Search")
     ),
@@ -236,6 +239,7 @@ pub fn router_with_wiki(
     let protected = Router::<Arc<app::WikiAppContext>>::new()
         .route("/auth/logout", post(routes::wiki::logout))
         .route("/users/me", get(routes::wiki::get_current_user))
+        .route("/settings", get(routes::wiki::get_settings))
         .route(
             "/users",
             get(routes::wiki::list_users).post(routes::wiki::create_user),

@@ -109,6 +109,21 @@ const phase = {
   evidence: [evidence],
 }
 
+const settings = {
+  instance_name: 'Wiki',
+  api_base_path: '/api/v1',
+  default_space_key: 'SDLC',
+  default_language: 'ru',
+  timezone: 'Europe/Moscow',
+  registration_enabled: true,
+  public_links_enabled: false,
+  search_backend: 'PostgreSQL FTS',
+  storage_backend: 'local',
+  max_upload_bytes: 26214400,
+  markdown_renderer: 'comrak',
+  html_sanitizer: 'ammonia',
+}
+
 const shots = [
   { name: '01-login.png', path: '/login', title: 'Login' },
   { name: '02-register.png', path: '/register', title: 'Register' },
@@ -194,6 +209,7 @@ async function installApiMocks(page) {
     if (method === 'POST' && path === '/auth/logout') return route.fulfill({ status: 204 })
     if (method === 'GET' && path === '/users/me') return routeJson(route, user)
     if (method === 'GET' && path === '/users') return routeJson(route, { users: [user] })
+    if (method === 'GET' && path === '/settings') return routeJson(route, settings)
     if (method === 'GET' && path === '/spaces') {
       return routeJson(route, {
         spaces: [

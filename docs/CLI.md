@@ -77,6 +77,12 @@ wiki template apply requirements --space SDLC --title "Requirements"
 wiki search query "authorization" --space SDLC --type requirements
 ```
 
+### Settings
+
+```bash
+wiki settings get
+```
+
 ## Требования
 
 - JSON output по умолчанию.

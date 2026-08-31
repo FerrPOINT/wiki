@@ -16,7 +16,8 @@ The test plan covers document lifecycle, task/phase links, evidence ingestion, p
 | Evidence       | add file/url evidence, checksum, dedup                                   |
 | Attachments    | upload/download, MIME, quota                                             |
 | Search         | indexing, permission filtering, archived filters                         |
-| Authz          | viewer/editor/owner boundaries                                           |
+| Settings       | admin-only safe runtime snapshot                                         |
+| Authz          | viewer/editor/admin boundaries                                           |
 
 ## 3. Frontend Tests
 
@@ -26,6 +27,7 @@ The test plan covers document lifecycle, task/phase links, evidence ingestion, p
 - Document create/view.
 - Task dossier and phase dossier pages.
 - Search page states.
+- Settings/admin API-backed states.
 - Account menu and logout.
 
 ## 4. E2E Smoke

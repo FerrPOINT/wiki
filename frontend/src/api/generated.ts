@@ -246,6 +246,20 @@ export type components = {
       password: string
       username: string
     }
+    WikiSettingsResponse: {
+      api_base_path: string
+      default_language: string
+      default_space_key: string
+      html_sanitizer: string
+      instance_name: string
+      markdown_renderer: string
+      max_upload_bytes: number
+      public_links_enabled: boolean
+      registration_enabled: boolean
+      search_backend: string
+      storage_backend: string
+      timezone: string
+    }
     WikiUpdateUserRequest: {
       active?: boolean | null
       display_name?: string | null
@@ -308,6 +322,7 @@ export type WikiCreateUserRequest = components['schemas']['WikiCreateUserRequest
 export type WikiLoginRequest = components['schemas']['WikiLoginRequest']
 export type WikiRefreshRequest = components['schemas']['WikiRefreshRequest']
 export type WikiRegisterRequest = components['schemas']['WikiRegisterRequest']
+export type WikiSettingsResponse = components['schemas']['WikiSettingsResponse']
 export type WikiUpdateUserRequest = components['schemas']['WikiUpdateUserRequest']
 export type WikiUserListResponse = components['schemas']['WikiUserListResponse']
 export type WikiUserResponse = components['schemas']['WikiUserResponse']

@@ -27,6 +27,7 @@ import type {
   TemplateResponse,
   UpdateDocumentDraftRequest as GeneratedUpdateDocumentDraftRequest,
   WikiCreateUserRequest,
+  WikiSettingsResponse,
   WikiUserListResponse,
   WikiUserResponse,
 } from './generated'
@@ -48,6 +49,7 @@ export type Template = TemplateResponse
 export type AuditEntry = AuditEntryResponse
 export type User = WikiUserResponse
 export type CreateUserRequest = WikiCreateUserRequest
+export type WikiSettings = WikiSettingsResponse
 export type SearchResult = SearchResultResponse
 export type CreateEvidenceRequest = GeneratedCreateEvidenceRequest
 
@@ -187,6 +189,10 @@ export function listUsers(): Promise<WikiUserListResponse> {
 
 export function createUser(body: CreateUserRequest): Promise<User> {
   return apiRequest<User>('/api/v1/users', { method: 'POST', body })
+}
+
+export function getWikiSettings(): Promise<WikiSettingsResponse> {
+  return apiRequest<WikiSettingsResponse>('/api/v1/settings')
 }
 
 export function searchWiki(params: SearchParams): Promise<SearchResponse> {

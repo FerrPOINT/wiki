@@ -7,6 +7,7 @@ import {
   createEvidence,
   createUser,
   getDocument,
+  getWikiSettings,
   getPhase,
   getSpaceTree,
   getTask,
@@ -43,6 +44,7 @@ export const defaultSpaceKey = 'SDLC'
 
 export const wikiKeys = {
   spaces: ['wiki', 'spaces'] as const,
+  settings: ['wiki', 'settings'] as const,
   spaceTree: (spaceKey: string) => ['wiki', 'spaces', spaceKey, 'tree'] as const,
   document: (documentId: string) => ['wiki', 'documents', documentId] as const,
   documentRevisions: (documentId: string) =>
@@ -129,6 +131,13 @@ export function useSpaces() {
   return useQuery({
     queryKey: wikiKeys.spaces,
     queryFn: listSpaces,
+  })
+}
+
+export function useWikiSettings() {
+  return useQuery({
+    queryKey: wikiKeys.settings,
+    queryFn: getWikiSettings,
   })
 }
 
