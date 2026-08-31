@@ -1,11 +1,21 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { apiRequest } from './client'
+import { ApiError, apiRequest } from './client'
 
 function mockFetchResponse(response: Response) {
   const fetchMock = vi.fn<typeof fetch>()
   fetchMock.mockResolvedValue(response)
   vi.stubGlobal('fetch', fetchMock)
+}
+
+async function expectApiError(request: Promise<unknown>): Promise<ApiError> {
+  try {
+    await request
+  } catch (error) {
+    expect(error).toBeInstanceOf(ApiError)
+    return error as ApiError
+  }
+  throw new Error('Expected request to reject')
 }
 
 describe('apiRequest error handling', () => {
@@ -21,7 +31,13 @@ describe('apiRequest error handling', () => {
       }),
     )
 
-    await expect(apiRequest('/api/v1/spaces')).rejects.toThrow('forbidden')
+    await expect(apiRequest('/api/v1/spaces')).rejects.toMatchObject({
+      name: 'ApiError',
+      status: 403,
+      code: 'FORBIDDEN',
+      message: 'forbidden',
+      details: [],
+    })
   })
 
   it('renders structured API error envelopes', async () => {
@@ -42,8 +58,14 @@ describe('apiRequest error handling', () => {
       ),
     )
 
-    await expect(apiRequest('/api/v1/documents')).rejects.toThrow(
-      'Request validation failed; details=summary: required; requestId=req-1',
-    )
+    const error = await expectApiError(apiRequest('/api/v1/documents'))
+
+    expect(error).toMatchObject({
+      status: 400,
+      code: 'VALIDATION_ERROR',
+      requestId: 'req-1',
+      details: [{ field: 'summary', message: 'required' }],
+      message: 'Request validation failed; details=summary: required; requestId=req-1',
+    })
   })
 })

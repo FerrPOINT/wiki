@@ -8,9 +8,41 @@ type ApiRequestOptions = Omit<RequestInit, 'body'> & {
   skipAuth?: boolean
 }
 
+export type ApiErrorDetail = {
+  field?: string
+  message?: string
+}
+
 type ApiErrorBody = {
   error?: unknown
   message?: unknown
+}
+
+type ApiErrorInit = {
+  status: number
+  statusText: string
+  code?: string
+  message?: string
+  requestId?: string
+  details?: ApiErrorDetail[]
+}
+
+export class ApiError extends Error {
+  readonly status: number
+  readonly code: string
+  readonly requestId?: string
+  readonly details: ApiErrorDetail[]
+
+  constructor({ status, statusText, code, message, requestId, details = [] }: ApiErrorInit) {
+    const safeCode = code ?? defaultCodeForStatus(status)
+    const safeMessage = message ?? statusText
+    super(formatApiErrorMessage(safeMessage, requestId, details))
+    this.name = 'ApiError'
+    this.status = status
+    this.code = safeCode
+    this.requestId = requestId
+    this.details = details
+  }
 }
 
 let refreshPromise: Promise<boolean> | null = null
@@ -20,22 +52,34 @@ function buildUrl(path: string): string {
   return `${apiBaseUrl}${path.startsWith('/') ? path : `/${path}`}`
 }
 
-async function readErrorMessage(response: Response): Promise<string> {
+async function readApiError(response: Response): Promise<ApiError> {
   try {
     const body = (await response.json()) as ApiErrorBody
 
-    if (typeof body.error === 'string') return body.error
-    if (body.error && typeof body.error === 'object') {
-      return readStructuredError(body.error as Record<string, unknown>, response.statusText)
+    if (typeof body.error === 'string') {
+      return new ApiError({
+        status: response.status,
+        statusText: response.statusText,
+        message: body.error,
+      })
     }
-    if (typeof body.message === 'string') return body.message
-    return response.statusText
+    if (body.error && typeof body.error === 'object') {
+      return readStructuredError(body.error as Record<string, unknown>, response)
+    }
+    if (typeof body.message === 'string') {
+      return new ApiError({
+        status: response.status,
+        statusText: response.statusText,
+        message: body.message,
+      })
+    }
+    return new ApiError({ status: response.status, statusText: response.statusText })
   } catch {
-    return response.statusText
+    return new ApiError({ status: response.status, statusText: response.statusText })
   }
 }
 
-function readStructuredError(error: Record<string, unknown>, fallback: string): string {
+function readStructuredError(error: Record<string, unknown>, response: Response): ApiError {
   const code = typeof error.code === 'string' ? error.code : undefined
   const message = typeof error.message === 'string' ? error.message : undefined
   const requestId =
@@ -44,32 +88,78 @@ function readStructuredError(error: Record<string, unknown>, fallback: string): 
       : typeof error.request_id === 'string'
         ? error.request_id
         : undefined
-  const details = formatErrorDetails(error.details)
+  const details = readErrorDetails(error.details)
 
-  const parts = [
-    message ?? code,
-    details ? `details=${details}` : undefined,
-    requestId ? `requestId=${requestId}` : undefined,
-  ].filter((part): part is string => Boolean(part))
-  return parts.length ? parts.join('; ') : fallback
+  return new ApiError({
+    status: response.status,
+    statusText: response.statusText,
+    code,
+    message,
+    requestId,
+    details,
+  })
 }
 
-function formatErrorDetails(details: unknown): string | undefined {
-  if (!Array.isArray(details)) return undefined
+function readErrorDetails(details: unknown): ApiErrorDetail[] {
+  if (!Array.isArray(details)) return []
 
+  return details.flatMap((detail): ApiErrorDetail[] => {
+    if (!detail || typeof detail !== 'object') return []
+    const record = detail as Record<string, unknown>
+    const field = typeof record.field === 'string' ? record.field : undefined
+    const message = typeof record.message === 'string' ? record.message : undefined
+
+    if (!field && !message) return []
+    return [
+      {
+        ...(field ? { field } : {}),
+        ...(message ? { message } : {}),
+      },
+    ]
+  })
+}
+
+function formatApiErrorMessage(
+  message: string,
+  requestId?: string,
+  details: ApiErrorDetail[] = [],
+): string {
+  const formattedDetails = formatErrorDetails(details)
+  const parts = [
+    message,
+    formattedDetails ? `details=${formattedDetails}` : undefined,
+    requestId ? `requestId=${requestId}` : undefined,
+  ].filter((part): part is string => Boolean(part))
+
+  return parts.join('; ')
+}
+
+function formatErrorDetails(details: ApiErrorDetail[]): string | undefined {
   const messages = details
-    .map((detail) => {
-      if (!detail || typeof detail !== 'object') return undefined
-      const record = detail as Record<string, unknown>
-      const field = typeof record.field === 'string' ? record.field : undefined
-      const message = typeof record.message === 'string' ? record.message : undefined
-
+    .map(({ field, message }) => {
       if (field && message) return `${field}: ${message}`
       return field ?? message
     })
     .filter((detail): detail is string => Boolean(detail))
 
   return messages.length ? messages.join(', ') : undefined
+}
+
+function defaultCodeForStatus(status: number): string {
+  switch (status) {
+    case 400:
+      return 'VALIDATION_ERROR'
+    case 401:
+      return 'UNAUTHORIZED'
+    case 403:
+      return 'FORBIDDEN'
+    case 404:
+      return 'NOT_FOUND'
+    case 409:
+      return 'CONFLICT'
+    default:
+      return status >= 500 ? 'INTERNAL_ERROR' : 'UNKNOWN'
+  }
 }
 
 async function refreshAccessToken(): Promise<boolean> {
@@ -142,7 +232,8 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   }
 
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response))
+    const error = await readApiError(response)
+    throw error
   }
   if (response.status === 204) return undefined as T
   return (await response.json()) as T

@@ -36,17 +36,17 @@ pub enum InfraError {
 
 ### 2.2 HTTP Mapping
 
-| AppError | HTTP Status | User-facing code |
-|----------|-------------|------------------|
-| `Validation` | 400 | `VALIDATION_ERROR` |
-| `Unauthorized` | 401 | `UNAUTHORIZED` |
-| `Forbidden` / `PermissionDenied` | 403 | `FORBIDDEN` |
-| `NotFound` | 404 | `NOT_FOUND` |
-| `AlreadyExists` / `Conflict` | 409 | `CONFLICT` |
-| `InvalidTransition` | 422 | `INVALID_TRANSITION` |
-| `Infra::External` | 502 | `EXTERNAL_ERROR` |
-| `Infra::Internal` | 500 | `INTERNAL_ERROR` |
-| other | 500 | `INTERNAL_ERROR` |
+| AppError                         | HTTP Status | User-facing code     |
+| -------------------------------- | ----------- | -------------------- |
+| `Validation`                     | 400         | `VALIDATION_ERROR`   |
+| `Unauthorized`                   | 401         | `UNAUTHORIZED`       |
+| `Forbidden` / `PermissionDenied` | 403         | `FORBIDDEN`          |
+| `NotFound`                       | 404         | `NOT_FOUND`          |
+| `AlreadyExists` / `Conflict`     | 409         | `CONFLICT`           |
+| `InvalidTransition`              | 422         | `INVALID_TRANSITION` |
+| `Infra::External`                | 502         | `EXTERNAL_ERROR`     |
+| `Infra::Internal`                | 500         | `INTERNAL_ERROR`     |
+| other                            | 500         | `INTERNAL_ERROR`     |
 
 ### 2.3 Response Format
 
@@ -58,9 +58,7 @@ pub enum InfraError {
     "code": "VALIDATION_ERROR",
     "message": "Request validation failed",
     "requestId": "req-uuid",
-    "details": [
-      { "field": "summary", "message": "required" }
-    ]
+    "details": [{ "field": "summary", "message": "required" }]
   }
 }
 ```
@@ -77,24 +75,31 @@ pub enum InfraError {
 ### 3.1 API Errors
 
 ```ts
-// shared/api/handleApiError.ts
+// frontend/src/api/client.ts
 export class ApiError extends Error {
-  constructor(
-    public code: string,
-    public status: number,
-    public details?: Array<{ field: string; message: string }>
-  ) {
-    super(code)
+  readonly status: number;
+  readonly code: string;
+  readonly requestId?: string;
+  readonly details: Array<{ field?: string; message?: string }>;
+
+  constructor(init: {
+    status: number;
+    statusText: string;
+    code?: string;
+    message?: string;
+    requestId?: string;
+    details?: Array<{ field?: string; message?: string }>;
+  }) {
+    super(formatApiErrorMessage(init));
+    this.name = "ApiError";
+    this.status = init.status;
+    this.code = init.code ?? defaultCodeForStatus(init.status);
+    this.requestId = init.requestId;
+    this.details = init.details ?? [];
   }
 }
 
-export function handleApiError(error: unknown): ApiError {
-  if (axios.isAxiosError(error)) {
-    const data = error.response?.data?.error
-    return new ApiError(data?.code || "UNKNOWN", error.response?.status || 0, data?.details)
-  }
-  return new ApiError("UNKNOWN", 0)
-}
+// apiRequest<T>() throws ApiError for non-2xx HTTP responses.
 ```
 
 ### 3.2 Query Error Handling
@@ -104,8 +109,9 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: (failureCount, error) => {
-        const apiError = handleApiError(error)
-        return apiError.status >= 500 && failureCount < 3
+        const apiError = error instanceof ApiError ? error : undefined;
+        if (!apiError) return false;
+        return apiError.status >= 500 && failureCount < 3;
       },
       meta: {
         errorMessage: "Failed to load data",
@@ -113,12 +119,15 @@ const queryClient = new QueryClient({
     },
     mutations: {
       onError: (error) => {
-        const apiError = handleApiError(error)
-        toast.error(apiError.message)
+        toast.error(
+          error instanceof ApiError
+            ? error.message
+            : "Не удалось выполнить действие",
+        );
       },
     },
   },
-})
+});
 ```
 
 ### 3.3 Error Boundaries
@@ -126,18 +135,18 @@ const queryClient = new QueryClient({
 ```tsx
 // shared/ui/error-boundary.tsx
 export class ErrorBoundary extends React.Component {
-  state = { hasError: false }
+  state = { hasError: false };
   static getDerivedStateFromError() {
-    return { hasError: true }
+    return { hasError: true };
   }
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    logError(error, info)
+    logError(error, info);
   }
   render() {
     if (this.state.hasError) {
-      return <ErrorState onRetry={() => this.setState({ hasError: false })} />
+      return <ErrorState onRetry={() => this.setState({ hasError: false })} />;
     }
-    return this.props.children
+    return this.props.children;
   }
 }
 ```
@@ -156,15 +165,15 @@ export class ErrorBoundary extends React.Component {
 
 ```ts
 onError: (error) => {
-  const apiError = handleApiError(error)
+  const apiError = handleApiError(error);
   if (apiError.status === 400) {
     apiError.details?.forEach(({ field, message }) => {
-      form.setError(field as Path<FormValues>, { type: "server", message })
-    })
+      form.setError(field as Path<FormValues>, { type: "server", message });
+    });
   } else {
-    toast.error(apiError.message)
+    toast.error(apiError.message);
   }
-}
+};
 ```
 
 ## 5. Retry Strategies
@@ -189,15 +198,15 @@ onError: (error) => {
 
 ## 7. Known Error Scenarios
 
-| Scenario | Backend | Frontend |
-|----------|---------|----------|
-| Invalid login | 401 `UNAUTHORIZED` | toast + форма |
-| Duplicate space/document key | 409 `CONFLICT` | inline field error |
-| Document not found | 404 `NOT_FOUND` | 404 page |
-| Publish conflict | 409 `REVISION_CONFLICT` | inline conflict state |
-| DB unavailable | 500 `INTERNAL_ERROR` | retry + fallback page |
-| Network error | — | toast + offline badge |
-| WS disconnect | — | reconnect spinner |
+| Scenario                     | Backend                 | Frontend              |
+| ---------------------------- | ----------------------- | --------------------- |
+| Invalid login                | 401 `UNAUTHORIZED`      | toast + форма         |
+| Duplicate space/document key | 409 `CONFLICT`          | inline field error    |
+| Document not found           | 404 `NOT_FOUND`         | 404 page              |
+| Publish conflict             | 409 `REVISION_CONFLICT` | inline conflict state |
+| DB unavailable               | 500 `INTERNAL_ERROR`    | retry + fallback page |
+| Network error                | —                       | toast + offline badge |
+| WS disconnect                | —                       | reconnect spinner     |
 
 ## 8. Logging
 
@@ -213,17 +222,18 @@ onError: (error) => {
 
 ## 10. User-Facing Messages
 
-| Code | Russian | English |
-|------|---------|---------|
-| `VALIDATION_ERROR` | Проверьте введённые данные | Please check your input |
-| `UNAUTHORIZED` | Требуется вход в систему | Please sign in |
-| `FORBIDDEN` | Недостаточно прав | Permission denied |
-| `NOT_FOUND` | Объект не найден | Not found |
-| `CONFLICT` | Конфликт данных | Data conflict |
-| `INVALID_TRANSITION` | Невозможный переход | Invalid transition |
-| `INTERNAL_ERROR` | Внутренняя ошибка. Попробуйте позже | Internal error. Please try again later |
-| `EXTERNAL_ERROR` | Внешняя служба недоступна | External service unavailable |
-| `RATE_LIMITED` | Слишком много запросов | Too many requests |
+| Code                 | Russian                             | English                                |
+| -------------------- | ----------------------------------- | -------------------------------------- |
+| `VALIDATION_ERROR`   | Проверьте введённые данные          | Please check your input                |
+| `UNAUTHORIZED`       | Требуется вход в систему            | Please sign in                         |
+| `FORBIDDEN`          | Недостаточно прав                   | Permission denied                      |
+| `NOT_FOUND`          | Объект не найден                    | Not found                              |
+| `CONFLICT`           | Конфликт данных                     | Data conflict                          |
+| `INVALID_TRANSITION` | Невозможный переход                 | Invalid transition                     |
+| `INTERNAL_ERROR`     | Внутренняя ошибка. Попробуйте позже | Internal error. Please try again later |
+| `EXTERNAL_ERROR`     | Внешняя служба недоступна           | External service unavailable           |
+| `RATE_LIMITED`       | Слишком много запросов              | Too many requests                      |
+
 ## References
 
 - `docs/ARCHITECTURE.md`
