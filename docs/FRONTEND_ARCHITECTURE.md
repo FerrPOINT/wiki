@@ -96,6 +96,8 @@ app -> pages -> widgets -> features -> entities -> shared
 
 ## 6. Server State
 
+Current frontend uses a thin handwritten client in `frontend/src/api/wiki.ts` and TanStack Query hooks in `frontend/src/shared/api/hooks.ts`. Generated OpenAPI types are deferred until the PostgreSQL-backed backend contract stabilizes.
+
 Query key examples:
 
 ```ts
@@ -138,7 +140,8 @@ The frontend contains only the approved Wiki MVP pages. Deferred reporting, noti
 ## 10. Testing
 
 - Unit/component tests for document tree, editor, evidence feed and permissions states.
-- E2E smoke: login, open dashboard, create draft, publish document, attach evidence, search.
+- Current E2E smoke: login and navigate through API-backed MVP pages with deterministic Wiki API mocks.
+- Target E2E expansion: create draft, publish document, attach evidence and search.
 - Visual checks for document layout on mobile and desktop.
 
 ## 11. References

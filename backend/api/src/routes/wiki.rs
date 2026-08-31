@@ -169,6 +169,7 @@ pub struct SpaceTreeNodeResponse {
     pub title: String,
     pub document_type: String,
     pub status: String,
+    #[schema(no_recursion)]
     pub children: Vec<SpaceTreeNodeResponse>,
 }
 
@@ -458,7 +459,7 @@ impl WikiStore {
             id: user_id.clone(),
             email: "demo@example.com".to_string(),
             username: "demo".to_string(),
-            display_name: "Demo User".to_string(),
+            display_name: "Демо пользователь".to_string(),
             role: "admin".to_string(),
             is_system_admin: true,
             active: true,
@@ -466,8 +467,8 @@ impl WikiStore {
         let space = SpaceResponse {
             id: "space-sdlc".to_string(),
             key: "SDLC".to_string(),
-            name: "SDLC Knowledge Base".to_string(),
-            description: Some("Base Wiki space for SDLC documents".to_string()),
+            name: "База знаний SDLC".to_string(),
+            description: Some("Основное пространство Wiki для документов SDLC".to_string()),
             owner_id: user_id.clone(),
             status: "active".to_string(),
             document_count: 1,
@@ -479,9 +480,9 @@ impl WikiStore {
             id: "revision-product-requirements-1".to_string(),
             document_id: "product-requirements".to_string(),
             version: 1,
-            title: "Wiki MVP Requirements".to_string(),
-            body_markdown: "# Wiki MVP Requirements\n\nBase document for spaces, documents, task and phase links, materials, search and audit.".to_string(),
-            summary: Some("Initial MVP requirements".to_string()),
+            title: "Требования к Wiki MVP".to_string(),
+            body_markdown: "# Требования к Wiki MVP\n\nБазовый документ для пространств, документов, связей с задачами и фазами, материалов, поиска и аудита.".to_string(),
+            summary: Some("Исходные требования MVP".to_string()),
             author_id: user_id.clone(),
             published_at: now.clone(),
         };
@@ -494,7 +495,7 @@ impl WikiStore {
             space_key: "SDLC".to_string(),
             parent_id: None,
             slug: "product-requirements".to_string(),
-            title: "Wiki MVP Requirements".to_string(),
+            title: "Требования к Wiki MVP".to_string(),
             document_type: "requirements".to_string(),
             status: "published".to_string(),
             draft_markdown: revision.body_markdown.clone(),
@@ -512,7 +513,7 @@ impl WikiStore {
             document_id: Some("product-requirements".to_string()),
             task_key: Some("SDLC-42".to_string()),
             phase_key: Some("implementation".to_string()),
-            title: "Frontend smoke evidence".to_string(),
+            title: "Материал smoke-проверки фронта".to_string(),
             evidence_type: "external_url".to_string(),
             url: Some("https://ci.local/jobs/wiki-smoke".to_string()),
             attachment_id: None,
@@ -521,11 +522,11 @@ impl WikiStore {
             created_at: now.clone(),
         };
         let templates = [
-            ("requirements", "Requirements"),
-            ("research-note", "Research note"),
-            ("implementation-note", "Implementation note"),
-            ("test-plan", "Test plan"),
-            ("release-note", "Release note"),
+            ("requirements", "Требования"),
+            ("research-note", "Исследование"),
+            ("implementation-note", "Реализация"),
+            ("test-plan", "План проверки"),
+            ("release-note", "Релизная заметка"),
         ]
         .into_iter()
         .map(|(id, name)| {
@@ -535,7 +536,9 @@ impl WikiStore {
                     id: id.to_string(),
                     name: name.to_string(),
                     document_type: id.to_string(),
-                    body_markdown: format!("# {name}\n\n## Context\n\n## Decisions\n\n## Checks\n"),
+                    body_markdown: format!(
+                        "# {name}\n\n## Контекст\n\n## Решения\n\n## Проверки\n"
+                    ),
                 },
             )
         })

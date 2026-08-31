@@ -1,28 +1,229 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Wiki API",
-    "version": "0.2.0",
-    "description": "Wiki MVP public API: auth, users, spaces, documents, task and phase links, evidence, attachments, templates, audit and search."
+    "title": "api",
+    "description": "",
+    "license": {
+      "name": ""
+    },
+    "version": "0.2.0"
   },
   "paths": {
-    "/api/v1/health": {
-      "get": {
+    "/api/v1/attachments": {
+      "post": {
         "tags": [
-          "health"
+          "attachments"
         ],
-        "operationId": "health",
+        "operationId": "upload_attachment",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
-          "200": {
-            "description": "Runtime health",
+          "201": {
+            "description": "",
             "content": {
-              "text/plain": {
+              "application/json": {
                 "schema": {
-                  "type": "string",
-                  "example": "ok"
+                  "$ref": "#/components/schemas/AttachmentResponse"
                 }
               }
             }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/attachments/{attachment_id}": {
+      "get": {
+        "tags": [
+          "attachments"
+        ],
+        "operationId": "get_attachment",
+        "parameters": [
+          {
+            "name": "attachment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttachmentResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/attachments/{attachment_id}/download": {
+      "get": {
+        "tags": [
+          "attachments"
+        ],
+        "operationId": "download_attachment",
+        "parameters": [
+          {
+            "name": "attachment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Attachment bytes"
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/audit-log": {
+      "get": {
+        "tags": [
+          "audit"
+        ],
+        "operationId": "list_audit_log",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditLogResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WikiLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WikiAuthResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "logout",
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "refresh",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WikiRefreshRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WikiAuthResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
           }
         }
       }
@@ -34,18 +235,18 @@
         ],
         "operationId": "register",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/WikiRegisterRequest"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "201": {
-            "description": "Registered",
+            "description": "",
             "content": {
               "application/json": {
                 "schema": {
@@ -53,584 +254,6 @@
                 }
               }
             }
-          },
-          "409": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/api/v1/auth/login": {
-      "post": {
-        "tags": [
-          "auth"
-        ],
-        "operationId": "login",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/WikiLoginRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Authenticated",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WikiAuthResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/api/v1/auth/refresh": {
-      "post": {
-        "tags": [
-          "auth"
-        ],
-        "operationId": "refresh",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/WikiRefreshRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Token refreshed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WikiAuthResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/api/v1/auth/logout": {
-      "post": {
-        "tags": [
-          "auth"
-        ],
-        "operationId": "logout",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Logged out"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/api/v1/users/me": {
-      "get": {
-        "tags": [
-          "users"
-        ],
-        "operationId": "getCurrentUser",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Current user",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WikiUserResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/api/v1/users": {
-      "get": {
-        "tags": [
-          "users"
-        ],
-        "operationId": "listUsers",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Users",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WikiUserListResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "403": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "users"
-        ],
-        "operationId": "createUser",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "requestBody": {
-          "$ref": "#/components/requestBodies/WikiCreateUserRequest"
-        },
-        "responses": {
-          "201": {
-            "description": "User created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WikiUserResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "403": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/api/v1/users/{user_id}": {
-      "put": {
-        "tags": [
-          "users"
-        ],
-        "operationId": "updateUser",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/UserId"
-          }
-        ],
-        "requestBody": {
-          "$ref": "#/components/requestBodies/WikiUpdateUserRequest"
-        },
-        "responses": {
-          "200": {
-            "description": "User updated",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WikiUserResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "403": {
-            "$ref": "#/components/responses/Error"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/api/v1/spaces": {
-      "get": {
-        "tags": [
-          "spaces"
-        ],
-        "operationId": "listSpaces",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Spaces",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SpaceListResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "spaces"
-        ],
-        "operationId": "createSpace",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "requestBody": {
-          "$ref": "#/components/requestBodies/CreateSpaceRequest"
-        },
-        "responses": {
-          "201": {
-            "description": "Space created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SpaceResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "409": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/api/v1/spaces/{space_key}": {
-      "get": {
-        "tags": [
-          "spaces"
-        ],
-        "operationId": "getSpace",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/SpaceKey"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Space",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SpaceResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      },
-      "put": {
-        "tags": [
-          "spaces"
-        ],
-        "operationId": "updateSpace",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/SpaceKey"
-          }
-        ],
-        "requestBody": {
-          "$ref": "#/components/requestBodies/UpdateSpaceRequest"
-        },
-        "responses": {
-          "200": {
-            "description": "Space updated",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SpaceResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/api/v1/spaces/{space_key}/archive": {
-      "post": {
-        "tags": [
-          "spaces"
-        ],
-        "operationId": "archiveSpace",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/SpaceKey"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Space archived",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SpaceResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/api/v1/spaces/{space_key}/members": {
-      "get": {
-        "tags": [
-          "spaces"
-        ],
-        "operationId": "listSpaceMembers",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/SpaceKey"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Space members",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SpaceMemberListResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/api/v1/spaces/{space_key}/members/{user_id}": {
-      "put": {
-        "tags": [
-          "spaces"
-        ],
-        "operationId": "upsertSpaceMember",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/SpaceKey"
-          },
-          {
-            "$ref": "#/components/parameters/UserId"
-          }
-        ],
-        "requestBody": {
-          "$ref": "#/components/requestBodies/UpsertSpaceMemberRequest"
-        },
-        "responses": {
-          "200": {
-            "description": "Space member upserted",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SpaceMemberResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "spaces"
-        ],
-        "operationId": "deleteSpaceMember",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/SpaceKey"
-          },
-          {
-            "$ref": "#/components/parameters/UserId"
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Space member removed"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/api/v1/spaces/{space_key}/tree": {
-      "get": {
-        "tags": [
-          "documents"
-        ],
-        "operationId": "getSpaceTree",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/SpaceKey"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Page tree",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SpaceTreeResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/api/v1/spaces/{space_key}/documents": {
-      "post": {
-        "tags": [
-          "documents"
-        ],
-        "operationId": "createDocument",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/SpaceKey"
-          }
-        ],
-        "requestBody": {
-          "$ref": "#/components/requestBodies/CreateDocumentRequest"
-        },
-        "responses": {
-          "201": {
-            "description": "Document created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DocumentResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error"
-          },
-          "409": {
-            "$ref": "#/components/responses/Error"
           }
         }
       }
@@ -640,20 +263,20 @@
         "tags": [
           "documents"
         ],
-        "operationId": "getDocument",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
+        "operationId": "get_document",
         "parameters": [
           {
-            "$ref": "#/components/parameters/DocumentId"
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Document",
+            "description": "",
             "content": {
               "application/json": {
                 "schema": {
@@ -662,13 +285,53 @@
               }
             }
           },
-          "401": {
-            "$ref": "#/components/responses/Error"
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/documents/{document_id}/archive": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "operationId": "archive_document",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentResponse"
+                }
+              }
+            }
           },
           "404": {
-            "$ref": "#/components/responses/Error"
+            "description": ""
           }
-        }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
       }
     },
     "/api/v1/documents/{document_id}/draft": {
@@ -676,23 +339,30 @@
         "tags": [
           "documents"
         ],
-        "operationId": "updateDocumentDraft",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
+        "operationId": "update_document_draft",
         "parameters": [
           {
-            "$ref": "#/components/parameters/DocumentId"
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
-          "$ref": "#/components/requestBodies/UpdateDocumentDraftRequest"
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDocumentDraftRequest"
+              }
+            }
+          },
+          "required": true
         },
         "responses": {
           "200": {
-            "description": "Draft updated",
+            "description": "",
             "content": {
               "application/json": {
                 "schema": {
@@ -701,13 +371,63 @@
               }
             }
           },
-          "401": {
-            "$ref": "#/components/responses/Error"
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/documents/{document_id}/move": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "operationId": "move_document",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveDocumentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentResponse"
+                }
+              }
+            }
           },
           "404": {
-            "$ref": "#/components/responses/Error"
+            "description": ""
           }
-        }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
       }
     },
     "/api/v1/documents/{document_id}/publish": {
@@ -715,23 +435,30 @@
         "tags": [
           "documents"
         ],
-        "operationId": "publishDocument",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
+        "operationId": "publish_document",
         "parameters": [
           {
-            "$ref": "#/components/parameters/DocumentId"
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
-          "$ref": "#/components/requestBodies/PublishDocumentRequest"
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishDocumentRequest"
+              }
+            }
+          },
+          "required": true
         },
         "responses": {
           "200": {
-            "description": "Document revision published",
+            "description": "",
             "content": {
               "application/json": {
                 "schema": {
@@ -740,88 +467,15 @@
               }
             }
           },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
           "404": {
-            "$ref": "#/components/responses/Error"
+            "description": ""
           }
-        }
-      }
-    },
-    "/api/v1/documents/{document_id}/archive": {
-      "post": {
-        "tags": [
-          "documents"
-        ],
-        "operationId": "archiveDocument",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/DocumentId"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Document archived",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DocumentResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/api/v1/documents/{document_id}/move": {
-      "post": {
-        "tags": [
-          "documents"
-        ],
-        "operationId": "moveDocument",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/DocumentId"
-          }
-        ],
-        "requestBody": {
-          "$ref": "#/components/requestBodies/MoveDocumentRequest"
         },
-        "responses": {
-          "200": {
-            "description": "Document moved",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DocumentResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error"
+        "security": [
+          {
+            "bearer": []
           }
-        }
+        ]
       }
     },
     "/api/v1/documents/{document_id}/revisions": {
@@ -829,20 +483,20 @@
         "tags": [
           "documents"
         ],
-        "operationId": "listDocumentRevisions",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
+        "operationId": "list_document_revisions",
         "parameters": [
           {
-            "$ref": "#/components/parameters/DocumentId"
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Document revisions",
+            "description": "",
             "content": {
               "application/json": {
                 "schema": {
@@ -854,13 +508,15 @@
               }
             }
           },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
           "404": {
-            "$ref": "#/components/responses/Error"
+            "description": ""
           }
-        }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
       }
     },
     "/api/v1/documents/{document_id}/revisions/{revision_id}": {
@@ -868,23 +524,28 @@
         "tags": [
           "documents"
         ],
-        "operationId": "getDocumentRevision",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
+        "operationId": "get_document_revision",
         "parameters": [
           {
-            "$ref": "#/components/parameters/DocumentId"
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           },
           {
-            "$ref": "#/components/parameters/RevisionId"
+            "name": "revision_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Document revision",
+            "description": "",
             "content": {
               "application/json": {
                 "schema": {
@@ -893,403 +554,15 @@
               }
             }
           },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
           "404": {
-            "$ref": "#/components/responses/Error"
+            "description": ""
           }
-        }
-      }
-    },
-    "/api/v1/spaces/{space_key}/tasks": {
-      "get": {
-        "tags": [
-          "tasks"
-        ],
-        "operationId": "listTasks",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/SpaceKey"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Task dossiers",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TaskPageListResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/api/v1/spaces/{space_key}/tasks/{task_key}": {
-      "get": {
-        "tags": [
-          "tasks"
-        ],
-        "operationId": "getTask",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/SpaceKey"
-          },
-          {
-            "$ref": "#/components/parameters/TaskKey"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Task dossier",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TaskPageResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/api/v1/spaces/{space_key}/tasks/{task_key}/links/documents": {
-      "post": {
-        "tags": [
-          "tasks"
-        ],
-        "operationId": "linkTaskDocument",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/SpaceKey"
-          },
-          {
-            "$ref": "#/components/parameters/TaskKey"
-          }
-        ],
-        "requestBody": {
-          "$ref": "#/components/requestBodies/LinkDocumentRequest"
         },
-        "responses": {
-          "200": {
-            "description": "Task document linked",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TaskPageResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/api/v1/spaces/{space_key}/tasks/{task_key}/documents": {
-      "get": {
-        "tags": [
-          "tasks"
-        ],
-        "operationId": "listTaskDocuments",
         "security": [
           {
             "bearer": []
           }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/SpaceKey"
-          },
-          {
-            "$ref": "#/components/parameters/TaskKey"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Task documents",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DocumentListResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/api/v1/spaces/{space_key}/tasks/{task_key}/evidence": {
-      "get": {
-        "tags": [
-          "tasks"
-        ],
-        "operationId": "listTaskEvidence",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/SpaceKey"
-          },
-          {
-            "$ref": "#/components/parameters/TaskKey"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Task evidence",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EvidenceListResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/api/v1/spaces/{space_key}/phases": {
-      "get": {
-        "tags": [
-          "phases"
-        ],
-        "operationId": "listPhases",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/SpaceKey"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Phase dossiers",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PhasePageListResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/api/v1/spaces/{space_key}/phases/{phase_key}": {
-      "get": {
-        "tags": [
-          "phases"
-        ],
-        "operationId": "getPhase",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/SpaceKey"
-          },
-          {
-            "$ref": "#/components/parameters/PhaseKey"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Phase dossier",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PhasePageResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/api/v1/spaces/{space_key}/phases/{phase_key}/links/documents": {
-      "post": {
-        "tags": [
-          "phases"
-        ],
-        "operationId": "linkPhaseDocument",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/SpaceKey"
-          },
-          {
-            "$ref": "#/components/parameters/PhaseKey"
-          }
-        ],
-        "requestBody": {
-          "$ref": "#/components/requestBodies/LinkDocumentRequest"
-        },
-        "responses": {
-          "200": {
-            "description": "Phase document linked",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PhasePageResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/api/v1/spaces/{space_key}/phases/{phase_key}/documents": {
-      "get": {
-        "tags": [
-          "phases"
-        ],
-        "operationId": "listPhaseDocuments",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/SpaceKey"
-          },
-          {
-            "$ref": "#/components/parameters/PhaseKey"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Phase documents",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DocumentListResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/api/v1/spaces/{space_key}/phases/{phase_key}/evidence": {
-      "get": {
-        "tags": [
-          "phases"
-        ],
-        "operationId": "listPhaseEvidence",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/SpaceKey"
-          },
-          {
-            "$ref": "#/components/parameters/PhaseKey"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Phase evidence",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EvidenceListResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
+        ]
       }
     },
     "/api/v1/evidence": {
@@ -1297,32 +570,68 @@
         "tags": [
           "evidence"
         ],
-        "operationId": "listEvidence",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
+        "operationId": "list_evidence",
         "parameters": [
           {
-            "$ref": "#/components/parameters/SpaceQuery"
+            "name": "space",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           },
           {
-            "$ref": "#/components/parameters/DocumentIdQuery"
+            "name": "document_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           },
           {
-            "$ref": "#/components/parameters/TaskKeyQuery"
+            "name": "task_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           },
           {
-            "$ref": "#/components/parameters/PhaseKeyQuery"
+            "name": "phase_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           },
           {
-            "$ref": "#/components/parameters/LimitQuery"
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Evidence",
+            "description": "",
             "content": {
               "application/json": {
                 "schema": {
@@ -1330,28 +639,32 @@
                 }
               }
             }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
       },
       "post": {
         "tags": [
           "evidence"
         ],
-        "operationId": "createEvidence",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
+        "operationId": "create_evidence",
         "requestBody": {
-          "$ref": "#/components/requestBodies/CreateEvidenceRequest"
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEvidenceRequest"
+              }
+            }
+          },
+          "required": true
         },
         "responses": {
           "201": {
-            "description": "Evidence created",
+            "description": "",
             "content": {
               "application/json": {
                 "schema": {
@@ -1359,11 +672,13 @@
                 }
               }
             }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
       }
     },
     "/api/v1/evidence/{evidence_id}": {
@@ -1371,20 +686,20 @@
         "tags": [
           "evidence"
         ],
-        "operationId": "getEvidence",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
+        "operationId": "get_evidence",
         "parameters": [
           {
-            "$ref": "#/components/parameters/EvidenceId"
+            "name": "evidence_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Evidence item",
+            "description": "",
             "content": {
               "application/json": {
                 "schema": {
@@ -1393,219 +708,33 @@
               }
             }
           },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
           "404": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/api/v1/attachments": {
-      "post": {
-        "tags": [
-          "attachments"
-        ],
-        "operationId": "uploadAttachment",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "file": {
-                    "type": "string",
-                    "format": "binary"
-                  }
-                },
-                "required": [
-                  "file"
-                ]
-              }
-            }
+            "description": ""
           }
         },
-        "responses": {
-          "201": {
-            "description": "Attachment uploaded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AttachmentResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
+        "security": [
+          {
+            "bearer": []
           }
-        }
+        ]
       }
     },
-    "/api/v1/attachments/{attachment_id}": {
+    "/api/v1/health": {
       "get": {
         "tags": [
-          "attachments"
+          "routes::health"
         ],
-        "operationId": "getAttachment",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/AttachmentId"
-          }
-        ],
+        "operationId": "health",
         "responses": {
           "200": {
-            "description": "Attachment metadata",
+            "description": "",
             "content": {
-              "application/json": {
+              "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/AttachmentResponse"
+                  "type": "string"
                 }
               }
             }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/api/v1/attachments/{attachment_id}/download": {
-      "get": {
-        "tags": [
-          "attachments"
-        ],
-        "operationId": "downloadAttachment",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/AttachmentId"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Attachment bytes",
-            "content": {
-              "application/octet-stream": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/api/v1/templates": {
-      "get": {
-        "tags": [
-          "templates"
-        ],
-        "operationId": "listTemplates",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Templates",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TemplateListResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "templates"
-        ],
-        "operationId": "createTemplate",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "requestBody": {
-          "$ref": "#/components/requestBodies/CreateTemplateRequest"
-        },
-        "responses": {
-          "201": {
-            "description": "Template created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TemplateResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/api/v1/audit-log": {
-      "get": {
-        "tags": [
-          "audit"
-        ],
-        "operationId": "listAuditLog",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Audit log",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuditLogResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "403": {
-            "$ref": "#/components/responses/Error"
           }
         }
       }
@@ -1616,50 +745,89 @@
           "search"
         ],
         "operationId": "search",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "q",
             "in": "query",
+            "required": false,
             "schema": {
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           {
-            "$ref": "#/components/parameters/SpaceQuery"
+            "name": "space",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           },
           {
-            "$ref": "#/components/parameters/TaskKeyQuery"
+            "name": "task_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           },
           {
-            "$ref": "#/components/parameters/PhaseKeyQuery"
+            "name": "phase_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           },
           {
             "name": "document_type",
             "in": "query",
+            "required": false,
             "schema": {
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           {
             "name": "include_archived",
             "in": "query",
+            "required": false,
             "schema": {
-              "type": "boolean",
-              "default": false
+              "type": [
+                "boolean",
+                "null"
+              ]
             }
           },
           {
-            "$ref": "#/components/parameters/LimitQuery"
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Search results",
+            "description": "",
             "content": {
               "application/json": {
                 "schema": {
@@ -1667,715 +835,1159 @@
                 }
               }
             }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/spaces": {
+      "get": {
+        "tags": [
+          "spaces"
+        ],
+        "operationId": "list_spaces",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceListResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "spaces"
+        ],
+        "operationId": "create_space",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSpaceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/spaces/{space_key}": {
+      "get": {
+        "tags": [
+          "spaces"
+        ],
+        "operationId": "get_space",
+        "parameters": [
+          {
+            "name": "space_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "spaces"
+        ],
+        "operationId": "update_space",
+        "parameters": [
+          {
+            "name": "space_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSpaceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/spaces/{space_key}/archive": {
+      "post": {
+        "tags": [
+          "spaces"
+        ],
+        "operationId": "archive_space",
+        "parameters": [
+          {
+            "name": "space_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/spaces/{space_key}/documents": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "operationId": "create_document",
+        "parameters": [
+          {
+            "name": "space_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDocumentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/spaces/{space_key}/members": {
+      "get": {
+        "tags": [
+          "spaces"
+        ],
+        "operationId": "list_space_members",
+        "parameters": [
+          {
+            "name": "space_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceMemberListResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/spaces/{space_key}/members/{user_id}": {
+      "put": {
+        "tags": [
+          "spaces"
+        ],
+        "operationId": "upsert_space_member",
+        "parameters": [
+          {
+            "name": "space_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertSpaceMemberRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceMemberResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "spaces"
+        ],
+        "operationId": "delete_space_member",
+        "parameters": [
+          {
+            "name": "space_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/spaces/{space_key}/phases": {
+      "get": {
+        "tags": [
+          "phases"
+        ],
+        "operationId": "list_phases",
+        "parameters": [
+          {
+            "name": "space_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhasePageListResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/spaces/{space_key}/phases/{phase_key}": {
+      "get": {
+        "tags": [
+          "phases"
+        ],
+        "operationId": "get_phase",
+        "parameters": [
+          {
+            "name": "space_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "phase_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhasePageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/spaces/{space_key}/phases/{phase_key}/documents": {
+      "get": {
+        "tags": [
+          "phases"
+        ],
+        "operationId": "list_phase_documents",
+        "parameters": [
+          {
+            "name": "space_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "phase_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentListResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/spaces/{space_key}/phases/{phase_key}/evidence": {
+      "get": {
+        "tags": [
+          "phases"
+        ],
+        "operationId": "list_phase_evidence",
+        "parameters": [
+          {
+            "name": "space_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "phase_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceListResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/spaces/{space_key}/phases/{phase_key}/links/documents": {
+      "post": {
+        "tags": [
+          "phases"
+        ],
+        "operationId": "link_phase_document",
+        "parameters": [
+          {
+            "name": "space_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "phase_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkDocumentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhasePageResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/spaces/{space_key}/tasks": {
+      "get": {
+        "tags": [
+          "tasks"
+        ],
+        "operationId": "list_tasks",
+        "parameters": [
+          {
+            "name": "space_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskPageListResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/spaces/{space_key}/tasks/{task_key}": {
+      "get": {
+        "tags": [
+          "tasks"
+        ],
+        "operationId": "get_task",
+        "parameters": [
+          {
+            "name": "space_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "task_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskPageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/spaces/{space_key}/tasks/{task_key}/documents": {
+      "get": {
+        "tags": [
+          "tasks"
+        ],
+        "operationId": "list_task_documents",
+        "parameters": [
+          {
+            "name": "space_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "task_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentListResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/spaces/{space_key}/tasks/{task_key}/evidence": {
+      "get": {
+        "tags": [
+          "tasks"
+        ],
+        "operationId": "list_task_evidence",
+        "parameters": [
+          {
+            "name": "space_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "task_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceListResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/spaces/{space_key}/tasks/{task_key}/links/documents": {
+      "post": {
+        "tags": [
+          "tasks"
+        ],
+        "operationId": "link_task_document",
+        "parameters": [
+          {
+            "name": "space_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "task_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkDocumentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskPageResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/spaces/{space_key}/tree": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "operationId": "get_space_tree",
+        "parameters": [
+          {
+            "name": "space_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceTreeResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/templates": {
+      "get": {
+        "tags": [
+          "templates"
+        ],
+        "operationId": "list_templates",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateListResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "templates"
+        ],
+        "operationId": "create_template",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTemplateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/users": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "operationId": "list_users",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WikiUserListResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "operationId": "create_user",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WikiCreateUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WikiUserResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/users/me": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "operationId": "get_current_user",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WikiUserResponse"
+                }
+              }
+            }
           },
           "401": {
-            "$ref": "#/components/responses/Error"
+            "description": ""
           }
-        }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/users/{user_id}": {
+      "put": {
+        "tags": [
+          "users"
+        ],
+        "operationId": "update_user",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WikiUpdateUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WikiUserResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
       }
     }
   },
   "components": {
-    "securitySchemes": {
-      "bearer": {
-        "type": "http",
-        "scheme": "bearer"
-      }
-    },
-    "responses": {
-      "Error": {
-        "description": "Error response",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/ErrorResponse"
-            }
-          }
-        }
-      }
-    },
-    "parameters": {
-      "SpaceKey": {
-        "name": "space_key",
-        "in": "path",
-        "required": true,
-        "schema": {
-          "type": "string"
-        }
-      },
-      "UserId": {
-        "name": "user_id",
-        "in": "path",
-        "required": true,
-        "schema": {
-          "type": "string"
-        }
-      },
-      "DocumentId": {
-        "name": "document_id",
-        "in": "path",
-        "required": true,
-        "schema": {
-          "type": "string"
-        }
-      },
-      "RevisionId": {
-        "name": "revision_id",
-        "in": "path",
-        "required": true,
-        "schema": {
-          "type": "string"
-        }
-      },
-      "TaskKey": {
-        "name": "task_key",
-        "in": "path",
-        "required": true,
-        "schema": {
-          "type": "string"
-        }
-      },
-      "PhaseKey": {
-        "name": "phase_key",
-        "in": "path",
-        "required": true,
-        "schema": {
-          "type": "string"
-        }
-      },
-      "EvidenceId": {
-        "name": "evidence_id",
-        "in": "path",
-        "required": true,
-        "schema": {
-          "type": "string"
-        }
-      },
-      "AttachmentId": {
-        "name": "attachment_id",
-        "in": "path",
-        "required": true,
-        "schema": {
-          "type": "string"
-        }
-      },
-      "SpaceQuery": {
-        "name": "space",
-        "in": "query",
-        "schema": {
-          "type": "string"
-        }
-      },
-      "DocumentIdQuery": {
-        "name": "document_id",
-        "in": "query",
-        "schema": {
-          "type": "string"
-        }
-      },
-      "TaskKeyQuery": {
-        "name": "task_key",
-        "in": "query",
-        "schema": {
-          "type": "string"
-        }
-      },
-      "PhaseKeyQuery": {
-        "name": "phase_key",
-        "in": "query",
-        "schema": {
-          "type": "string"
-        }
-      },
-      "LimitQuery": {
-        "name": "limit",
-        "in": "query",
-        "schema": {
-          "type": "integer",
-          "minimum": 1,
-          "default": 50
-        }
-      }
-    },
-    "requestBodies": {
-      "WikiCreateUserRequest": {
-        "required": true,
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/WikiCreateUserRequest"
-            }
-          }
-        }
-      },
-      "WikiUpdateUserRequest": {
-        "required": true,
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/WikiUpdateUserRequest"
-            }
-          }
-        }
-      },
-      "CreateSpaceRequest": {
-        "required": true,
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/CreateSpaceRequest"
-            }
-          }
-        }
-      },
-      "UpdateSpaceRequest": {
-        "required": true,
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/UpdateSpaceRequest"
-            }
-          }
-        }
-      },
-      "UpsertSpaceMemberRequest": {
-        "required": true,
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/UpsertSpaceMemberRequest"
-            }
-          }
-        }
-      },
-      "CreateDocumentRequest": {
-        "required": true,
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/CreateDocumentRequest"
-            }
-          }
-        }
-      },
-      "UpdateDocumentDraftRequest": {
-        "required": true,
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/UpdateDocumentDraftRequest"
-            }
-          }
-        }
-      },
-      "PublishDocumentRequest": {
-        "required": true,
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/PublishDocumentRequest"
-            }
-          }
-        }
-      },
-      "MoveDocumentRequest": {
-        "required": true,
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/MoveDocumentRequest"
-            }
-          }
-        }
-      },
-      "LinkDocumentRequest": {
-        "required": true,
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/LinkDocumentRequest"
-            }
-          }
-        }
-      },
-      "CreateEvidenceRequest": {
-        "required": true,
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/CreateEvidenceRequest"
-            }
-          }
-        }
-      },
-      "CreateTemplateRequest": {
-        "required": true,
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/CreateTemplateRequest"
-            }
-          }
-        }
-      }
-    },
     "schemas": {
-      "ErrorResponse": {
+      "AttachmentResponse": {
         "type": "object",
-        "properties": {
-          "error": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "error"
-        ]
-      },
-      "WikiAuthResponse": {
-        "type": "object",
-        "properties": {
-          "access_token": {
-            "type": "string"
-          },
-          "refresh_token": {
-            "type": "string"
-          },
-          "token_type": {
-            "type": "string"
-          },
-          "user_id": {
-            "type": "string"
-          },
-          "email": {
-            "type": "string"
-          },
-          "username": {
-            "type": "string"
-          },
-          "password": {
-            "type": "string",
-            "format": "password"
-          },
-          "display_name": {
-            "type": "string"
-          },
-          "expires_in": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "access_token",
-          "refresh_token",
-          "token_type",
-          "user_id",
-          "email",
-          "username",
-          "display_name",
-          "expires_in"
-        ]
-      },
-      "WikiRegisterRequest": {
-        "type": "object",
-        "properties": {
-          "email": {
-            "type": "string"
-          },
-          "username": {
-            "type": "string"
-          },
-          "password": {
-            "type": "string",
-            "format": "password"
-          },
-          "name": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "email",
-          "username",
-          "password"
-        ]
-      },
-      "WikiLoginRequest": {
-        "type": "object",
-        "properties": {
-          "email": {
-            "type": "string"
-          },
-          "password": {
-            "type": "string",
-            "format": "password"
-          }
-        },
-        "required": [
-          "email",
-          "password"
-        ]
-      },
-      "WikiRefreshRequest": {
-        "type": "object",
-        "properties": {
-          "refresh_token": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "refresh_token"
-        ]
-      },
-      "WikiUserResponse": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "email": {
-            "type": "string"
-          },
-          "username": {
-            "type": "string"
-          },
-          "display_name": {
-            "type": "string"
-          },
-          "role": {
-            "type": "string"
-          },
-          "is_system_admin": {
-            "type": "boolean"
-          },
-          "active": {
-            "type": "boolean"
-          }
-        },
         "required": [
           "id",
-          "email",
-          "username",
-          "display_name",
-          "role",
-          "is_system_admin",
-          "active"
-        ]
-      },
-      "WikiUserListResponse": {
-        "type": "object",
+          "file_name",
+          "content_type",
+          "size_bytes",
+          "checksum",
+          "uploaded_by",
+          "uploaded_at"
+        ],
         "properties": {
-          "users": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/WikiUserResponse"
-            }
-          }
-        },
-        "required": [
-          "users"
-        ]
-      },
-      "WikiCreateUserRequest": {
-        "type": "object",
-        "properties": {
-          "email": {
+          "checksum": {
             "type": "string"
           },
-          "username": {
+          "content_type": {
             "type": "string"
           },
-          "display_name": {
+          "file_name": {
             "type": "string"
           },
-          "role": {
-            "type": "string",
-            "default": "viewer"
-          }
-        },
-        "required": [
-          "email",
-          "username",
-          "password",
-          "display_name"
-        ]
-      },
-      "WikiUpdateUserRequest": {
-        "type": "object",
-        "properties": {
-          "email": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "username": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "display_name": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "role": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "is_system_admin": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "active": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          }
-        }
-      },
-      "SpaceResponse": {
-        "type": "object",
-        "properties": {
           "id": {
             "type": "string"
           },
-          "key": {
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "uploaded_at": {
             "type": "string"
           },
-          "name": {
+          "uploaded_by": {
+            "type": "string"
+          }
+        }
+      },
+      "AuditEntryResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "actor_id",
+          "action",
+          "entity_type",
+          "entity_id",
+          "created_at"
+        ],
+        "properties": {
+          "action": {
             "type": "string"
           },
-          "description": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "owner_id": {
+          "actor_id": {
             "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "document_count": {
-            "type": "integer"
-          },
-          "member_count": {
-            "type": "integer"
           },
           "created_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": [
-          "id",
-          "key",
-          "name",
-          "owner_id",
-          "status",
-          "document_count",
-          "member_count",
-          "created_at",
-          "updated_at"
-        ]
-      },
-      "SpaceListResponse": {
-        "type": "object",
-        "properties": {
-          "spaces": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SpaceResponse"
-            }
-          }
-        },
-        "required": [
-          "spaces"
-        ]
-      },
-      "CreateSpaceRequest": {
-        "type": "object",
-        "properties": {
-          "key": {
             "type": "string"
           },
-          "name": {
+          "entity_id": {
             "type": "string"
           },
-          "description": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "key",
-          "name"
-        ]
-      },
-      "UpdateSpaceRequest": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": [
-              "string",
-              "null"
-            ]
+          "entity_type": {
+            "type": "string"
           },
-          "description": {
-            "type": [
-              "string",
-              "null"
-            ]
+          "id": {
+            "type": "string"
           }
         }
       },
-      "SpaceMemberResponse": {
+      "AuditLogResponse": {
         "type": "object",
-        "properties": {
-          "user_id": {
-            "type": "string"
-          },
-          "email": {
-            "type": "string"
-          },
-          "display_name": {
-            "type": "string"
-          },
-          "role": {
-            "type": "string"
-          },
-          "joined_at": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
         "required": [
-          "user_id",
-          "email",
-          "display_name",
-          "role",
-          "joined_at"
-        ]
-      },
-      "SpaceMemberListResponse": {
-        "type": "object",
+          "entries"
+        ],
         "properties": {
-          "members": {
+          "entries": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/SpaceMemberResponse"
+              "$ref": "#/components/schemas/AuditEntryResponse"
             }
           }
-        },
-        "required": [
-          "members"
-        ]
-      },
-      "UpsertSpaceMemberRequest": {
-        "type": "object",
-        "properties": {
-          "role": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "role"
-        ]
-      },
-      "SpaceTreeNodeResponse": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "slug": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "document_type": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "children": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SpaceTreeNodeResponse"
-            }
-          }
-        },
-        "required": [
-          "id",
-          "slug",
-          "title",
-          "document_type",
-          "status",
-          "children"
-        ]
-      },
-      "SpaceTreeResponse": {
-        "type": "object",
-        "properties": {
-          "space_key": {
-            "type": "string"
-          },
-          "documents": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SpaceTreeNodeResponse"
-            }
-          }
-        },
-        "required": [
-          "space_key",
-          "documents"
-        ]
+        }
       },
       "CreateDocumentRequest": {
         "type": "object",
+        "required": [
+          "title"
+        ],
         "properties": {
-          "title": {
+          "content_markdown": {
             "type": "string"
           },
-          "slug": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "document_type": {
-            "type": "string",
-            "default": "page"
+            "type": "string"
           },
           "parent_id": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "content_markdown": {
-            "type": "string",
-            "default": ""
-          },
-          "task_key": {
             "type": [
               "string",
               "null"
@@ -2386,212 +1998,136 @@
               "string",
               "null"
             ]
-          }
-        },
-        "required": [
-          "title"
-        ]
-      },
-      "UpdateDocumentDraftRequest": {
-        "type": "object",
-        "properties": {
-          "title": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "content_markdown": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "content_markdown"
-        ]
-      },
-      "PublishDocumentRequest": {
-        "type": "object",
-        "properties": {
-          "summary": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        }
-      },
-      "MoveDocumentRequest": {
-        "type": "object",
-        "properties": {
-          "parent_id": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        }
-      },
-      "LinkDocumentRequest": {
-        "type": "object",
-        "properties": {
-          "document_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "document_id"
-        ]
-      },
-      "DocumentRevisionResponse": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "document_id": {
-            "type": "string"
-          },
-          "version": {
-            "type": "integer"
-          },
-          "title": {
-            "type": "string"
-          },
-          "body_markdown": {
-            "type": "string"
-          },
-          "summary": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "author_id": {
-            "type": "string"
-          },
-          "published_at": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": [
-          "id",
-          "document_id",
-          "version",
-          "title",
-          "body_markdown",
-          "author_id",
-          "published_at"
-        ]
-      },
-      "DocumentSummaryResponse": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
           },
           "slug": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "task_key": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "title": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateEvidenceRequest": {
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "attachment_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "checksum": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "document_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "evidence_type": {
+            "type": "string"
+          },
+          "phase_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "space": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "task_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "CreateSpaceRequest": {
+        "type": "object",
+        "required": [
+          "key",
+          "name"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateTemplateRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "document_type",
+          "body_markdown"
+        ],
+        "properties": {
+          "body_markdown": {
             "type": "string"
           },
           "document_type": {
             "type": "string"
           },
-          "status": {
+          "name": {
             "type": "string"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time"
           }
-        },
+        }
+      },
+      "DocumentListResponse": {
+        "type": "object",
         "required": [
-          "id",
-          "slug",
-          "title",
-          "document_type",
-          "status",
-          "updated_at"
-        ]
+          "documents"
+        ],
+        "properties": {
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentResponse"
+            }
+          }
+        }
       },
       "DocumentResponse": {
         "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "space_key": {
-            "type": "string"
-          },
-          "parent_id": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "slug": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "document_type": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "body_markdown": {
-            "type": "string"
-          },
-          "draft_markdown": {
-            "type": "string"
-          },
-          "current_revision": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/DocumentRevisionResponse"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "task_keys": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "phase_keys": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "evidence": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/EvidenceResponse"
-            }
-          },
-          "created_by": {
-            "type": "string"
-          },
-          "updated_by": {
-            "type": "string"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
         "required": [
           "id",
           "space_key",
@@ -2608,252 +2144,170 @@
           "updated_by",
           "created_at",
           "updated_at"
-        ]
-      },
-      "DocumentListResponse": {
-        "type": "object",
+        ],
         "properties": {
-          "documents": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/DocumentResponse"
-            }
-          }
-        },
-        "required": [
-          "documents"
-        ]
-      },
-      "TaskPageResponse": {
-        "type": "object",
-        "properties": {
-          "space_key": {
+          "body_markdown": {
             "type": "string"
           },
-          "task_key": {
+          "created_at": {
             "type": "string"
-          },
-          "title": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "document_count": {
-            "type": "integer"
-          },
-          "evidence_count": {
-            "type": "integer"
-          },
-          "documents": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/DocumentSummaryResponse"
-            }
-          },
-          "evidence": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/EvidenceResponse"
-            }
-          }
-        },
-        "required": [
-          "space_key",
-          "task_key",
-          "document_count",
-          "evidence_count",
-          "documents",
-          "evidence"
-        ]
-      },
-      "TaskPageListResponse": {
-        "type": "object",
-        "properties": {
-          "tasks": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/TaskPageResponse"
-            }
-          }
-        },
-        "required": [
-          "tasks"
-        ]
-      },
-      "PhasePageResponse": {
-        "type": "object",
-        "properties": {
-          "space_key": {
-            "type": "string"
-          },
-          "phase_key": {
-            "type": "string"
-          },
-          "title": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "document_count": {
-            "type": "integer"
-          },
-          "evidence_count": {
-            "type": "integer"
-          },
-          "documents": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/DocumentSummaryResponse"
-            }
-          },
-          "evidence": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/EvidenceResponse"
-            }
-          }
-        },
-        "required": [
-          "space_key",
-          "phase_key",
-          "document_count",
-          "evidence_count",
-          "documents",
-          "evidence"
-        ]
-      },
-      "PhasePageListResponse": {
-        "type": "object",
-        "properties": {
-          "phases": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PhasePageResponse"
-            }
-          }
-        },
-        "required": [
-          "phases"
-        ]
-      },
-      "CreateEvidenceRequest": {
-        "type": "object",
-        "properties": {
-          "space": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "document_id": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "task_key": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "phase_key": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "title": {
-            "type": "string"
-          },
-          "evidence_type": {
-            "type": "string",
-            "default": "external_url"
-          },
-          "url": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "attachment_id": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "checksum": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "title"
-        ]
-      },
-      "EvidenceResponse": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "space_key": {
-            "type": "string"
-          },
-          "document_id": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "task_key": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "phase_key": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "title": {
-            "type": "string"
-          },
-          "evidence_type": {
-            "type": "string"
-          },
-          "url": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "attachment_id": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "checksum": {
-            "type": [
-              "string",
-              "null"
-            ]
           },
           "created_by": {
             "type": "string"
           },
-          "created_at": {
-            "type": "string",
-            "format": "date-time"
+          "current_revision": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DocumentRevisionResponse"
+              }
+            ]
+          },
+          "document_type": {
+            "type": "string"
+          },
+          "draft_markdown": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceResponse"
+            }
+          },
+          "id": {
+            "type": "string"
+          },
+          "parent_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "phase_keys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "slug": {
+            "type": "string"
+          },
+          "space_key": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "task_keys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "title": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "updated_by": {
+            "type": "string"
           }
-        },
+        }
+      },
+      "DocumentRevisionResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "document_id",
+          "version",
+          "title",
+          "body_markdown",
+          "author_id",
+          "published_at"
+        ],
+        "properties": {
+          "author_id": {
+            "type": "string"
+          },
+          "body_markdown": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "published_at": {
+            "type": "string"
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "DocumentSummaryResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "slug",
+          "title",
+          "document_type",
+          "status",
+          "updated_at"
+        ],
+        "properties": {
+          "document_type": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        }
+      },
+      "EvidenceListResponse": {
+        "type": "object",
+        "required": [
+          "evidence"
+        ],
+        "properties": {
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceResponse"
+            }
+          }
+        }
+      },
+      "EvidenceResponse": {
+        "type": "object",
         "required": [
           "id",
           "space_key",
@@ -2861,186 +2315,172 @@
           "evidence_type",
           "created_by",
           "created_at"
-        ]
+        ],
+        "properties": {
+          "attachment_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "checksum": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "evidence_type": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "phase_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "space_key": {
+            "type": "string"
+          },
+          "task_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
       },
-      "EvidenceListResponse": {
+      "LinkDocumentRequest": {
+        "type": "object",
+        "required": [
+          "document_id"
+        ],
+        "properties": {
+          "document_id": {
+            "type": "string"
+          }
+        }
+      },
+      "MoveDocumentRequest": {
         "type": "object",
         "properties": {
+          "parent_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "PhasePageListResponse": {
+        "type": "object",
+        "required": [
+          "phases"
+        ],
+        "properties": {
+          "phases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PhasePageResponse"
+            }
+          }
+        }
+      },
+      "PhasePageResponse": {
+        "type": "object",
+        "required": [
+          "space_key",
+          "phase_key",
+          "document_count",
+          "evidence_count",
+          "documents",
+          "evidence"
+        ],
+        "properties": {
+          "document_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentSummaryResponse"
+            }
+          },
           "evidence": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/EvidenceResponse"
             }
-          }
-        },
-        "required": [
-          "evidence"
-        ]
-      },
-      "AttachmentResponse": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
           },
-          "file_name": {
-            "type": "string"
+          "evidence_count": {
+            "type": "integer",
+            "minimum": 0
           },
-          "content_type": {
-            "type": "string"
-          },
-          "size_bytes": {
-            "type": "integer"
-          },
-          "checksum": {
-            "type": "string"
-          },
-          "uploaded_by": {
-            "type": "string"
-          },
-          "uploaded_at": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": [
-          "id",
-          "file_name",
-          "content_type",
-          "size_bytes",
-          "checksum",
-          "uploaded_by",
-          "uploaded_at"
-        ]
-      },
-      "TemplateResponse": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "document_type": {
-            "type": "string"
-          },
-          "body_markdown": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "document_type",
-          "body_markdown"
-        ]
-      },
-      "TemplateListResponse": {
-        "type": "object",
-        "properties": {
-          "templates": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/TemplateResponse"
-            }
-          }
-        },
-        "required": [
-          "templates"
-        ]
-      },
-      "CreateTemplateRequest": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "document_type": {
-            "type": "string"
-          },
-          "body_markdown": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "document_type",
-          "body_markdown"
-        ]
-      },
-      "AuditEntryResponse": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "actor_id": {
-            "type": "string"
-          },
-          "action": {
-            "type": "string"
-          },
-          "entity_type": {
-            "type": "string"
-          },
-          "entity_id": {
-            "type": "string"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": [
-          "id",
-          "actor_id",
-          "action",
-          "entity_type",
-          "entity_id",
-          "created_at"
-        ]
-      },
-      "AuditLogResponse": {
-        "type": "object",
-        "properties": {
-          "entries": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AuditEntryResponse"
-            }
-          }
-        },
-        "required": [
-          "entries"
-        ]
-      },
-      "SearchResultResponse": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "result_type": {
-            "type": "string"
-          },
-          "title": {
+          "phase_key": {
             "type": "string"
           },
           "space_key": {
             "type": "string"
           },
-          "url": {
-            "type": "string"
-          },
-          "snippet": {
-            "type": "string"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time"
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
-        },
+        }
+      },
+      "PublishDocumentRequest": {
+        "type": "object",
+        "properties": {
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "SearchResponse": {
+        "type": "object",
+        "required": [
+          "results"
+        ],
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchResultResponse"
+            }
+          }
+        }
+      },
+      "SearchResultResponse": {
+        "type": "object",
         "required": [
           "id",
           "result_type",
@@ -3049,21 +2489,544 @@
           "url",
           "snippet",
           "updated_at"
-        ]
-      },
-      "SearchResponse": {
-        "type": "object",
+        ],
         "properties": {
-          "results": {
+          "id": {
+            "type": "string"
+          },
+          "result_type": {
+            "type": "string"
+          },
+          "snippet": {
+            "type": "string"
+          },
+          "space_key": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
+      "SpaceListResponse": {
+        "type": "object",
+        "required": [
+          "spaces"
+        ],
+        "properties": {
+          "spaces": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/SearchResultResponse"
+              "$ref": "#/components/schemas/SpaceResponse"
             }
           }
-        },
+        }
+      },
+      "SpaceMemberListResponse": {
+        "type": "object",
         "required": [
-          "results"
-        ]
+          "members"
+        ],
+        "properties": {
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpaceMemberResponse"
+            }
+          }
+        }
+      },
+      "SpaceMemberResponse": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "email",
+          "display_name",
+          "role",
+          "joined_at"
+        ],
+        "properties": {
+          "display_name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "joined_at": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        }
+      },
+      "SpaceResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "key",
+          "name",
+          "owner_id",
+          "status",
+          "document_count",
+          "member_count",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "document_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "id": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "member_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        }
+      },
+      "SpaceTreeNodeResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "slug",
+          "title",
+          "document_type",
+          "status",
+          "children"
+        ],
+        "properties": {
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpaceTreeNodeResponse"
+            }
+          },
+          "document_type": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "SpaceTreeResponse": {
+        "type": "object",
+        "required": [
+          "space_key",
+          "documents"
+        ],
+        "properties": {
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpaceTreeNodeResponse"
+            }
+          },
+          "space_key": {
+            "type": "string"
+          }
+        }
+      },
+      "TaskPageListResponse": {
+        "type": "object",
+        "required": [
+          "tasks"
+        ],
+        "properties": {
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskPageResponse"
+            }
+          }
+        }
+      },
+      "TaskPageResponse": {
+        "type": "object",
+        "required": [
+          "space_key",
+          "task_key",
+          "document_count",
+          "evidence_count",
+          "documents",
+          "evidence"
+        ],
+        "properties": {
+          "document_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentSummaryResponse"
+            }
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceResponse"
+            }
+          },
+          "evidence_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "space_key": {
+            "type": "string"
+          },
+          "task_key": {
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "TemplateListResponse": {
+        "type": "object",
+        "required": [
+          "templates"
+        ],
+        "properties": {
+          "templates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TemplateResponse"
+            }
+          }
+        }
+      },
+      "TemplateResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "document_type",
+          "body_markdown"
+        ],
+        "properties": {
+          "body_markdown": {
+            "type": "string"
+          },
+          "document_type": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateDocumentDraftRequest": {
+        "type": "object",
+        "required": [
+          "content_markdown"
+        ],
+        "properties": {
+          "content_markdown": {
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "UpdateSpaceRequest": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "UpsertSpaceMemberRequest": {
+        "type": "object",
+        "required": [
+          "role"
+        ],
+        "properties": {
+          "role": {
+            "type": "string"
+          }
+        }
+      },
+      "WikiAuthResponse": {
+        "type": "object",
+        "required": [
+          "access_token",
+          "refresh_token",
+          "token_type",
+          "user_id",
+          "email",
+          "username",
+          "display_name",
+          "expires_in"
+        ],
+        "properties": {
+          "access_token": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "expires_in": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "refresh_token": {
+            "type": "string"
+          },
+          "token_type": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      },
+      "WikiCreateUserRequest": {
+        "type": "object",
+        "required": [
+          "email",
+          "username",
+          "password",
+          "display_name"
+        ],
+        "properties": {
+          "display_name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      },
+      "WikiLoginRequest": {
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        }
+      },
+      "WikiRefreshRequest": {
+        "type": "object",
+        "required": [
+          "refresh_token"
+        ],
+        "properties": {
+          "refresh_token": {
+            "type": "string"
+          }
+        }
+      },
+      "WikiRegisterRequest": {
+        "type": "object",
+        "required": [
+          "email",
+          "username",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "password": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      },
+      "WikiUpdateUserRequest": {
+        "type": "object",
+        "properties": {
+          "active": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "is_system_admin": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "role": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "WikiUserListResponse": {
+        "type": "object",
+        "required": [
+          "users"
+        ],
+        "properties": {
+          "users": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WikiUserResponse"
+            }
+          }
+        }
+      },
+      "WikiUserResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "username",
+          "display_name",
+          "role",
+          "is_system_admin",
+          "active"
+        ],
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "is_system_admin": {
+            "type": "boolean"
+          },
+          "role": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
       }
     }
   },

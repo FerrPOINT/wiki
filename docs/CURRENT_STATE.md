@@ -13,13 +13,14 @@
 | API shell | Current | Runtime router and OpenAPI expose Wiki MVP endpoints only; evidence type validation uses `external_url` / `uploaded_file`; implementation is in-memory until domain/repository migration |
 | Domain baseline | Current | `domain::wiki` defines Wiki-owned value objects, roles, documents, revisions, evidence, attachments and core invariants |
 | SQLx schema baseline | Current | `backend/migrations/202608310001_create_wiki_mvp.*.sql` creates a fresh Wiki MVP schema without task-tracker tables |
-| Frontend route shell | Current | Static Wiki pages and screenshots exist for the approved MVP page set only |
+| Frontend route shell | Current | Wiki MVP routes and screenshots exist for the approved page set only |
+| Frontend API-backed pages | Current | Dashboard, spaces, documents, tasks, phases, evidence, templates, users, audit and search read from the public Wiki API; create document, create user, URL evidence and file evidence forms call the same API |
 | Page design contract | Current | `docs/PAGE_DESIGN.md` fixes page composition, states and deferred boundaries before backend work |
 | Refined MVP page design | Current | Spaces, documents, tasks, phases, evidence and search pages include API-ready layouts and metadata blocks |
 | Screenshot evidence | Current | 17 desktop and 5 mobile screenshots regenerated for the MVP page set |
 | MVP documentation cleanup | Current | Removed visible/technical integrations, reports and notifications scope from frontend routes, README gallery and screenshot manifest |
 | Development readiness docs | Current | README, local setup, env, migrations, storage, security, ops and runbooks are aligned with Wiki MVP/current-vs-target boundaries; host-side `cargo run` env is documented separately from Docker Compose `.env` |
-| Frontend API shell | Current | Thin handwritten auth client; old tracker generated client removed |
+| Frontend API shell | Current | Thin handwritten auth and Wiki API client; old tracker generated client removed |
 | Env/project identity | Current | `WIKI_` prefix, docker names and frontend package identity |
 
 ## Target MVP
@@ -51,7 +52,7 @@
 ## Inherited To Replace
 
 - Backend app/infra and old SeaORM migration crate still include task-tracker modules outside the active Wiki API shell.
-- SQLx repositories and API wiring for Wiki spaces/documents/revisions/evidence/search/audit are still target work.
+- SQLx repositories and runtime API persistence for Wiki spaces/documents/revisions/evidence/search/audit are still target work.
 - Generated Wiki frontend OpenAPI client is pending backend domain/repository stabilization.
 
 ## Verification Commands
@@ -76,9 +77,13 @@ node scripts/shoot-evidence.mjs
 
 Latest verification on 2026-08-31:
 
+- `docker run ... cargo check --workspace` passed on Linux container; direct Windows linking remains blocked by missing MSVC `link.exe`.
+- `docker run ... cargo check -p api` passed on Linux container.
+- `docker run ... cargo test -p api wiki_mvp_routes_cover_public_contract -- --test-threads=1` passed on Linux container.
+- `docker run ... cargo run -p api --bin openapi-gen -- /repo/openapi/openapi.json` regenerated OpenAPI successfully.
 - `cargo fmt --all -- --check` passed.
 - `cargo metadata --no-deps --format-version 1` passed; `openapi-gen` is the single OpenAPI generator binary.
-- `cargo check -p shared`, `cargo check -p domain`, `cargo check -p api`, `cargo check -p wiki-cli`, `cargo check -p server`, `cargo test -p shared`, `cargo test -p domain` and `cargo test -p api wiki_mvp_routes_cover_public_contract` are blocked before project code by missing Windows MSVC `link.exe` / Windows SDK libs.
+- Host-side Rust linking for `cargo check` / `cargo test` is blocked before project code by missing Windows MSVC `link.exe` / Windows SDK libs; use Linux Docker for backend checks until the host toolchain is fixed.
 - `tsc --noEmit` passed.
 - `eslint . --max-warnings=0` passed.
 - `prettier --check .` passed after mechanical frontend formatting cleanup.

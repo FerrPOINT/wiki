@@ -1,42 +1,21 @@
 import { Link } from 'react-router'
 import { ClipboardCheck, FileText, ShieldCheck } from 'lucide-react'
+import { useTemplates } from '@/shared/api/hooks'
+import { EmptyState, ErrorState, LoadingState } from '@/shared/ui/async-states'
 import { Button } from '@/shared/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
+import { formatDocumentType } from '@/shared/lib/wiki-format'
 
-const templates = [
-  {
-    name: 'Требования',
-    description: 'Цели, границы, критерии приёмки, NFR и трассировка для задачи.',
-    icon: ClipboardCheck,
-    space: 'ENG',
-  },
-  {
-    name: 'Исследование',
-    description: 'Контекст, варианты решения, выводы и ссылки на материалы.',
-    icon: FileText,
-    space: 'ENG',
-  },
-  {
-    name: 'Заметки реализации',
-    description: 'Что изменено, какие документы затронуты и какие риски остаются.',
-    icon: FileText,
-    space: 'SDLC',
-  },
-  {
-    name: 'План проверки',
-    description: 'Сценарии проверки, ожидаемые результаты и ссылки на материалы.',
-    icon: ShieldCheck,
-    space: 'SDLC',
-  },
-  {
-    name: 'Заметка к релизу',
-    description: 'Изменения, влияние, порядок выкладки и ссылки на проверку.',
-    icon: ShieldCheck,
-    space: 'OPS',
-  },
-]
+function templateIcon(documentType: string) {
+  if (documentType === 'requirements') return ClipboardCheck
+  if (documentType === 'test_plan' || documentType === 'release_note') return ShieldCheck
+  return FileText
+}
 
 export function TemplatesPage() {
+  const templatesQuery = useTemplates()
+  const templates = templatesQuery.data?.templates ?? []
+
   return (
     <div className="space-y-5">
       <section className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -54,30 +33,50 @@ export function TemplatesPage() {
         </Button>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-2">
-        {templates.map((template) => {
-          const Icon = template.icon
-          return (
-            <Card key={template.name}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Icon className="h-4 w-4 text-accent" />
-                  {template.name}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <p className="text-sm text-text-secondary">{template.description}</p>
-                <div className="flex items-center justify-between gap-3 text-xs text-text-muted">
-                  <span>Пространство по умолчанию: {template.space}</span>
-                  <Link to="/documents/new" className="text-sm text-accent hover:text-accent-hover">
-                    Использовать
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
-          )
-        })}
-      </section>
+      {templatesQuery.isLoading && <LoadingState message="Загружаем шаблоны" />}
+      {templatesQuery.isError && (
+        <ErrorState
+          message="Не удалось загрузить шаблоны"
+          onRetry={() => templatesQuery.refetch()}
+        />
+      )}
+      {!templatesQuery.isLoading && !templatesQuery.isError && templates.length === 0 && (
+        <EmptyState message="Шаблоны ещё не созданы" />
+      )}
+      {!templatesQuery.isLoading && !templatesQuery.isError && templates.length > 0 && (
+        <section className="grid gap-4 lg:grid-cols-2">
+          {templates.map((template) => {
+            const Icon = templateIcon(template.document_type)
+            return (
+              <Card key={template.id}>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Icon className="h-4 w-4 text-accent" />
+                    {template.name}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-sm text-text-secondary">
+                    {formatDocumentType(template.document_type)}
+                  </p>
+                  <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-background p-3 text-xs text-text-muted">
+                    {template.body_markdown}
+                  </pre>
+                  <div className="flex items-center justify-between gap-3 text-xs text-text-muted">
+                    <span>{template.id}</span>
+                    <Link
+                      to={`/documents/new?template=${template.id}`}
+                      className="text-sm text-accent hover:text-accent-hover"
+                    >
+                      Использовать
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </section>
+      )}
     </div>
   )
 }

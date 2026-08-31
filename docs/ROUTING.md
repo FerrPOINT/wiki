@@ -53,8 +53,9 @@ Frontend-роуты объявлены в `frontend/src/app/router.tsx`. На п
 |---|---|---|
 | `q` | `/search` | Полнотекстовый запрос |
 | `space` | `/search`, `/spaces` | Фильтр по пространству |
-| `type` | `/search` | `document`, `task`, `phase`, `evidence` |
-| `tag` | `/search` | Фильтр по тегу |
+| `document_type` | `/search` | Фильтр по типу документа |
+| `task_key` | `/search`, `/evidence` | Фильтр по внешнему ключу задачи |
+| `phase_key` | `/search`, `/evidence` | Фильтр по ключу фазы workflow |
 | `cursor` | list pages | Cursor pagination |
 | `limit` | list pages | Page size |
 

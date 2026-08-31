@@ -1,32 +1,25 @@
 import { FileCheck2, History, LockKeyhole, UserRound } from 'lucide-react'
+import { useAuditLog } from '@/shared/api/hooks'
+import { EmptyState, ErrorState, LoadingState } from '@/shared/ui/async-states'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
+import { formatDateTime } from '@/shared/lib/wiki-format'
 
-const auditEvents = [
-  {
-    event: 'document.published',
-    actor: 'tech.lead@example.test',
-    target: 'Требования v2',
-    scope: 'SDLC-42',
-    time: '2026-08-27 10:12',
-  },
-  {
-    event: 'evidence.linked',
-    actor: 'qa@example.test',
-    target: 'Отчёт smoke-проверки',
-    scope: 'Проверка',
-    time: '2026-08-27 09:41',
-  },
-  {
-    event: 'space.permission_changed',
-    actor: 'admin@example.test',
-    target: 'OPS',
-    scope: 'Пространство',
-    time: '2026-08-26 18:05',
-  },
-]
+function countBy(entries: { action: string }[], needle: string): number {
+  return entries.filter((entry) => entry.action.includes(needle)).length
+}
 
 export function AuditLogPage() {
+  const auditQuery = useAuditLog()
+  const entries = auditQuery.data?.entries ?? []
+  const documentEvents = countBy(entries, 'document')
+  const accessEvents = entries.filter((entry) =>
+    ['member', 'role', 'space'].some((needle) => entry.action.includes(needle)),
+  ).length
+  const userEvents = entries.filter((entry) =>
+    ['auth', 'user'].some((needle) => entry.action.includes(needle)),
+  ).length
+
   return (
     <div className="space-y-5">
       <section>
@@ -44,7 +37,7 @@ export function AuditLogPage() {
           <CardContent>
             <div className="flex items-center gap-3">
               <FileCheck2 className="h-5 w-5 text-success" />
-              <span className="text-2xl font-semibold">34</span>
+              <span className="text-2xl font-semibold">{documentEvents}</span>
             </div>
           </CardContent>
         </Card>
@@ -55,18 +48,18 @@ export function AuditLogPage() {
           <CardContent>
             <div className="flex items-center gap-3">
               <LockKeyhole className="h-5 w-5 text-warning" />
-              <span className="text-2xl font-semibold">7</span>
+              <span className="text-2xl font-semibold">{accessEvents}</span>
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Участники</CardTitle>
+            <CardTitle className="text-sm">Пользователи</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-3">
               <UserRound className="h-5 w-5 text-accent" />
-              <span className="text-2xl font-semibold">6</span>
+              <span className="text-2xl font-semibold">{userEvents}</span>
             </div>
           </CardContent>
         </Card>
@@ -80,30 +73,39 @@ export function AuditLogPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Событие</TableHead>
-                <TableHead>Участник</TableHead>
-                <TableHead>Объект</TableHead>
-                <TableHead>Область</TableHead>
-                <TableHead>Время</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {auditEvents.map((event) => (
-                <TableRow key={`${event.event}-${event.time}`}>
-                  <TableCell className="font-mono text-xs">{event.event}</TableCell>
-                  <TableCell>{event.actor}</TableCell>
-                  <TableCell>{event.target}</TableCell>
-                  <TableCell>{event.scope}</TableCell>
-                  <TableCell className="whitespace-nowrap text-xs text-text-muted">
-                    {event.time}
-                  </TableCell>
+          {auditQuery.isLoading && <LoadingState message="Загружаем аудит" />}
+          {auditQuery.isError && (
+            <ErrorState message="Не удалось загрузить аудит" onRetry={() => auditQuery.refetch()} />
+          )}
+          {!auditQuery.isLoading && !auditQuery.isError && entries.length === 0 && (
+            <EmptyState message="Событий аудита пока нет" />
+          )}
+          {!auditQuery.isLoading && !auditQuery.isError && entries.length > 0 && (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Событие</TableHead>
+                  <TableHead>Участник</TableHead>
+                  <TableHead>Объект</TableHead>
+                  <TableHead>Тип</TableHead>
+                  <TableHead>Время</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {entries.map((event) => (
+                  <TableRow key={event.id}>
+                    <TableCell className="font-mono text-xs">{event.action}</TableCell>
+                    <TableCell>{event.actor_id}</TableCell>
+                    <TableCell>{event.entity_id}</TableCell>
+                    <TableCell>{event.entity_type}</TableCell>
+                    <TableCell className="whitespace-nowrap text-xs text-text-muted">
+                      {formatDateTime(event.created_at)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>

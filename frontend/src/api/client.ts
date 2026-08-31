@@ -72,7 +72,7 @@ async function send(path: string, options: ApiRequestOptions): Promise<Response>
   const token = useAuthStore.getState().token
 
   if (body !== undefined && !requestHeaders.has('Content-Type')) {
-    requestHeaders.set('Content-Type', 'application/json')
+    if (!(body instanceof FormData)) requestHeaders.set('Content-Type', 'application/json')
   }
   if (token && !skipAuth) {
     requestHeaders.set('Authorization', `Bearer ${token}`)
@@ -82,7 +82,7 @@ async function send(path: string, options: ApiRequestOptions): Promise<Response>
     ...init,
     credentials: init.credentials ?? 'include',
     headers: requestHeaders,
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: body === undefined || body instanceof FormData ? body : JSON.stringify(body),
   })
 }
 

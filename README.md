@@ -10,11 +10,12 @@ Self-hosted база знаний для SDLC: документы, ревизи�
 |---|---|
 | Документы требований и архитектурный каркас | Current |
 | MVP route/page set и screenshot evidence | Current |
-| Frontend pages/navigation под Wiki | Current, static prototype |
+| Frontend pages/navigation под Wiki | Current, API-backed MVP pages |
 | CLI command surface под Wiki | Current, HTTP client surface |
 | Public Wiki API/OpenAPI | Current, in-memory shell |
-| PostgreSQL domain/repositories/migrations под Wiki | Target |
-| API-backed frontend/generated client | Target |
+| PostgreSQL domain/migrations под Wiki | Current baseline |
+| SQLx repositories/runtime persistence | Target |
+| Generated frontend OpenAPI client | Target |
 
 Полный срез: [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md).
 
@@ -127,9 +128,9 @@ target\debug\wiki.exe evidence add-link --task SDLC-42 --phase testing --title "
 
 ![Пространства](docs/screenshots/04-spaces.png)
 
-![Document compose](docs/screenshots/05-document-compose.png)
+![Создание документа](docs/screenshots/05-document-compose.png)
 
-![Document view](docs/screenshots/06-document-view.png)
+![Просмотр документа](docs/screenshots/06-document-view.png)
 
 ### Задачи и фазы workflow
 
@@ -161,22 +162,22 @@ target\debug\wiki.exe evidence add-link --task SDLC-42 --phase testing --title "
 
 ### Mobile Smoke
 
-![Mobile dashboard](docs/screenshots/m-dashboard.png)
+![Мобильный обзор](docs/screenshots/m-dashboard.png)
 
-![Mobile spaces](docs/screenshots/m-spaces.png)
+![Мобильные пространства](docs/screenshots/m-spaces.png)
 
-![Mobile document view](docs/screenshots/m-document-view.png)
+![Мобильный документ](docs/screenshots/m-document-view.png)
 
-![Mobile task page](docs/screenshots/m-task-dossier.png)
+![Мобильная задача](docs/screenshots/m-task-dossier.png)
 
-![Mobile search](docs/screenshots/m-search.png)
+![Мобильный поиск](docs/screenshots/m-search.png)
 
 ## Структура
 
 ```text
 wiki/
-├── backend/         # Rust workspace; public API shell is Wiki MVP, domain persistence still being migrated
-├── frontend/        # React/Vite Wiki shell and pages
+├── backend/         # Rust workspace; public API shell is Wiki MVP, SQLx persistence is next
+├── frontend/        # React/Vite Wiki shell and API-backed MVP pages
 ├── cli/             # Codex/project helper skill notes
 ├── docs/            # requirements, architecture, contracts, operations, quality
 ├── openapi/         # Wiki MVP API artifact

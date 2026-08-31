@@ -2,7 +2,7 @@ use axum::{
     Router,
     http::{HeaderName, HeaderValue, Method},
     middleware::from_fn,
-    routing::{delete, get, post, put},
+    routing::{get, post, put},
 };
 use axum_prometheus::{GenericMetricLayer, PrometheusMetricLayer};
 use metrics_exporter_prometheus::PrometheusHandle;

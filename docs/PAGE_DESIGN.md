@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-This document fixes the approved MVP page set and the expected page composition before backend implementation starts. UI and CLI are ordinary clients of the same public API; page design must not introduce hidden report-only, notification-only or external-sync-only product scope.
+This document fixes the approved MVP page set and the expected page composition while backend persistence is being implemented. UI and CLI are ordinary clients of the same public API; page design must not introduce hidden report-only, notification-only or external-sync-only product scope.
 
 ## 2. Approved Routes
 
@@ -30,7 +30,7 @@ This document fixes the approved MVP page set and the expected page composition 
 
 - Visible product text is Russian by default.
 - Technical route names, API fields and code identifiers remain English.
-- Every API-backed page needs loading, empty, permission denied, validation error and retry states before backend integration is considered complete.
+- Every API-backed page needs loading, empty, permission denied, validation error and retry states before release readiness.
 - Every mutating page must show the user what object will be affected before the command is submitted.
 - Document, task, phase and evidence pages must keep the current space/task/phase context visible above the fold.
 - Deferred reports, notifications, webhooks and external source sync must not appear as MVP routes, navigation items or required API clients.
@@ -56,7 +56,7 @@ The spaces page shows:
 - a short tree preview;
 - link to the document tree/root page.
 
-After API integration, tree previews should load through `/spaces/{space_key}/tree` and preserve permission filtering.
+Tree previews load through `/spaces/{space_key}/tree` and must preserve permission filtering after SQLx persistence is wired.
 
 ## 6. Documents
 
@@ -102,8 +102,8 @@ Phase page shows:
 Evidence registry shows:
 
 - file and URL material counts;
-- filters by text, phase and source;
-- table with material title, task, phase, source, status and owner;
+- filters by text and space;
+- table with material title, task, phase, evidence type and date;
 - upload and add-link actions.
 
 Evidence is permission-filtered by space and by linked task/phase visibility.

@@ -2,7 +2,7 @@
 
 ## 0. Current Baseline
 
-The documentation and static frontend page design are ready enough to start backend implementation:
+The documentation, screenshots and API-backed frontend MVP pages are ready enough to continue backend implementation:
 
 - MVP page set is fixed in routing, README and screenshot manifest;
 - integrations, reports and notifications screens are out of frontend scope;
@@ -12,6 +12,7 @@ The documentation and static frontend page design are ready enough to start back
 - migration docs direct new Wiki persistence work toward SQLx and quarantine inherited SeaORM task-tracker migrations;
 - Wiki-owned domain value objects/invariants exist in `domain::wiki`;
 - a fresh SQLx MVP schema baseline exists in `backend/migrations/202608310001_create_wiki_mvp.*.sql`;
+- frontend MVP pages read from the public Wiki API and basic create flows call the same API;
 - deferred areas are documented as reference only.
 
 The remaining work is implementation, not product-scope expansion.
@@ -63,8 +64,8 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 
 ## 5. Frontend Integration
 
-- Replace static page data with API queries and mutations.
-- Add loading, empty, permission denied, validation error and retry states on API-backed pages.
+- Replace the remaining static settings/admin readiness values with API-backed data after settings endpoints are approved.
+- Add broader permission denied and validation error coverage on API-backed pages.
 - Implement document tree, document editor, revision panel and evidence feed as reusable widgets/features.
 - Keep visible UI text Russian by default.
 - Keep deferred integrations, reports and notifications pages out of MVP routes.
@@ -98,10 +99,10 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 1. Add SQLx repository interfaces/implementations for identity, spaces and documents using `domain::wiki`.
 2. Wire server composition to SQLx repositories behind feature-compatible app use cases.
 3. Implement document draft/publish/history API against PostgreSQL and regenerate OpenAPI.
-4. Wire frontend document/spaces pages to API with loading/error/empty states.
-5. Add task and phase link repository operations, then connect task/phase pages.
+4. Replace the in-memory API store with SQLx-backed use cases and keep the frontend contract stable.
+5. Add task and phase link repository operations under PostgreSQL.
 6. Implement evidence and attachment storage transactionally, including staged attachment claim.
-7. Add templates, search and audit coverage.
+7. Add PostgreSQL FTS and audit repository coverage.
 8. Bring CLI smoke tests to parity with the public API.
 9. Remove remaining inherited tracker backend internals and SeaORM migration compatibility layer.
 10. Generate frontend API client after the PostgreSQL-backed contract stabilizes.
@@ -112,4 +113,4 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 - Clean Wiki SQLx migrations create an empty database without tracker tables.
 - OpenAPI exposes only Wiki MVP endpoints.
 - UI and CLI use the same public API operations.
-- Static frontend data is replaced or isolated behind mock fixtures used only in tests/screenshots.
+- Static frontend data is limited to settings/admin readiness copy and deterministic test/screenshot fixtures.

@@ -61,7 +61,8 @@ async fn call(
     let value = if bytes.is_empty() {
         json!({})
     } else {
-        serde_json::from_slice(&bytes).unwrap()
+        serde_json::from_slice(&bytes)
+            .unwrap_or_else(|_| json!({ "raw": String::from_utf8_lossy(&bytes) }))
     };
     (status, value)
 }

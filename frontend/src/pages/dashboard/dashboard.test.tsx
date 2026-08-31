@@ -1,15 +1,94 @@
-import { describe, expect, it } from 'vitest'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
+import { describe, expect, it, vi } from 'vitest'
 
 import { DashboardPage } from './'
 
+const listSpaces = vi.hoisted(() => vi.fn())
+const listTasks = vi.hoisted(() => vi.fn())
+const listPhases = vi.hoisted(() => vi.fn())
+const listEvidence = vi.hoisted(() => vi.fn())
+const searchWiki = vi.hoisted(() => vi.fn())
+
+vi.mock('@/api/wiki', () => ({
+  listSpaces,
+  listTasks,
+  listPhases,
+  listEvidence,
+  searchWiki,
+}))
+
 function wrapper(children: React.ReactNode) {
-  return <MemoryRouter>{children}</MemoryRouter>
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  return (
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>{children}</MemoryRouter>
+    </QueryClientProvider>
+  )
 }
 
 describe('DashboardPage', () => {
-  it('renders the wiki overview and document actions', () => {
+  it('renders the wiki overview and API-backed document actions', async () => {
+    listSpaces.mockResolvedValueOnce({
+      spaces: [
+        {
+          id: 'space-sdlc',
+          key: 'SDLC',
+          name: 'База знаний SDLC',
+          description: 'Документы SDLC',
+          owner_id: 'user-1',
+          status: 'active',
+          document_count: 1,
+          member_count: 1,
+          created_at: '2026-08-31T10:00:00Z',
+          updated_at: '2026-08-31T10:00:00Z',
+        },
+      ],
+    })
+    searchWiki.mockResolvedValueOnce({
+      results: [
+        {
+          id: 'product-requirements',
+          result_type: 'document',
+          title: 'Требования к Wiki',
+          space_key: 'SDLC',
+          url: '/documents/product-requirements',
+          snippet: 'Базовый документ',
+          updated_at: '2026-08-31T10:00:00Z',
+        },
+      ],
+    })
+    listTasks.mockResolvedValueOnce({
+      tasks: [
+        {
+          space_key: 'SDLC',
+          task_key: 'SDLC-42',
+          title: 'Требования к Wiki',
+          document_count: 1,
+          evidence_count: 1,
+          documents: [],
+          evidence: [],
+        },
+      ],
+    })
+    listPhases.mockResolvedValueOnce({
+      phases: [
+        {
+          space_key: 'SDLC',
+          phase_key: 'implementation',
+          title: 'implementation',
+          document_count: 1,
+          evidence_count: 1,
+          documents: [],
+          evidence: [],
+        },
+      ],
+    })
+    listEvidence.mockResolvedValueOnce({ evidence: [] })
+
     render(wrapper(<DashboardPage />))
 
     expect(screen.getByRole('heading', { name: 'Wiki' })).toBeInTheDocument()
@@ -17,7 +96,7 @@ describe('DashboardPage', () => {
       'href',
       '/documents/new',
     )
-    expect(screen.getByText('Последние документы')).toBeInTheDocument()
-    expect(screen.getByText('Нужно закрыть')).toBeInTheDocument()
+    expect(await screen.findByText('Требования к Wiki')).toBeInTheDocument()
+    expect(screen.getByText('SDLC-42')).toBeInTheDocument()
   })
 })
