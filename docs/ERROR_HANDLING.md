@@ -50,6 +50,8 @@ pub enum InfraError {
 
 ### 2.3 Response Format
 
+Текущий MVP runtime всегда отдаёт `code` и `message`. `requestId` и `details` являются опциональными полями: они добавляются, когда request-id middleware или field-level validation передали эти данные в обработчик ошибки.
+
 ```json
 {
   "error": {
@@ -183,15 +185,15 @@ onError: (error) => {
 
 - Каждый запрос получает `x-request-id`.
 - Передаётся во все сервисы.
-- Frontend показывает `requestId` в сообщении об ошибке для support.
+- Frontend показывает `requestId` в сообщении об ошибке для support, если backend вернул его в error envelope.
 
 ## 7. Known Error Scenarios
 
 | Scenario | Backend | Frontend |
 |----------|---------|----------|
-| Invalid login | 401 `INVALID_CREDENTIALS` | toast + форма |
-| Duplicate project key | 409 `PROJECT_KEY_EXISTS` | inline field error |
-| Document not found | 404 `DOCUMENT_NOT_FOUND` | 404 page |
+| Invalid login | 401 `UNAUTHORIZED` | toast + форма |
+| Duplicate space/document key | 409 `CONFLICT` | inline field error |
+| Document not found | 404 `NOT_FOUND` | 404 page |
 | Publish conflict | 409 `REVISION_CONFLICT` | inline conflict state |
 | DB unavailable | 500 `INTERNAL_ERROR` | retry + fallback page |
 | Network error | — | toast + offline badge |

@@ -8,6 +8,11 @@ type ApiRequestOptions = Omit<RequestInit, 'body'> & {
   skipAuth?: boolean
 }
 
+type ApiErrorBody = {
+  error?: unknown
+  message?: unknown
+}
+
 let refreshPromise: Promise<boolean> | null = null
 
 function buildUrl(path: string): string {
@@ -17,11 +22,54 @@ function buildUrl(path: string): string {
 
 async function readErrorMessage(response: Response): Promise<string> {
   try {
-    const body = (await response.json()) as { error?: string; message?: string }
-    return body.error ?? body.message ?? response.statusText
+    const body = (await response.json()) as ApiErrorBody
+
+    if (typeof body.error === 'string') return body.error
+    if (body.error && typeof body.error === 'object') {
+      return readStructuredError(body.error as Record<string, unknown>, response.statusText)
+    }
+    if (typeof body.message === 'string') return body.message
+    return response.statusText
   } catch {
     return response.statusText
   }
+}
+
+function readStructuredError(error: Record<string, unknown>, fallback: string): string {
+  const code = typeof error.code === 'string' ? error.code : undefined
+  const message = typeof error.message === 'string' ? error.message : undefined
+  const requestId =
+    typeof error.requestId === 'string'
+      ? error.requestId
+      : typeof error.request_id === 'string'
+        ? error.request_id
+        : undefined
+  const details = formatErrorDetails(error.details)
+
+  const parts = [
+    message ?? code,
+    details ? `details=${details}` : undefined,
+    requestId ? `requestId=${requestId}` : undefined,
+  ].filter((part): part is string => Boolean(part))
+  return parts.length ? parts.join('; ') : fallback
+}
+
+function formatErrorDetails(details: unknown): string | undefined {
+  if (!Array.isArray(details)) return undefined
+
+  const messages = details
+    .map((detail) => {
+      if (!detail || typeof detail !== 'object') return undefined
+      const record = detail as Record<string, unknown>
+      const field = typeof record.field === 'string' ? record.field : undefined
+      const message = typeof record.message === 'string' ? record.message : undefined
+
+      if (field && message) return `${field}: ${message}`
+      return field ?? message
+    })
+    .filter((detail): detail is string => Boolean(detail))
+
+  return messages.length ? messages.join(', ') : undefined
 }
 
 async function refreshAccessToken(): Promise<boolean> {

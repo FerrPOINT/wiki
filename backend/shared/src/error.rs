@@ -1,5 +1,18 @@
 use axum::response::{IntoResponse, Response};
 use http::StatusCode;
+use serde::Serialize;
+
+#[derive(Debug, Serialize)]
+pub struct ErrorEnvelope {
+    pub error: ErrorBody,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ErrorBody {
+    pub code: &'static str,
+    pub message: String,
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
@@ -27,16 +40,33 @@ pub enum AppError {
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let (status, public_msg) = match &self {
-            AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
-            AppError::InvalidInput(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
-            AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "unauthorized".to_string()),
-            AppError::Forbidden => (StatusCode::FORBIDDEN, "forbidden".to_string()),
-            AppError::Conflict(msg) => (StatusCode::CONFLICT, msg.clone()),
+        let (status, code, message) = self.response_parts();
+        let body = axum::Json(ErrorEnvelope {
+            error: ErrorBody { code, message },
+        });
+        (status, body).into_response()
+    }
+}
+
+impl AppError {
+    fn response_parts(&self) -> (StatusCode, &'static str, String) {
+        match self {
+            AppError::NotFound(msg) => (StatusCode::NOT_FOUND, "NOT_FOUND", msg.clone()),
+            AppError::InvalidInput(msg) => {
+                (StatusCode::BAD_REQUEST, "VALIDATION_ERROR", msg.clone())
+            }
+            AppError::Unauthorized => (
+                StatusCode::UNAUTHORIZED,
+                "UNAUTHORIZED",
+                "unauthorized".to_string(),
+            ),
+            AppError::Forbidden => (StatusCode::FORBIDDEN, "FORBIDDEN", "forbidden".to_string()),
+            AppError::Conflict(msg) => (StatusCode::CONFLICT, "CONFLICT", msg.clone()),
             AppError::Database(msg) => {
                 tracing::error!(error = %msg, "database error");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
+                    "INTERNAL_ERROR",
                     "internal server error".to_string(),
                 )
             }
@@ -44,16 +74,13 @@ impl IntoResponse for AppError {
                 tracing::error!(error = %msg, "internal error");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
+                    "INTERNAL_ERROR",
                     "internal server error".to_string(),
                 )
             }
-        };
-        let body = axum::Json(serde_json::json!({ "error": public_msg }));
-        (status, body).into_response()
+        }
     }
-}
 
-impl AppError {
     pub fn not_found(entity: &str, id: impl std::fmt::Display) -> Self {
         Self::NotFound(format!("{} {} not found", entity, id))
     }

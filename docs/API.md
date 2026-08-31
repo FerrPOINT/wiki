@@ -11,7 +11,7 @@ REST API Wiki предоставляет базовые операции про�
 - Base path: `/api/v1`.
 - UI и CLI используют один и тот же публичный API.
 - Все ответы JSON, кроме download endpoints.
-- Ошибки MVP возвращаются единым JSON envelope `{ "error": "message" }`.
+- Ошибки MVP возвращаются единым JSON envelope `{ "error": { "code": "CODE", "message": "message" } }`; `requestId` и `details` добавляются как опциональные поля, когда доступны.
 - Списки используют `limit` и стабильную сортировку.
 - CLI может отправлять `Idempotency-Key` для повторяемых write-команд; серверная дедупликация ключей вынесена в hardening после MVP.
 - Protected endpoints требуют session/JWT.

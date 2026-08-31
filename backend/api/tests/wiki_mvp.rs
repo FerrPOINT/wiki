@@ -241,7 +241,8 @@ async fn wiki_register_respects_instance_registration_setting() {
     )
     .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
-    assert_eq!(body["error"], "forbidden");
+    assert_eq!(body["error"]["code"], "FORBIDDEN");
+    assert_eq!(body["error"]["message"], "forbidden");
 
     let (status, login) = call(
         &app,
@@ -279,7 +280,8 @@ async fn wiki_postgres_register_respects_instance_registration_setting() {
     )
     .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
-    assert_eq!(body["error"], "forbidden");
+    assert_eq!(body["error"]["code"], "FORBIDDEN");
+    assert_eq!(body["error"]["message"], "forbidden");
 
     let token = login_admin(&app).await;
     assert!(!token.is_empty());
