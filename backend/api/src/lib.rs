@@ -186,7 +186,8 @@ impl Modify for SecurityAddon {
 }
 
 pub fn router(ctx: Arc<app::AppContext>) -> Router<Arc<app::AppContext>> {
-    router_with_wiki(ctx, routes::wiki::WikiBackend::memory())
+    let wiki_backend = routes::wiki::WikiBackend::memory_from_config(&ctx.config);
+    router_with_wiki(ctx, wiki_backend)
 }
 
 pub fn router_with_wiki(

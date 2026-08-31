@@ -115,6 +115,7 @@ pub struct AuthConfig {
     pub jwt_secret: String,
     pub access_token_ttl_minutes: u64,
     pub refresh_token_ttl_days: u64,
+    pub registration_enabled: bool,
     pub refresh_cookie_name: String,
     pub refresh_cookie_secure: bool,
     pub refresh_cookie_same_site: String,
@@ -148,6 +149,7 @@ impl AppConfig {
             .set_default("auth.jwt_secret", "[CHANGE_ME]")?
             .set_default("auth.access_token_ttl_minutes", 15u64)?
             .set_default("auth.refresh_token_ttl_days", 7u64)?
+            .set_default("auth.registration_enabled", true)?
             .set_default("auth.refresh_cookie_name", "refresh_token")?
             .set_default("auth.refresh_cookie_secure", true)?
             .set_default("auth.refresh_cookie_same_site", "Lax")?
@@ -300,6 +302,7 @@ impl Default for AuthConfig {
             jwt_secret: "[CHANGE_ME]".to_string(),
             access_token_ttl_minutes: 15,
             refresh_token_ttl_days: 7,
+            registration_enabled: true,
             refresh_cookie_name: "refresh_token".to_string(),
             refresh_cookie_secure: true,
             refresh_cookie_same_site: "Lax".to_string(),

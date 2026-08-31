@@ -43,6 +43,7 @@ fn test_config() -> Arc<AppConfig> {
             jwt_secret: "test-secret".to_string(),
             access_token_ttl_minutes: 15,
             refresh_token_ttl_days: 7,
+            registration_enabled: true,
             refresh_cookie_name: "refresh_token".to_string(),
             refresh_cookie_secure: false,
             refresh_cookie_same_site: "lax".to_string(),

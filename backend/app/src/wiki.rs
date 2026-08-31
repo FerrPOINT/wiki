@@ -292,6 +292,7 @@ mod tests {
             jwt_secret: "test-secret-32-chars-long!!!!!".to_string(),
             access_token_ttl_minutes: 15,
             refresh_token_ttl_days: 7,
+            registration_enabled: true,
             refresh_cookie_name: "refresh_token".to_string(),
             refresh_cookie_secure: true,
             refresh_cookie_same_site: "Lax".to_string(),

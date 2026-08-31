@@ -8,7 +8,7 @@ use std::{env, path::PathBuf, sync::Arc};
 use tower::ServiceExt;
 use uuid::Uuid;
 
-fn test_config() -> Arc<shared::AppConfig> {
+fn test_config_with_registration(registration_enabled: bool) -> Arc<shared::AppConfig> {
     Arc::new(shared::AppConfig {
         database: shared::DatabaseConfig::default(),
         server: shared::ServerConfig {
@@ -20,6 +20,7 @@ fn test_config() -> Arc<shared::AppConfig> {
             jwt_secret: "test-secret".to_string(),
             access_token_ttl_minutes: 15,
             refresh_token_ttl_days: 7,
+            registration_enabled,
             refresh_cookie_name: "refresh_token".to_string(),
             refresh_cookie_secure: false,
             refresh_cookie_same_site: "Lax".to_string(),
@@ -32,13 +33,21 @@ fn test_config() -> Arc<shared::AppConfig> {
     })
 }
 
-fn test_app() -> axum::Router {
+fn test_config() -> Arc<shared::AppConfig> {
+    test_config_with_registration(true)
+}
+
+fn test_app_with_config(config: Arc<shared::AppConfig>) -> axum::Router {
     let ctx = Arc::new(app::AppContext::new(
-        test_config(),
+        config,
         Arc::new(domain::Repositories::default()),
         Arc::new(domain::InMemoryStorage::default()),
     ));
     api::router(ctx.clone()).with_state(ctx)
+}
+
+fn test_app() -> axum::Router {
+    test_app_with_config(test_config())
 }
 
 fn postgres_test_config(database_url: String, storage_dir: PathBuf) -> Arc<shared::AppConfig> {
@@ -199,6 +208,38 @@ async fn login_admin(app: &axum::Router) -> String {
     .await;
     assert_eq!(status, StatusCode::OK);
     login["access_token"].as_str().unwrap().to_string()
+}
+
+#[tokio::test]
+async fn wiki_register_respects_instance_registration_setting() {
+    let app = test_app_with_config(test_config_with_registration(false));
+
+    let (status, body) = call(
+        &app,
+        Method::POST,
+        "/api/v1/auth/register",
+        None,
+        Some(json!({
+            "email": "new@example.com",
+            "username": "new",
+            "password": "new-password",
+            "name": "New User"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(body["error"], "forbidden");
+
+    let (status, login) = call(
+        &app,
+        Method::POST,
+        "/api/v1/auth/login",
+        None,
+        Some(json!({ "email": "demo@example.com", "password": "demo" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(login["access_token"].is_string());
 }
 
 #[tokio::test]

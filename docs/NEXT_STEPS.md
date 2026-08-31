@@ -15,6 +15,7 @@ The documentation, screenshots, API-backed frontend MVP pages and SQLx-backed MV
 - frontend MVP pages read from the public Wiki API and basic create flows call the same API;
 - runtime API persistence stores users, sessions, spaces, documents, revisions, task/phase links, evidence, attachments, templates, audit and search in PostgreSQL when `WIKI_DATABASE__URL` is set;
 - PostgreSQL runtime persistence is isolated in `api::routes::wiki::postgres`, while the main Wiki route module keeps router/DTO/memory fallback responsibilities;
+- public registration is guarded by `WIKI_AUTH__REGISTRATION_ENABLED` in both memory fallback and PostgreSQL runtime;
 - PostgreSQL runtime enforces the basic global-admin, space-role and attachment-download boundaries for core read/write paths;
 - attachment bytes are behind `domain::wiki::WikiAttachmentStorage`, with `infra::LocalWikiAttachmentStorage` wired by `server`;
 - shared Wiki normalization, access predicates, content helpers, storage-name helpers, password hashing, Wiki JWT/session token helpers and access/refresh token-pair TTL assembly are in `app::wiki`;

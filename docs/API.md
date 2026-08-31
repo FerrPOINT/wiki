@@ -21,7 +21,7 @@ REST API Wiki предоставляет базовые операции про�
 
 | Method | Path | Назначение |
 |---|---|---|
-| `POST` | `/auth/register` | Регистрация пользователя |
+| `POST` | `/auth/register` | Регистрация пользователя; возвращает `403`, если `WIKI_AUTH__REGISTRATION_ENABLED=false` |
 | `POST` | `/auth/login` | Вход |
 | `POST` | `/auth/refresh` | Обновление access token |
 | `POST` | `/auth/logout` | Завершение сессии |

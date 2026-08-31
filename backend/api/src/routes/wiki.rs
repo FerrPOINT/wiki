@@ -28,11 +28,23 @@ pub struct WikiClaims {
 #[derive(Clone)]
 pub struct WikiBackend {
     postgres: Option<Arc<PostgresWikiBackend>>,
+    registration_enabled: bool,
 }
 
 impl WikiBackend {
     pub fn memory() -> Self {
-        Self { postgres: None }
+        Self::memory_with_registration(true)
+    }
+
+    pub fn memory_from_config(config: &shared::AppConfig) -> Self {
+        Self::memory_with_registration(config.auth.registration_enabled)
+    }
+
+    fn memory_with_registration(registration_enabled: bool) -> Self {
+        Self {
+            postgres: None,
+            registration_enabled,
+        }
     }
 
     pub async fn from_config_with_storage(
@@ -40,17 +52,22 @@ impl WikiBackend {
         storage: Arc<dyn domain::wiki::WikiAttachmentStorage>,
     ) -> Result<Self, shared::AppError> {
         if config.database.url.trim().is_empty() {
-            return Ok(Self::memory());
+            return Ok(Self::memory_from_config(config));
         }
 
         let backend = PostgresWikiBackend::connect(config, storage).await?;
         Ok(Self {
             postgres: Some(Arc::new(backend)),
+            registration_enabled: config.auth.registration_enabled,
         })
     }
 
     fn postgres(&self) -> Option<&PostgresWikiBackend> {
         self.postgres.as_deref()
+    }
+
+    fn registration_enabled(&self) -> bool {
+        self.registration_enabled
     }
 }
 
@@ -670,12 +687,16 @@ fn ensure_system_admin(store: &WikiStore, user_id: &str) -> Result<(), shared::A
     path = "/api/v1/auth/register",
     tag = "auth",
     request_body = WikiRegisterRequest,
-    responses((status = 201, body = WikiAuthResponse))
+    responses((status = 201, body = WikiAuthResponse), (status = 403))
 )]
 pub async fn register(
     Extension(backend): Extension<WikiBackend>,
     Json(body): Json<WikiRegisterRequest>,
 ) -> Result<impl IntoResponse, shared::AppError> {
+    if !backend.registration_enabled() {
+        return Err(shared::AppError::Forbidden);
+    }
+
     if let Some(postgres) = backend.postgres() {
         let response = postgres.register(body).await?;
         return Ok((StatusCode::CREATED, Json(response)));

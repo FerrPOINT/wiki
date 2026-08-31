@@ -19,6 +19,7 @@ fn clear_env() {
         "WIKI_JWT_SECRET",
         "WIKI_AUTH__ACCESS_TOKEN_TTL_MINUTES",
         "WIKI_AUTH__REFRESH_TOKEN_TTL_DAYS",
+        "WIKI_AUTH__REGISTRATION_ENABLED",
         "WIKI_AUTH__REFRESH_TOKEN_COOKIE_NAME",
         "WIKI_AUTH__REFRESH_COOKIE_SECURE",
         "WIKI_AUTH__REFRESH_COOKIE_SAME_SITE",
@@ -70,6 +71,7 @@ fn config_scenarios() {
     assert_eq!(cfg.database.idle_timeout_seconds, 600);
     assert_eq!(cfg.auth.access_token_ttl_minutes, 15);
     assert_eq!(cfg.auth.refresh_token_ttl_days, 7);
+    assert!(cfg.auth.registration_enabled);
     assert_eq!(cfg.auth.refresh_cookie_name, "refresh_token");
     assert!(cfg.auth.refresh_cookie_secure);
     assert_eq!(cfg.auth.refresh_cookie_same_site, "Lax");
@@ -85,10 +87,12 @@ fn config_scenarios() {
     set_env("WIKI_SERVER__PORT", "19876");
     set_env("WIKI_AUTH__ACCESS_TOKEN_TTL_MINUTES", "60");
     set_env("WIKI_AUTH__REFRESH_TOKEN_TTL_DAYS", "14");
+    set_env("WIKI_AUTH__REGISTRATION_ENABLED", "false");
     set_env("WIKI_AUTH__JWT_SECRET", "test-secret-32-chars-long!!!!!");
     let cfg = AppConfig::from_path("/nonexistent.toml").unwrap();
     assert_eq!(cfg.server.port, 19876);
     assert_eq!(cfg.auth.jwt_secret, "test-secret-32-chars-long!!!!!");
+    assert!(!cfg.auth.registration_enabled);
     assert!(cfg.database.url.contains("localhost:5432/db"));
 
     // Environment separator is `__`, so nested keys become
@@ -131,6 +135,7 @@ fn config_defaults_implemented() {
     assert_eq!(cfg.server.port, 3456);
     assert_eq!(cfg.database.max_connections, 20);
     assert_eq!(cfg.auth.jwt_secret, "[CHANGE_ME]");
+    assert!(cfg.auth.registration_enabled);
 }
 
 #[test]

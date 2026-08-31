@@ -265,6 +265,10 @@ impl PostgresWikiBackend {
         &self,
         body: WikiRegisterRequest,
     ) -> Result<WikiAuthResponse, shared::AppError> {
+        if !self.auth.registration_enabled {
+            return Err(shared::AppError::Forbidden);
+        }
+
         let email = normalize_required(&body.email, "email")?;
         let username = normalize_required(&body.username, "username")?;
         let password = normalize_required(&body.password, "password")?;
