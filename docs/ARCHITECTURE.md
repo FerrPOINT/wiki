@@ -20,28 +20,28 @@ UI и CLI используют один публичный `/api/v1`. CLI не �
 
 ### Backend
 
-| Компонент | Библиотека | Назначение |
-|---|---|---|
-| Язык | Rust 2024 | Backend и CLI |
-| Web framework | axum | REST API, middleware, routing |
-| Async runtime | tokio | Асинхронный runtime |
-| DB | PostgreSQL + sqlx | Документы, версии, права, audit, search |
-| Markdown | comrak | Markdown parsing/rendering |
-| Sanitization | ammonia | Очистка HTML перед показом |
-| OpenAPI | utoipa + utoipa-axum | Генерация API schema |
-| CLI | clap + reqwest | HTTP-only CLI |
-| Observability | tracing + metrics | Логи, health, базовые метрики |
+| Компонент     | Библиотека           | Назначение                              |
+| ------------- | -------------------- | --------------------------------------- |
+| Язык          | Rust 2024            | Backend и CLI                           |
+| Web framework | axum                 | REST API, middleware, routing           |
+| Async runtime | tokio                | Асинхронный runtime                     |
+| DB            | PostgreSQL + sqlx    | Документы, версии, права, audit, search |
+| Markdown      | comrak               | Markdown parsing/rendering              |
+| Sanitization  | ammonia              | Очистка HTML перед показом              |
+| OpenAPI       | utoipa + utoipa-axum | Генерация API schema                    |
+| CLI           | clap + reqwest       | HTTP-only CLI                           |
+| Observability | tracing + metrics    | Логи, health, базовые метрики           |
 
 ### Frontend
 
-| Компонент | Библиотека | Назначение |
-|---|---|---|
-| Framework | React + TypeScript | SPA |
-| Build | Vite | Dev/build |
-| Styling | Tailwind CSS + shadcn/ui | UI kit |
-| Server state | TanStack Query | API cache |
-| Routing | react-router | Навигация |
-| i18n | i18next | Русский/английский |
+| Компонент    | Библиотека               | Назначение         |
+| ------------ | ------------------------ | ------------------ |
+| Framework    | React + TypeScript       | SPA                |
+| Build        | Vite                     | Dev/build          |
+| Styling      | Tailwind CSS + shadcn/ui | UI kit             |
+| Server state | TanStack Query           | API cache          |
+| Routing      | react-router             | Навигация          |
+| i18n         | i18next                  | Русский/английский |
 
 ## 4. Целевая структура
 
@@ -118,7 +118,7 @@ Use cases MVP:
 
 Каждый write use case выполняется в транзакции там, где это требуется целостностью данных.
 
-Текущий первый application-layer slice: `app::wiki` содержит общие правила нормализации Wiki keys/types/roles, access predicates, Markdown text extraction, checksums, safe download filenames, password hashing, Wiki JWT/session token helpers и сборку access/refresh token pair с TTL. API использует эти helpers вместо приватных route-level validator/security functions и не декларирует прямые crypto dependencies для Wiki auth.
+Текущий первый application-layer slice: `app::wiki` содержит общие правила нормализации Wiki keys/types/roles, access predicates, search criteria normalization, Markdown text extraction, checksums, safe download filenames, password hashing, Wiki JWT/session token helpers и сборку access/refresh token pair с TTL. API использует эти helpers вместо приватных route-level validator/security functions и не декларирует прямые crypto dependencies для Wiki auth.
 
 ## 8. Infrastructure Layer
 
@@ -176,20 +176,20 @@ MVP pages:
 
 ## 13. Статус миграции
 
-| Срез | Статус |
-|---|---|
-| Репозиторий скопирован из `task-tracker` | Готово |
-| Идентичность проекта `wiki`/`WIKI_` | Готово |
-| Product requirements reduced to base app | Готово |
-| Удаление task-tracker-only documentation/screenshots/frontend pages | Готово |
-| Замена публичного API/router на Wiki MVP | Готово |
-| Wiki domain value objects and invariants | Готово |
-| Fresh SQLx Wiki schema baseline | Готово |
-| Route-level SQLx runtime persistence | Готово для MVP: PostgreSQL adapter вынесен из основного router/DTO файла в `api::routes::wiki::postgres`; базовые space-role checks включены; attachment bytes вынесены за Wiki storage port; shared Wiki validation/auth helpers вынесены в app layer |
-| Замена app/repositories/runtime wiring на Wiki persistence | Следующий шаг |
-| Замена frontend страниц на Wiki UI | Готово |
-| Перегенерация OpenAPI | Готово для MVP API |
-| Generated frontend client | После стабилизации PostgreSQL-backed API |
+| Срез                                                                | Статус                                                                                                                                                                                                                                                        |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Репозиторий скопирован из `task-tracker`                            | Готово                                                                                                                                                                                                                                                        |
+| Идентичность проекта `wiki`/`WIKI_`                                 | Готово                                                                                                                                                                                                                                                        |
+| Product requirements reduced to base app                            | Готово                                                                                                                                                                                                                                                        |
+| Удаление task-tracker-only documentation/screenshots/frontend pages | Готово                                                                                                                                                                                                                                                        |
+| Замена публичного API/router на Wiki MVP                            | Готово                                                                                                                                                                                                                                                        |
+| Wiki domain value objects and invariants                            | Готово                                                                                                                                                                                                                                                        |
+| Fresh SQLx Wiki schema baseline                                     | Готово                                                                                                                                                                                                                                                        |
+| Route-level SQLx runtime persistence                                | Готово для MVP: PostgreSQL adapter вынесен из основного router/DTO файла в `api::routes::wiki::postgres`; базовые space-role checks включены; attachment bytes вынесены за Wiki storage port; shared Wiki validation/auth/search helpers вынесены в app layer |
+| Замена app/repositories/runtime wiring на Wiki persistence          | Следующий шаг                                                                                                                                                                                                                                                 |
+| Замена frontend страниц на Wiki UI                                  | Готово                                                                                                                                                                                                                                                        |
+| Перегенерация OpenAPI                                               | Готово для MVP API                                                                                                                                                                                                                                            |
+| Generated frontend client                                           | После стабилизации PostgreSQL-backed API                                                                                                                                                                                                                      |
 
 ## References
 

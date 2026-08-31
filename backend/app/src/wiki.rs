@@ -32,6 +32,18 @@ pub struct WikiTokenPair {
     pub expires_in: u64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiSearchCriteria {
+    pub needle: String,
+    pub evidence_like_pattern: String,
+    pub space_key: Option<String>,
+    pub task_key: Option<String>,
+    pub phase_key: Option<String>,
+    pub document_type: Option<&'static str>,
+    pub include_archived: bool,
+    pub limit: i64,
+}
+
 pub fn clamp_limit(limit: Option<usize>, max: i64) -> i64 {
     limit.unwrap_or(max as usize).clamp(1, max as usize) as i64
 }
@@ -69,6 +81,47 @@ pub fn normalize_document_type(value: &str, allow_page: bool) -> Result<&'static
         return Err(AppError::invalid_input("unsupported document type"));
     }
     Ok(document_type.as_str())
+}
+
+pub fn build_wiki_search_criteria(
+    q: Option<&str>,
+    space: Option<&str>,
+    task_key: Option<&str>,
+    phase_key: Option<&str>,
+    document_type: Option<&str>,
+    include_archived: Option<bool>,
+    limit: Option<usize>,
+) -> Result<WikiSearchCriteria, AppError> {
+    let needle = q.unwrap_or_default().trim().to_string();
+    Ok(WikiSearchCriteria {
+        evidence_like_pattern: evidence_like_pattern(&needle),
+        needle,
+        space_key: space.map(normalize_space_key).transpose()?,
+        task_key: task_key.map(normalize_task_key).transpose()?,
+        phase_key: phase_key.map(normalize_phase_key).transpose()?,
+        document_type: document_type
+            .map(|value| normalize_document_type(value, true))
+            .transpose()?,
+        include_archived: include_archived.unwrap_or(false),
+        limit: clamp_limit(limit, 50),
+    })
+}
+
+fn evidence_like_pattern(value: &str) -> String {
+    if value.is_empty() {
+        return "%%".to_string();
+    }
+
+    let mut escaped = String::with_capacity(value.len() + 2);
+    escaped.push('%');
+    for ch in value.chars().flat_map(char::to_lowercase) {
+        if matches!(ch, '\\' | '%' | '_') {
+            escaped.push('\\');
+        }
+        escaped.push(ch);
+    }
+    escaped.push('%');
+    escaped
 }
 
 pub fn normalize_evidence_type(value: &str) -> Result<&'static str, AppError> {
@@ -353,6 +406,57 @@ mod tests {
         );
         assert_eq!(safe_download_filename("report 1.md"), "report_1.md");
         assert_eq!(safe_download_filename(".."), "attachment.bin");
+    }
+
+    #[test]
+    fn wiki_search_criteria_normalizes_filters_and_limits() {
+        let criteria = build_wiki_search_criteria(
+            Some("  Wiki MVP  "),
+            Some("sdlc"),
+            Some("SDLC-42"),
+            Some("Implementation"),
+            Some("requirements"),
+            Some(true),
+            Some(500),
+        )
+        .unwrap();
+
+        assert_eq!(criteria.needle, "Wiki MVP");
+        assert_eq!(criteria.evidence_like_pattern, "%wiki mvp%");
+        assert_eq!(criteria.space_key.as_deref(), Some("SDLC"));
+        assert_eq!(criteria.task_key.as_deref(), Some("SDLC-42"));
+        assert_eq!(criteria.phase_key.as_deref(), Some("implementation"));
+        assert_eq!(criteria.document_type, Some("requirements"));
+        assert!(criteria.include_archived);
+        assert_eq!(criteria.limit, 50);
+    }
+
+    #[test]
+    fn wiki_search_criteria_escapes_evidence_like_wildcards() {
+        let criteria = build_wiki_search_criteria(
+            Some(r"  100%_Done\Release  "),
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(0),
+        )
+        .unwrap();
+
+        assert_eq!(criteria.needle, r"100%_Done\Release");
+        assert_eq!(criteria.evidence_like_pattern, r"%100\%\_done\\release%");
+        assert_eq!(criteria.limit, 1);
+    }
+
+    #[test]
+    fn wiki_search_criteria_treats_blank_query_as_unfiltered() {
+        let criteria =
+            build_wiki_search_criteria(Some("   "), None, None, None, None, None, None).unwrap();
+
+        assert_eq!(criteria.needle, "");
+        assert_eq!(criteria.evidence_like_pattern, "%%");
+        assert_eq!(criteria.limit, 50);
     }
 
     #[test]

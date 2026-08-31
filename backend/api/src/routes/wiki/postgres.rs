@@ -1,11 +1,11 @@
 use super::*;
 use app::wiki::{
-    WikiSpaceAccess as SpaceAccess, checksum, clamp_limit, create_wiki_session_token_pair,
-    create_wiki_token_pair, decode_token, default_username, global_role_from_request,
-    hash_password, hash_token, markdown_to_text, normalize_document_type, normalize_evidence_type,
-    normalize_phase_key, normalize_required, normalize_slug, normalize_space_key,
-    normalize_space_role, normalize_task_key, safe_download_filename, snippet, space_role_allows,
-    verify_password,
+    WikiSpaceAccess as SpaceAccess, build_wiki_search_criteria, checksum, clamp_limit,
+    create_wiki_session_token_pair, create_wiki_token_pair, decode_token, default_username,
+    global_role_from_request, hash_password, hash_token, markdown_to_text, normalize_document_type,
+    normalize_evidence_type, normalize_phase_key, normalize_required, normalize_slug,
+    normalize_space_key, normalize_space_role, normalize_task_key, safe_download_filename, snippet,
+    space_role_allows, verify_password,
 };
 use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Row, postgres::PgPoolOptions, postgres::PgRow};
@@ -1949,54 +1949,40 @@ impl PostgresWikiBackend {
         claims: &WikiClaims,
         query: SearchQuery,
     ) -> Result<SearchResponse, shared::AppError> {
-        let needle = query.q.unwrap_or_default();
-        let evidence_pattern = format!("%{}%", needle.to_lowercase());
-        let space_key = query
-            .space
-            .as_deref()
-            .map(normalize_space_key)
-            .transpose()?;
-        if let Some(space_key) = space_key.as_deref() {
+        let criteria = build_wiki_search_criteria(
+            query.q.as_deref(),
+            query.space.as_deref(),
+            query.task_key.as_deref(),
+            query.phase_key.as_deref(),
+            query.document_type.as_deref(),
+            query.include_archived,
+            query.limit,
+        )?;
+        if let Some(space_key) = criteria.space_key.as_deref() {
             self.ensure_space_access(claims, space_key, SpaceAccess::View)
                 .await?;
         }
         let access_user_id = self.restricted_user_id(claims).await?;
-        let task_key = query
-            .task_key
-            .as_deref()
-            .map(normalize_task_key)
-            .transpose()?;
-        let phase_key = query
-            .phase_key
-            .as_deref()
-            .map(normalize_phase_key)
-            .transpose()?;
-        let document_type = match query.document_type.as_deref() {
-            Some(value) => Some(normalize_document_type(value, true)?),
-            None => None,
-        };
-        let include_archived = query.include_archived.unwrap_or(false);
-        let limit = clamp_limit(query.limit, 50);
 
         let document_rows = sqlx::query(SEARCH_DOCUMENTS_SQL)
-            .bind(&needle)
-            .bind(space_key.as_deref())
-            .bind(task_key.as_deref())
-            .bind(phase_key.as_deref())
-            .bind(document_type)
-            .bind(include_archived)
+            .bind(&criteria.needle)
+            .bind(criteria.space_key.as_deref())
+            .bind(criteria.task_key.as_deref())
+            .bind(criteria.phase_key.as_deref())
+            .bind(criteria.document_type)
+            .bind(criteria.include_archived)
             .bind(access_user_id)
-            .bind(limit)
+            .bind(criteria.limit)
             .fetch_all(&self.pool)
             .await
             .map_err(shared::AppError::database)?;
         let evidence_rows = sqlx::query(SEARCH_EVIDENCE_SQL)
-            .bind(&evidence_pattern)
-            .bind(space_key.as_deref())
-            .bind(task_key.as_deref())
-            .bind(phase_key.as_deref())
+            .bind(&criteria.evidence_like_pattern)
+            .bind(criteria.space_key.as_deref())
+            .bind(criteria.task_key.as_deref())
+            .bind(criteria.phase_key.as_deref())
             .bind(access_user_id)
-            .bind(limit)
+            .bind(criteria.limit)
             .fetch_all(&self.pool)
             .await
             .map_err(shared::AppError::database)?;
@@ -2007,7 +1993,7 @@ impl PostgresWikiBackend {
             .chain(evidence_rows.iter().map(search_result_from_row))
             .collect::<Vec<_>>();
         results.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
-        results.truncate(limit as usize);
+        results.truncate(criteria.limit as usize);
         Ok(SearchResponse { results })
     }
 
@@ -2776,8 +2762,8 @@ const SEARCH_EVIDENCE_SQL: &str = r#"
     LEFT JOIN phase_dossiers pd ON pd.id = e.phase_dossier_id
     WHERE (
         $1 = '%%'
-        OR lower(e.title) LIKE $1
-        OR lower(COALESCE(e.url, '')) LIKE $1
+        OR lower(e.title) LIKE $1 ESCAPE E'\\'
+        OR lower(COALESCE(e.url, '')) LIKE $1 ESCAPE E'\\'
     )
       AND ($2::text IS NULL OR s.key = $2)
       AND ($3::text IS NULL OR td.task_key = $3)

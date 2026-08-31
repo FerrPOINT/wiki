@@ -19,6 +19,7 @@ The documentation, screenshots, API-backed frontend MVP pages and SQLx-backed MV
 - PostgreSQL runtime enforces the basic global-admin, space-role and attachment-download boundaries for core read/write paths;
 - attachment bytes are behind `domain::wiki::WikiAttachmentStorage`, with `infra::LocalWikiAttachmentStorage` wired by `server`;
 - shared Wiki normalization, access predicates, content helpers, storage-name helpers, password hashing, Wiki JWT/session token helpers and access/refresh token-pair TTL assembly are in `app::wiki`;
+- search q/filter/limit normalization is in `app::wiki`; the PostgreSQL adapter still owns the SQL query and ranking details;
 - the API crate no longer declares direct Wiki auth crypto dependencies after the helper extraction;
 - CLI has mocked HTTP smoke coverage for auth, spaces, documents, task/phase dossiers, templates, search, URL/file evidence request flows and API error envelopes; compiled-binary smoke verifies non-zero exit for API errors;
 - deferred areas are documented as reference only.
@@ -80,7 +81,7 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 
 ## 6. Search, Storage And Audit
 
-- Tune current PostgreSQL FTS with ranking, query plans and language decisions.
+- Tune current PostgreSQL FTS with ranking, query plans and language decisions; q/filter/limit normalization already lives in `app::wiki`, so the remaining work is SQL/repository behavior.
 - Expand current local filesystem storage coverage behind the dedicated Wiki storage port; add S3/MinIO later behind the same abstraction.
 - Expand attachment tests beyond the current staged upload, claim, download and missing-file smoke for less common storage edge cases.
 - Expand audit tests for document publish/archive, evidence writes, user changes and permission changes.
