@@ -339,6 +339,165 @@ async fn wiki_postgres_routes_persist_across_router_rebuilds() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(revision["version"], 1);
 
+    let (status, outsider) = call(
+        &app,
+        Method::POST,
+        "/api/v1/auth/register",
+        None,
+        Some(json!({
+            "email": "viewer@example.com",
+            "username": "viewer",
+            "password": "viewer-password",
+            "name": "Viewer"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let viewer_token = outsider["access_token"].as_str().unwrap();
+    let viewer_id = outsider["user_id"].as_str().unwrap();
+
+    let (status, spaces) = call(
+        &app,
+        Method::GET,
+        "/api/v1/spaces",
+        Some(viewer_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(spaces["spaces"].as_array().unwrap().len(), 0);
+
+    let (status, _) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/documents/{document_id}"),
+        Some(viewer_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, search) = call(
+        &app,
+        Method::GET,
+        "/api/v1/search?q=Persistent",
+        Some(viewer_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(search["results"].as_array().unwrap().len(), 0);
+
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces",
+        Some(viewer_token),
+        Some(json!({
+            "key": "PRIVATE",
+            "name": "Private space"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, _) = call(
+        &app,
+        Method::GET,
+        "/api/v1/search?q=Persistent&space=SDLC",
+        Some(viewer_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, _) = call(
+        &app,
+        Method::PUT,
+        &format!("/api/v1/spaces/SDLC/members/{viewer_id}"),
+        Some(&token),
+        Some(json!({ "role": "viewer" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, readable_document) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/documents/{document_id}"),
+        Some(viewer_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(readable_document["id"], document_id);
+
+    let (status, visible_search) = call(
+        &app,
+        Method::GET,
+        "/api/v1/search?q=Persistent&space=SDLC",
+        Some(viewer_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        visible_search["results"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["id"] == document_id)
+    );
+
+    let (status, _) = call(
+        &app,
+        Method::PUT,
+        "/api/v1/spaces/SDLC",
+        Some(viewer_token),
+        Some(json!({ "name": "Viewer must not rename space" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, _) = call(
+        &app,
+        Method::PUT,
+        &format!("/api/v1/documents/{document_id}/draft"),
+        Some(viewer_token),
+        Some(json!({
+            "title": "Viewer must not edit",
+            "content_markdown": "# Viewer must not edit"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(viewer_token),
+        Some(json!({
+            "space": "SDLC",
+            "document_id": document_id.clone(),
+            "title": "Viewer must not add evidence",
+            "evidence_type": "external_url",
+            "url": "https://ci.local/jobs/forbidden"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, _) = call(
+        &app,
+        Method::GET,
+        "/api/v1/spaces/SDLC/members",
+        Some(viewer_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
     let (status, _) = call(
         &app,
         Method::POST,

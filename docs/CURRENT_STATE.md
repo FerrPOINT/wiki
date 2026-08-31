@@ -13,7 +13,7 @@
 | API runtime | Current | Runtime router and OpenAPI expose Wiki MVP endpoints only; memory fallback remains for fast tests, while real server config with `WIKI_DATABASE__URL` uses SQLx/PostgreSQL for MVP operations |
 | Domain baseline | Current | `domain::wiki` defines Wiki-owned value objects, roles, documents, revisions, evidence, attachments and core invariants |
 | SQLx schema baseline | Current | `backend/migrations/202608310001_create_wiki_mvp.*.sql` creates a fresh Wiki MVP schema without task-tracker tables; `202608310002_add_auth_runtime.*.sql` adds usernames and auth sessions |
-| SQLx runtime persistence | Current | Users, auth sessions, spaces, members, documents, drafts, revisions, task/phase links, evidence, attachments, templates, audit and search are backed by PostgreSQL in `api::routes::wiki::WikiBackend` |
+| SQLx runtime persistence | Current | Users, auth sessions, spaces, members, documents, drafts, revisions, task/phase links, evidence, attachments, templates, audit and search are backed by PostgreSQL in `api::routes::wiki::WikiBackend`; PostgreSQL runtime enforces basic space role access |
 | Frontend route shell | Current | Wiki MVP routes and screenshots exist for the approved page set only |
 | Frontend API-backed pages | Current | Dashboard, spaces, documents, tasks, phases, evidence, templates, users, audit and search read from the public Wiki API; create document, create user, URL evidence and file evidence forms call the same API |
 | Page design contract | Current | `docs/PAGE_DESIGN.md` fixes page composition, states and deferred boundaries before backend work |
@@ -54,7 +54,7 @@
 
 - Backend app/infra and old SeaORM migration crate still include task-tracker modules outside the active Wiki API shell.
 - SQLx persistence currently lives in the API route module as a pragmatic MVP runtime adapter; extracting dedicated app use cases/repositories is still target architecture work.
-- Per-space permission checks need deeper repository/API test coverage beyond global admin-only system operations.
+- Per-space permission checks are implemented in the PostgreSQL runtime for core read/write paths; deeper repository/API coverage is still needed for attachment-download and edge-case combinations.
 - Generated Wiki frontend OpenAPI client is pending backend domain/repository stabilization.
 
 ## Verification Commands
@@ -81,7 +81,7 @@ Latest verification on 2026-08-31:
 
 - `docker run ... cargo check --workspace` passed on Linux container; direct Windows linking remains blocked by missing MSVC `link.exe`.
 - `docker run ... cargo check -p api` and `cargo check -p wiki-cli` passed on Linux container.
-- `docker run ... cargo test -p api -- --test-threads=1 --nocapture` passed: memory MVP contract and PostgreSQL persistence smoke.
+- `docker run ... cargo test -p api -- --test-threads=1 --nocapture` passed: memory MVP contract plus PostgreSQL persistence and space-permission smoke.
 - `docker run ... cargo test -p shared`, `cargo test -p domain`, `cargo test -p app` and `cargo test -p server` passed on Linux container.
 - `docker run ... cargo test -p api wiki_postgres_routes_persist_across_router_rebuilds -- --test-threads=1 --nocapture` passed against explicit `wiki-test` compose PostgreSQL on `host.docker.internal:3458`.
 - `docker run ... cargo run -p api --bin openapi-gen -- /workspace/openapi/openapi.json` regenerated OpenAPI successfully.

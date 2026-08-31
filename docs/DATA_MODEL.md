@@ -4,7 +4,7 @@
 
 Wiki хранит документы, связанные с задачами SDLC и фазами workflow. MVP-модель поддерживает базовый Wiki-опыт: пользователи, spaces, дерево страниц, версии, поиск, вложения, evidence и права.
 
-Текущие миграции ещё унаследованы из исходного `task-tracker`. Этот документ описывает целевую минимальную модель, на которую нужно заменить старую схему.
+Текущая SQLx baseline-схема создаёт минимальную Wiki-модель без task-tracker таблиц. Унаследованный SeaORM migration crate остаётся временным совместимым слоем до полного удаления старых backend internals.
 
 ## 2. Общие правила
 
@@ -23,12 +23,29 @@ Wiki хранит документы, связанные с задачами SDL
 |---|---|---|
 | `id` | uuid | PK |
 | `email` | text | unique |
+| `username` | text | unique, короткое имя для UI/CLI |
 | `display_name` | text | Отображаемое имя |
 | `password_hash` | text | Argon2id |
 | `global_role` | text | `admin`, `user` |
 | `is_active` | bool | Активная учётная запись |
 | `created_at` | timestamptz | Создание |
 | `updated_at` | timestamptz | Обновление |
+
+### auth_sessions
+
+Refresh/access session storage. API отдаёт JWT пользователю, а в базе хранит только SHA-256 hash токенов.
+
+| Поле | Тип | Описание |
+|---|---|---|
+| `id` | uuid | PK, session id / JWT `jti` |
+| `user_id` | uuid | FK users |
+| `access_token_hash` | text | SHA-256 access token |
+| `refresh_token_hash` | text | SHA-256 refresh token |
+| `expires_at` | timestamptz | Access token expiry |
+| `refresh_expires_at` | timestamptz | Refresh token expiry |
+| `revoked_at` | timestamptz nullable | Logout/revoke timestamp |
+| `created_at` | timestamptz | Создание |
+| `last_used_at` | timestamptz | Последнее использование |
 
 ### spaces
 

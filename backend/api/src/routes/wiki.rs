@@ -38,6 +38,13 @@ struct PostgresWikiBackend {
     max_upload_bytes: usize,
 }
 
+#[derive(Debug, Clone, Copy)]
+enum SpaceAccess {
+    View,
+    Edit,
+    Admin,
+}
+
 impl WikiBackend {
     pub fn memory() -> Self {
         Self { postgres: None }
@@ -1181,8 +1188,13 @@ impl PostgresWikiBackend {
         Ok(user_response_from_row(&row))
     }
 
-    async fn list_spaces(&self) -> Result<SpaceListResponse, shared::AppError> {
+    async fn list_spaces(
+        &self,
+        claims: &WikiClaims,
+    ) -> Result<SpaceListResponse, shared::AppError> {
+        let user_id = parse_uuid(&claims.user_id, "user")?;
         let rows = sqlx::query(SPACE_LIST_SQL)
+            .bind(user_id)
             .fetch_all(&self.pool)
             .await
             .map_err(shared::AppError::database)?;
@@ -1196,7 +1208,7 @@ impl PostgresWikiBackend {
         claims: &WikiClaims,
         body: CreateSpaceRequest,
     ) -> Result<SpaceResponse, shared::AppError> {
-        let actor_id = parse_uuid(&claims.user_id, "user")?;
+        let actor_id = self.ensure_admin(claims).await?;
         let key = normalize_space_key(&body.key)?;
         let name = normalize_required(&body.name, "space name")?;
         let description = body.description.unwrap_or_default();
@@ -1242,6 +1254,16 @@ impl PostgresWikiBackend {
         self.get_space_by_key(&key).await
     }
 
+    async fn get_space(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+    ) -> Result<SpaceResponse, shared::AppError> {
+        self.ensure_space_access(claims, space_key, SpaceAccess::View)
+            .await?;
+        self.get_space_by_key(space_key).await
+    }
+
     async fn get_space_by_key(&self, space_key: &str) -> Result<SpaceResponse, shared::AppError> {
         let key = normalize_space_key(space_key)?;
         let row = sqlx::query(SPACE_ONE_SQL)
@@ -1259,6 +1281,9 @@ impl PostgresWikiBackend {
         space_key: &str,
         body: UpdateSpaceRequest,
     ) -> Result<SpaceResponse, shared::AppError> {
+        let space_id = self
+            .ensure_space_access(claims, space_key, SpaceAccess::Admin)
+            .await?;
         let actor_id = parse_uuid(&claims.user_id, "user")?;
         let key = normalize_space_key(space_key)?;
         let row = sqlx::query(
@@ -1283,7 +1308,8 @@ impl PostgresWikiBackend {
         .await
         .map_err(shared::AppError::database)?
         .ok_or_else(|| shared::AppError::not_found("space", space_key))?;
-        let space_id: Uuid = row.get("id");
+        let updated_space_id: Uuid = row.get("id");
+        debug_assert_eq!(space_id, updated_space_id);
         self.audit(Some(actor_id), "space.update", "space", space_id)
             .await?;
         self.get_space_by_key(&key).await
@@ -1294,6 +1320,9 @@ impl PostgresWikiBackend {
         claims: &WikiClaims,
         space_key: &str,
     ) -> Result<SpaceResponse, shared::AppError> {
+        let space_id = self
+            .ensure_space_access(claims, space_key, SpaceAccess::Admin)
+            .await?;
         let actor_id = parse_uuid(&claims.user_id, "user")?;
         let key = normalize_space_key(space_key)?;
         let row = sqlx::query(
@@ -1304,7 +1333,8 @@ impl PostgresWikiBackend {
         .await
         .map_err(shared::AppError::database)?
         .ok_or_else(|| shared::AppError::not_found("space", space_key))?;
-        let space_id: Uuid = row.get("id");
+        let archived_space_id: Uuid = row.get("id");
+        debug_assert_eq!(space_id, archived_space_id);
         self.audit(Some(actor_id), "space.archive", "space", space_id)
             .await?;
         self.get_space_by_key(&key).await
@@ -1312,9 +1342,12 @@ impl PostgresWikiBackend {
 
     async fn list_space_members(
         &self,
+        claims: &WikiClaims,
         space_key: &str,
     ) -> Result<SpaceMemberListResponse, shared::AppError> {
-        let space_id = self.space_id(space_key).await?;
+        let space_id = self
+            .ensure_space_access(claims, space_key, SpaceAccess::Admin)
+            .await?;
         let rows = sqlx::query(
             r#"
             SELECT sm.user_id, u.email, u.display_name, sm.role, sm.joined_at
@@ -1340,8 +1373,10 @@ impl PostgresWikiBackend {
         user_id: &str,
         body: UpsertSpaceMemberRequest,
     ) -> Result<SpaceMemberResponse, shared::AppError> {
+        let space_id = self
+            .ensure_space_access(claims, space_key, SpaceAccess::Admin)
+            .await?;
         let actor_id = parse_uuid(&claims.user_id, "user")?;
-        let space_id = self.space_id(space_key).await?;
         let user_id = parse_uuid(user_id, "user")?;
         let role = normalize_space_role(&body.role)?;
 
@@ -1379,8 +1414,10 @@ impl PostgresWikiBackend {
         space_key: &str,
         user_id: &str,
     ) -> Result<(), shared::AppError> {
+        let space_id = self
+            .ensure_space_access(claims, space_key, SpaceAccess::Admin)
+            .await?;
         let actor_id = parse_uuid(&claims.user_id, "user")?;
-        let space_id = self.space_id(space_key).await?;
         let user_id = parse_uuid(user_id, "user")?;
         sqlx::query("DELETE FROM space_members WHERE space_id = $1 AND user_id = $2")
             .bind(space_id)
@@ -1393,9 +1430,15 @@ impl PostgresWikiBackend {
         Ok(())
     }
 
-    async fn get_space_tree(&self, space_key: &str) -> Result<SpaceTreeResponse, shared::AppError> {
+    async fn get_space_tree(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+    ) -> Result<SpaceTreeResponse, shared::AppError> {
         let key = normalize_space_key(space_key)?;
-        let space_id = self.space_id(&key).await?;
+        let space_id = self
+            .ensure_space_access(claims, &key, SpaceAccess::View)
+            .await?;
         let rows = sqlx::query(
             r#"
             SELECT id, parent_id, slug, title, document_type, status, position, updated_at
@@ -1421,9 +1464,11 @@ impl PostgresWikiBackend {
         space_key: &str,
         body: CreateDocumentRequest,
     ) -> Result<DocumentResponse, shared::AppError> {
-        let actor_id = parse_uuid(&claims.user_id, "user")?;
         let key = normalize_space_key(space_key)?;
-        let space_id = self.space_id(&key).await?;
+        let space_id = self
+            .ensure_space_access(claims, &key, SpaceAccess::Edit)
+            .await?;
+        let actor_id = parse_uuid(&claims.user_id, "user")?;
         let title = normalize_required(&body.title, "document title")?;
         let document_type = normalize_document_type(&body.document_type, true)?;
         let document_id = Uuid::now_v7();
@@ -1562,8 +1607,14 @@ impl PostgresWikiBackend {
         self.document_response(document_id).await
     }
 
-    async fn get_document(&self, document_id: &str) -> Result<DocumentResponse, shared::AppError> {
+    async fn get_document(
+        &self,
+        claims: &WikiClaims,
+        document_id: &str,
+    ) -> Result<DocumentResponse, shared::AppError> {
         let document_id = self.resolve_document_id(document_id).await?;
+        self.ensure_document_access(claims, document_id, SpaceAccess::View)
+            .await?;
         self.document_response(document_id).await
     }
 
@@ -1573,8 +1624,10 @@ impl PostgresWikiBackend {
         document_id: &str,
         body: UpdateDocumentDraftRequest,
     ) -> Result<DocumentResponse, shared::AppError> {
-        let actor_id = parse_uuid(&claims.user_id, "user")?;
         let document_id = self.resolve_document_id(document_id).await?;
+        self.ensure_document_access(claims, document_id, SpaceAccess::Edit)
+            .await?;
+        let actor_id = parse_uuid(&claims.user_id, "user")?;
         let title = body
             .title
             .as_deref()
@@ -1643,8 +1696,10 @@ impl PostgresWikiBackend {
         document_id: &str,
         body: PublishDocumentRequest,
     ) -> Result<DocumentRevisionResponse, shared::AppError> {
-        let actor_id = parse_uuid(&claims.user_id, "user")?;
         let document_id = self.resolve_document_id(document_id).await?;
+        self.ensure_document_access(claims, document_id, SpaceAccess::Edit)
+            .await?;
+        let actor_id = parse_uuid(&claims.user_id, "user")?;
         let mut tx = self
             .pool
             .begin()
@@ -1741,8 +1796,10 @@ impl PostgresWikiBackend {
         claims: &WikiClaims,
         document_id: &str,
     ) -> Result<DocumentResponse, shared::AppError> {
-        let actor_id = parse_uuid(&claims.user_id, "user")?;
         let document_id = self.resolve_document_id(document_id).await?;
+        self.ensure_document_access(claims, document_id, SpaceAccess::Edit)
+            .await?;
+        let actor_id = parse_uuid(&claims.user_id, "user")?;
         let row = sqlx::query(
             r#"
             UPDATE documents
@@ -1768,9 +1825,11 @@ impl PostgresWikiBackend {
         document_id: &str,
         body: MoveDocumentRequest,
     ) -> Result<DocumentResponse, shared::AppError> {
-        let actor_id = parse_uuid(&claims.user_id, "user")?;
         let document_id = self.resolve_document_id(document_id).await?;
-        let document_space_id = self.document_space_id(document_id).await?;
+        let document_space_id = self
+            .ensure_document_access(claims, document_id, SpaceAccess::Edit)
+            .await?;
+        let actor_id = parse_uuid(&claims.user_id, "user")?;
         let parent_id = match body.parent_id {
             Some(parent_id) => {
                 let parent_id = self.resolve_document_id(&parent_id).await?;
@@ -1802,9 +1861,12 @@ impl PostgresWikiBackend {
 
     async fn list_document_revisions(
         &self,
+        claims: &WikiClaims,
         document_id: &str,
     ) -> Result<DocumentRevisionListResponse, shared::AppError> {
         let document_id = self.resolve_document_id(document_id).await?;
+        self.ensure_document_access(claims, document_id, SpaceAccess::View)
+            .await?;
         let rows = sqlx::query(
             r#"
             SELECT id, document_id, version, title, content_markdown, summary, author_id, published_at
@@ -1824,10 +1886,13 @@ impl PostgresWikiBackend {
 
     async fn get_document_revision(
         &self,
+        claims: &WikiClaims,
         document_id: &str,
         revision_id: &str,
     ) -> Result<DocumentRevisionResponse, shared::AppError> {
         let document_id = self.resolve_document_id(document_id).await?;
+        self.ensure_document_access(claims, document_id, SpaceAccess::View)
+            .await?;
         let revision_id = parse_uuid(revision_id, "revision")?;
         let row = sqlx::query(
             r#"
@@ -1845,9 +1910,15 @@ impl PostgresWikiBackend {
         Ok(revision_response_from_row(&row))
     }
 
-    async fn list_tasks(&self, space_key: &str) -> Result<TaskPageListResponse, shared::AppError> {
+    async fn list_tasks(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+    ) -> Result<TaskPageListResponse, shared::AppError> {
         let key = normalize_space_key(space_key)?;
-        let space_id = self.space_id(&key).await?;
+        let space_id = self
+            .ensure_space_access(claims, &key, SpaceAccess::View)
+            .await?;
         let rows = sqlx::query(
             r#"
             SELECT task_key
@@ -1870,11 +1941,13 @@ impl PostgresWikiBackend {
 
     async fn get_task(
         &self,
+        claims: &WikiClaims,
         space_key: &str,
         task_key: &str,
     ) -> Result<TaskPageResponse, shared::AppError> {
         let key = normalize_space_key(space_key)?;
-        self.space_id(&key).await?;
+        self.ensure_space_access(claims, &key, SpaceAccess::View)
+            .await?;
         let task_key = normalize_task_key(task_key)?;
         self.task_page(&key, &task_key).await
     }
@@ -1886,9 +1959,11 @@ impl PostgresWikiBackend {
         task_key: &str,
         body: LinkDocumentRequest,
     ) -> Result<TaskPageResponse, shared::AppError> {
-        let actor_id = parse_uuid(&claims.user_id, "user")?;
         let key = normalize_space_key(space_key)?;
-        let space_id = self.space_id(&key).await?;
+        let space_id = self
+            .ensure_space_access(claims, &key, SpaceAccess::Edit)
+            .await?;
+        let actor_id = parse_uuid(&claims.user_id, "user")?;
         let task_key = normalize_task_key(task_key)?;
         let document_id = self.resolve_document_id(&body.document_id).await?;
         if self.document_space_id(document_id).await? != space_id {
@@ -1932,10 +2007,11 @@ impl PostgresWikiBackend {
 
     async fn list_task_documents(
         &self,
+        claims: &WikiClaims,
         space_key: &str,
         task_key: &str,
     ) -> Result<DocumentListResponse, shared::AppError> {
-        let task = self.get_task(space_key, task_key).await?;
+        let task = self.get_task(claims, space_key, task_key).await?;
         let mut documents = Vec::with_capacity(task.documents.len());
         for summary in task.documents {
             documents.push(
@@ -1948,20 +2024,24 @@ impl PostgresWikiBackend {
 
     async fn list_task_evidence(
         &self,
+        claims: &WikiClaims,
         space_key: &str,
         task_key: &str,
     ) -> Result<EvidenceListResponse, shared::AppError> {
         Ok(EvidenceListResponse {
-            evidence: self.get_task(space_key, task_key).await?.evidence,
+            evidence: self.get_task(claims, space_key, task_key).await?.evidence,
         })
     }
 
     async fn list_phases(
         &self,
+        claims: &WikiClaims,
         space_key: &str,
     ) -> Result<PhasePageListResponse, shared::AppError> {
         let key = normalize_space_key(space_key)?;
-        let space_id = self.space_id(&key).await?;
+        let space_id = self
+            .ensure_space_access(claims, &key, SpaceAccess::View)
+            .await?;
         let rows = sqlx::query(
             r#"
             SELECT phase_key
@@ -1984,11 +2064,13 @@ impl PostgresWikiBackend {
 
     async fn get_phase(
         &self,
+        claims: &WikiClaims,
         space_key: &str,
         phase_key: &str,
     ) -> Result<PhasePageResponse, shared::AppError> {
         let key = normalize_space_key(space_key)?;
-        self.space_id(&key).await?;
+        self.ensure_space_access(claims, &key, SpaceAccess::View)
+            .await?;
         let phase_key = normalize_phase_key(phase_key)?;
         self.phase_page(&key, &phase_key).await
     }
@@ -2000,9 +2082,11 @@ impl PostgresWikiBackend {
         phase_key: &str,
         body: LinkDocumentRequest,
     ) -> Result<PhasePageResponse, shared::AppError> {
-        let actor_id = parse_uuid(&claims.user_id, "user")?;
         let key = normalize_space_key(space_key)?;
-        let space_id = self.space_id(&key).await?;
+        let space_id = self
+            .ensure_space_access(claims, &key, SpaceAccess::Edit)
+            .await?;
+        let actor_id = parse_uuid(&claims.user_id, "user")?;
         let phase_key = normalize_phase_key(phase_key)?;
         let document_id = self.resolve_document_id(&body.document_id).await?;
         if self.document_space_id(document_id).await? != space_id {
@@ -2046,10 +2130,11 @@ impl PostgresWikiBackend {
 
     async fn list_phase_documents(
         &self,
+        claims: &WikiClaims,
         space_key: &str,
         phase_key: &str,
     ) -> Result<DocumentListResponse, shared::AppError> {
-        let phase = self.get_phase(space_key, phase_key).await?;
+        let phase = self.get_phase(claims, space_key, phase_key).await?;
         let mut documents = Vec::with_capacity(phase.documents.len());
         for summary in phase.documents {
             documents.push(
@@ -2062,11 +2147,12 @@ impl PostgresWikiBackend {
 
     async fn list_phase_evidence(
         &self,
+        claims: &WikiClaims,
         space_key: &str,
         phase_key: &str,
     ) -> Result<EvidenceListResponse, shared::AppError> {
         Ok(EvidenceListResponse {
-            evidence: self.get_phase(space_key, phase_key).await?.evidence,
+            evidence: self.get_phase(claims, space_key, phase_key).await?.evidence,
         })
     }
 
@@ -2117,6 +2203,8 @@ impl PostgresWikiBackend {
         } else {
             self.space_id(&space_key).await?
         };
+        self.ensure_space_id_access(claims, space_id, SpaceAccess::Edit)
+            .await?;
         let task_key = body
             .task_key
             .as_deref()
@@ -2162,9 +2250,10 @@ impl PostgresWikiBackend {
         let mut stored_checksum = body.checksum;
         if let Some(attachment_id) = attachment_id {
             let attachment_row = sqlx::query(
-                "SELECT checksum FROM attachments WHERE id = $1 AND owner_entity_id IS NULL",
+                "SELECT checksum FROM attachments WHERE id = $1 AND owner_entity_id IS NULL AND uploaded_by = $2",
             )
             .bind(attachment_id)
+            .bind(actor_id)
             .fetch_optional(&mut *tx)
             .await
             .map_err(shared::AppError::database)?
@@ -2225,6 +2314,7 @@ impl PostgresWikiBackend {
 
     async fn list_evidence(
         &self,
+        claims: Option<&WikiClaims>,
         query: EvidenceQuery,
     ) -> Result<EvidenceListResponse, shared::AppError> {
         let space_key = query
@@ -2233,7 +2323,24 @@ impl PostgresWikiBackend {
             .map(normalize_space_key)
             .transpose()?;
         let document_id = match query.document_id.as_deref() {
-            Some(value) => Some(self.resolve_document_id(value).await?),
+            Some(value) => {
+                let document_id = self.resolve_document_id(value).await?;
+                if let Some(claims) = claims {
+                    self.ensure_document_access(claims, document_id, SpaceAccess::View)
+                        .await?;
+                }
+                Some(document_id)
+            }
+            None => None,
+        };
+        let access_user_id = match claims {
+            Some(claims) => {
+                if let Some(space_key) = space_key.as_deref() {
+                    self.ensure_space_access(claims, space_key, SpaceAccess::View)
+                        .await?;
+                }
+                self.restricted_user_id(claims).await?
+            }
             None => None,
         };
         let task_key = query
@@ -2252,6 +2359,7 @@ impl PostgresWikiBackend {
             .bind(document_id)
             .bind(task_key)
             .bind(phase_key)
+            .bind(access_user_id)
             .bind(limit)
             .fetch_all(&self.pool)
             .await
@@ -2274,9 +2382,15 @@ impl PostgresWikiBackend {
         Ok(evidence_response_from_row(&row))
     }
 
-    async fn get_evidence(&self, evidence_id: &str) -> Result<EvidenceResponse, shared::AppError> {
-        self.get_evidence_by_id(parse_uuid(evidence_id, "evidence")?)
-            .await
+    async fn get_evidence(
+        &self,
+        claims: &WikiClaims,
+        evidence_id: &str,
+    ) -> Result<EvidenceResponse, shared::AppError> {
+        let evidence_id = parse_uuid(evidence_id, "evidence")?;
+        self.ensure_evidence_access(claims, evidence_id, SpaceAccess::View)
+            .await?;
+        self.get_evidence_by_id(evidence_id).await
     }
 
     async fn upload_attachment(
@@ -2342,9 +2456,11 @@ impl PostgresWikiBackend {
 
     async fn get_attachment(
         &self,
+        claims: &WikiClaims,
         attachment_id: &str,
     ) -> Result<AttachmentResponse, shared::AppError> {
         let attachment_id = parse_uuid(attachment_id, "attachment")?;
+        self.ensure_attachment_access(claims, attachment_id).await?;
         let row = sqlx::query(ATTACHMENT_ONE_SQL)
             .bind(attachment_id)
             .fetch_optional(&self.pool)
@@ -2354,8 +2470,13 @@ impl PostgresWikiBackend {
         Ok(attachment_response_from_row(&row))
     }
 
-    async fn download_attachment(&self, attachment_id: &str) -> Result<Response, shared::AppError> {
+    async fn download_attachment(
+        &self,
+        claims: &WikiClaims,
+        attachment_id: &str,
+    ) -> Result<Response, shared::AppError> {
         let attachment_id = parse_uuid(attachment_id, "attachment")?;
+        self.ensure_attachment_access(claims, attachment_id).await?;
         let row = sqlx::query(
             r#"
             SELECT file_name, content_type, storage_key
@@ -2459,7 +2580,11 @@ impl PostgresWikiBackend {
         })
     }
 
-    async fn search(&self, query: SearchQuery) -> Result<SearchResponse, shared::AppError> {
+    async fn search(
+        &self,
+        claims: &WikiClaims,
+        query: SearchQuery,
+    ) -> Result<SearchResponse, shared::AppError> {
         let needle = query.q.unwrap_or_default();
         let pattern = format!("%{}%", needle.to_lowercase());
         let space_key = query
@@ -2467,6 +2592,11 @@ impl PostgresWikiBackend {
             .as_deref()
             .map(normalize_space_key)
             .transpose()?;
+        if let Some(space_key) = space_key.as_deref() {
+            self.ensure_space_access(claims, space_key, SpaceAccess::View)
+                .await?;
+        }
+        let access_user_id = self.restricted_user_id(claims).await?;
         let task_key = query
             .task_key
             .as_deref()
@@ -2491,6 +2621,7 @@ impl PostgresWikiBackend {
             .bind(phase_key.as_deref())
             .bind(document_type.as_deref())
             .bind(include_archived)
+            .bind(access_user_id)
             .bind(limit)
             .fetch_all(&self.pool)
             .await
@@ -2500,6 +2631,7 @@ impl PostgresWikiBackend {
             .bind(space_key.as_deref())
             .bind(task_key.as_deref())
             .bind(phase_key.as_deref())
+            .bind(access_user_id)
             .bind(limit)
             .fetch_all(&self.pool)
             .await
@@ -2578,16 +2710,143 @@ impl PostgresWikiBackend {
 
     async fn ensure_admin(&self, claims: &WikiClaims) -> Result<Uuid, shared::AppError> {
         let user_id = parse_uuid(&claims.user_id, "user")?;
-        let role: Option<String> =
-            sqlx::query_scalar("SELECT global_role FROM users WHERE id = $1 AND is_active = true")
-                .bind(user_id)
+        let role = self.active_global_role(user_id).await?;
+        if role == "admin" {
+            Ok(user_id)
+        } else {
+            Err(shared::AppError::Forbidden)
+        }
+    }
+
+    async fn active_global_role(&self, user_id: Uuid) -> Result<String, shared::AppError> {
+        sqlx::query_scalar("SELECT global_role FROM users WHERE id = $1 AND is_active = true")
+            .bind(user_id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(shared::AppError::database)?
+            .ok_or(shared::AppError::Unauthorized)
+    }
+
+    async fn restricted_user_id(
+        &self,
+        claims: &WikiClaims,
+    ) -> Result<Option<Uuid>, shared::AppError> {
+        let user_id = parse_uuid(&claims.user_id, "user")?;
+        let role = self.active_global_role(user_id).await?;
+        if role == "admin" {
+            Ok(None)
+        } else {
+            Ok(Some(user_id))
+        }
+    }
+
+    async fn ensure_space_access(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        required: SpaceAccess,
+    ) -> Result<Uuid, shared::AppError> {
+        let space_id = self.space_id(space_key).await?;
+        self.ensure_space_id_access(claims, space_id, required)
+            .await?;
+        Ok(space_id)
+    }
+
+    async fn ensure_space_id_access(
+        &self,
+        claims: &WikiClaims,
+        space_id: Uuid,
+        required: SpaceAccess,
+    ) -> Result<Uuid, shared::AppError> {
+        let user_id = parse_uuid(&claims.user_id, "user")?;
+        let row = sqlx::query(
+            r#"
+            SELECT u.global_role, sm.role AS space_role
+            FROM users u
+            LEFT JOIN space_members sm ON sm.user_id = u.id AND sm.space_id = $2
+            WHERE u.id = $1 AND u.is_active = true
+            "#,
+        )
+        .bind(user_id)
+        .bind(space_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(shared::AppError::database)?
+        .ok_or(shared::AppError::Unauthorized)?;
+
+        let global_role: String = row.get("global_role");
+        let space_role: Option<String> = row.get("space_role");
+        if global_role == "admin" || space_role_allows(space_role.as_deref(), required) {
+            Ok(user_id)
+        } else {
+            Err(shared::AppError::Forbidden)
+        }
+    }
+
+    async fn ensure_document_access(
+        &self,
+        claims: &WikiClaims,
+        document_id: Uuid,
+        required: SpaceAccess,
+    ) -> Result<Uuid, shared::AppError> {
+        let space_id = self.document_space_id(document_id).await?;
+        self.ensure_space_id_access(claims, space_id, required)
+            .await?;
+        Ok(space_id)
+    }
+
+    async fn ensure_evidence_access(
+        &self,
+        claims: &WikiClaims,
+        evidence_id: Uuid,
+        required: SpaceAccess,
+    ) -> Result<Uuid, shared::AppError> {
+        let space_id: Uuid =
+            sqlx::query_scalar("SELECT space_id FROM evidence_items WHERE id = $1")
+                .bind(evidence_id)
                 .fetch_optional(&self.pool)
                 .await
-                .map_err(shared::AppError::database)?;
-        match role.as_deref() {
-            Some("admin") => Ok(user_id),
-            Some(_) => Err(shared::AppError::Forbidden),
-            None => Err(shared::AppError::Unauthorized),
+                .map_err(shared::AppError::database)?
+                .ok_or_else(|| shared::AppError::not_found("evidence", evidence_id))?;
+        self.ensure_space_id_access(claims, space_id, required)
+            .await?;
+        Ok(space_id)
+    }
+
+    async fn ensure_attachment_access(
+        &self,
+        claims: &WikiClaims,
+        attachment_id: Uuid,
+    ) -> Result<(), shared::AppError> {
+        let user_id = parse_uuid(&claims.user_id, "user")?;
+        let row = sqlx::query(
+            r#"
+            SELECT space_id, uploaded_by
+            FROM attachments
+            WHERE id = $1
+            "#,
+        )
+        .bind(attachment_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(shared::AppError::database)?
+        .ok_or_else(|| shared::AppError::not_found("attachment", attachment_id))?;
+        let uploaded_by: Uuid = row.get("uploaded_by");
+        let space_id: Option<Uuid> = row.get("space_id");
+        match space_id {
+            Some(space_id) => {
+                self.ensure_space_id_access(claims, space_id, SpaceAccess::View)
+                    .await?;
+                Ok(())
+            }
+            None => {
+                let role = self.active_global_role(user_id).await?;
+                if role == "admin" || uploaded_by == user_id {
+                    Ok(())
+                } else {
+                    Err(shared::AppError::Forbidden)
+                }
+            }
         }
     }
 
@@ -2688,13 +2947,16 @@ impl PostgresWikiBackend {
         let task_keys = self.document_task_keys(document_id).await?;
         let phase_keys = self.document_phase_keys(document_id).await?;
         let evidence = self
-            .list_evidence(EvidenceQuery {
-                space: None,
-                document_id: Some(document_id.to_string()),
-                task_key: None,
-                phase_key: None,
-                limit: Some(100),
-            })
+            .list_evidence(
+                None,
+                EvidenceQuery {
+                    space: None,
+                    document_id: Some(document_id.to_string()),
+                    task_key: None,
+                    phase_key: None,
+                    limit: Some(100),
+                },
+            )
             .await?
             .evidence;
         let owner_id: Uuid = row.get("owner_id");
@@ -3336,9 +3598,10 @@ pub async fn update_user(
 )]
 pub async fn list_spaces(
     Extension(backend): Extension<WikiBackend>,
+    Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<SpaceListResponse>, shared::AppError> {
     if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.list_spaces().await?));
+        return Ok(Json(postgres.list_spaces(&claims).await?));
     }
 
     let store = store().lock().expect("wiki store lock");
@@ -3406,9 +3669,10 @@ pub async fn create_space(
 pub async fn get_space(
     Path(space_key): Path<String>,
     Extension(backend): Extension<WikiBackend>,
+    Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<SpaceResponse>, shared::AppError> {
     if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.get_space_by_key(&space_key).await?));
+        return Ok(Json(postgres.get_space(&claims, &space_key).await?));
     }
 
     let store = store().lock().expect("wiki store lock");
@@ -3500,9 +3764,12 @@ pub async fn archive_space(
 pub async fn list_space_members(
     Path(space_key): Path<String>,
     Extension(backend): Extension<WikiBackend>,
+    Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<SpaceMemberListResponse>, shared::AppError> {
     if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.list_space_members(&space_key).await?));
+        return Ok(Json(
+            postgres.list_space_members(&claims, &space_key).await?,
+        ));
     }
 
     let store = store().lock().expect("wiki store lock");
@@ -3621,9 +3888,10 @@ pub async fn delete_space_member(
 pub async fn get_space_tree(
     Path(space_key): Path<String>,
     Extension(backend): Extension<WikiBackend>,
+    Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<SpaceTreeResponse>, shared::AppError> {
     if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.get_space_tree(&space_key).await?));
+        return Ok(Json(postgres.get_space_tree(&claims, &space_key).await?));
     }
 
     let store = store().lock().expect("wiki store lock");
@@ -3745,9 +4013,10 @@ pub async fn create_document(
 pub async fn get_document(
     Path(document_id): Path<String>,
     Extension(backend): Extension<WikiBackend>,
+    Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<DocumentResponse>, shared::AppError> {
     if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.get_document(&document_id).await?));
+        return Ok(Json(postgres.get_document(&claims, &document_id).await?));
     }
 
     let store = store().lock().expect("wiki store lock");
@@ -3955,9 +4224,14 @@ pub async fn move_document(
 pub async fn list_document_revisions(
     Path(document_id): Path<String>,
     Extension(backend): Extension<WikiBackend>,
+    Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<DocumentRevisionListResponse>, shared::AppError> {
     if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.list_document_revisions(&document_id).await?));
+        return Ok(Json(
+            postgres
+                .list_document_revisions(&claims, &document_id)
+                .await?,
+        ));
     }
 
     let store = store().lock().expect("wiki store lock");
@@ -3978,11 +4252,12 @@ pub async fn list_document_revisions(
 pub async fn get_document_revision(
     Path((document_id, revision_id)): Path<(String, String)>,
     Extension(backend): Extension<WikiBackend>,
+    Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<DocumentRevisionResponse>, shared::AppError> {
     if let Some(postgres) = backend.postgres() {
         return Ok(Json(
             postgres
-                .get_document_revision(&document_id, &revision_id)
+                .get_document_revision(&claims, &document_id, &revision_id)
                 .await?,
         ));
     }
@@ -4009,9 +4284,10 @@ pub async fn get_document_revision(
 pub async fn list_tasks(
     Path(space_key): Path<String>,
     Extension(backend): Extension<WikiBackend>,
+    Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<TaskPageListResponse>, shared::AppError> {
     if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.list_tasks(&space_key).await?));
+        return Ok(Json(postgres.list_tasks(&claims, &space_key).await?));
     }
 
     let store = store().lock().expect("wiki store lock");
@@ -4050,9 +4326,12 @@ pub async fn list_tasks(
 pub async fn get_task(
     Path((space_key, task_key)): Path<(String, String)>,
     Extension(backend): Extension<WikiBackend>,
+    Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<TaskPageResponse>, shared::AppError> {
     if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.get_task(&space_key, &task_key).await?));
+        return Ok(Json(
+            postgres.get_task(&claims, &space_key, &task_key).await?,
+        ));
     }
 
     let store = store().lock().expect("wiki store lock");
@@ -4118,10 +4397,13 @@ pub async fn link_task_document(
 pub async fn list_task_documents(
     Path((space_key, task_key)): Path<(String, String)>,
     Extension(backend): Extension<WikiBackend>,
+    Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<DocumentListResponse>, shared::AppError> {
     if let Some(postgres) = backend.postgres() {
         return Ok(Json(
-            postgres.list_task_documents(&space_key, &task_key).await?,
+            postgres
+                .list_task_documents(&claims, &space_key, &task_key)
+                .await?,
         ));
     }
 
@@ -4149,10 +4431,13 @@ pub async fn list_task_documents(
 pub async fn list_task_evidence(
     Path((space_key, task_key)): Path<(String, String)>,
     Extension(backend): Extension<WikiBackend>,
+    Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<EvidenceListResponse>, shared::AppError> {
     if let Some(postgres) = backend.postgres() {
         return Ok(Json(
-            postgres.list_task_evidence(&space_key, &task_key).await?,
+            postgres
+                .list_task_evidence(&claims, &space_key, &task_key)
+                .await?,
         ));
     }
 
@@ -4177,9 +4462,10 @@ pub async fn list_task_evidence(
 pub async fn list_phases(
     Path(space_key): Path<String>,
     Extension(backend): Extension<WikiBackend>,
+    Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<PhasePageListResponse>, shared::AppError> {
     if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.list_phases(&space_key).await?));
+        return Ok(Json(postgres.list_phases(&claims, &space_key).await?));
     }
 
     let store = store().lock().expect("wiki store lock");
@@ -4218,9 +4504,12 @@ pub async fn list_phases(
 pub async fn get_phase(
     Path((space_key, phase_key)): Path<(String, String)>,
     Extension(backend): Extension<WikiBackend>,
+    Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<PhasePageResponse>, shared::AppError> {
     if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.get_phase(&space_key, &phase_key).await?));
+        return Ok(Json(
+            postgres.get_phase(&claims, &space_key, &phase_key).await?,
+        ));
     }
 
     let store = store().lock().expect("wiki store lock");
@@ -4286,11 +4575,12 @@ pub async fn link_phase_document(
 pub async fn list_phase_documents(
     Path((space_key, phase_key)): Path<(String, String)>,
     Extension(backend): Extension<WikiBackend>,
+    Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<DocumentListResponse>, shared::AppError> {
     if let Some(postgres) = backend.postgres() {
         return Ok(Json(
             postgres
-                .list_phase_documents(&space_key, &phase_key)
+                .list_phase_documents(&claims, &space_key, &phase_key)
                 .await?,
         ));
     }
@@ -4319,10 +4609,13 @@ pub async fn list_phase_documents(
 pub async fn list_phase_evidence(
     Path((space_key, phase_key)): Path<(String, String)>,
     Extension(backend): Extension<WikiBackend>,
+    Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<EvidenceListResponse>, shared::AppError> {
     if let Some(postgres) = backend.postgres() {
         return Ok(Json(
-            postgres.list_phase_evidence(&space_key, &phase_key).await?,
+            postgres
+                .list_phase_evidence(&claims, &space_key, &phase_key)
+                .await?,
         ));
     }
 
@@ -4444,10 +4737,11 @@ pub async fn create_evidence(
 )]
 pub async fn list_evidence(
     Extension(backend): Extension<WikiBackend>,
+    Extension(claims): Extension<WikiClaims>,
     Query(query): Query<EvidenceQuery>,
 ) -> Result<Json<EvidenceListResponse>, shared::AppError> {
     if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.list_evidence(query).await?));
+        return Ok(Json(postgres.list_evidence(Some(&claims), query).await?));
     }
 
     let store = store().lock().expect("wiki store lock");
@@ -4498,9 +4792,10 @@ pub async fn list_evidence(
 pub async fn get_evidence(
     Path(evidence_id): Path<String>,
     Extension(backend): Extension<WikiBackend>,
+    Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<EvidenceResponse>, shared::AppError> {
     if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.get_evidence(&evidence_id).await?));
+        return Ok(Json(postgres.get_evidence(&claims, &evidence_id).await?));
     }
 
     let store = store().lock().expect("wiki store lock");
@@ -4592,9 +4887,12 @@ pub async fn upload_attachment(
 pub async fn get_attachment(
     Path(attachment_id): Path<String>,
     Extension(backend): Extension<WikiBackend>,
+    Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<AttachmentResponse>, shared::AppError> {
     if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.get_attachment(&attachment_id).await?));
+        return Ok(Json(
+            postgres.get_attachment(&claims, &attachment_id).await?,
+        ));
     }
 
     let store = store().lock().expect("wiki store lock");
@@ -4617,9 +4915,10 @@ pub async fn get_attachment(
 pub async fn download_attachment(
     Path(attachment_id): Path<String>,
     Extension(backend): Extension<WikiBackend>,
+    Extension(claims): Extension<WikiClaims>,
 ) -> Result<Response, shared::AppError> {
     if let Some(postgres) = backend.postgres() {
-        return postgres.download_attachment(&attachment_id).await;
+        return postgres.download_attachment(&claims, &attachment_id).await;
     }
 
     let store = store().lock().expect("wiki store lock");
@@ -4728,10 +5027,11 @@ pub async fn list_audit_log(
 )]
 pub async fn search(
     Extension(backend): Extension<WikiBackend>,
+    Extension(claims): Extension<WikiClaims>,
     Query(query): Query<SearchQuery>,
 ) -> Result<Json<SearchResponse>, shared::AppError> {
     if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.search(query).await?));
+        return Ok(Json(postgres.search(&claims, query).await?));
     }
 
     let store = store().lock().expect("wiki store lock");
@@ -4866,6 +5166,9 @@ const SPACE_LIST_SQL: &str = r#"
            ) AS member_count,
            s.created_at, s.updated_at
     FROM spaces s
+    JOIN users u ON u.id = $1 AND u.is_active = true
+    LEFT JOIN space_members actor_member ON actor_member.space_id = s.id AND actor_member.user_id = u.id
+    WHERE u.global_role = 'admin' OR actor_member.user_id IS NOT NULL
     ORDER BY s.key
 "#;
 
@@ -4910,8 +5213,13 @@ const EVIDENCE_LIST_SQL: &str = r#"
       AND ($2::uuid IS NULL OR e.document_id = $2)
       AND ($3::text IS NULL OR td.task_key = $3)
       AND ($4::text IS NULL OR pd.phase_key = $4)
+      AND ($5::uuid IS NULL OR EXISTS (
+          SELECT 1
+          FROM space_members sm
+          WHERE sm.space_id = e.space_id AND sm.user_id = $5
+      ))
     ORDER BY e.created_at DESC
-    LIMIT $5
+    LIMIT $6
 "#;
 
 const EVIDENCE_TARGET_SQL: &str = r#"
@@ -4972,8 +5280,13 @@ const SEARCH_DOCUMENTS_SQL: &str = r#"
       ))
       AND ($5::text IS NULL OR d.document_type = $5)
       AND ($6::boolean OR d.archived_at IS NULL)
+      AND ($7::uuid IS NULL OR EXISTS (
+          SELECT 1
+          FROM space_members sm
+          WHERE sm.space_id = d.space_id AND sm.user_id = $7
+      ))
     ORDER BY d.updated_at DESC
-    LIMIT $7
+    LIMIT $8
 "#;
 
 const SEARCH_EVIDENCE_SQL: &str = r#"
@@ -4996,8 +5309,13 @@ const SEARCH_EVIDENCE_SQL: &str = r#"
       AND ($2::text IS NULL OR s.key = $2)
       AND ($3::text IS NULL OR td.task_key = $3)
       AND ($4::text IS NULL OR pd.phase_key = $4)
+      AND ($5::uuid IS NULL OR EXISTS (
+          SELECT 1
+          FROM space_members sm
+          WHERE sm.space_id = e.space_id AND sm.user_id = $5
+      ))
     ORDER BY e.created_at DESC
-    LIMIT $5
+    LIMIT $6
 "#;
 
 fn user_response_from_row(row: &PgRow) -> WikiUserResponse {
@@ -5224,6 +5542,15 @@ fn normalize_space_role(value: &str) -> Result<&'static str, shared::AppError> {
             "space member role must be admin, editor or viewer",
         )),
     }
+}
+
+fn space_role_allows(role: Option<&str>, required: SpaceAccess) -> bool {
+    matches!(
+        (role, required),
+        (Some("admin"), _)
+            | (Some("editor"), SpaceAccess::View | SpaceAccess::Edit)
+            | (Some("viewer"), SpaceAccess::View)
+    )
 }
 
 fn global_role_from_request(value: &str) -> Result<&'static str, shared::AppError> {

@@ -183,7 +183,7 @@ MVP pages:
 | Замена публичного API/router на Wiki MVP | Готово |
 | Wiki domain value objects and invariants | Готово |
 | Fresh SQLx Wiki schema baseline | Готово |
-| Route-level SQLx runtime persistence | Готово для MVP |
+| Route-level SQLx runtime persistence | Готово для MVP, включая базовые space-role checks |
 | Замена app/repositories/runtime wiring на Wiki persistence | Следующий шаг |
 | Замена frontend страниц на Wiki UI | Готово |
 | Перегенерация OpenAPI | Готово для MVP API |

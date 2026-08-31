@@ -14,6 +14,7 @@ The documentation, screenshots, API-backed frontend MVP pages and SQLx-backed MV
 - a fresh SQLx MVP schema baseline exists in `backend/migrations/202608310001_create_wiki_mvp.*.sql`;
 - frontend MVP pages read from the public Wiki API and basic create flows call the same API;
 - runtime API persistence stores users, sessions, spaces, documents, revisions, task/phase links, evidence, attachments, templates, audit and search in PostgreSQL when `WIKI_DATABASE__URL` is set;
+- PostgreSQL runtime enforces the basic global-admin and space-role boundaries for core read/write paths;
 - deferred areas are documented as reference only.
 
 The remaining work is hardening and architecture cleanup, not product-scope expansion.
@@ -81,7 +82,7 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 ## 7. Tests And Release Readiness
 
 - Add backend unit tests for domain invariants.
-- Add repository/API tests beyond the current persistence smoke for spaces, documents, revisions, task/phase links, evidence, attachments, search and audit.
+- Add repository/API tests beyond the current persistence and permission smoke for spaces, documents, revisions, task/phase links, evidence, attachments, search and audit.
 - Add frontend component tests for editor/tree/revision/evidence states.
 - Keep screenshot evidence regenerated after route or UI changes.
 - Fix local Rust toolchain by installing MSVC Build Tools so `cargo check/test` can run on this host.
@@ -112,4 +113,5 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 - OpenAPI exposes only Wiki MVP endpoints.
 - UI and CLI use the same public API operations.
 - Postgres persistence smoke passes across router rebuilds.
+- Non-member/viewer/editor/admin access boundaries are enforced by the PostgreSQL runtime.
 - Static frontend data is limited to settings/admin readiness copy and deterministic test/screenshot fixtures.
