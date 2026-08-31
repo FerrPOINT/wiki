@@ -13,7 +13,6 @@ use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Row, postgres::PgPoolOptions, postgres::PgRow};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    path::PathBuf,
     sync::{Arc, Mutex, OnceLock},
 };
 use utoipa::{IntoParams, ToSchema};
@@ -34,7 +33,7 @@ pub struct WikiBackend {
 struct PostgresWikiBackend {
     pool: PgPool,
     auth: shared::AuthConfig,
-    storage_dir: PathBuf,
+    storage: Arc<dyn domain::wiki::WikiAttachmentStorage>,
     max_upload_bytes: usize,
 }
 
@@ -50,7 +49,10 @@ impl WikiBackend {
         Self { postgres: None }
     }
 
-    pub async fn from_config(config: &shared::AppConfig) -> Result<Self, shared::AppError> {
+    pub async fn from_config_with_storage(
+        config: &shared::AppConfig,
+        storage: Arc<dyn domain::wiki::WikiAttachmentStorage>,
+    ) -> Result<Self, shared::AppError> {
         if config.database.url.trim().is_empty() {
             return Ok(Self::memory());
         }
@@ -76,7 +78,7 @@ impl WikiBackend {
         let backend = PostgresWikiBackend {
             pool,
             auth: config.auth.clone(),
-            storage_dir: PathBuf::from(&config.storage.dir),
+            storage,
             max_upload_bytes: config.storage.max_upload_bytes,
         };
         backend.bootstrap(&config.bootstrap).await?;
@@ -675,9 +677,6 @@ struct TokenClaims {
 
 impl PostgresWikiBackend {
     async fn bootstrap(&self, config: &shared::BootstrapConfig) -> Result<(), shared::AppError> {
-        tokio::fs::create_dir_all(&self.storage_dir)
-            .await
-            .map_err(shared::AppError::internal)?;
         self.seed_templates().await?;
 
         let admin_email = config
@@ -2410,15 +2409,7 @@ impl PostgresWikiBackend {
         let id = Uuid::now_v7();
         let safe_name = safe_download_filename(&file_name);
         let storage_key = format!("attachments/{id}/{safe_name}");
-        let path = self.storage_dir.join(&storage_key);
-        if let Some(parent) = path.parent() {
-            tokio::fs::create_dir_all(parent)
-                .await
-                .map_err(shared::AppError::internal)?;
-        }
-        tokio::fs::write(&path, &bytes)
-            .await
-            .map_err(shared::AppError::internal)?;
+        self.storage.put(&storage_key, &bytes).await?;
 
         let checksum = checksum(&bytes);
         let size_bytes = bytes.len() as i64;
@@ -2444,7 +2435,7 @@ impl PostgresWikiBackend {
         {
             Ok(row) => row,
             Err(err) => {
-                let _ = tokio::fs::remove_file(&path).await;
+                let _ = self.storage.delete(&storage_key).await;
                 return Err(shared::AppError::database(err));
             }
         };
@@ -2492,16 +2483,13 @@ impl PostgresWikiBackend {
         let file_name: String = row.get("file_name");
         let content_type: String = row.get("content_type");
         let storage_key: String = row.get("storage_key");
-        let bytes = match tokio::fs::read(self.storage_dir.join(storage_key)).await {
-            Ok(bytes) => bytes,
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-                return Err(shared::AppError::not_found(
-                    "attachment file",
-                    attachment_id,
-                ));
+        let bytes = self.storage.get(&storage_key).await.map_err(|err| {
+            if matches!(err, shared::AppError::NotFound(_)) {
+                shared::AppError::not_found("attachment file", attachment_id)
+            } else {
+                err
             }
-            Err(err) => return Err(shared::AppError::internal(err)),
-        };
+        })?;
         let mut headers = HeaderMap::new();
         headers.insert(
             header::CONTENT_TYPE,

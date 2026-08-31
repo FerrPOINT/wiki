@@ -16,9 +16,11 @@ pub async fn run(
     let repos = Arc::new(domain::Repositories::default());
     let storage: Arc<dyn domain::FileStorage> = Arc::new(domain::InMemoryStorage::default());
     let ctx = Arc::new(AppContext::new(config.clone(), repos, storage));
-    let wiki_backend = api::routes::wiki::WikiBackend::from_config(&config)
-        .await
-        .expect("failed to initialize Wiki backend");
+    let wiki_storage = Arc::new(infra::LocalWikiAttachmentStorage::new(&config.storage.dir));
+    let wiki_backend =
+        api::routes::wiki::WikiBackend::from_config_with_storage(&config, wiki_storage)
+            .await
+            .expect("failed to initialize Wiki backend");
 
     let address = format!("{}:{}", config.server.address, config.server.port);
     let listener = tokio::net::TcpListener::bind(address)

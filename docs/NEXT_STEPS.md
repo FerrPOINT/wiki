@@ -15,6 +15,7 @@ The documentation, screenshots, API-backed frontend MVP pages and SQLx-backed MV
 - frontend MVP pages read from the public Wiki API and basic create flows call the same API;
 - runtime API persistence stores users, sessions, spaces, documents, revisions, task/phase links, evidence, attachments, templates, audit and search in PostgreSQL when `WIKI_DATABASE__URL` is set;
 - PostgreSQL runtime enforces the basic global-admin, space-role and attachment-download boundaries for core read/write paths;
+- attachment bytes are behind `domain::wiki::WikiAttachmentStorage`, with `infra::LocalWikiAttachmentStorage` wired by `server`;
 - CLI has mocked HTTP smoke coverage for filtered search, document create and file-evidence upload/claim requests;
 - deferred areas are documented as reference only.
 
@@ -41,7 +42,7 @@ Remove or quarantine remaining inherited tracker concepts from backend internals
 - custom fields, components and versions;
 - reports and notifications runtime services.
 
-Current status: runtime router, OpenAPI, API route files and default API tests are reduced to Wiki MVP; a Wiki domain baseline exists; SQLx runtime persistence is implemented in the API layer; app/infra runtime wiring still needs replacement.
+Current status: runtime router, OpenAPI, API route files and default API tests are reduced to Wiki MVP; a Wiki domain baseline exists; SQLx runtime persistence is implemented in the API layer; attachment bytes now use a dedicated storage port; app/repository runtime wiring still needs replacement.
 
 ## 2. Database And Migrations
 
@@ -76,7 +77,7 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 ## 6. Search, Storage And Audit
 
 - Tune current PostgreSQL FTS with ranking, query plans and language decisions.
-- Keep current local filesystem storage behind a dedicated storage port; add S3/MinIO later behind the same abstraction.
+- Expand current local filesystem storage coverage behind the dedicated Wiki storage port; add S3/MinIO later behind the same abstraction.
 - Expand attachment tests beyond the current staged upload, claim, download and missing-file smoke for less common storage edge cases.
 - Expand audit tests for document publish/archive, evidence writes, user changes and permission changes.
 

@@ -832,3 +832,10 @@ fn invalid_file_name(file_name: &str) -> bool {
             .chars()
             .any(|ch| matches!(ch, '/' | '\\' | '\0') || ch.is_control())
 }
+
+#[async_trait::async_trait]
+pub trait WikiAttachmentStorage: Send + Sync {
+    async fn put(&self, storage_key: &str, bytes: &[u8]) -> Result<(), AppError>;
+    async fn get(&self, storage_key: &str) -> Result<Vec<u8>, AppError>;
+    async fn delete(&self, storage_key: &str) -> Result<(), AppError>;
+}

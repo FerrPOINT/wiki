@@ -17,6 +17,7 @@ shared = { path = "../shared" }
 domain = { path = "../domain" }
 app = { path = "../app" }
 api = { path = "../api" }
+infra = { path = "../infra" }
 axum.workspace = true
 tokio.workspace = true
 tracing.workspace = true

@@ -121,7 +121,7 @@ Use cases MVP:
 ## 8. Infrastructure Layer
 
 - PostgreSQL repositories и migrations.
-- Local storage adapter для attachments.
+- Local storage adapter для attachments через `domain::wiki::WikiAttachmentStorage`.
 - Markdown rendering через `comrak`.
 - HTML sanitization через `ammonia`.
 - Search projection: PostgreSQL full-text search.
@@ -183,7 +183,7 @@ MVP pages:
 | Замена публичного API/router на Wiki MVP | Готово |
 | Wiki domain value objects and invariants | Готово |
 | Fresh SQLx Wiki schema baseline | Готово |
-| Route-level SQLx runtime persistence | Готово для MVP, включая базовые space-role checks |
+| Route-level SQLx runtime persistence | Готово для MVP, включая базовые space-role checks; attachment bytes вынесены за Wiki storage port |
 | Замена app/repositories/runtime wiring на Wiki persistence | Следующий шаг |
 | Замена frontend страниц на Wiki UI | Готово |
 | Перегенерация OpenAPI | Готово для MVP API |

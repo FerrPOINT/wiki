@@ -69,7 +69,8 @@ async fn postgres_test_app(
         Arc::new(domain::Repositories::default()),
         Arc::new(domain::InMemoryStorage::default()),
     ));
-    let wiki_backend = api::routes::wiki::WikiBackend::from_config(&config)
+    let storage = Arc::new(infra::LocalWikiAttachmentStorage::new(&config.storage.dir));
+    let wiki_backend = api::routes::wiki::WikiBackend::from_config_with_storage(&config, storage)
         .await
         .unwrap();
     (

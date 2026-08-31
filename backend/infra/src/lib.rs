@@ -6,6 +6,7 @@ pub mod event_bus;
 pub mod jql;
 pub mod repos;
 pub mod storage;
+pub mod wiki_storage;
 
 pub use cache::*;
 pub use db::*;
@@ -14,3 +15,4 @@ pub use entities::*;
 pub use event_bus::*;
 pub use repos::*;
 pub use storage::*;
+pub use wiki_storage::*;
