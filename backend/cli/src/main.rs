@@ -963,6 +963,141 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn doc_lifecycle_commands_use_public_api_and_idempotency_keys() {
+        let server = spawn_mock_server().await;
+        let api = ApiClient::new(server.api_url.clone(), Some("secret-token".to_string()));
+        let path = temp_file("wiki-cli-draft", "# Updated\n\nDraft body");
+
+        let draft = execute(
+            &api,
+            Commands::Doc {
+                command: DocCommands::Draft(DocContentArgs {
+                    document_id: "product requirements".to_string(),
+                    from_file: path.clone(),
+                }),
+            },
+        )
+        .await
+        .unwrap();
+        let publish = execute(
+            &api,
+            Commands::Doc {
+                command: DocCommands::Publish {
+                    document_id: "product requirements".to_string(),
+                    summary: Some("Clarified scope".to_string()),
+                },
+            },
+        )
+        .await
+        .unwrap();
+        let archive = execute(
+            &api,
+            Commands::Doc {
+                command: DocCommands::Archive {
+                    document_id: "product requirements".to_string(),
+                },
+            },
+        )
+        .await
+        .unwrap();
+        let move_document = execute(
+            &api,
+            Commands::Doc {
+                command: DocCommands::Move {
+                    document_id: "product requirements".to_string(),
+                    parent: Some("parent document".to_string()),
+                },
+            },
+        )
+        .await
+        .unwrap();
+        let history = execute(
+            &api,
+            Commands::Doc {
+                command: DocCommands::History {
+                    document_id: "product requirements".to_string(),
+                },
+            },
+        )
+        .await
+        .unwrap();
+        let _ = std::fs::remove_file(path);
+
+        for value in [draft, publish, archive, move_document, history] {
+            assert_eq!(value["status"], "ok");
+        }
+
+        let requests = server.requests();
+        assert_eq!(requests.len(), 5);
+
+        let draft = &requests[0];
+        assert_eq!(draft.method, Method::PUT);
+        assert_eq!(draft.path, "/api/v1/documents/product%20requirements/draft");
+        assert_eq!(draft.authorization.as_deref(), Some("Bearer secret-token"));
+        assert!(
+            draft
+                .idempotency_key
+                .as_deref()
+                .is_some_and(|value| value.starts_with("wiki-cli-write-"))
+        );
+        let body: Value = serde_json::from_slice(&draft.body).unwrap();
+        assert_eq!(body["content_markdown"], "# Updated\n\nDraft body");
+
+        let publish = &requests[1];
+        assert_eq!(publish.method, Method::POST);
+        assert_eq!(
+            publish.path,
+            "/api/v1/documents/product%20requirements/publish"
+        );
+        assert!(
+            publish
+                .idempotency_key
+                .as_deref()
+                .is_some_and(|value| value.starts_with("wiki-cli-write-"))
+        );
+        let body: Value = serde_json::from_slice(&publish.body).unwrap();
+        assert_eq!(body["summary"], "Clarified scope");
+
+        let archive = &requests[2];
+        assert_eq!(archive.method, Method::POST);
+        assert_eq!(
+            archive.path,
+            "/api/v1/documents/product%20requirements/archive"
+        );
+        assert!(
+            archive
+                .idempotency_key
+                .as_deref()
+                .is_some_and(|value| value.starts_with("wiki-cli-write-"))
+        );
+        let body: Value = serde_json::from_slice(&archive.body).unwrap();
+        assert_eq!(body, json!({}));
+
+        let move_document = &requests[3];
+        assert_eq!(move_document.method, Method::POST);
+        assert_eq!(
+            move_document.path,
+            "/api/v1/documents/product%20requirements/move"
+        );
+        assert!(
+            move_document
+                .idempotency_key
+                .as_deref()
+                .is_some_and(|value| value.starts_with("wiki-cli-write-"))
+        );
+        let body: Value = serde_json::from_slice(&move_document.body).unwrap();
+        assert_eq!(body["parent_id"], "parent document");
+
+        let history = &requests[4];
+        assert_eq!(history.method, Method::GET);
+        assert_eq!(
+            history.path,
+            "/api/v1/documents/product%20requirements/revisions"
+        );
+        assert!(history.idempotency_key.is_none());
+    }
+
+    #[tokio::test]
     async fn add_link_sends_document_task_phase_json() {
         let server = spawn_mock_server().await;
         let api = ApiClient::new(server.api_url.clone(), Some("secret-token".to_string()));
