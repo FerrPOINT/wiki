@@ -188,4 +188,8 @@ wiki/
 
 ## Лицензия
 
-MIT.
+Proprietary source-available. Not open source.
+
+Viewing/evaluation only.
+
+Commercial, production, resale, redistribution, SaaS/hosting use require written license from FerrPOINT. См. [LICENSE](LICENSE).
