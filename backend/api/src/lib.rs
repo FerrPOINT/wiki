@@ -59,6 +59,8 @@ pub mod routes;
 
 pub use routes::*;
 
+mod wiki_postgres;
+
 #[derive(OpenApi)]
 #[openapi(
     paths(

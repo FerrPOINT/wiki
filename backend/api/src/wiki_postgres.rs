@@ -1,15 +1,20 @@
-use super::*;
+use crate::routes::wiki::*;
 use app::wiki::{
     WikiSettingsSnapshot, WikiSpaceAccess as SpaceAccess, build_wiki_search_criteria, checksum,
     clamp_limit, create_wiki_session_token_pair, create_wiki_token_pair, decode_token,
     default_username, global_role_from_request, hash_password, hash_token, markdown_to_text,
     normalize_document_type, normalize_evidence_type, normalize_phase_key, normalize_required,
     normalize_slug, normalize_space_key, normalize_space_role, normalize_task_key,
-    safe_download_filename, snippet, space_role_allows, verify_password,
+    safe_download_filename, slugify, snippet, space_role_allows, verify_password,
+};
+use axum::{
+    http::{HeaderMap, HeaderValue, header},
+    response::{IntoResponse, Response},
 };
 use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Row, postgres::PgPoolOptions, postgres::PgRow};
 use std::{collections::BTreeSet, sync::Arc};
+use uuid::Uuid;
 
 #[derive(Clone)]
 struct PostgresWikiBackend {
@@ -20,7 +25,7 @@ struct PostgresWikiBackend {
     settings: WikiSettingsSnapshot,
 }
 
-pub(super) async fn connect_persistent_backend(
+pub(crate) async fn connect_persistent_backend(
     config: &shared::AppConfig,
     storage: Arc<dyn domain::wiki::WikiAttachmentStorage>,
 ) -> Result<WikiBackend, shared::AppError> {

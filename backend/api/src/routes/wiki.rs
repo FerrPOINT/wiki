@@ -16,8 +16,6 @@ use std::{
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
-mod postgres;
-
 #[derive(Clone, Debug)]
 pub struct WikiClaims {
     pub user_id: String,
@@ -25,7 +23,7 @@ pub struct WikiClaims {
 }
 
 #[async_trait::async_trait]
-trait WikiBackendPort: Send + Sync {
+pub(crate) trait WikiBackendPort: Send + Sync {
     async fn authenticate_access_token(&self, token: &str) -> Result<WikiClaims, shared::AppError>;
     async fn register(
         &self,
@@ -286,7 +284,10 @@ impl WikiBackend {
         }
     }
 
-    fn persistent(backend: Arc<dyn WikiBackendPort>, settings: WikiSettingsSnapshot) -> Self {
+    pub(crate) fn persistent(
+        backend: Arc<dyn WikiBackendPort>,
+        settings: WikiSettingsSnapshot,
+    ) -> Self {
         Self {
             persistent: Some(backend),
             settings,
@@ -303,7 +304,7 @@ impl WikiBackend {
             ));
         }
 
-        postgres::connect_persistent_backend(config, storage).await
+        crate::wiki_postgres::connect_persistent_backend(config, storage).await
     }
 
     fn persistent_backend(&self) -> Option<&dyn WikiBackendPort> {
