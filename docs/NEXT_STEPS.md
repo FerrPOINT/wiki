@@ -89,6 +89,7 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 
 - Add backend unit tests for domain invariants.
 - Add repository/API tests beyond the current persistence, permission and file-evidence smoke for spaces, documents, revisions, task/phase links, evidence, attachments, search and audit.
+- Rerun PostgreSQL-backed API smoke with `WIKI_TEST_DATABASE_URL` set, including persistence across router rebuilds and disabled public registration.
 - Add frontend component tests for editor/tree/revision/evidence states.
 - Keep screenshot evidence regenerated after route or UI changes.
 - Fix local Rust toolchain by installing MSVC Build Tools so `cargo check/test` can run on this host.

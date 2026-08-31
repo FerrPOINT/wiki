@@ -50,8 +50,12 @@ fn test_app() -> axum::Router {
     test_app_with_config(test_config())
 }
 
-fn postgres_test_config(database_url: String, storage_dir: PathBuf) -> Arc<shared::AppConfig> {
-    let mut cfg = (*test_config()).clone();
+fn postgres_test_config_with_registration(
+    database_url: String,
+    storage_dir: PathBuf,
+    registration_enabled: bool,
+) -> Arc<shared::AppConfig> {
+    let mut cfg = (*test_config_with_registration(registration_enabled)).clone();
     cfg.database.url = database_url;
     cfg.database.max_connections = 5;
     cfg.database.min_connections = 1;
@@ -68,11 +72,13 @@ fn postgres_test_config(database_url: String, storage_dir: PathBuf) -> Arc<share
     Arc::new(cfg)
 }
 
-async fn postgres_test_app(
+async fn postgres_test_app_with_registration(
     database_url: String,
     storage_dir: PathBuf,
+    registration_enabled: bool,
 ) -> (axum::Router, Arc<shared::AppConfig>) {
-    let config = postgres_test_config(database_url, storage_dir);
+    let config =
+        postgres_test_config_with_registration(database_url, storage_dir, registration_enabled);
     let ctx = Arc::new(app::AppContext::new(
         config.clone(),
         Arc::new(domain::Repositories::default()),
@@ -86,6 +92,13 @@ async fn postgres_test_app(
         api::router_with_wiki(ctx.clone(), wiki_backend).with_state(ctx),
         config,
     )
+}
+
+async fn postgres_test_app(
+    database_url: String,
+    storage_dir: PathBuf,
+) -> (axum::Router, Arc<shared::AppConfig>) {
+    postgres_test_app_with_registration(database_url, storage_dir, true).await
 }
 
 async fn reset_postgres(database_url: &str) {
@@ -240,6 +253,36 @@ async fn wiki_register_respects_instance_registration_setting() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert!(login["access_token"].is_string());
+}
+
+#[tokio::test]
+async fn wiki_postgres_register_respects_instance_registration_setting() {
+    let Ok(database_url) = env::var("WIKI_TEST_DATABASE_URL") else {
+        eprintln!("skipping postgres registration test: WIKI_TEST_DATABASE_URL is not set");
+        return;
+    };
+    reset_postgres(&database_url).await;
+    let storage_dir = env::temp_dir().join(format!("wiki-api-test-{}", Uuid::now_v7()));
+    let (app, _) = postgres_test_app_with_registration(database_url, storage_dir, false).await;
+
+    let (status, body) = call(
+        &app,
+        Method::POST,
+        "/api/v1/auth/register",
+        None,
+        Some(json!({
+            "email": "postgres-new@example.com",
+            "username": "postgres-new",
+            "password": "new-password",
+            "name": "Postgres New User"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(body["error"], "forbidden");
+
+    let token = login_admin(&app).await;
+    assert!(!token.is_empty());
 }
 
 #[tokio::test]

@@ -4,45 +4,45 @@
 
 ## Current Verified
 
-| Capability | Status | Notes |
-|---|---|---|
-| Repository scaffold | Current | `task-tracker` code copied into `wiki`; `.git` from Wiki preserved |
-| Product requirements | Current | `docs/PRODUCT_REQUIREMENTS.md` defines the reduced base Wiki scope |
-| Documentation set | Current | CI/CD-style document set prepared for Wiki |
-| CLI shape | Current | `wiki` CLI command surface drafted for public API operations; mocked HTTP smoke tests cover filtered search, document create and file-evidence upload/claim request flow |
-| API runtime | Current | Runtime router and OpenAPI expose Wiki MVP endpoints only; memory fallback remains for fast tests, while real server config with `WIKI_DATABASE__URL` uses SQLx/PostgreSQL for MVP operations |
-| Registration policy | Current | Public `/auth/register` is controlled by `WIKI_AUTH__REGISTRATION_ENABLED`; disabled registration returns `403` in memory and PostgreSQL runtime modes |
-| Domain baseline | Current | `domain::wiki` defines Wiki-owned value objects, roles, documents, revisions, evidence, attachments and core invariants |
-| SQLx schema baseline | Current | `backend/migrations/202608310001_create_wiki_mvp.*.sql` creates a fresh Wiki MVP schema without task-tracker tables; `202608310002_add_auth_runtime.*.sql` adds usernames and auth sessions |
-| SQLx runtime persistence | Current | Users, auth sessions, spaces, members, documents, drafts, revisions, task/phase links, evidence, attachments, templates, audit and search are backed by PostgreSQL in `api::routes::wiki::postgres::PostgresWikiBackend`; the main `api::routes::wiki` module keeps router/DTO/memory fallback and delegates PostgreSQL runtime behavior |
-| Attachment storage port | Current | Attachment bytes are written/read through `domain::wiki::WikiAttachmentStorage`; server wires `infra::LocalWikiAttachmentStorage` for the PostgreSQL runtime, and local storage rejects unsafe or platform-ambiguous storage keys |
-| Wiki app helpers | Current | Shared Wiki normalization, role/access predicates, Markdown text extraction, checksums, safe download names, password hashing, Wiki JWT/session token helpers and access/refresh token-pair TTL assembly live in `app::wiki` instead of private API route helpers; the API crate no longer declares direct Wiki auth crypto dependencies |
-| Frontend route shell | Current | Wiki MVP routes and screenshots exist for the approved page set only |
-| Frontend API-backed pages | Current | Dashboard, spaces, documents, tasks, phases, evidence, templates, users, audit and search read from the public Wiki API; create document, create user, URL evidence and file evidence forms call the same API |
-| Page design contract | Current | `docs/PAGE_DESIGN.md` fixes page composition, states and deferred boundaries before backend work |
-| Refined MVP page design | Current | Spaces, documents, tasks, phases, evidence and search pages include API-ready layouts and metadata blocks |
-| Screenshot evidence | Current | 17 desktop and 5 mobile screenshots regenerated for the MVP page set |
-| MVP documentation cleanup | Current | Removed visible/technical integrations, reports and notifications scope from frontend routes, README gallery and screenshot manifest |
-| Development readiness docs | Current | README, local setup, env, migrations, storage, security, ops and runbooks are aligned with Wiki MVP/current-vs-target boundaries; host-side `cargo run` env is documented separately from Docker Compose `.env` |
-| Frontend API shell | Current | Thin handwritten auth and Wiki API client; old tracker generated client removed |
-| Env/project identity | Current | `WIKI_` prefix, docker names and frontend package identity |
+| Capability                 | Status  | Notes                                                                                                                                                                                                                                                                                                                                    |
+| -------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Repository scaffold        | Current | `task-tracker` code copied into `wiki`; `.git` from Wiki preserved                                                                                                                                                                                                                                                                       |
+| Product requirements       | Current | `docs/PRODUCT_REQUIREMENTS.md` defines the reduced base Wiki scope                                                                                                                                                                                                                                                                       |
+| Documentation set          | Current | CI/CD-style document set prepared for Wiki                                                                                                                                                                                                                                                                                               |
+| CLI shape                  | Current | `wiki` CLI command surface drafted for public API operations; mocked HTTP smoke tests cover filtered search, document create and file-evidence upload/claim request flow                                                                                                                                                                 |
+| API runtime                | Current | Runtime router and OpenAPI expose Wiki MVP endpoints only; memory fallback remains for fast tests, while real server config with `WIKI_DATABASE__URL` uses SQLx/PostgreSQL for MVP operations                                                                                                                                            |
+| Registration policy        | Current | Public `/auth/register` is controlled by `WIKI_AUTH__REGISTRATION_ENABLED`; disabled registration returns `403` in memory and PostgreSQL runtime modes                                                                                                                                                                                   |
+| Domain baseline            | Current | `domain::wiki` defines Wiki-owned value objects, roles, documents, revisions, evidence, attachments and core invariants                                                                                                                                                                                                                  |
+| SQLx schema baseline       | Current | `backend/migrations/202608310001_create_wiki_mvp.*.sql` creates a fresh Wiki MVP schema without task-tracker tables; `202608310002_add_auth_runtime.*.sql` adds usernames and auth sessions                                                                                                                                              |
+| SQLx runtime persistence   | Current | Users, auth sessions, spaces, members, documents, drafts, revisions, task/phase links, evidence, attachments, templates, audit and search are backed by PostgreSQL in `api::routes::wiki::postgres::PostgresWikiBackend`; the main `api::routes::wiki` module keeps router/DTO/memory fallback and delegates PostgreSQL runtime behavior |
+| Attachment storage port    | Current | Attachment bytes are written/read through `domain::wiki::WikiAttachmentStorage`; server wires `infra::LocalWikiAttachmentStorage` for the PostgreSQL runtime, and local storage rejects unsafe or platform-ambiguous storage keys                                                                                                        |
+| Wiki app helpers           | Current | Shared Wiki normalization, role/access predicates, Markdown text extraction, checksums, safe download names, password hashing, Wiki JWT/session token helpers and access/refresh token-pair TTL assembly live in `app::wiki` instead of private API route helpers; the API crate no longer declares direct Wiki auth crypto dependencies |
+| Frontend route shell       | Current | Wiki MVP routes and screenshots exist for the approved page set only                                                                                                                                                                                                                                                                     |
+| Frontend API-backed pages  | Current | Dashboard, spaces, documents, tasks, phases, evidence, templates, users, audit and search read from the public Wiki API; create document, create user, URL evidence and file evidence forms call the same API                                                                                                                            |
+| Page design contract       | Current | `docs/PAGE_DESIGN.md` fixes page composition, states and deferred boundaries before backend work                                                                                                                                                                                                                                         |
+| Refined MVP page design    | Current | Spaces, documents, tasks, phases, evidence and search pages include API-ready layouts and metadata blocks                                                                                                                                                                                                                                |
+| Screenshot evidence        | Current | 17 desktop and 5 mobile screenshots regenerated for the MVP page set                                                                                                                                                                                                                                                                     |
+| MVP documentation cleanup  | Current | Removed visible/technical integrations, reports and notifications scope from frontend routes, README gallery and screenshot manifest                                                                                                                                                                                                     |
+| Development readiness docs | Current | README, local setup, env, migrations, storage, security, ops and runbooks are aligned with Wiki MVP/current-vs-target boundaries; host-side `cargo run` env is documented separately from Docker Compose `.env`                                                                                                                          |
+| Frontend API shell         | Current | Thin handwritten auth and Wiki API client; old tracker generated client removed                                                                                                                                                                                                                                                          |
+| Env/project identity       | Current | `WIKI_` prefix, docker names and frontend package identity                                                                                                                                                                                                                                                                               |
 
 ## Target MVP Product Surface
 
-| Capability | Target |
-|---|---|
-| Users and roles | login/logout, current user, admin/editor/viewer |
-| Spaces | CRUD, members, permissions, archive |
-| Documents | Markdown draft, publish, revision history, archive |
-| Page tree | parent/child, breadcrumbs, move within space |
-| Task links | link documents/evidence by external task key |
-| Phase links | link documents/evidence by phase key |
-| Evidence | `external_url` and `uploaded_file` evidence, checksum, lists by owner |
-| Attachments | local storage metadata and download |
-| Search | PostgreSQL FTS over published document title/body with basic filters; evidence metadata stays bounded metadata search |
-| Templates | requirements, research note, implementation note, test plan, release note |
-| Audit | write actions and access/role changes |
-| API/UI/CLI | same MVP operations through public `/api/v1` |
+| Capability      | Target                                                                                                                |
+| --------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Users and roles | login/logout, current user, admin/editor/viewer                                                                       |
+| Spaces          | CRUD, members, permissions, archive                                                                                   |
+| Documents       | Markdown draft, publish, revision history, archive                                                                    |
+| Page tree       | parent/child, breadcrumbs, move within space                                                                          |
+| Task links      | link documents/evidence by external task key                                                                          |
+| Phase links     | link documents/evidence by phase key                                                                                  |
+| Evidence        | `external_url` and `uploaded_file` evidence, checksum, lists by owner                                                 |
+| Attachments     | local storage metadata and download                                                                                   |
+| Search          | PostgreSQL FTS over published document title/body with basic filters; evidence metadata stays bounded metadata search |
+| Templates       | requirements, research note, implementation note, test plan, release note                                             |
+| Audit           | write actions and access/role changes                                                                                 |
+| API/UI/CLI      | same MVP operations through public `/api/v1`                                                                          |
 
 ## Explicitly Deferred
 
@@ -103,6 +103,8 @@ Latest verification on 2026-08-31:
 - `wsl bash -lc 'cargo check --manifest-path backend/Cargo.toml -p app -p api -p server'` passed after splitting the PostgreSQL Wiki runtime into `api::routes::wiki::postgres`.
 - `wsl bash -lc 'cargo fmt --manifest-path backend/Cargo.toml --all -- --check'`, `wsl bash -lc 'cargo test --manifest-path backend/Cargo.toml -p api -- --test-threads=1 --nocapture'`, `wsl bash -lc 'cargo clippy --manifest-path backend/Cargo.toml -p app -p api --all-targets -- -D warnings'`, host `npm run typecheck`, `npm run test`, `npm run lint`, `npm run format:check`, `npm run build` and `npm run shoot:evidence` passed after the PostgreSQL module split; WSL PostgreSQL smoke still skips without `WIKI_TEST_DATABASE_URL`.
 - `wsl bash -lc 'cargo fmt --manifest-path backend/Cargo.toml --all -- --check'`, `wsl bash -lc 'cargo check --manifest-path backend/Cargo.toml -p shared -p app -p api -p server'`, `wsl bash -lc 'cargo test --manifest-path backend/Cargo.toml -p shared -- --nocapture'`, `wsl bash -lc 'cargo test --manifest-path backend/Cargo.toml -p app wiki_ -- --nocapture'`, `wsl bash -lc 'cargo test --manifest-path backend/Cargo.toml -p api -- --test-threads=1 --nocapture'`, `wsl bash -lc 'cargo clippy --manifest-path backend/Cargo.toml -p shared -p app -p api --all-targets -- -D warnings'`, `wsl bash -lc 'cargo run --manifest-path backend/Cargo.toml -p api --bin openapi-gen -- openapi/openapi.json'`, host `npm run typecheck`, `npm run test`, `npm run lint`, `npm run format:check` and `npm run build` passed after adding the `WIKI_AUTH__REGISTRATION_ENABLED` gate; WSL PostgreSQL smoke still skips without `WIKI_TEST_DATABASE_URL`.
+- `wsl bash -lc 'cargo fmt --manifest-path backend/Cargo.toml --all -- --check'`, `wsl bash -lc 'cargo check --manifest-path backend/Cargo.toml -p shared -p app -p api -p server'`, `wsl bash -lc 'cargo test --manifest-path backend/Cargo.toml -p api -- --test-threads=1 --nocapture'` and `wsl bash -lc 'cargo clippy --manifest-path backend/Cargo.toml -p app -p api --all-targets -- -D warnings'` passed after adding an explicit PostgreSQL-mode API test for disabled public registration. The new test is present but skips in WSL when `WIKI_TEST_DATABASE_URL` is unset.
+- Attempted to start the dedicated `backend/docker-compose.test.yml` PostgreSQL service on `127.0.0.1:3458`, but host Docker CLI calls (`docker compose`, `docker ps`) did not return status and were interrupted. `Test-NetConnection 127.0.0.1 -Port 3458` reported the test DB port closed, so PostgreSQL-backed registration smoke remains blocked by the local Docker environment in this run.
 - `wsl bash -lc 'cargo tree --manifest-path backend/Cargo.toml -p api -e normal --depth 1'` confirms the API crate has no direct `argon2`, `jsonwebtoken`, `sha2`, `hex`, `rand_core` or `infra` normal dependency.
 - `wsl bash -lc 'cargo clippy -p app -p api --all-targets -- -D warnings'` passed after cleaning the helper extraction and multipart upload shape.
 - `wsl bash -lc 'cargo clippy --manifest-path backend/Cargo.toml -p app -p api --all-targets -- -D warnings'` passed after the Wiki auth/session helper extraction.
@@ -150,3 +152,4 @@ Latest verification on 2026-08-31:
 - MSVC `link.exe` is required for full Rust linking on the current Windows host.
 - `pnpm add` is blocked on this host by Corepack/Node `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING`; package/lock changes were reviewed manually when needed.
 - If `pnpm` blocks, direct package binaries under `frontend/node_modules/.bin` can still be used for TypeScript/tests/build/lint verification.
+- In the latest run, host Docker CLI did not return for `docker compose`/`docker ps`, so fresh PostgreSQL integration smoke should be rerun after Docker Desktop/daemon responsiveness is restored.
