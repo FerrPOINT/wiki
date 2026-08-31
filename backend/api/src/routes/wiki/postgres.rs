@@ -9,7 +9,7 @@ use app::wiki::{
 };
 use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Row, postgres::PgPoolOptions, postgres::PgRow};
-use std::sync::Arc;
+use std::{collections::BTreeSet, sync::Arc};
 
 #[derive(Clone)]
 struct PostgresWikiBackend {
@@ -1225,6 +1225,14 @@ impl PostgresWikiBackend {
                         "parent document belongs to another space",
                     ));
                 }
+                if self
+                    .document_parent_chain_contains(parent_id, document_id)
+                    .await?
+                {
+                    return Err(shared::AppError::invalid_input(
+                        "document cannot be moved under its descendant",
+                    ));
+                }
                 Some(parent_id)
             }
             None => None,
@@ -2223,6 +2231,30 @@ impl PostgresWikiBackend {
             .await
             .map_err(shared::AppError::database)?
             .ok_or_else(|| shared::AppError::not_found("document", document_id))
+    }
+
+    async fn document_parent_chain_contains(
+        &self,
+        parent_id: Uuid,
+        document_id: Uuid,
+    ) -> Result<bool, shared::AppError> {
+        let mut current_id = Some(parent_id);
+        let mut visited = BTreeSet::new();
+        while let Some(id) = current_id {
+            if id == document_id {
+                return Ok(true);
+            }
+            if !visited.insert(id) {
+                return Err(shared::AppError::conflict("document tree contains a cycle"));
+            }
+            current_id = sqlx::query_scalar("SELECT parent_id FROM documents WHERE id = $1")
+                .bind(id)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(shared::AppError::database)?
+                .ok_or_else(|| shared::AppError::not_found("document", id))?;
+        }
+        Ok(false)
     }
 
     async fn resolve_document_id(&self, value: &str) -> Result<Uuid, shared::AppError> {

@@ -328,6 +328,83 @@ async fn wiki_settings_are_admin_only_and_config_backed() {
 }
 
 #[tokio::test]
+async fn wiki_document_move_rejects_descendant_parent() {
+    let app = test_app();
+    let (status, login) = call(
+        &app,
+        Method::POST,
+        "/api/v1/auth/login",
+        None,
+        Some(json!({ "email": "demo@example.com", "password": "demo" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let token = login["access_token"].as_str().unwrap();
+    let suffix = Uuid::now_v7().simple().to_string();
+    let root_slug = format!("tree-root-{}", &suffix[..12]);
+    let child_slug = format!("tree-child-{}", &suffix[..12]);
+
+    let (status, root) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces/SDLC/documents",
+        Some(token),
+        Some(json!({
+            "title": "Tree Root",
+            "slug": root_slug,
+            "document_type": "page",
+            "content_markdown": "# Tree Root"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let root_id = root["id"].as_str().unwrap();
+
+    let (status, child) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces/SDLC/documents",
+        Some(token),
+        Some(json!({
+            "title": "Tree Child",
+            "slug": child_slug,
+            "parent_id": root_id,
+            "document_type": "page",
+            "content_markdown": "# Tree Child"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let child_id = child["id"].as_str().unwrap();
+
+    let (status, error) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/documents/{root_id}/move"),
+        Some(token),
+        Some(json!({ "parent_id": child_id })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(error["error"]["code"], "VALIDATION_ERROR");
+    assert_eq!(
+        error["error"]["message"],
+        "document cannot be moved under its descendant"
+    );
+
+    let (status, root_after) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/documents/{root_id}"),
+        Some(token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(root_after["parent_id"].is_null());
+}
+
+#[tokio::test]
 async fn wiki_postgres_register_respects_instance_registration_setting() {
     let Ok(database_url) = env::var("WIKI_TEST_DATABASE_URL") else {
         eprintln!("skipping postgres registration test: WIKI_TEST_DATABASE_URL is not set");
@@ -588,6 +665,37 @@ async fn wiki_postgres_routes_persist_across_router_rebuilds() {
     .await;
     assert_eq!(status, StatusCode::CREATED);
     let document_id = document["id"].as_str().unwrap().to_string();
+
+    let (status, child_document) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces/SDLC/documents",
+        Some(&token),
+        Some(json!({
+            "title": "Persistent Child",
+            "slug": "persistent-child",
+            "parent_id": document_id,
+            "document_type": "page",
+            "content_markdown": "# Persistent Child"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let child_document_id = child_document["id"].as_str().unwrap().to_string();
+
+    let (status, cycle_error) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/documents/{document_id}/move"),
+        Some(&token),
+        Some(json!({ "parent_id": child_document_id })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        cycle_error["error"]["message"],
+        "document cannot be moved under its descendant"
+    );
 
     let (status, revision) = call(
         &app,

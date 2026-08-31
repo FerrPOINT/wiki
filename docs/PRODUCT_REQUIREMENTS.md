@@ -231,6 +231,7 @@ CLI requirements:
 
 - Published revision immutable.
 - Восстановление старого содержания создаёт новую ревизию.
+- Page tree remains acyclic; документ нельзя переместить под собственного потомка.
 - Документы, evidence и файлы не могут пересекать границы space.
 - Удаление в MVP является archive/soft-delete.
 - Файл сохраняется атомарно: metadata без bytes или bytes без metadata не остаются как валидный attachment.

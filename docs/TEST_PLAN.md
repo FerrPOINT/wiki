@@ -9,7 +9,7 @@ The test plan covers document lifecycle, task/phase links, evidence ingestion, p
 | Area           | Scenarios                                                                |
 | -------------- | ------------------------------------------------------------------------ |
 | Spaces         | create/update/archive, membership, duplicate key                         |
-| Documents      | draft, publish, conflict, archive/restore                                |
+| Documents      | draft, publish, conflict, archive, move cycle rejection                  |
 | Revisions      | immutable content, diff, history                                         |
 | Task dossiers  | idempotent link creation, external task key lookup, permission filtering |
 | Phase dossiers | phase key grouping, linked documents/evidence, permission filtering      |

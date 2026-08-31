@@ -1882,6 +1882,11 @@ pub async fn move_document(
                     "parent document belongs to another space",
                 ));
             }
+            if document_parent_chain_contains(&store, Some(resolved_parent_id.as_str()), &id)? {
+                return Err(shared::AppError::invalid_input(
+                    "document cannot be moved under its descendant",
+                ));
+            }
             Some(resolved_parent_id)
         }
         None => None,
@@ -2915,6 +2920,29 @@ fn build_tree(
             children: build_tree(store, space_key, Some(&document.id)),
         })
         .collect()
+}
+
+fn document_parent_chain_contains(
+    store: &WikiStore,
+    parent_id: Option<&str>,
+    document_id: &str,
+) -> Result<bool, shared::AppError> {
+    let mut visited = BTreeSet::new();
+    let mut current_id = parent_id.map(str::to_string);
+    while let Some(id) = current_id {
+        if id == document_id {
+            return Ok(true);
+        }
+        if !visited.insert(id.clone()) {
+            return Err(shared::AppError::conflict("document tree contains a cycle"));
+        }
+        let parent = store
+            .documents
+            .get(&id)
+            .ok_or_else(|| shared::AppError::not_found("document", &id))?;
+        current_id = parent.parent_id.clone();
+    }
+    Ok(false)
 }
 
 fn task_page(store: &WikiStore, space_key: &str, task_key: &str) -> TaskPageResponse {
