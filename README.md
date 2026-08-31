@@ -1,47 +1,45 @@
 # Wiki
 
-Self-hosted база знаний для SDLC: документы, ревизии, задачи, фазы workflow, материалы, вложения, поиск и аудит.
+Self-hosted SDLC knowledge base для FerrPOINT: spaces, documents, revisions, task dossiers, workflow phases, evidence, attachments, search and audit.
 
-## Статус
+| Поле     | Значение                                                                                      |
+| -------- | --------------------------------------------------------------------------------------------- |
+| Статус   | MVP baseline: Wiki API/OpenAPI, CLI surface, frontend shell and SQLx persistence are in place |
+| Backend  | Rust 2024, Axum, SQLx runtime persistence, PostgreSQL 17, Redis 8                             |
+| Frontend | React 19, Vite, Tailwind CSS                                                                  |
+| API      | Canonical Wiki MVP contract in [openapi/openapi.json](openapi/openapi.json)                   |
+| Порты    | Frontend `19877`, backend `3456`, PostgreSQL `3457`, Redis `6379`                             |
+| Лицензия | [FerrPOINT Proprietary Source-Available Evaluation License v1.0](LICENSE)                     |
 
-Проект находится в стадии подготовки MVP. Кодовая база скопирована из `task-tracker`, но публичный Wiki router/OpenAPI, CLI surface, документация, frontend-shell и SQLx runtime persistence уже сведены к базовому Wiki scope.
+## Что есть
 
-| Capability                                  | Статус                                      |
-| ------------------------------------------- | ------------------------------------------- |
-| Документы требований и архитектурный каркас | Current                                     |
-| MVP route/page set и screenshot evidence    | Current                                     |
-| Frontend pages/navigation под Wiki          | Current, API-backed MVP pages               |
-| CLI command surface под Wiki                | Current, HTTP client surface                |
-| Public Wiki API/OpenAPI                     | Current, Wiki MVP endpoints only            |
-| PostgreSQL domain/migrations под Wiki       | Current baseline + auth/session migration   |
-| SQLx runtime persistence                    | Current for MVP API operations              |
-| Generated frontend OpenAPI types            | Current, DTO schemas generated from OpenAPI |
+- Spaces and document tree for requirements, architecture notes, decisions and release materials.
+- Document create/view flows, revision-aware backend endpoints and generated frontend API types.
+- Task and phase dossiers linked to evidence, checks and SDLC workflow context.
+- Evidence registry for links, screenshots, files, PRs, pipeline runs and release checks.
+- Templates, audit log, users/settings/admin pages and global search surface.
+- CLI binary `wiki` for spaces, documents and evidence operations.
+- Architecture, operations, threat model, traceability and visual screenshot evidence.
+
+## Границы
+
+- The repository was split from `task-tracker`; remaining legacy shape is being narrowed to Wiki scope.
+- The current baseline is API-backed MVP, not a finished enterprise knowledge platform.
+- Before shared deployments, replace all `[CHANGE_ME]` values, set `WIKI_JWT_SECRET`, configure bootstrap admin credentials and review CORS/cookie/TLS settings.
+- PostgreSQL and Redis are local/dev defaults; treat exposed ports as intentional deployment choices.
 
 Полный срез: [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md).
-
-## Назначение
-
-Wiki хранит важные материалы по задаче и каждой фазе выполненного workflow:
-
-- требования и acceptance criteria;
-- research notes и архитектурные решения;
-- планы тестирования и материалы проверки;
-- ссылки на PR, pipeline и релизные проверки;
-- скриншоты и файлы;
-- заметки к релизу и incident notes.
 
 ## Быстрый старт
 
 ```bash
 cp .env.example .env
-# замените [CHANGE_ME] и задайте WIKI_BOOTSTRAP__ADMIN_EMAIL/PASSWORD
+# Replace [CHANGE_ME] values and set WIKI_BOOTSTRAP__ADMIN_EMAIL/PASSWORD
 docker compose up -d
 curl http://127.0.0.1:3456/api/v1/health
 ```
 
-Порты: frontend `19877`, backend `3456`, PostgreSQL `3457`, Redis `6379`.
-
-Frontend:
+Frontend dev:
 
 ```bash
 cd frontend
@@ -60,131 +58,45 @@ set WIKI_TOKEN=<jwt_token>
 
 target\debug\wiki.exe space list
 target\debug\wiki.exe doc create --space SDLC --title "Requirements" --from-file requirements.md
-target\debug\wiki.exe evidence add-link --space SDLC --document product-requirements --task SDLC-42 --phase testing --title "Smoke-проверка" --url "https://ci.local/jobs/42"
 ```
 
-## Документация
+## Frontend routes
 
-По аудитории:
-
-- Пользователь: [USER_GUIDE](docs/USER_GUIDE.md)
-- Разработчик: [DEVELOPMENT_GUIDE](docs/DEVELOPMENT_GUIDE.md)
-- Оператор: [OPERATIONS](docs/OPERATIONS.md), [TROUBLESHOOTING](docs/TROUBLESHOOTING.md)
-- Безопасность: [SECURITY](docs/SECURITY.md), [THREAT_MODEL](docs/THREAT_MODEL.md)
-- Продукт: [PRODUCT_REQUIREMENTS](docs/PRODUCT_REQUIREMENTS.md), [ROADMAP](docs/ROADMAP.md), [CURRENT_STATE](docs/CURRENT_STATE.md), [NEXT_STEPS](docs/NEXT_STEPS.md)
-
-Архитектура:
-
-- Входная точка: [ARCHITECTURE_INDEX](docs/ARCHITECTURE_INDEX.md)
-- Narrative: [ARCHITECTURE](docs/ARCHITECTURE.md), [FUNCTIONAL_ARCHITECTURE](docs/FUNCTIONAL_ARCHITECTURE.md), [AUTHORIZATION](docs/AUTHORIZATION.md), [PAGE_DESIGN](docs/PAGE_DESIGN.md), [AUTOMATION](docs/AUTOMATION_ARCHITECTURE.md), [STORAGE](docs/STORAGE_ARCHITECTURE.md), [DELIVERY](docs/DELIVERY_ARCHITECTURE.md)
-- Справочники: [API](docs/API.md), [DATA_MODEL](docs/DATA_MODEL.md), [ENV](docs/ENV.md), [CLI](docs/CLI.md), [LIBRARIES](docs/LIBRARIES.md), [TECH_CHOICES](docs/TECH_CHOICES.md)
-- Контракты: [docs/contracts](docs/contracts)
-- Sequence flows: [docs/architecture/sequences](docs/architecture/sequences)
-
-Качество и SDLC:
-
-- [TRACEABILITY](docs/TRACEABILITY.md)
-- [TEST_PLAN](docs/TEST_PLAN.md)
-- [ACCESSIBILITY](docs/ACCESSIBILITY.md)
-- [RISK_REGISTER](docs/RISK_REGISTER.md)
-- [SLO](docs/SLO.md)
-- [METRICS](docs/METRICS.md)
-- [DISASTER_RECOVERY](docs/DISASTER_RECOVERY.md)
-- [INCIDENT_RESPONSE](docs/INCIDENT_RESPONSE.md)
-- [THIRD_PARTY](docs/THIRD_PARTY.md)
-
-## Frontend Pages
-
-| Route                          | Назначение                                        |
-| ------------------------------ | ------------------------------------------------- |
-| `/login`                       | Вход пользователя                                 |
-| `/register`                    | Регистрация пользователя                          |
-| `/`                            | Dashboard: последние документы и незакрытые связи |
-| `/spaces`                      | Пространства и дерево документов                  |
-| `/documents/new`               | Создание документа                                |
-| `/documents/:documentId`       | Просмотр документа                                |
-| `/tasks` / `/tasks/:taskKey`   | Карточки задач и связанные документы              |
-| `/phases` / `/phases/:phaseId` | Карточки фаз workflow                             |
-| `/evidence`                    | Реестр материалов                                 |
-| `/templates`                   | Шаблоны документов                                |
-| `/audit-log`                   | Журнал аудита                                     |
-| `/users`                       | Пользователи и роли                               |
-| `/settings`                    | Настройки инстанса                                |
-| `/search`                      | Поиск по документам, задачам, фазам и материалам  |
-| `/admin`                       | Администрирование                                 |
-
-## Скриншоты страниц
-
-Полный реестр и параметры пересъёмки: [docs/assets/screens/manifest.md](docs/assets/screens/manifest.md).
-
-### Auth
-
-![Login](docs/screenshots/01-login.png)
-
-![Register](docs/screenshots/02-register.png)
-
-### Core
-
-![Dashboard](docs/screenshots/03-dashboard.png)
-
-![Пространства](docs/screenshots/04-spaces.png)
-
-![Создание документа](docs/screenshots/05-document-compose.png)
-
-![Просмотр документа](docs/screenshots/06-document-view.png)
-
-### Задачи и фазы workflow
-
-![Задачи](docs/screenshots/07-task-dossiers.png)
-
-![Карточка задачи](docs/screenshots/08-task-dossier-detail.png)
-
-![Фазы](docs/screenshots/09-phase-dossiers.png)
-
-![Карточка фазы](docs/screenshots/10-phase-dossier-detail.png)
-
-### Материалы и операции
-
-![Материалы](docs/screenshots/11-evidence.png)
-
-![Шаблоны](docs/screenshots/12-templates.png)
-
-![Аудит](docs/screenshots/13-audit-log.png)
-
-### Administration
-
-![Пользователи](docs/screenshots/14-users.png)
-
-![Настройки](docs/screenshots/15-settings.png)
-
-![Поиск](docs/screenshots/16-search.png)
-
-![Администрирование](docs/screenshots/17-admin.png)
-
-### Mobile Smoke
-
-![Мобильный обзор](docs/screenshots/m-dashboard.png)
-
-![Мобильные пространства](docs/screenshots/m-spaces.png)
-
-![Мобильный документ](docs/screenshots/m-document-view.png)
-
-![Мобильная задача](docs/screenshots/m-task-dossier.png)
-
-![Мобильный поиск](docs/screenshots/m-search.png)
+| Route                                                 | Назначение              |
+| ----------------------------------------------------- | ----------------------- |
+| `/login`, `/register`                                 | Auth                    |
+| `/`                                                   | Dashboard               |
+| `/spaces`, `/documents/new`, `/documents/:documentId` | Spaces and documents    |
+| `/tasks`, `/tasks/:taskKey`                           | Task dossiers           |
+| `/phases`, `/phases/:phaseId`                         | Workflow phase dossiers |
+| `/evidence`, `/templates`, `/audit-log`               | Evidence and operations |
+| `/users`, `/settings`, `/admin`                       | Administration          |
+| `/search`                                             | Global search           |
 
 ## Структура
 
 ```text
 wiki/
-├── backend/         # Rust workspace; public Wiki API with SQLx persistence and memory test fallback
-├── frontend/        # React/Vite Wiki shell and API-backed MVP pages
-├── cli/             # Codex/project helper skill notes
-├── docs/            # requirements, architecture, contracts, operations, quality
-├── openapi/         # Wiki MVP API artifact
-├── scripts/         # helper scripts
+├── backend/     # Rust workspace: public Wiki API, SQLx persistence, CLI
+├── frontend/    # React/Vite Wiki shell and API-backed MVP pages
+├── cli/         # helper skill notes
+├── docs/        # requirements, architecture, contracts, operations, quality
+├── openapi/     # Wiki MVP API artifact
+├── scripts/     # helper scripts
 └── docker-compose.yml
 ```
+
+## Документы
+
+- [docs/USER_GUIDE.md](docs/USER_GUIDE.md) - пользовательские сценарии.
+- [docs/DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md) - разработка.
+- [docs/OPERATIONS.md](docs/OPERATIONS.md) и [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) - эксплуатация.
+- [docs/SECURITY.md](docs/SECURITY.md) и [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) - безопасность.
+- [docs/ARCHITECTURE_INDEX.md](docs/ARCHITECTURE_INDEX.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/contracts](docs/contracts) - архитектура и контракты.
+- [docs/API.md](docs/API.md), [docs/DATA_MODEL.md](docs/DATA_MODEL.md), [docs/ENV.md](docs/ENV.md), [docs/CLI.md](docs/CLI.md) - справочники.
+- [docs/TEST_PLAN.md](docs/TEST_PLAN.md), [docs/TRACEABILITY.md](docs/TRACEABILITY.md), [docs/RISK_REGISTER.md](docs/RISK_REGISTER.md) - качество.
+
+Скриншоты и параметры пересъемки: [docs/assets/screens/manifest.md](docs/assets/screens/manifest.md).
 
 ## Лицензия
 
@@ -192,4 +104,4 @@ Proprietary source-available. Not open source.
 
 Viewing/evaluation only.
 
-Commercial, production, resale, redistribution, SaaS/hosting use require written license from FerrPOINT. См. [LICENSE](LICENSE).
+Commercial, production, resale, redistribution, SaaS/hosting use require written license from FerrPOINT. См. [LICENSE](LICENSE), [NOTICE](NOTICE) и [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
