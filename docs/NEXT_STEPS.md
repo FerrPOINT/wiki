@@ -17,6 +17,7 @@ The documentation, screenshots, API-backed frontend MVP pages and SQLx-backed MV
 - PostgreSQL runtime enforces the basic global-admin, space-role and attachment-download boundaries for core read/write paths;
 - attachment bytes are behind `domain::wiki::WikiAttachmentStorage`, with `infra::LocalWikiAttachmentStorage` wired by `server`;
 - shared Wiki normalization, access predicates, content helpers, storage-name helpers, password hashing, Wiki JWT/session token helpers and access/refresh token-pair TTL assembly are in `app::wiki`;
+- the API crate no longer declares direct Wiki auth crypto dependencies after the helper extraction;
 - CLI has mocked HTTP smoke coverage for filtered search, document create and file-evidence upload/claim requests;
 - deferred areas are documented as reference only.
 

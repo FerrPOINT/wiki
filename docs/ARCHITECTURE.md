@@ -118,7 +118,7 @@ Use cases MVP:
 
 Каждый write use case выполняется в транзакции там, где это требуется целостностью данных.
 
-Текущий первый application-layer slice: `app::wiki` содержит общие правила нормализации Wiki keys/types/roles, access predicates, Markdown text extraction, checksums, safe download filenames, password hashing, Wiki JWT/session token helpers и сборку access/refresh token pair с TTL. API использует эти helpers вместо приватных route-level validator/security functions.
+Текущий первый application-layer slice: `app::wiki` содержит общие правила нормализации Wiki keys/types/roles, access predicates, Markdown text extraction, checksums, safe download filenames, password hashing, Wiki JWT/session token helpers и сборку access/refresh token pair с TTL. API использует эти helpers вместо приватных route-level validator/security functions и не декларирует прямые crypto dependencies для Wiki auth.
 
 ## 8. Infrastructure Layer
 

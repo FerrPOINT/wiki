@@ -31,12 +31,7 @@ anyhow.workspace = true
 chrono.workspace = true
 uuid.workspace = true
 time = { version = "0.3", features = ["std"] }
-sha2.workspace = true
-hex.workspace = true
 sqlx.workspace = true
-argon2.workspace = true
-rand_core.workspace = true
-jsonwebtoken.workspace = true
 
 [dev-dependencies]
 infra = { path = "../infra" }
@@ -45,4 +40,3 @@ tower.workspace = true
 serde_json.workspace = true
 uuid.workspace = true
 reqwest.workspace = true
-jsonwebtoken = { workspace = true }
