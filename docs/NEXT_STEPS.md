@@ -12,7 +12,7 @@ The documentation, screenshots, API-backed frontend MVP pages and SQLx-backed MV
 - migration docs direct new Wiki persistence work toward SQLx and quarantine inherited SeaORM task-tracker migrations;
 - Wiki-owned domain value objects/invariants exist in `domain::wiki`;
 - a fresh SQLx MVP schema baseline exists in `backend/migrations/202608310001_create_wiki_mvp.*.sql`;
-- frontend MVP pages read from the public Wiki API and basic create flows call the same API;
+- frontend MVP pages read from the public Wiki API; create document, edit/publish/archive/move document, create user, evidence and search flows call the same API;
 - runtime API persistence stores users, sessions, spaces, documents, revisions, task/phase links, evidence, attachments, templates, audit and search in PostgreSQL when `WIKI_DATABASE__URL` is set;
 - PostgreSQL runtime persistence is isolated in `api::routes::wiki::postgres`, while the main Wiki route module keeps router/DTO/memory fallback responsibilities;
 - public registration is guarded by `WIKI_AUTH__REGISTRATION_ENABLED` in both memory fallback and PostgreSQL runtime;
@@ -74,7 +74,7 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 
 - Replace the remaining static settings/admin readiness values with API-backed data after settings endpoints are approved.
 - Add broader permission denied and validation error coverage on API-backed pages.
-- Implement document tree, document editor, revision panel and evidence feed as reusable widgets/features.
+- Extract the current page-level document editor, document tree, revision panel and evidence feed into reusable widgets/features as the UI hardens.
 - Keep visible UI text Russian by default.
 - Keep deferred integrations, reports and notifications pages out of MVP routes.
 
