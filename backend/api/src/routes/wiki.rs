@@ -1,9 +1,10 @@
 use app::wiki::{
-    WikiSpaceAccess as SpaceAccess, checksum, clamp_limit, create_token, decode_token,
-    default_username, global_role_from_request, hash_password, hash_token, markdown_to_text,
-    normalize_document_type, normalize_evidence_type, normalize_phase_key, normalize_required,
-    normalize_slug, normalize_space_key, normalize_space_role, normalize_task_key,
-    safe_download_filename, slugify, snippet, space_role_allows, verify_password,
+    WikiSpaceAccess as SpaceAccess, checksum, clamp_limit, create_wiki_session_token_pair,
+    create_wiki_token_pair, decode_token, default_username, global_role_from_request,
+    hash_password, hash_token, markdown_to_text, normalize_document_type, normalize_evidence_type,
+    normalize_phase_key, normalize_required, normalize_slug, normalize_space_key,
+    normalize_space_role, normalize_task_key, safe_download_filename, slugify, snippet,
+    space_role_allows, verify_password,
 };
 use axum::{
     Extension, Json,
@@ -13,7 +14,7 @@ use axum::{
     middleware::Next,
     response::{IntoResponse, Response},
 };
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Row, postgres::PgPoolOptions, postgres::PgRow};
 use std::{
@@ -970,24 +971,7 @@ impl PostgresWikiBackend {
         .map_err(shared::AppError::database)?
         .ok_or(shared::AppError::Unauthorized)?;
 
-        let access = create_token(
-            &self.auth,
-            user_id,
-            session_id,
-            "access",
-            Duration::minutes(self.auth.access_token_ttl_minutes as i64),
-        )?;
-        let refresh = create_token(
-            &self.auth,
-            user_id,
-            session_id,
-            "refresh",
-            Duration::days(self.auth.refresh_token_ttl_days as i64),
-        )?;
-        let access_expires_at =
-            Utc::now() + Duration::minutes(self.auth.access_token_ttl_minutes as i64);
-        let refresh_expires_at =
-            Utc::now() + Duration::days(self.auth.refresh_token_ttl_days as i64);
+        let token_pair = create_wiki_token_pair(&self.auth, user_id, session_id)?;
 
         sqlx::query(
             r#"
@@ -1000,24 +984,24 @@ impl PostgresWikiBackend {
             WHERE id = $5
             "#,
         )
-        .bind(hash_token(&access))
-        .bind(hash_token(&refresh))
-        .bind(access_expires_at)
-        .bind(refresh_expires_at)
+        .bind(hash_token(&token_pair.access_token))
+        .bind(hash_token(&token_pair.refresh_token))
+        .bind(token_pair.access_expires_at)
+        .bind(token_pair.refresh_expires_at)
         .bind(session_id)
         .execute(&self.pool)
         .await
         .map_err(shared::AppError::database)?;
 
         Ok(WikiAuthResponse {
-            access_token: access,
-            refresh_token: refresh,
+            access_token: token_pair.access_token,
+            refresh_token: token_pair.refresh_token,
             token_type: "Bearer".to_string(),
             user_id: user_id.to_string(),
             email: row.get("email"),
             username: row.get("username"),
             display_name: row.get("display_name"),
-            expires_in: self.auth.access_token_ttl_minutes * 60,
+            expires_in: token_pair.expires_in,
         })
     }
 
@@ -2637,30 +2621,7 @@ impl PostgresWikiBackend {
         user_id: Uuid,
         user: &PgRow,
     ) -> Result<WikiAuthResponse, shared::AppError> {
-        let session_id = Uuid::now_v7();
-        let access_expires_at =
-            Utc::now() + Duration::minutes(self.auth.access_token_ttl_minutes as i64);
-        let refresh_expires_at =
-            Utc::now() + Duration::days(self.auth.refresh_token_ttl_days as i64);
-        if refresh_expires_at <= access_expires_at {
-            return Err(shared::AppError::invalid_input(
-                "refresh token lifetime must be longer than access token lifetime",
-            ));
-        }
-        let access = create_token(
-            &self.auth,
-            user_id,
-            session_id,
-            "access",
-            Duration::minutes(self.auth.access_token_ttl_minutes as i64),
-        )?;
-        let refresh = create_token(
-            &self.auth,
-            user_id,
-            session_id,
-            "refresh",
-            Duration::days(self.auth.refresh_token_ttl_days as i64),
-        )?;
+        let token_pair = create_wiki_session_token_pair(&self.auth, user_id)?;
 
         sqlx::query(
             r#"
@@ -2671,25 +2632,25 @@ impl PostgresWikiBackend {
             VALUES ($1, $2, $3, $4, $5, $6, now(), now())
             "#,
         )
-        .bind(session_id)
+        .bind(token_pair.session_id)
         .bind(user_id)
-        .bind(hash_token(&access))
-        .bind(hash_token(&refresh))
-        .bind(access_expires_at)
-        .bind(refresh_expires_at)
+        .bind(hash_token(&token_pair.access_token))
+        .bind(hash_token(&token_pair.refresh_token))
+        .bind(token_pair.access_expires_at)
+        .bind(token_pair.refresh_expires_at)
         .execute(&self.pool)
         .await
         .map_err(shared::AppError::database)?;
 
         Ok(WikiAuthResponse {
-            access_token: access,
-            refresh_token: refresh,
+            access_token: token_pair.access_token,
+            refresh_token: token_pair.refresh_token,
             token_type: "Bearer".to_string(),
             user_id: user_id.to_string(),
             email: user.get("email"),
             username: user.get("username"),
             display_name: user.get("display_name"),
-            expires_in: self.auth.access_token_ttl_minutes * 60,
+            expires_in: token_pair.expires_in,
         })
     }
 

@@ -1,4 +1,4 @@
-use chrono::{Duration, Utc};
+use chrono::{DateTime, Duration, Utc};
 use domain::wiki::{DocumentSlug, DocumentType, EvidenceType, GlobalRole, PhaseKey, SpaceKey};
 use domain::wiki::{SpaceRole, TaskKey};
 use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation};
@@ -20,6 +20,16 @@ pub struct WikiTokenClaims {
     pub exp: usize,
     pub jti: String,
     pub typ: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct WikiTokenPair {
+    pub session_id: Uuid,
+    pub access_token: String,
+    pub refresh_token: String,
+    pub access_expires_at: DateTime<Utc>,
+    pub refresh_expires_at: DateTime<Utc>,
+    pub expires_in: u64,
 }
 
 pub fn clamp_limit(limit: Option<usize>, max: i64) -> i64 {
@@ -203,6 +213,39 @@ pub fn create_token(
     .map_err(AppError::internal)
 }
 
+pub fn create_wiki_session_token_pair(
+    config: &AuthConfig,
+    user_id: Uuid,
+) -> Result<WikiTokenPair, AppError> {
+    create_wiki_token_pair(config, user_id, Uuid::now_v7())
+}
+
+pub fn create_wiki_token_pair(
+    config: &AuthConfig,
+    user_id: Uuid,
+    session_id: Uuid,
+) -> Result<WikiTokenPair, AppError> {
+    let now = Utc::now();
+    let access_ttl = Duration::minutes(config.access_token_ttl_minutes as i64);
+    let refresh_ttl = Duration::days(config.refresh_token_ttl_days as i64);
+    let access_expires_at = now + access_ttl;
+    let refresh_expires_at = now + refresh_ttl;
+    if refresh_expires_at <= access_expires_at {
+        return Err(AppError::invalid_input(
+            "refresh token lifetime must be longer than access token lifetime",
+        ));
+    }
+
+    Ok(WikiTokenPair {
+        session_id,
+        access_token: create_token(config, user_id, session_id, "access", access_ttl)?,
+        refresh_token: create_token(config, user_id, session_id, "refresh", refresh_ttl)?,
+        access_expires_at,
+        refresh_expires_at,
+        expires_in: config.access_token_ttl_minutes * 60,
+    })
+}
+
 pub fn decode_token(
     config: &AuthConfig,
     token: &str,
@@ -343,5 +386,38 @@ mod tests {
             decode_token(&config, &token, "refresh"),
             Err(AppError::Unauthorized)
         ));
+    }
+
+    #[test]
+    fn wiki_auth_token_pair_builds_access_refresh_for_same_session() {
+        let config = test_auth_config();
+        let user_id = Uuid::now_v7();
+        let session_id = Uuid::now_v7();
+        let pair = create_wiki_token_pair(&config, user_id, session_id)
+            .expect("token pair should be created");
+
+        assert_eq!(pair.session_id, session_id);
+        assert_eq!(pair.expires_in, 900);
+        assert!(pair.refresh_expires_at > pair.access_expires_at);
+
+        let access = decode_token(&config, &pair.access_token, "access")
+            .expect("access token should decode");
+        let refresh = decode_token(&config, &pair.refresh_token, "refresh")
+            .expect("refresh token should decode");
+        assert_eq!(access.sub, user_id.to_string());
+        assert_eq!(refresh.sub, user_id.to_string());
+        assert_eq!(access.jti, session_id.to_string());
+        assert_eq!(refresh.jti, session_id.to_string());
+    }
+
+    #[test]
+    fn wiki_auth_token_pair_rejects_invalid_ttl_order() {
+        let mut config = test_auth_config();
+        config.access_token_ttl_minutes = 15;
+        config.refresh_token_ttl_days = 0;
+
+        let result = create_wiki_token_pair(&config, Uuid::now_v7(), Uuid::now_v7());
+
+        assert!(matches!(result, Err(AppError::InvalidInput(_))));
     }
 }
