@@ -1,6 +1,6 @@
 use std::{future::IntoFuture, sync::Arc};
 
-use app::AppContext;
+use app::WikiAppContext;
 use shared::AppConfig;
 use tokio::sync::oneshot;
 use tracing::{error, warn};
@@ -13,9 +13,7 @@ pub async fn run(
     ready: oneshot::Sender<std::net::SocketAddr>,
     shutdown: oneshot::Receiver<()>,
 ) {
-    let repos = Arc::new(domain::Repositories::default());
-    let storage: Arc<dyn domain::FileStorage> = Arc::new(domain::InMemoryStorage::default());
-    let ctx = Arc::new(AppContext::new(config.clone(), repos, storage));
+    let ctx = Arc::new(WikiAppContext::new(config.clone()));
     let wiki_storage = Arc::new(infra::LocalWikiAttachmentStorage::new(&config.storage.dir));
     let wiki_backend =
         api::routes::wiki::WikiBackend::from_config_with_storage(&config, wiki_storage)

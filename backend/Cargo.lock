@@ -3777,7 +3777,6 @@ dependencies = [
  "api",
  "app",
  "axum",
- "domain",
  "infra",
  "reqwest",
  "serde_json",

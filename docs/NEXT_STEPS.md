@@ -15,6 +15,7 @@ The documentation, screenshots, API-backed frontend MVP pages and SQLx-backed MV
 - frontend MVP pages read from the public Wiki API; create document, edit/publish/archive/move document, create user, evidence and search flows call the same API;
 - runtime API persistence stores users, sessions, spaces, documents, revisions, task/phase links, evidence, attachments, templates, audit and search in PostgreSQL when `WIKI_DATABASE__URL` is set;
 - PostgreSQL runtime persistence is isolated in `api::routes::wiki::postgres`, while the main Wiki route module keeps router/DTO/memory fallback responsibilities;
+- API/server runtime uses `app::WikiAppContext` and no longer constructs the inherited task-tracker `AppContext`, repository bundle or report/notification/issue service graph;
 - public registration is guarded by `WIKI_AUTH__REGISTRATION_ENABLED` in both memory fallback and PostgreSQL runtime;
 - PostgreSQL runtime enforces the basic global-admin, space-role and attachment-download boundaries for core read/write paths;
 - attachment bytes are behind `domain::wiki::WikiAttachmentStorage`, with `infra::LocalWikiAttachmentStorage` wired by `server`;
@@ -45,9 +46,9 @@ Remove or quarantine remaining inherited tracker concepts from backend internals
 - issues, boards, sprints and worklogs;
 - watchers, votes, labels and issue links;
 - custom fields, components and versions;
-- reports and notifications runtime services.
+- reports and notifications legacy service modules.
 
-Current status: runtime router, OpenAPI, API route files and default API tests are reduced to Wiki MVP; a Wiki domain baseline exists; SQLx runtime persistence is implemented as a transition adapter under `api::routes::wiki::postgres`; attachment bytes now use a dedicated storage port; shared Wiki validation/auth helpers live in the app layer; app/repository runtime wiring still needs replacement.
+Current status: runtime router, OpenAPI, API route files and default API tests are reduced to Wiki MVP; a Wiki domain baseline exists; SQLx runtime persistence is implemented as a transition adapter under `api::routes::wiki::postgres`; attachment bytes now use a dedicated storage port; shared Wiki validation/auth helpers and the Wiki runtime context live in the app layer; dedicated app/repository use cases still need to replace the route-level SQLx adapter.
 
 ## 2. Database And Migrations
 
@@ -107,7 +108,7 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 ## 9. Recommended Implementation Order
 
 1. Extract SQLx route-level persistence into repository interfaces/implementations for identity, spaces and documents using `domain::wiki`.
-2. Wire server composition to those repositories behind feature-compatible app use cases.
+2. Introduce Wiki repository traits/use cases and wire them behind the existing feature-compatible API contract.
 3. Add focused repository/API tests for document draft/publish/history, task/phase links, evidence and attachments.
 4. Tune PostgreSQL FTS ranking/search filters and capture query-plan evidence for the expected MVP dataset size.
 5. Bring CLI smoke tests to parity with the public API.
@@ -120,6 +121,7 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 - Clean Wiki SQLx migrations create an empty database without tracker tables and include auth session storage.
 - OpenAPI exposes only Wiki MVP endpoints.
 - UI and CLI use the same public API operations.
+- API/server runtime uses `app::WikiAppContext` instead of the inherited task-tracker `AppContext`.
 - Postgres persistence smoke passes across router rebuilds.
 - Non-member/viewer/editor/admin access boundaries are enforced by the PostgreSQL runtime.
 - Static frontend data is limited to settings/admin readiness copy and deterministic test/screenshot fixtures.

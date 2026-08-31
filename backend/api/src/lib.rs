@@ -185,15 +185,15 @@ impl Modify for SecurityAddon {
     }
 }
 
-pub fn router(ctx: Arc<app::AppContext>) -> Router<Arc<app::AppContext>> {
+pub fn router(ctx: Arc<app::WikiAppContext>) -> Router<Arc<app::WikiAppContext>> {
     let wiki_backend = routes::wiki::WikiBackend::memory_from_config(&ctx.config);
     router_with_wiki(ctx, wiki_backend)
 }
 
 pub fn router_with_wiki(
-    ctx: Arc<app::AppContext>,
+    ctx: Arc<app::WikiAppContext>,
     wiki_backend: routes::wiki::WikiBackend,
-) -> Router<Arc<app::AppContext>> {
+) -> Router<Arc<app::WikiAppContext>> {
     let cors = cors_layer(&ctx.config.server.cors_allowed_origins);
 
     let auth_limiter = GovernorConfigBuilder::default()
@@ -215,16 +215,16 @@ pub fn router_with_wiki(
         .expect("valid general rate limit config");
 
     let public =
-        Router::<Arc<app::AppContext>>::new().route("/health", get(routes::health::health));
+        Router::<Arc<app::WikiAppContext>>::new().route("/health", get(routes::health::health));
 
-    let auth_routes = Router::<Arc<app::AppContext>>::new()
+    let auth_routes = Router::<Arc<app::WikiAppContext>>::new()
         .route("/auth/register", post(routes::wiki::register))
         .route("/auth/login", post(routes::wiki::login))
         .route("/auth/refresh", post(routes::wiki::refresh))
         .layer(Extension(wiki_backend.clone()))
         .layer(GovernorLayer::new(auth_limiter));
 
-    let protected = Router::<Arc<app::AppContext>>::new()
+    let protected = Router::<Arc<app::WikiAppContext>>::new()
         .route("/auth/logout", post(routes::wiki::logout))
         .route("/users/me", get(routes::wiki::get_current_user))
         .route(
@@ -349,7 +349,7 @@ pub fn router_with_wiki(
     let handle = metric_handle();
     let prometheus_layer: PrometheusMetricLayer = GenericMetricLayer::new();
 
-    let app = Router::<Arc<app::AppContext>>::new()
+    let app = Router::<Arc<app::WikiAppContext>>::new()
         .route("/metrics", get(move || std::future::ready(handle.render())))
         .nest("/api/v1", api.layer(GovernorLayer::new(general_limiter)))
         .merge(SwaggerUi::new("/swagger-ui").url("/api/v1/openapi.json", ApiDoc::openapi()));
@@ -417,18 +417,20 @@ where
     )
 }
 
-pub async fn bind(ctx: Arc<app::AppContext>) -> Result<tokio::net::TcpListener, std::io::Error> {
-    tokio::net::TcpListener::bind(&ctx.config.server_addr()).await
+pub async fn bind(
+    ctx: Arc<app::WikiAppContext>,
+) -> Result<tokio::net::TcpListener, std::io::Error> {
+    tokio::net::TcpListener::bind(ctx.server_addr()).await
 }
 
 pub async fn serve_forever(
     listener: tokio::net::TcpListener,
-    ctx: Arc<app::AppContext>,
+    ctx: Arc<app::WikiAppContext>,
 ) -> Result<(), std::io::Error> {
     axum::serve(listener, router(ctx.clone()).with_state(ctx)).await
 }
 
-pub async fn serve(ctx: Arc<app::AppContext>) {
+pub async fn serve(ctx: Arc<app::WikiAppContext>) {
     let listener = bind(ctx.clone()).await.expect("failed to bind");
     serve_forever(listener, ctx).await.expect("server failed");
 }

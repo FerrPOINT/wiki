@@ -1,11 +1,28 @@
+use std::sync::Arc;
+
 use chrono::{DateTime, Duration, Utc};
 use domain::wiki::{DocumentSlug, DocumentType, EvidenceType, GlobalRole, PhaseKey, SpaceKey};
 use domain::wiki::{SpaceRole, TaskKey};
 use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use shared::{AppError, AuthConfig};
+use shared::{AppConfig, AppError, AuthConfig};
 use uuid::Uuid;
+
+#[derive(Clone)]
+pub struct WikiAppContext {
+    pub config: Arc<AppConfig>,
+}
+
+impl WikiAppContext {
+    pub fn new(config: Arc<AppConfig>) -> Self {
+        Self { config }
+    }
+
+    pub fn server_addr(&self) -> String {
+        self.config.server_addr()
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WikiSpaceAccess {

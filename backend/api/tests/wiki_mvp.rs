@@ -38,11 +38,7 @@ fn test_config() -> Arc<shared::AppConfig> {
 }
 
 fn test_app_with_config(config: Arc<shared::AppConfig>) -> axum::Router {
-    let ctx = Arc::new(app::AppContext::new(
-        config,
-        Arc::new(domain::Repositories::default()),
-        Arc::new(domain::InMemoryStorage::default()),
-    ));
+    let ctx = Arc::new(app::WikiAppContext::new(config));
     api::router(ctx.clone()).with_state(ctx)
 }
 
@@ -79,11 +75,7 @@ async fn postgres_test_app_with_registration(
 ) -> (axum::Router, Arc<shared::AppConfig>) {
     let config =
         postgres_test_config_with_registration(database_url, storage_dir, registration_enabled);
-    let ctx = Arc::new(app::AppContext::new(
-        config.clone(),
-        Arc::new(domain::Repositories::default()),
-        Arc::new(domain::InMemoryStorage::default()),
-    ));
+    let ctx = Arc::new(app::WikiAppContext::new(config.clone()));
     let storage = Arc::new(infra::LocalWikiAttachmentStorage::new(&config.storage.dir));
     let wiki_backend = api::routes::wiki::WikiBackend::from_config_with_storage(&config, storage)
         .await
