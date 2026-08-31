@@ -9,7 +9,7 @@
 | Repository scaffold | Current | `task-tracker` code copied into `wiki`; `.git` from Wiki preserved |
 | Product requirements | Current | `docs/PRODUCT_REQUIREMENTS.md` defines the reduced base Wiki scope |
 | Documentation set | Current | CI/CD-style document set prepared for Wiki |
-| CLI shape | Current | `wiki` CLI command surface drafted for public API operations |
+| CLI shape | Current | `wiki` CLI command surface drafted for public API operations; mocked HTTP smoke tests cover filtered search, document create and file-evidence upload/claim request flow |
 | API runtime | Current | Runtime router and OpenAPI expose Wiki MVP endpoints only; memory fallback remains for fast tests, while real server config with `WIKI_DATABASE__URL` uses SQLx/PostgreSQL for MVP operations |
 | Domain baseline | Current | `domain::wiki` defines Wiki-owned value objects, roles, documents, revisions, evidence, attachments and core invariants |
 | SQLx schema baseline | Current | `backend/migrations/202608310001_create_wiki_mvp.*.sql` creates a fresh Wiki MVP schema without task-tracker tables; `202608310002_add_auth_runtime.*.sql` adds usernames and auth sessions |
@@ -64,6 +64,7 @@ cd backend
 cargo fmt --all -- --check
 cargo test -p shared
 cargo test -p domain
+cargo test -p wiki-cli
 cargo check -p api
 cargo check -p wiki-cli
 
@@ -80,7 +81,11 @@ node scripts/shoot-evidence.mjs
 Latest verification on 2026-08-31:
 
 - `docker run ... cargo check --workspace` passed on Linux container; direct Windows linking remains blocked by missing MSVC `link.exe`.
+- `wsl bash -lc 'cargo check --workspace'` passed on Linux WSL.
 - `docker run ... cargo check -p api` and `cargo check -p wiki-cli` passed on Linux container.
+- `wsl bash -lc 'cargo test -p wiki-cli -- --nocapture'` passed: 3 mocked HTTP smoke tests cover filtered search, document create and file-evidence upload/claim request flow.
+- `wsl bash -lc 'cargo test -p api -- --test-threads=1 --nocapture'` passed: memory MVP contract green; PostgreSQL persistence smoke skipped because `WIKI_TEST_DATABASE_URL` was not set in WSL.
+- `wsl bash -lc 'cargo test --workspace -- --test-threads=1 --nocapture'` passed: workspace unit/integration suite green; DB-dependent infra repository tests remain ignored and API PostgreSQL smoke is skipped without `WIKI_TEST_DATABASE_URL`.
 - `docker run ... cargo test -p api -- --test-threads=1 --nocapture` passed: memory MVP contract plus PostgreSQL persistence, space-permission, file-evidence/download, missing-file and FTS search smoke.
 - `docker run ... cargo test -p shared`, `cargo test -p domain`, `cargo test -p app` and `cargo test -p server` passed on Linux container.
 - `docker run ... cargo test -p api wiki_postgres_routes_persist_across_router_rebuilds -- --test-threads=1 --nocapture` passed against explicit `wiki-test` compose PostgreSQL on `host.docker.internal:3458`, including FTS multi-token positive and substring-negative checks.

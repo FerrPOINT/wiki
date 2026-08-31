@@ -15,6 +15,7 @@ The documentation, screenshots, API-backed frontend MVP pages and SQLx-backed MV
 - frontend MVP pages read from the public Wiki API and basic create flows call the same API;
 - runtime API persistence stores users, sessions, spaces, documents, revisions, task/phase links, evidence, attachments, templates, audit and search in PostgreSQL when `WIKI_DATABASE__URL` is set;
 - PostgreSQL runtime enforces the basic global-admin, space-role and attachment-download boundaries for core read/write paths;
+- CLI has mocked HTTP smoke coverage for filtered search, document create and file-evidence upload/claim requests;
 - deferred areas are documented as reference only.
 
 The remaining work is hardening and architecture cleanup, not product-scope expansion.
@@ -61,8 +62,8 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 ## 4. CLI Parity
 
 - Keep `backend/cli/src/main.rs` aligned with `docs/CLI.md`.
-- Add CLI smoke tests against mocked HTTP responses.
-- Add idempotency keys for repeated write commands.
+- Expand CLI mocked HTTP smoke tests across the remaining commands and API error envelopes.
+- Keep idempotency key coverage for repeated write commands as the command surface grows.
 
 ## 5. Frontend Integration
 

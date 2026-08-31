@@ -741,3 +741,264 @@ fn idempotency_key(scope: &str) -> String {
         .unwrap_or_default();
     format!("wiki-cli-{scope}-{nanos}")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::{
+        Json, Router,
+        body::{Body, to_bytes},
+        extract::State,
+        http::{HeaderMap, Request, StatusCode},
+        response::{IntoResponse, Response},
+    };
+    use std::sync::{Arc, Mutex};
+    use tokio::net::TcpListener;
+
+    #[derive(Clone, Debug)]
+    struct RecordedRequest {
+        method: Method,
+        path: String,
+        authorization: Option<String>,
+        content_type: Option<String>,
+        idempotency_key: Option<String>,
+        body: Vec<u8>,
+    }
+
+    #[derive(Default)]
+    struct MockState {
+        requests: Mutex<Vec<RecordedRequest>>,
+    }
+
+    struct MockServer {
+        api_url: String,
+        state: Arc<MockState>,
+    }
+
+    impl MockServer {
+        fn requests(&self) -> Vec<RecordedRequest> {
+            self.state.requests.lock().unwrap().clone()
+        }
+    }
+
+    async fn spawn_mock_server() -> MockServer {
+        let state = Arc::new(MockState::default());
+        let app = Router::new()
+            .fallback(record_request)
+            .with_state(state.clone());
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+        MockServer {
+            api_url: format!("http://{addr}/api/v1"),
+            state,
+        }
+    }
+
+    async fn record_request(
+        State(state): State<Arc<MockState>>,
+        request: Request<Body>,
+    ) -> Response {
+        let method = request.method().clone();
+        let path = request
+            .uri()
+            .path_and_query()
+            .map(|value| value.as_str().to_string())
+            .unwrap_or_else(|| request.uri().path().to_string());
+        let path_only = request.uri().path().to_string();
+        let headers = request.headers().clone();
+        let body = to_bytes(request.into_body(), 1024 * 1024).await.unwrap();
+        state.requests.lock().unwrap().push(RecordedRequest {
+            method,
+            path,
+            authorization: header_string(&headers, "authorization"),
+            content_type: header_string(&headers, "content-type"),
+            idempotency_key: header_string(&headers, "idempotency-key"),
+            body: body.to_vec(),
+        });
+
+        let payload = match path_only.as_str() {
+            "/api/v1/attachments" => {
+                json!({ "id": "attachment-1", "checksum": "sha256-test" })
+            }
+            "/api/v1/templates" => json!({
+                "templates": [{
+                    "id": "requirements",
+                    "name": "Requirements",
+                    "document_type": "requirements",
+                    "body_markdown": "# Requirements\n\nTemplate body"
+                }]
+            }),
+            _ => json!({ "status": "ok" }),
+        };
+
+        (StatusCode::OK, Json(payload)).into_response()
+    }
+
+    fn header_string(headers: &HeaderMap, key: &str) -> Option<String> {
+        headers
+            .get(key)
+            .and_then(|value| value.to_str().ok())
+            .map(ToOwned::to_owned)
+    }
+
+    #[tokio::test]
+    async fn search_query_builds_filtered_get_request() {
+        let server = spawn_mock_server().await;
+        let api = ApiClient::new(server.api_url.clone(), Some("secret-token".to_string()));
+
+        let value = execute(
+            &api,
+            Commands::Search {
+                command: SearchCommands::Query {
+                    query: "release gate".to_string(),
+                    space: Some("SDLC KB".to_string()),
+                    task: Some("SDLC-42".to_string()),
+                    phase: Some("testing".to_string()),
+                },
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(value["status"], "ok");
+        let requests = server.requests();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].method, Method::GET);
+        assert_eq!(
+            requests[0].path,
+            "/api/v1/search?q=release%20gate&space=SDLC%20KB&task_key=SDLC-42&phase_key=testing"
+        );
+        assert_eq!(
+            requests[0].authorization.as_deref(),
+            Some("Bearer secret-token")
+        );
+        assert!(requests[0].idempotency_key.is_none());
+    }
+
+    #[tokio::test]
+    async fn doc_create_sends_json_body_and_idempotency_key() {
+        let server = spawn_mock_server().await;
+        let api = ApiClient::new(server.api_url.clone(), Some("secret-token".to_string()));
+        let path = temp_file("wiki-cli-doc", "# Requirements\n\nCLI body");
+
+        let value = execute(
+            &api,
+            Commands::Doc {
+                command: DocCommands::Create(DocCreateArgs {
+                    space: "SDLC".to_string(),
+                    title: "CLI Requirements".to_string(),
+                    document_type: "requirements".to_string(),
+                    parent_id: None,
+                    slug: Some("cli-requirements".to_string()),
+                    task: Some("SDLC-42".to_string()),
+                    phase: Some("implementation".to_string()),
+                    from_file: path.clone(),
+                }),
+            },
+        )
+        .await
+        .unwrap();
+        let _ = std::fs::remove_file(path);
+
+        assert_eq!(value["status"], "ok");
+        let requests = server.requests();
+        assert_eq!(requests.len(), 1);
+        let request = &requests[0];
+        assert_eq!(request.method, Method::POST);
+        assert_eq!(request.path, "/api/v1/spaces/SDLC/documents");
+        assert_eq!(
+            request.authorization.as_deref(),
+            Some("Bearer secret-token")
+        );
+        assert!(
+            request
+                .idempotency_key
+                .as_deref()
+                .is_some_and(|value| value.starts_with("wiki-cli-write-"))
+        );
+        assert!(
+            request
+                .content_type
+                .as_deref()
+                .is_some_and(|value| value.starts_with("application/json"))
+        );
+        let body: Value = serde_json::from_slice(&request.body).unwrap();
+        assert_eq!(body["title"], "CLI Requirements");
+        assert_eq!(body["document_type"], "requirements");
+        assert_eq!(body["slug"], "cli-requirements");
+        assert_eq!(body["task_key"], "SDLC-42");
+        assert_eq!(body["phase_key"], "implementation");
+        assert_eq!(body["content_markdown"], "# Requirements\n\nCLI body");
+    }
+
+    #[tokio::test]
+    async fn add_file_uploads_attachment_then_creates_file_evidence() {
+        let server = spawn_mock_server().await;
+        let api = ApiClient::new(server.api_url.clone(), Some("secret-token".to_string()));
+        let path = temp_file("wiki-cli-evidence", "file evidence bytes");
+
+        let value = execute(
+            &api,
+            Commands::Evidence {
+                command: EvidenceCommands::AddFile(EvidenceFileArgs {
+                    space: Some("SDLC".to_string()),
+                    task: Some("SDLC-42".to_string()),
+                    phase: Some("testing".to_string()),
+                    evidence_type: "uploaded_file".to_string(),
+                    title: "CLI file evidence".to_string(),
+                    file: path.clone(),
+                }),
+            },
+        )
+        .await
+        .unwrap();
+        let _ = std::fs::remove_file(path);
+
+        assert_eq!(value["status"], "ok");
+        let requests = server.requests();
+        assert_eq!(requests.len(), 2);
+
+        let upload = &requests[0];
+        assert_eq!(upload.method, Method::POST);
+        assert_eq!(upload.path, "/api/v1/attachments");
+        assert!(
+            upload
+                .idempotency_key
+                .as_deref()
+                .is_some_and(|value| value.starts_with("wiki-cli-upload-"))
+        );
+        assert!(
+            upload
+                .content_type
+                .as_deref()
+                .is_some_and(|value| value.starts_with("multipart/form-data"))
+        );
+
+        let evidence = &requests[1];
+        assert_eq!(evidence.method, Method::POST);
+        assert_eq!(evidence.path, "/api/v1/evidence");
+        assert!(
+            evidence
+                .idempotency_key
+                .as_deref()
+                .is_some_and(|value| value.starts_with("wiki-cli-write-"))
+        );
+        let body: Value = serde_json::from_slice(&evidence.body).unwrap();
+        assert_eq!(body["space"], "SDLC");
+        assert_eq!(body["task_key"], "SDLC-42");
+        assert_eq!(body["phase_key"], "testing");
+        assert_eq!(body["evidence_type"], "uploaded_file");
+        assert_eq!(body["title"], "CLI file evidence");
+        assert_eq!(body["attachment_id"], "attachment-1");
+        assert_eq!(body["checksum"], "sha256-test");
+    }
+
+    fn temp_file(prefix: &str, content: &str) -> PathBuf {
+        let path = std::env::temp_dir().join(format!("{prefix}-{}.md", idempotency_key("test")));
+        std::fs::write(&path, content).unwrap();
+        path
+    }
+}
