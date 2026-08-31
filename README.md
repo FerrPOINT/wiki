@@ -37,41 +37,43 @@ The repository was split from `task-tracker`; remaining legacy app/infra code is
 
 ## 📌 Snapshot
 
-| Поле | Значение |
-|---|---|
-| Статус | MVP baseline: Wiki API/OpenAPI, CLI surface, frontend shell and SQLx persistence are in place |
-| Backend | Rust 2024, Axum, SQLx runtime persistence |
-| Data | PostgreSQL 17, Redis 8 |
-| Frontend | React 19, Vite, Tailwind CSS |
-| API | Canonical Wiki MVP contract in [openapi/openapi.json](openapi/openapi.json) |
-| Ports | Frontend `19877`, backend `3456`, PostgreSQL `3457`, Redis `6379` |
-| License | FerrPOINT Proprietary Source-Available Evaluation License v1.0 |
+| Поле     | Значение                                                                                      |
+| -------- | --------------------------------------------------------------------------------------------- |
+| Статус   | MVP baseline: Wiki API/OpenAPI, CLI surface, frontend shell and SQLx persistence are in place |
+| Backend  | Rust 2024, Axum, SQLx runtime persistence                                                     |
+| Data     | PostgreSQL 17, Redis 8                                                                        |
+| Frontend | React 19, Vite, Tailwind CSS                                                                  |
+| API      | Canonical Wiki MVP contract in [openapi/openapi.json](openapi/openapi.json)                   |
+| Ports    | Frontend `19877`, backend `3456`, PostgreSQL `3457`, Redis `6379`                             |
+| License  | FerrPOINT Proprietary Source-Available Evaluation License v1.0                                |
 
 <a name="features"></a>
+
 ## ✨ Features
 
-| Feature | Описание |
-|---|---|
-| Spaces and documents | Spaces and document tree for requirements, architecture notes, decisions and release materials. |
-| Document lifecycle | Create/view/edit/publish/archive/move flows, revision-aware backend endpoints and generated frontend API types. |
-| SDLC dossiers | Task and phase dossiers linked to evidence and SDLC workflow context. |
-| Evidence registry | External links and uploaded files attached to documents, tasks or phases. |
-| Operations | Templates, audit log, users/settings/admin pages and global search. |
-| CLI | HTTP-only `wiki` binary for the same public API operations as UI. |
-| Documentation | Architecture, operations, threat model, traceability and visual screenshot evidence. |
+| Feature              | Описание                                                                                                        |
+| -------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Spaces and documents | Spaces and document tree for requirements, architecture notes, decisions and release materials.                 |
+| Document lifecycle   | Create/view/edit/publish/archive/move flows, revision-aware backend endpoints and generated frontend API types. |
+| SDLC dossiers        | Task and phase dossiers linked to evidence and SDLC workflow context.                                           |
+| Evidence registry    | External links and uploaded files attached to documents, tasks or phases.                                       |
+| Operations           | Templates, audit log, users/settings/admin pages and global search.                                             |
+| CLI                  | HTTP-only `wiki` binary for the same public API operations as UI.                                               |
+| Documentation        | Architecture, operations, threat model, traceability and visual screenshot evidence.                            |
 
 <a name="stack"></a>
+
 ## 🔧 Core Stack
 
-| Zone | Tech | Роль |
-|---|---|---|
-| API | Rust + Axum | Wiki MVP routes and public API |
-| Persistence | SQLx + PostgreSQL | runtime data and migrations |
-| Legacy quarantine | `legacy-tracker` feature | remaining split-era code kept outside default runtime |
-| Support services | Redis | cache/background support |
-| Frontend | React + Vite + Tailwind | Wiki shell and API-backed MVP pages |
-| Contract | OpenAPI | generated frontend types |
-| Docs | contracts, security, traceability | source of truth for scope |
+| Zone              | Tech                              | Роль                                                  |
+| ----------------- | --------------------------------- | ----------------------------------------------------- |
+| API               | Rust + Axum                       | Wiki MVP routes and public API                        |
+| Persistence       | SQLx + PostgreSQL                 | runtime data and migrations                           |
+| Legacy quarantine | `legacy-tracker` feature          | remaining split-era code kept outside default runtime |
+| Support services  | Redis                             | cache/background support                              |
+| Frontend          | React + Vite + Tailwind           | Wiki shell and API-backed MVP pages                   |
+| Contract          | OpenAPI                           | generated frontend types                              |
+| Docs              | contracts, security, traceability | source of truth for scope                             |
 
 ## ⚡ Quick Start
 
@@ -91,47 +93,50 @@ pnpm dev
 ```
 
 <a name="routes"></a>
+
 ## 🧭 Frontend Routes
 
-| Route | Назначение |
-|---|---|
-| `/login`, `/register` | Auth |
-| `/` | Dashboard |
-| `/spaces`, `/documents/new`, `/documents/:documentId` | Spaces and documents |
-| `/tasks`, `/tasks/:taskKey` | Task dossiers |
-| `/phases`, `/phases/:phaseId` | Workflow phase dossiers |
-| `/evidence`, `/templates`, `/audit-log` | Evidence and operations |
-| `/users`, `/settings`, `/admin` | Administration |
-| `/search` | Global search |
+| Route                                                 | Назначение              |
+| ----------------------------------------------------- | ----------------------- |
+| `/login`, `/register`                                 | Auth                    |
+| `/`                                                   | Dashboard               |
+| `/spaces`, `/documents/new`, `/documents/:documentId` | Spaces and documents    |
+| `/tasks`, `/tasks/:taskKey`                           | Task dossiers           |
+| `/phases`, `/phases/:phaseId`                         | Workflow phase dossiers |
+| `/evidence`, `/templates`, `/audit-log`               | Evidence and operations |
+| `/users`, `/settings`, `/admin`                       | Administration          |
+| `/search`                                             | Global search           |
 
 <a name="screenshots"></a>
+
 ## 🖼️ Screenshots
 
 Recapture parameters and full evidence are tracked in [docs/assets/screens/manifest.md](docs/assets/screens/manifest.md).
 
-| Route | Screenshot |
-|---|---|
-| `/login` | [01-login.png](docs/screenshots/01-login.png) |
-| `/register` | [02-register.png](docs/screenshots/02-register.png) |
-| `/` | [03-dashboard.png](docs/screenshots/03-dashboard.png) |
-| `/spaces` | [04-spaces.png](docs/screenshots/04-spaces.png) |
-| `/documents/new` | [05-document-compose.png](docs/screenshots/05-document-compose.png) |
-| `/documents/:documentId` | [06-document-view.png](docs/screenshots/06-document-view.png) |
-| `/tasks` | [07-task-dossiers.png](docs/screenshots/07-task-dossiers.png) |
-| `/tasks/:taskKey` | [08-task-dossier-detail.png](docs/screenshots/08-task-dossier-detail.png) |
-| `/phases` | [09-phase-dossiers.png](docs/screenshots/09-phase-dossiers.png) |
-| `/phases/:phaseId` | [10-phase-dossier-detail.png](docs/screenshots/10-phase-dossier-detail.png) |
-| `/evidence` | [11-evidence.png](docs/screenshots/11-evidence.png) |
-| `/templates` | [12-templates.png](docs/screenshots/12-templates.png) |
-| `/audit-log` | [13-audit-log.png](docs/screenshots/13-audit-log.png) |
-| `/users` | [14-users.png](docs/screenshots/14-users.png) |
-| `/settings` | [15-settings.png](docs/screenshots/15-settings.png) |
-| `/search` | [16-search.png](docs/screenshots/16-search.png) |
-| `/admin` | [17-admin.png](docs/screenshots/17-admin.png) |
+| Route                    | Screenshot                                                                  |
+| ------------------------ | --------------------------------------------------------------------------- |
+| `/login`                 | [01-login.png](docs/screenshots/01-login.png)                               |
+| `/register`              | [02-register.png](docs/screenshots/02-register.png)                         |
+| `/`                      | [03-dashboard.png](docs/screenshots/03-dashboard.png)                       |
+| `/spaces`                | [04-spaces.png](docs/screenshots/04-spaces.png)                             |
+| `/documents/new`         | [05-document-compose.png](docs/screenshots/05-document-compose.png)         |
+| `/documents/:documentId` | [06-document-view.png](docs/screenshots/06-document-view.png)               |
+| `/tasks`                 | [07-task-dossiers.png](docs/screenshots/07-task-dossiers.png)               |
+| `/tasks/:taskKey`        | [08-task-dossier-detail.png](docs/screenshots/08-task-dossier-detail.png)   |
+| `/phases`                | [09-phase-dossiers.png](docs/screenshots/09-phase-dossiers.png)             |
+| `/phases/:phaseId`       | [10-phase-dossier-detail.png](docs/screenshots/10-phase-dossier-detail.png) |
+| `/evidence`              | [11-evidence.png](docs/screenshots/11-evidence.png)                         |
+| `/templates`             | [12-templates.png](docs/screenshots/12-templates.png)                       |
+| `/audit-log`             | [13-audit-log.png](docs/screenshots/13-audit-log.png)                       |
+| `/users`                 | [14-users.png](docs/screenshots/14-users.png)                               |
+| `/settings`              | [15-settings.png](docs/screenshots/15-settings.png)                         |
+| `/search`                | [16-search.png](docs/screenshots/16-search.png)                             |
+| `/admin`                 | [17-admin.png](docs/screenshots/17-admin.png)                               |
 
 Mobile smoke: [dashboard](docs/screenshots/m-dashboard.png), [spaces](docs/screenshots/m-spaces.png), [document](docs/screenshots/m-document-view.png), [task](docs/screenshots/m-task-dossier.png), [search](docs/screenshots/m-search.png).
 
 <a name="cli"></a>
+
 ## 🖥️ CLI
 
 ```bash
@@ -147,6 +152,7 @@ target\debug\wiki.exe settings get
 ```
 
 <a name="architecture"></a>
+
 ## 🏗️ Architecture
 
 ```mermaid
@@ -197,6 +203,7 @@ wiki/
 Screenshots and recapture notes: [docs/assets/screens/manifest.md](docs/assets/screens/manifest.md).
 
 <a name="license"></a>
+
 ## 🔒 License
 
 Proprietary source-available. Not open source.
