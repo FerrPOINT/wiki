@@ -144,7 +144,6 @@ dependencies = [
 name = "app"
 version = "0.2.0"
 dependencies = [
- "anyhow",
  "argon2",
  "async-trait",
  "chrono",
@@ -156,9 +155,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
  "shared",
- "thiserror 2.0.19",
  "tokio",
- "tracing",
  "uuid",
 ]
 

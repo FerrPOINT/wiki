@@ -118,7 +118,7 @@ Use cases MVP:
 
 Каждый write use case выполняется в транзакции там, где это требуется целостностью данных.
 
-Текущий первый application-layer slice: `app::wiki` содержит лёгкий `WikiAppContext` для runtime config, общие правила нормализации Wiki keys/types/roles, access predicates, search criteria normalization, Markdown text extraction, checksums, safe download filenames, password hashing, Wiki JWT/session token helpers и сборку access/refresh token pair с TTL. API использует эти helpers вместо приватных route-level validator/security functions и не декларирует прямые crypto dependencies для Wiki auth.
+Текущий первый application-layer slice: `app::wiki` содержит лёгкий `WikiAppContext` для runtime config, общие правила нормализации Wiki keys/types/roles, access predicates, search criteria normalization, Markdown text extraction, checksums, safe download filenames, password hashing, Wiki JWT/session token helpers и сборку access/refresh token pair с TTL. API использует эти helpers вместо приватных route-level validator/security functions и не декларирует прямые crypto dependencies для Wiki auth. Унаследованные task-tracker app modules (`auth`, `authz`, `commands`, `context`, `dto`, `services`) исключены из default-сборки и доступны только через feature `legacy-tracker`.
 
 ## 8. Infrastructure Layer
 
@@ -141,7 +141,7 @@ Use cases MVP:
 - единый error envelope;
 - OpenAPI generation.
 
-В целевой архитектуре API не содержит SQL и не пишет файлы напрямую. Текущий переходный MVP runtime уже отделяет router/DTO/memory fallback от PostgreSQL-реализации: SQLx-запросы живут в `api::routes::wiki::postgres`, а `server` запускает Wiki через `app::WikiAppContext` без сборки унаследованного task-tracker service graph. Следующий архитектурный шаг - перенос SQLx-поведения в application use cases и infra repositories.
+В целевой архитектуре API не содержит SQL и не пишет файлы напрямую. Текущий переходный MVP runtime уже отделяет router/DTO/memory fallback от PostgreSQL-реализации: SQLx-запросы живут в `api::routes::wiki::postgres`, а `server` запускает Wiki через `app::WikiAppContext` без сборки унаследованного task-tracker service graph. Default app dependency tree теперь содержит только Wiki-needed deps; следующий архитектурный шаг - перенос SQLx-поведения в application use cases и infra repositories.
 
 ## 10. Frontend
 
@@ -187,6 +187,7 @@ MVP pages:
 | Fresh SQLx Wiki schema baseline                                     | Готово                                                                                                                                                                                                                                                        |
 | Route-level SQLx runtime persistence                                | Готово для MVP: PostgreSQL adapter вынесен из основного router/DTO файла в `api::routes::wiki::postgres`; базовые space-role checks включены; attachment bytes вынесены за Wiki storage port; shared Wiki validation/auth/search helpers вынесены в app layer |
 | Wiki runtime context                                                | Готово: API/server используют `app::WikiAppContext` и больше не собирают унаследованный task-tracker `AppContext`/services при запуске Wiki                                                                                                                   |
+| App legacy quarantine                                               | Готово: унаследованные task-tracker app modules исключены из default-сборки и доступны только через feature `legacy-tracker`                                                                                                                                  |
 | Замена route-level SQLx adapter на app/repositories                 | Следующий шаг                                                                                                                                                                                                                                                 |
 | Замена frontend страниц на Wiki UI                                  | Готово                                                                                                                                                                                                                                                        |
 | Перегенерация OpenAPI                                               | Готово для MVP API                                                                                                                                                                                                                                            |

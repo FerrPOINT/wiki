@@ -18,10 +18,10 @@
 ### 2. Код
 
 - Backend: целевая слоистая архитектура `api/routes → app/services → domain → infra/repositories`.
-- DI через `AppContext`.
+- Runtime DI для Wiki идёт через `WikiAppContext`; унаследованный task-tracker `AppContext` доступен только как временный compatibility слой за feature `legacy-tracker`.
 - Все публичные API покрыты OpenAPI через `utoipa-axum`.
 - Rust-хендлеры и DTO — единственный источник правды для схемы; фронт генерирует клиент из `openapi/openapi.json`.
-- Новую Wiki persistence-логику писать на SQLx по ADR-0001. Унаследованный SeaORM-код можно трогать только для удаления, карантина или временной совместимости, не расширяя task-tracker модель.
+- Новую Wiki persistence-логику писать на SQLx по ADR-0001. Унаследованный SeaORM/task-tracker код можно трогать только для удаления, карантина или временной совместимости, не расширяя task-tracker модель. Default backend-сборка не должна зависеть от унаследованных task-tracker app services.
 - Все endpoint тестируются интеграционно через testcontainers.
 - Frontend: компоненты на `shadcn/ui` + Tailwind.
 - Состояние: серверное — `@tanstack/react-query`, клиентское — `zustand`.

@@ -5,18 +5,19 @@ edition.workspace = true
 rust-version.workspace = true
 license-file.workspace = true
 
+[features]
+default = []
+legacy-tracker = ["dep:async-trait", "dep:serde_json", "dep:tokio"]
+
 [dependencies]
-tokio = { workspace = true, features = ["sync"] }
+tokio = { workspace = true, features = ["sync"], optional = true }
 shared = { path = "../shared" }
 domain = { path = "../domain" }
-async-trait = "0.1"
-thiserror.workspace = true
-tracing.workspace = true
+async-trait = { workspace = true, optional = true }
 serde.workspace = true
-serde_json.workspace = true
+serde_json = { workspace = true, optional = true }
 chrono.workspace = true
 uuid.workspace = true
-anyhow.workspace = true
 jsonwebtoken.workspace = true
 argon2.workspace = true
 rand_core.workspace = true
