@@ -30,6 +30,8 @@ docker compose up -d postgres
 cd backend
 export WIKI_JWT_SECRET=dev-secret-32-chars-minimum
 export WIKI_DATABASE__URL=postgres://wiki:[CHANGE_ME]@localhost:3457/wiki
+export WIKI_BOOTSTRAP__ADMIN_EMAIL=admin@example.com
+export WIKI_BOOTSTRAP__ADMIN_PASSWORD=change-me-before-use
 cargo run --bin server
 ```
 
@@ -37,6 +39,8 @@ cargo run --bin server
 cd backend
 $env:WIKI_JWT_SECRET = "dev-secret-32-chars-minimum"
 $env:WIKI_DATABASE__URL = "postgres://wiki:[CHANGE_ME]@localhost:3457/wiki"
+$env:WIKI_BOOTSTRAP__ADMIN_EMAIL = "admin@example.com"
+$env:WIKI_BOOTSTRAP__ADMIN_PASSWORD = "change-me-before-use"
 cargo run --bin server
 ```
 
@@ -59,6 +63,8 @@ WIKI_DATABASE__URL=postgres://wiki:[CHANGE_ME]@localhost:3457/wiki
 WIKI_JWT_SECRET=[CHANGE_ME_32BYTES_MIN]
 WIKI_STORAGE__DIR=/var/lib/wiki/uploads
 WIKI_STORAGE__MAX_UPLOAD_BYTES=26214400
+WIKI_BOOTSTRAP__ADMIN_EMAIL=admin@example.com
+WIKI_BOOTSTRAP__ADMIN_PASSWORD=change-me-before-use
 VITE_API_BASE_URL=http://127.0.0.1:3456/api/v1
 ```
 
@@ -72,13 +78,15 @@ cd backend
 # Установка зависимостей
 cargo build
 
-# Current API shell runs in-memory. Target Wiki persistence will use SQLx migrations.
-# Until migration is replaced, inherited migration commands are for compatibility only:
-DATABASE_URL=postgres://wiki:[CHANGE_ME]@localhost:3457/wiki cargo run -p migration -- status
+# SQLx migrations are applied by backend startup when WIKI_DATABASE__URL is set.
+# Manual migration checks use sqlx-cli:
+DATABASE_URL=postgres://wiki:[CHANGE_ME]@localhost:3457/wiki sqlx migrate info --source migrations
 
 # Запуск API сервера
 export WIKI_JWT_SECRET=dev-secret-32-chars-minimum
 export WIKI_DATABASE__URL=postgres://wiki:[CHANGE_ME]@localhost:3457/wiki
+export WIKI_BOOTSTRAP__ADMIN_EMAIL=admin@example.com
+export WIKI_BOOTSTRAP__ADMIN_PASSWORD=change-me-before-use
 cargo run --bin server
 
 # Запуск тестов
@@ -129,8 +137,9 @@ docker compose logs -f backend
 После первого запуска:
 
 ```bash
-# Автосоздание admin пользователя из .env
-./scripts/init-admin.sh
+# Автосоздание admin пользователя из .env происходит при старте backend,
+# если заданы WIKI_BOOTSTRAP__ADMIN_EMAIL и WIKI_BOOTSTRAP__ADMIN_PASSWORD.
+docker compose up -d --force-recreate backend
 
 # Seed demo-проекта и задач (опционально)
 ./scripts/seed-demo.sh

@@ -86,8 +86,8 @@ Mitigation:
 
 ## 10. Redis Failure
 
-- Current API shell should continue for non-cache reads/writes.
-- Target idempotency/cache behavior may degrade to DB-backed checks.
+- Current MVP API should continue for PostgreSQL-backed reads/writes that do not require distributed cache.
+- Idempotency/cache behavior may degrade to DB-backed checks until Redis is healthy.
 - Recreate Redis from compose if healthcheck fails: `docker compose up -d redis`.
 
 ## 11. Disk Full

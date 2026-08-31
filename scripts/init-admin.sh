@@ -13,20 +13,24 @@ if [ -f "$ENV_FILE" ]; then
   set +a
 fi
 
-: "${WIKI_ADMIN_EMAIL:=admin@example.com}"
-: "${WIKI_ADMIN_PASSWORD:=}"
+: "${WIKI_BOOTSTRAP__ADMIN_EMAIL:=${WIKI_ADMIN_EMAIL:-admin@example.com}}"
+: "${WIKI_BOOTSTRAP__ADMIN_PASSWORD:=${WIKI_ADMIN_PASSWORD:-}}"
+: "${WIKI_BOOTSTRAP__ADMIN_USERNAME:=${WIKI_ADMIN_USERNAME:-admin}}"
+: "${WIKI_BOOTSTRAP__ADMIN_DISPLAY_NAME:=${WIKI_ADMIN_DISPLAY_NAME:-Wiki Admin}}"
 
-if [ -z "$WIKI_ADMIN_PASSWORD" ]; then
-  echo "ERROR: WIKI_ADMIN_PASSWORD is not set in .env" >&2
+if [ -z "$WIKI_BOOTSTRAP__ADMIN_PASSWORD" ]; then
+  echo "ERROR: WIKI_BOOTSTRAP__ADMIN_PASSWORD is not set in .env" >&2
   exit 1
 fi
 
+export WIKI_BOOTSTRAP__ADMIN_EMAIL
+export WIKI_BOOTSTRAP__ADMIN_PASSWORD
+export WIKI_BOOTSTRAP__ADMIN_USERNAME
+export WIKI_BOOTSTRAP__ADMIN_DISPLAY_NAME
+
 cd "$PROJECT_DIR"
 
-echo "Creating admin user ${WIKI_ADMIN_EMAIL}..."
-# Placeholder: replace with actual CLI call once backend exists
-docker compose run --rm cli wiki users create-admin \
-  --email "$WIKI_ADMIN_EMAIL" \
-  --password "$WIKI_ADMIN_PASSWORD"
+echo "Ensuring admin user ${WIKI_BOOTSTRAP__ADMIN_EMAIL} through backend bootstrap..."
+docker compose up -d --force-recreate backend
 
-echo "Admin user created."
+echo "Admin bootstrap applied. Login with ${WIKI_BOOTSTRAP__ADMIN_EMAIL} after backend healthcheck is green."

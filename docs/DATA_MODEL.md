@@ -272,9 +272,9 @@ erDiagram
 
 При первом запуске создаются:
 
-1. System admin из env `WIKI_ADMIN_EMAIL` / `WIKI_ADMIN_PASSWORD`.
-2. Space `ENG` для инженерной документации.
-3. Базовые шаблоны: requirements, research note, implementation note, test plan, release note.
+1. System admin из env `WIKI_BOOTSTRAP__ADMIN_EMAIL` / `WIKI_BOOTSTRAP__ADMIN_PASSWORD` или совместимых `WIKI_ADMIN_*` alias.
+2. Space `SDLC` для базовой SDLC Wiki.
+3. Базовые шаблоны: `requirements`, `research_note`, `implementation_note`, `test_plan`, `release_note`.
 
 ## 7. References
 

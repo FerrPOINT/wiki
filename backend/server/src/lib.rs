@@ -16,6 +16,9 @@ pub async fn run(
     let repos = Arc::new(domain::Repositories::default());
     let storage: Arc<dyn domain::FileStorage> = Arc::new(domain::InMemoryStorage::default());
     let ctx = Arc::new(AppContext::new(config.clone(), repos, storage));
+    let wiki_backend = api::routes::wiki::WikiBackend::from_config(&config)
+        .await
+        .expect("failed to initialize Wiki backend");
 
     let address = format!("{}:{}", config.server.address, config.server.port);
     let listener = tokio::net::TcpListener::bind(address)
@@ -25,12 +28,15 @@ pub async fn run(
     let _ = ready.send(bound_addr);
 
     let (shutdown_started_tx, shutdown_started_rx) = tokio::sync::oneshot::channel();
-    let server = axum::serve(listener, api::router(ctx.clone()).with_state(ctx))
-        .with_graceful_shutdown(async move {
-            let _ = shutdown.await;
-            let _ = shutdown_started_tx.send(());
-        })
-        .into_future();
+    let server = axum::serve(
+        listener,
+        api::router_with_wiki(ctx.clone(), wiki_backend).with_state(ctx),
+    )
+    .with_graceful_shutdown(async move {
+        let _ = shutdown.await;
+        let _ = shutdown_started_tx.send(());
+    })
+    .into_future();
     tokio::pin!(server);
 
     tokio::select! {

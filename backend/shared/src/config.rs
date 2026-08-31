@@ -15,6 +15,16 @@ pub struct AppConfig {
     pub storage: StorageConfig,
     #[serde(default)]
     pub email: EmailConfig,
+    #[serde(default)]
+    pub bootstrap: BootstrapConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct BootstrapConfig {
+    pub admin_email: Option<String>,
+    pub admin_username: Option<String>,
+    pub admin_password: Option<String>,
+    pub admin_display_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -145,6 +155,10 @@ impl AppConfig {
             .set_default("auth.refresh_cookie_path", "/api/v1/auth")?
             .set_default("storage.dir", "/var/lib/wiki/uploads")?
             .set_default("storage.max_upload_bytes", 26214400u64)?
+            .set_default("bootstrap.admin_email", Option::<String>::None)?
+            .set_default("bootstrap.admin_username", Option::<String>::None)?
+            .set_default("bootstrap.admin_password", Option::<String>::None)?
+            .set_default("bootstrap.admin_display_name", Option::<String>::None)?
             .set_default("email.enabled", false)?
             .set_default("email.host", "")?
             .set_default("email.port", 587u16)?
@@ -171,10 +185,38 @@ impl AppConfig {
         if let Ok(secret) = env::var("WIKI_JWT_SECRET") {
             cfg.auth.jwt_secret = secret;
         }
+        if let Ok(email) = env::var("WIKI_ADMIN_EMAIL") {
+            cfg.bootstrap.admin_email = Some(email);
+        }
+        if let Ok(username) = env::var("WIKI_ADMIN_USERNAME") {
+            cfg.bootstrap.admin_username = Some(username);
+        }
+        if let Ok(password) = env::var("WIKI_ADMIN_PASSWORD") {
+            cfg.bootstrap.admin_password = Some(password);
+        }
+        if let Ok(display_name) = env::var("WIKI_ADMIN_DISPLAY_NAME") {
+            cfg.bootstrap.admin_display_name = Some(display_name);
+        }
 
         if cfg.auth.jwt_secret == "[CHANGE_ME]" {
             return Err(ConfigError::Message(
                 "auth.jwt_secret must be changed from default [CHANGE_ME]".to_string(),
+            ));
+        }
+
+        let has_bootstrap_email = cfg
+            .bootstrap
+            .admin_email
+            .as_ref()
+            .is_some_and(|value| !value.trim().is_empty());
+        let has_bootstrap_password = cfg
+            .bootstrap
+            .admin_password
+            .as_ref()
+            .is_some_and(|value| !value.trim().is_empty());
+        if has_bootstrap_email != has_bootstrap_password {
+            return Err(ConfigError::Message(
+                "bootstrap admin email and password must be set together".to_string(),
             ));
         }
 

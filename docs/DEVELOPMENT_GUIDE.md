@@ -8,7 +8,7 @@ cd wiki
 cp .env.example .env
 ```
 
-`.env` is read by Docker Compose. Host-side `cargo run` reads process environment variables and `backend/config/default.toml`; export overrides before starting the backend.
+`.env` is read by Docker Compose. Host-side `cargo run` reads process environment variables and optional `config/default.toml`; export overrides before starting the backend.
 
 Backend:
 
@@ -17,6 +17,8 @@ cd backend
 cargo build
 export WIKI_JWT_SECRET=dev-secret-32-chars-minimum
 export WIKI_DATABASE__URL=postgres://wiki:[CHANGE_ME]@localhost:3457/wiki
+export WIKI_BOOTSTRAP__ADMIN_EMAIL=admin@example.com
+export WIKI_BOOTSTRAP__ADMIN_PASSWORD=change-me-before-use
 cargo run --bin server
 ```
 
@@ -26,6 +28,8 @@ PowerShell equivalent:
 cd backend
 $env:WIKI_JWT_SECRET = "dev-secret-32-chars-minimum"
 $env:WIKI_DATABASE__URL = "postgres://wiki:[CHANGE_ME]@localhost:3457/wiki"
+$env:WIKI_BOOTSTRAP__ADMIN_EMAIL = "admin@example.com"
+$env:WIKI_BOOTSTRAP__ADMIN_PASSWORD = "change-me-before-use"
 cargo run --bin server
 ```
 
@@ -56,7 +60,7 @@ app -> pages -> widgets -> features -> entities -> shared
 1. Add or update REQ-ID in `docs/PRODUCT_REQUIREMENTS.md`.
 2. Update contract docs.
 3. Add migration/domain/service/API.
-4. Regenerate OpenAPI and frontend client after the backend Wiki API is implemented.
+4. Regenerate OpenAPI after API DTO/route changes; generate the frontend client after the backend Wiki API is stable.
 5. Add focused backend and frontend tests.
 6. Update user/operations docs.
 

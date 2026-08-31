@@ -27,7 +27,7 @@ Self-hosted Wiki для SDLC knowledge base. MVP поставляется как
 
 ```bash
 cp .env.example .env
-# отредактируйте секреты
+# отредактируйте секреты и задайте bootstrap admin для fresh DB
 # Для backend в контейнере с PostgreSQL persistence используйте host `postgres:5432`.
 docker compose up -d postgres redis backend
 curl -sf http://localhost:3456/api/v1/health
@@ -41,6 +41,8 @@ docker compose up -d postgres redis
 cd backend
 export WIKI_JWT_SECRET=dev-secret-32-chars-minimum
 export WIKI_DATABASE__URL=postgres://wiki:[CHANGE_ME]@localhost:3457/wiki
+export WIKI_BOOTSTRAP__ADMIN_EMAIL=admin@example.com
+export WIKI_BOOTSTRAP__ADMIN_PASSWORD=change-me-before-use
 cargo run --bin server
 
 # Terminal 2
@@ -61,12 +63,9 @@ pnpm build
 
 Результат — `frontend/dist`, который можно раздать nginx или встроить в контейнер.
 
-## 7. Demo Credentials
+## 7. First Admin
 
-- Email: `demo@example.com`
-- Password: `demo`
-
-Создаётся текущим in-memory API shell. После PostgreSQL migration demo/admin seed должен быть перенесён в миграции или explicit seed command.
+Для PostgreSQL runtime нет demo-пароля по умолчанию. На fresh database задайте `WIKI_BOOTSTRAP__ADMIN_EMAIL` и `WIKI_BOOTSTRAP__ADMIN_PASSWORD` перед первым стартом backend; startup создаст или обновит этого admin, базовое пространство `SDLC` и стандартные шаблоны. Memory fallback в API-тестах по-прежнему использует `demo@example.com` / `demo`.
 
 ## 8. Health Checks
 

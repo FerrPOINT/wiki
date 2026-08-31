@@ -500,10 +500,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/DocumentRevisionResponse"
-                  }
+                  "$ref": "#/components/schemas/DocumentRevisionListResponse"
                 }
               }
             }
@@ -2215,6 +2212,20 @@
           },
           "updated_by": {
             "type": "string"
+          }
+        }
+      },
+      "DocumentRevisionListResponse": {
+        "type": "object",
+        "required": [
+          "revisions"
+        ],
+        "properties": {
+          "revisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentRevisionResponse"
+            }
           }
         }
       },

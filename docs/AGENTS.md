@@ -3,7 +3,7 @@
 ## Репозиторий
 
 - **GitHub**: `git@github.com:FerrPOINT/wiki.git`
-- **Стек**: backend Rust (Axum + PostgreSQL; target persistence SQLx, inherited SeaORM только как временный слой), frontend React 19.1.0 + Vite 6.2.0 + Tailwind CSS 4.1.0
+- **Стек**: backend Rust (Axum + SQLx/PostgreSQL; inherited SeaORM только как временный слой), frontend React 19.1.0 + Vite 6.2.0 + Tailwind CSS 4.1.0
 - **Env prefix**: `WIKI_`
 - **Публичные порты по умолчанию**: frontend docker `19877`, backend `3456`, PostgreSQL `3457`, Redis `6379`
 

@@ -36,6 +36,14 @@ fn clear_env() {
         "WIKI_SERVER__AUTH_RATE_PERIOD_SECS",
         "WIKI_SERVER__GENERAL_RATE_BURST",
         "WIKI_SERVER__GENERAL_RATE_PERIOD_SECS",
+        "WIKI_BOOTSTRAP__ADMIN_EMAIL",
+        "WIKI_BOOTSTRAP__ADMIN_USERNAME",
+        "WIKI_BOOTSTRAP__ADMIN_PASSWORD",
+        "WIKI_BOOTSTRAP__ADMIN_DISPLAY_NAME",
+        "WIKI_ADMIN_EMAIL",
+        "WIKI_ADMIN_USERNAME",
+        "WIKI_ADMIN_PASSWORD",
+        "WIKI_ADMIN_DISPLAY_NAME",
     ] {
         unsafe { env::remove_var(key) };
     }
@@ -68,6 +76,7 @@ fn config_scenarios() {
     assert_eq!(cfg.auth.refresh_cookie_path, "/api/v1/auth");
     assert_eq!(cfg.database.url, "");
     assert_eq!(cfg.auth.jwt_secret, "test-secret-32-chars-long!!!!!");
+    assert_eq!(cfg.bootstrap.admin_email, None);
     set_env("WIKI_DATABASE__URL", "postgres://u:***@localhost:5432/db");
     set_env("WIKI_DATABASE__MAX_CONNECTIONS", "42");
     set_env("WIKI_DATABASE__MIN_CONNECTIONS", "3");
@@ -88,6 +97,25 @@ fn config_scenarios() {
     assert_eq!(cfg.database.idle_timeout_seconds, 300);
     assert_eq!(cfg.database.max_connections, 42);
     assert_eq!(cfg.database.min_connections, 3);
+
+    set_env("WIKI_ADMIN_EMAIL", "admin@example.test");
+    set_env("WIKI_ADMIN_USERNAME", "admin");
+    set_env("WIKI_ADMIN_PASSWORD", "admin-secret");
+    set_env("WIKI_ADMIN_DISPLAY_NAME", "Wiki Admin");
+    let cfg = AppConfig::from_path("/nonexistent.toml").unwrap();
+    assert_eq!(
+        cfg.bootstrap.admin_email.as_deref(),
+        Some("admin@example.test")
+    );
+    assert_eq!(cfg.bootstrap.admin_username.as_deref(), Some("admin"));
+    assert_eq!(
+        cfg.bootstrap.admin_password.as_deref(),
+        Some("admin-secret")
+    );
+    assert_eq!(
+        cfg.bootstrap.admin_display_name.as_deref(),
+        Some("Wiki Admin")
+    );
 
     set_env("WIKI_SERVER__PORT", "not-a-number");
     let err = AppConfig::from_path("/nonexistent.toml").unwrap_err();
@@ -208,4 +236,23 @@ fn rate_limit_zero_values_rejected() {
     unsafe { env::set_var("WIKI_SERVER__GENERAL_RATE_PERIOD_SECS", "0") };
     let err = AppConfig::from_path("/nonexistent.toml");
     assert!(err.is_err(), "zero general period must be a config error");
+}
+
+#[test]
+fn bootstrap_admin_requires_email_and_password_together() {
+    let _guard = ENV_LOCK.lock().unwrap();
+
+    clear_env();
+    set_env("WIKI_JWT_SECRET", "test-secret-32-chars-long!!!!!");
+    set_env("WIKI_ADMIN_EMAIL", "admin@example.test");
+    let err = AppConfig::from_path("/nonexistent.toml");
+    assert!(err.is_err(), "email without password must be rejected");
+
+    clear_env();
+    set_env("WIKI_JWT_SECRET", "test-secret-32-chars-long!!!!!");
+    set_env("WIKI_ADMIN_PASSWORD", "admin-secret");
+    let err = AppConfig::from_path("/nonexistent.toml");
+    assert!(err.is_err(), "password without email must be rejected");
+
+    clear_env();
 }

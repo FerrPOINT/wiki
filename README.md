@@ -4,7 +4,7 @@ Self-hosted база знаний для SDLC: документы, ревизи�
 
 ## Статус
 
-Проект находится в стадии подготовки MVP. Кодовая база скопирована из `task-tracker`, но публичный Wiki router/OpenAPI, CLI surface, документация и frontend-shell уже сведены к базовому Wiki scope.
+Проект находится в стадии подготовки MVP. Кодовая база скопирована из `task-tracker`, но публичный Wiki router/OpenAPI, CLI surface, документация, frontend-shell и SQLx runtime persistence уже сведены к базовому Wiki scope.
 
 | Capability | Статус |
 |---|---|
@@ -12,9 +12,9 @@ Self-hosted база знаний для SDLC: документы, ревизи�
 | MVP route/page set и screenshot evidence | Current |
 | Frontend pages/navigation под Wiki | Current, API-backed MVP pages |
 | CLI command surface под Wiki | Current, HTTP client surface |
-| Public Wiki API/OpenAPI | Current, in-memory shell |
-| PostgreSQL domain/migrations под Wiki | Current baseline |
-| SQLx repositories/runtime persistence | Target |
+| Public Wiki API/OpenAPI | Current, Wiki MVP endpoints only |
+| PostgreSQL domain/migrations под Wiki | Current baseline + auth/session migration |
+| SQLx runtime persistence | Current for MVP API operations |
 | Generated frontend OpenAPI client | Target |
 
 Полный срез: [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md).
@@ -34,6 +34,7 @@ Wiki хранит важные материалы по задаче и кажд�
 
 ```bash
 cp .env.example .env
+# замените [CHANGE_ME] и задайте WIKI_BOOTSTRAP__ADMIN_EMAIL/PASSWORD
 docker compose up -d
 curl http://127.0.0.1:3456/api/v1/health
 ```
@@ -176,7 +177,7 @@ target\debug\wiki.exe evidence add-link --task SDLC-42 --phase testing --title "
 
 ```text
 wiki/
-├── backend/         # Rust workspace; public API shell is Wiki MVP, SQLx persistence is next
+├── backend/         # Rust workspace; public Wiki API with SQLx persistence and memory test fallback
 ├── frontend/        # React/Vite Wiki shell and API-backed MVP pages
 ├── cli/             # Codex/project helper skill notes
 ├── docs/            # requirements, architecture, contracts, operations, quality

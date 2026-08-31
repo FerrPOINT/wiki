@@ -2,7 +2,7 @@
 
 ## 1. Rule
 
-Target frontend uses generated OpenAPI types for API calls. Current MVP shell keeps a thin handwritten auth client while the Wiki backend moves from the in-memory API shell to PostgreSQL-backed domain repositories.
+Target frontend uses generated OpenAPI types for API calls after the contract stabilizes. Current MVP keeps thin handwritten auth/Wiki clients, and the backend uses SQLx/PostgreSQL persistence when `WIKI_DATABASE__URL` is set.
 
 ## 2. Required UI States
 

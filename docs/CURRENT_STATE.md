@@ -10,9 +10,10 @@
 | Product requirements | Current | `docs/PRODUCT_REQUIREMENTS.md` defines the reduced base Wiki scope |
 | Documentation set | Current | CI/CD-style document set prepared for Wiki |
 | CLI shape | Current | `wiki` CLI command surface drafted for public API operations |
-| API shell | Current | Runtime router and OpenAPI expose Wiki MVP endpoints only; evidence type validation uses `external_url` / `uploaded_file`; implementation is in-memory until domain/repository migration |
+| API runtime | Current | Runtime router and OpenAPI expose Wiki MVP endpoints only; memory fallback remains for fast tests, while real server config with `WIKI_DATABASE__URL` uses SQLx/PostgreSQL for MVP operations |
 | Domain baseline | Current | `domain::wiki` defines Wiki-owned value objects, roles, documents, revisions, evidence, attachments and core invariants |
-| SQLx schema baseline | Current | `backend/migrations/202608310001_create_wiki_mvp.*.sql` creates a fresh Wiki MVP schema without task-tracker tables |
+| SQLx schema baseline | Current | `backend/migrations/202608310001_create_wiki_mvp.*.sql` creates a fresh Wiki MVP schema without task-tracker tables; `202608310002_add_auth_runtime.*.sql` adds usernames and auth sessions |
+| SQLx runtime persistence | Current | Users, auth sessions, spaces, members, documents, drafts, revisions, task/phase links, evidence, attachments, templates, audit and search are backed by PostgreSQL in `api::routes::wiki::WikiBackend` |
 | Frontend route shell | Current | Wiki MVP routes and screenshots exist for the approved page set only |
 | Frontend API-backed pages | Current | Dashboard, spaces, documents, tasks, phases, evidence, templates, users, audit and search read from the public Wiki API; create document, create user, URL evidence and file evidence forms call the same API |
 | Page design contract | Current | `docs/PAGE_DESIGN.md` fixes page composition, states and deferred boundaries before backend work |
@@ -23,7 +24,7 @@
 | Frontend API shell | Current | Thin handwritten auth and Wiki API client; old tracker generated client removed |
 | Env/project identity | Current | `WIKI_` prefix, docker names and frontend package identity |
 
-## Target MVP
+## Target MVP Product Surface
 
 | Capability | Target |
 |---|---|
@@ -35,7 +36,7 @@
 | Phase links | link documents/evidence by phase key |
 | Evidence | `external_url` and `uploaded_file` evidence, checksum, lists by owner |
 | Attachments | local storage metadata and download |
-| Search | PostgreSQL FTS over title/body with basic filters |
+| Search | PostgreSQL-backed search over title/body/evidence with basic filters |
 | Templates | requirements, research note, implementation note, test plan, release note |
 | Audit | write actions and access/role changes |
 | API/UI/CLI | same MVP operations through public `/api/v1` |
@@ -52,7 +53,8 @@
 ## Inherited To Replace
 
 - Backend app/infra and old SeaORM migration crate still include task-tracker modules outside the active Wiki API shell.
-- SQLx repositories and runtime API persistence for Wiki spaces/documents/revisions/evidence/search/audit are still target work.
+- SQLx persistence currently lives in the API route module as a pragmatic MVP runtime adapter; extracting dedicated app use cases/repositories is still target architecture work.
+- Per-space permission checks need deeper repository/API test coverage beyond global admin-only system operations.
 - Generated Wiki frontend OpenAPI client is pending backend domain/repository stabilization.
 
 ## Verification Commands
@@ -78,10 +80,13 @@ node scripts/shoot-evidence.mjs
 Latest verification on 2026-08-31:
 
 - `docker run ... cargo check --workspace` passed on Linux container; direct Windows linking remains blocked by missing MSVC `link.exe`.
-- `docker run ... cargo check -p api` passed on Linux container.
-- `docker run ... cargo test -p api wiki_mvp_routes_cover_public_contract -- --test-threads=1` passed on Linux container.
-- `docker run ... cargo run -p api --bin openapi-gen -- /repo/openapi/openapi.json` regenerated OpenAPI successfully.
+- `docker run ... cargo check -p api` and `cargo check -p wiki-cli` passed on Linux container.
+- `docker run ... cargo test -p api -- --test-threads=1 --nocapture` passed: memory MVP contract and PostgreSQL persistence smoke.
+- `docker run ... cargo test -p shared`, `cargo test -p domain`, `cargo test -p app` and `cargo test -p server` passed on Linux container.
+- `docker run ... cargo test -p api wiki_postgres_routes_persist_across_router_rebuilds -- --test-threads=1 --nocapture` passed against explicit `wiki-test` compose PostgreSQL on `host.docker.internal:3458`.
+- `docker run ... cargo run -p api --bin openapi-gen -- /workspace/openapi/openapi.json` regenerated OpenAPI successfully.
 - `cargo fmt --all -- --check` passed.
+- `cargo clippy --workspace --all-targets -- -D warnings` is blocked on this Windows host by missing MSVC `link.exe`; the checked Linux image also has no bundled `cargo-clippy`/`rustup` component manager.
 - `cargo metadata --no-deps --format-version 1` passed; `openapi-gen` is the single OpenAPI generator binary.
 - Host-side Rust linking for `cargo check` / `cargo test` is blocked before project code by missing Windows MSVC `link.exe` / Windows SDK libs; use Linux Docker for backend checks until the host toolchain is fixed.
 - `tsc --noEmit` passed.
@@ -103,8 +108,11 @@ Latest verification on 2026-08-31:
 - SQLx migration baseline smoke passed on local `postgres:17.6-alpine`: `up` creates the fresh Wiki schema without task-tracker tables, and `down` leaves the public schema empty.
 - Traceability coverage passed: 28 PRD requirement IDs, `missing=0`, `extra=0`.
 - CI/CD docs filename parity passed with `missing=0`.
-- Markdown documentation checks passed: no open placeholder markers, no Markdown document under 20 non-empty lines.
+- Markdown documentation checks passed: no placeholder markers, no Markdown document under 20 non-empty lines.
+- Shell script syntax check passed: `bash -n scripts/*.sh` for operational helper scripts.
 - Local setup/deployment docs distinguish Docker Compose `.env` from process env used by host-side `cargo run`.
+- PostgreSQL schema check passed after runtime migrations: legacy tracker tables `0`, `users.username` present, `auth_sessions` present.
+- CI/CD docs filename parity passed with `missing=0` and Wiki-specific extras allowed.
 - Active route/API cleanup check passed: no `/integrations`, `/reports`, `/notifications` routes or old task-tracker API groups in active frontend/API/server/CLI/OpenAPI; only package name `@sentry/integrations` remains in `pnpm-lock.yaml`.
 
 ## Known Local Environment Limits

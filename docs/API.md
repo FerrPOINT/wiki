@@ -4,16 +4,16 @@
 
 REST API Wiki предоставляет базовые операции продукта: auth, users, spaces, documents, revisions, task links, phase links, evidence, attachments, templates, search и audit.
 
-Текущий `openapi/openapi.json` зафиксирован под Wiki MVP API shell. До завершения PostgreSQL domain/repository migration он описывает целевой публичный контракт и in-memory прототип, а не финальную персистентную реализацию.
+Текущий `openapi/openapi.json` зафиксирован под Wiki MVP API. Runtime использует memory fallback для быстрых тестов и SQLx/PostgreSQL persistence при заданном `WIKI_DATABASE__URL`.
 
 ## 2. Общие правила
 
 - Base path: `/api/v1`.
 - UI и CLI используют один и тот же публичный API.
 - Все ответы JSON, кроме download endpoints.
-- Ошибки возвращаются единым envelope: `code`, `message`, `details`, `request_id`.
+- Ошибки MVP возвращаются единым JSON envelope `{ "error": "message" }`.
 - Списки используют `limit` и стабильную сортировку.
-- Write endpoints принимают `Idempotency-Key`, когда повтор может создать дубликат.
+- CLI может отправлять `Idempotency-Key` для повторяемых write-команд; серверная дедупликация ключей вынесена в hardening после MVP.
 - Protected endpoints требуют session/JWT.
 - API не раскрывает секреты, bearer tokens, private storage keys и stack traces.
 

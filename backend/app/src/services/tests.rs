@@ -51,6 +51,7 @@ fn test_config() -> Arc<AppConfig> {
         },
         storage: shared::StorageConfig::default(),
         email: shared::EmailConfig::default(),
+        bootstrap: shared::BootstrapConfig::default(),
     })
 }
 

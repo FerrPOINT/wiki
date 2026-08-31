@@ -1,7 +1,7 @@
 use axum::{
-    Router,
+    Extension, Router,
     http::{HeaderName, HeaderValue, Method},
-    middleware::from_fn,
+    middleware::from_fn_with_state,
     routing::{get, post, put},
 };
 use axum_prometheus::{GenericMetricLayer, PrometheusMetricLayer};
@@ -131,6 +131,7 @@ pub use routes::*;
         routes::wiki::DocumentSummaryResponse,
         routes::wiki::DocumentListResponse,
         routes::wiki::DocumentRevisionResponse,
+        routes::wiki::DocumentRevisionListResponse,
         routes::wiki::TaskPageResponse,
         routes::wiki::TaskPageListResponse,
         routes::wiki::PhasePageResponse,
@@ -185,6 +186,13 @@ impl Modify for SecurityAddon {
 }
 
 pub fn router(ctx: Arc<app::AppContext>) -> Router<Arc<app::AppContext>> {
+    router_with_wiki(ctx, routes::wiki::WikiBackend::memory())
+}
+
+pub fn router_with_wiki(
+    ctx: Arc<app::AppContext>,
+    wiki_backend: routes::wiki::WikiBackend,
+) -> Router<Arc<app::AppContext>> {
     let cors = cors_layer(&ctx.config.server.cors_allowed_origins);
 
     let auth_limiter = GovernorConfigBuilder::default()
@@ -212,6 +220,7 @@ pub fn router(ctx: Arc<app::AppContext>) -> Router<Arc<app::AppContext>> {
         .route("/auth/register", post(routes::wiki::register))
         .route("/auth/login", post(routes::wiki::login))
         .route("/auth/refresh", post(routes::wiki::refresh))
+        .layer(Extension(wiki_backend.clone()))
         .layer(GovernorLayer::new(auth_limiter));
 
     let protected = Router::<Arc<app::AppContext>>::new()
@@ -329,7 +338,11 @@ pub fn router(ctx: Arc<app::AppContext>) -> Router<Arc<app::AppContext>> {
         )
         .route("/audit-log", get(routes::wiki::list_audit_log))
         .route("/search", get(routes::wiki::search))
-        .route_layer(from_fn(routes::wiki::require_wiki_auth));
+        .route_layer(from_fn_with_state(
+            wiki_backend.clone(),
+            routes::wiki::require_wiki_auth,
+        ))
+        .layer(Extension(wiki_backend));
 
     let api = public.merge(auth_routes).merge(protected);
     let handle = metric_handle();

@@ -33,6 +33,10 @@ uuid.workspace = true
 time = { version = "0.3", features = ["std"] }
 sha2.workspace = true
 hex.workspace = true
+sqlx.workspace = true
+argon2.workspace = true
+rand_core.workspace = true
+jsonwebtoken.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

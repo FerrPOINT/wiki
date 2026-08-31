@@ -2,7 +2,7 @@
 
 ## 0. Current Baseline
 
-The documentation, screenshots and API-backed frontend MVP pages are ready enough to continue backend implementation:
+The documentation, screenshots, API-backed frontend MVP pages and SQLx-backed MVP API runtime are ready enough to continue hardening:
 
 - MVP page set is fixed in routing, README and screenshot manifest;
 - integrations, reports and notifications screens are out of frontend scope;
@@ -13,13 +13,14 @@ The documentation, screenshots and API-backed frontend MVP pages are ready enoug
 - Wiki-owned domain value objects/invariants exist in `domain::wiki`;
 - a fresh SQLx MVP schema baseline exists in `backend/migrations/202608310001_create_wiki_mvp.*.sql`;
 - frontend MVP pages read from the public Wiki API and basic create flows call the same API;
+- runtime API persistence stores users, sessions, spaces, documents, revisions, task/phase links, evidence, attachments, templates, audit and search in PostgreSQL when `WIKI_DATABASE__URL` is set;
 - deferred areas are documented as reference only.
 
-The remaining work is implementation, not product-scope expansion.
+The remaining work is hardening and architecture cleanup, not product-scope expansion.
 
 ## 1. Backend Domain Migration
 
-The public API/router is now a Wiki MVP in-memory shell. Replace the inherited task-tracker domain behind it with Wiki-owned modules:
+The public API/router is now a Wiki MVP runtime with memory test fallback and SQLx/PostgreSQL persistence. Move the pragmatic route-level persistence into Wiki-owned application use cases/repositories:
 
 - `spaces` and `space_members`;
 - `documents`, `document_drafts`, `document_revisions`;
@@ -38,7 +39,7 @@ Remove or quarantine remaining inherited tracker concepts from backend internals
 - custom fields, components and versions;
 - reports and notifications runtime services.
 
-Current status: runtime router, OpenAPI, API route files and default API tests are reduced to Wiki MVP; a Wiki domain baseline exists; app/infra runtime wiring still needs replacement.
+Current status: runtime router, OpenAPI, API route files and default API tests are reduced to Wiki MVP; a Wiki domain baseline exists; SQLx runtime persistence is implemented in the API layer; app/infra runtime wiring still needs replacement.
 
 ## 2. Database And Migrations
 
@@ -50,7 +51,7 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 
 ## 3. API And OpenAPI
 
-- Replace in-memory API handlers with application use cases backed by Wiki repositories.
+- Extract current SQLx-backed API behavior into application use cases backed by Wiki repositories.
 - Keep inherited tracker routes out of the runtime router.
 - Regenerate `openapi/openapi.json` after any handler DTO/route change.
 - Add generated frontend API types after OpenAPI is stable.
@@ -72,15 +73,15 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 
 ## 6. Search, Storage And Audit
 
-- Implement PostgreSQL FTS over document title/body and evidence metadata.
-- Implement local filesystem storage first, with S3/MinIO behind the same storage port.
-- Store checksums and size metadata for uploaded files.
-- Record audit entries for document publish/archive, evidence writes, user changes and permission changes.
+- Upgrade current PostgreSQL-backed search to tuned FTS with query plans and language decisions.
+- Keep current local filesystem storage behind a dedicated storage port; add S3/MinIO later behind the same abstraction.
+- Expand attachment tests for staged upload claim, download and missing-file behavior.
+- Expand audit tests for document publish/archive, evidence writes, user changes and permission changes.
 
 ## 7. Tests And Release Readiness
 
 - Add backend unit tests for domain invariants.
-- Add repository/API tests for spaces, documents, revisions, task/phase links, evidence, attachments, search and audit.
+- Add repository/API tests beyond the current persistence smoke for spaces, documents, revisions, task/phase links, evidence, attachments, search and audit.
 - Add frontend component tests for editor/tree/revision/evidence states.
 - Keep screenshot evidence regenerated after route or UI changes.
 - Fix local Rust toolchain by installing MSVC Build Tools so `cargo check/test` can run on this host.
@@ -96,21 +97,19 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 
 ## 9. Recommended Implementation Order
 
-1. Add SQLx repository interfaces/implementations for identity, spaces and documents using `domain::wiki`.
-2. Wire server composition to SQLx repositories behind feature-compatible app use cases.
-3. Implement document draft/publish/history API against PostgreSQL and regenerate OpenAPI.
-4. Replace the in-memory API store with SQLx-backed use cases and keep the frontend contract stable.
-5. Add task and phase link repository operations under PostgreSQL.
-6. Implement evidence and attachment storage transactionally, including staged attachment claim.
-7. Add PostgreSQL FTS and audit repository coverage.
-8. Bring CLI smoke tests to parity with the public API.
-9. Remove remaining inherited tracker backend internals and SeaORM migration compatibility layer.
-10. Generate frontend API client after the PostgreSQL-backed contract stabilizes.
+1. Extract SQLx route-level persistence into repository interfaces/implementations for identity, spaces and documents using `domain::wiki`.
+2. Wire server composition to those repositories behind feature-compatible app use cases.
+3. Add focused repository/API tests for document draft/publish/history, task/phase links, evidence and attachments.
+4. Tune PostgreSQL FTS/search filters and capture query-plan evidence for the expected MVP dataset size.
+5. Bring CLI smoke tests to parity with the public API.
+6. Remove remaining inherited tracker backend internals and SeaORM migration compatibility layer.
+7. Generate frontend API client after the PostgreSQL-backed contract stabilizes.
 
 ## 10. Done Criteria For Backend Start
 
 - `cargo check` and backend tests run on a host with MSVC Build Tools or another configured linker.
-- Clean Wiki SQLx migrations create an empty database without tracker tables.
+- Clean Wiki SQLx migrations create an empty database without tracker tables and include auth session storage.
 - OpenAPI exposes only Wiki MVP endpoints.
 - UI and CLI use the same public API operations.
+- Postgres persistence smoke passes across router rebuilds.
 - Static frontend data is limited to settings/admin readiness copy and deterministic test/screenshot fixtures.

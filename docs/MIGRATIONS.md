@@ -4,7 +4,7 @@
 
 Миграции управляют схемой PostgreSQL. Wiki-подход - **SQLx migrations**: plain SQL-файлы, применяемые через `sqlx migrate` или thin migration runner в backend startup.
 
-Clean Wiki baseline lives in `backend/migrations/202608310001_create_wiki_mvp.*.sql` and creates a fresh MVP schema without task-tracker tables. Текущий `backend/migration` на SeaORM унаследован из `task-tracker` и остаётся только compatibility/quarantine layer до удаления старых infra-модулей; его нельзя расширять новыми Wiki capability.
+Clean Wiki baseline lives in `backend/migrations/202608310001_create_wiki_mvp.*.sql` and creates a fresh MVP schema without task-tracker tables. `202608310002_add_auth_runtime.*.sql` adds usernames and auth session storage used by the SQLx runtime adapter. Текущий `backend/migration` на SeaORM унаследован из `task-tracker` и остаётся только compatibility/quarantine layer до удаления старых infra-модулей; его нельзя расширять новыми Wiki capability.
 
 ## 2. Tooling
 
@@ -22,6 +22,8 @@ Target Wiki migration set:
 backend/migrations/
 ├── 202608310001_create_wiki_mvp.up.sql
 ├── 202608310001_create_wiki_mvp.down.sql
+├── 202608310002_add_auth_runtime.up.sql
+├── 202608310002_add_auth_runtime.down.sql
 └── seeds/
 ```
 
@@ -57,11 +59,10 @@ The current repository still contains inherited task-tracker migration files und
 
 ## 6. Applying Migrations
 
-Целевой startup runner после подключения к PostgreSQL:
+Текущий startup runner в `api::routes::wiki::WikiBackend`:
 
 ```rust
-// target shape in backend/infra
-sqlx::migrate!("./migrations").run(&pool).await?;
+sqlx::migrate!("../migrations").run(&pool).await?;
 ```
 
 Вручную:
