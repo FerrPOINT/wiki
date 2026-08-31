@@ -20,7 +20,7 @@ The documentation, screenshots, API-backed frontend MVP pages and SQLx-backed MV
 - attachment bytes are behind `domain::wiki::WikiAttachmentStorage`, with `infra::LocalWikiAttachmentStorage` wired by `server`;
 - shared Wiki normalization, access predicates, content helpers, storage-name helpers, password hashing, Wiki JWT/session token helpers and access/refresh token-pair TTL assembly are in `app::wiki`;
 - the API crate no longer declares direct Wiki auth crypto dependencies after the helper extraction;
-- CLI has mocked HTTP smoke coverage for auth, spaces, documents, task/phase dossiers, templates, search and URL/file evidence request flows;
+- CLI has mocked HTTP smoke coverage for auth, spaces, documents, task/phase dossiers, templates, search, URL/file evidence request flows and API error envelopes;
 - deferred areas are documented as reference only.
 
 The remaining work is hardening and architecture cleanup, not product-scope expansion.
@@ -67,7 +67,7 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 ## 4. CLI Parity
 
 - Keep `backend/cli/src/main.rs` aligned with `docs/CLI.md`.
-- Expand CLI tests for API error envelopes, validation failures and non-zero exit behavior.
+- Expand CLI tests for validation failures and non-zero exit behavior through the compiled binary.
 - Keep idempotency key coverage for repeated write commands as the command surface grows.
 
 ## 5. Frontend Integration

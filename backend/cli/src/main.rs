@@ -346,12 +346,84 @@ impl SendJson for reqwest::RequestBuilder {
         let status = response.status();
         let text = response.text().await.context("failed to read response")?;
         if !status.is_success() {
-            bail!("API returned {status}: {text}");
+            bail!("{}", format_api_error(status, &text));
         }
         if text.trim().is_empty() {
             return Ok(json!({ "status": "ok" }));
         }
         serde_json::from_str(&text).context("API returned non-JSON response")
+    }
+}
+
+fn format_api_error(status: reqwest::StatusCode, body: &str) -> String {
+    let body = body.trim();
+    if body.is_empty() {
+        return format!("API returned {status}");
+    }
+
+    let Ok(value) = serde_json::from_str::<Value>(body) else {
+        return format!("API returned {status}: {body}");
+    };
+    let Some(error) = value.get("error") else {
+        return format!("API returned {status}: {body}");
+    };
+
+    let message = match error {
+        Value::String(message) => message.clone(),
+        Value::Object(map) => {
+            let code = map.get("code").and_then(Value::as_str);
+            let message = map.get("message").and_then(Value::as_str);
+            let mut parts = Vec::new();
+
+            match (code, message) {
+                (Some(code), Some(message)) => parts.push(format!("{code}: {message}")),
+                (Some(code), None) => parts.push(code.to_string()),
+                (None, Some(message)) => parts.push(message.to_string()),
+                (None, None) => {}
+            }
+
+            if let Some(request_id) = map
+                .get("requestId")
+                .or_else(|| map.get("request_id"))
+                .and_then(Value::as_str)
+            {
+                parts.push(format!("requestId={request_id}"));
+            }
+            if let Some(details) = format_api_error_details(map.get("details")) {
+                parts.push(format!("details={details}"));
+            }
+
+            if parts.is_empty() {
+                error.to_string()
+            } else {
+                parts.join("; ")
+            }
+        }
+        other => other.to_string(),
+    };
+
+    format!("API returned {status}: {message}")
+}
+
+fn format_api_error_details(details: Option<&Value>) -> Option<String> {
+    let details = details?.as_array()?;
+    let parts = details
+        .iter()
+        .filter_map(|detail| {
+            let field = detail.get("field").and_then(Value::as_str);
+            let message = detail.get("message").and_then(Value::as_str);
+            match (field, message) {
+                (Some(field), Some(message)) => Some(format!("{field}: {message}")),
+                (None, Some(message)) => Some(message.to_string()),
+                _ => None,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    if parts.is_empty() {
+        None
+    } else {
+        Some(parts.join(", "))
     }
 }
 
@@ -846,22 +918,41 @@ mod tests {
             body: body.to_vec(),
         });
 
-        let payload = match path_only.as_str() {
-            "/api/v1/attachments" => {
-                json!({ "id": "attachment-1", "checksum": "sha256-test" })
-            }
-            "/api/v1/templates" => json!({
-                "templates": [{
-                    "id": "00000000-0000-0000-0000-000000000042",
-                    "name": "Требования",
-                    "document_type": "requirements",
-                    "body_markdown": "# Requirements\n\nTemplate body"
-                }]
-            }),
-            _ => json!({ "status": "ok" }),
+        let (status, payload) = match path_only.as_str() {
+            "/api/v1/error-object" => (
+                StatusCode::BAD_REQUEST,
+                json!({
+                    "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "Request validation failed",
+                        "requestId": "req-1",
+                        "details": [{ "field": "summary", "message": "required" }]
+                    }
+                }),
+            ),
+            "/api/v1/error-string" => (
+                StatusCode::NOT_FOUND,
+                json!({ "error": "document product-requirements not found" }),
+            ),
+            "/api/v1/attachments" => (
+                StatusCode::OK,
+                json!({ "id": "attachment-1", "checksum": "sha256-test" }),
+            ),
+            "/api/v1/templates" => (
+                StatusCode::OK,
+                json!({
+                    "templates": [{
+                        "id": "00000000-0000-0000-0000-000000000042",
+                        "name": "Требования",
+                        "document_type": "requirements",
+                        "body_markdown": "# Requirements\n\nTemplate body"
+                    }]
+                }),
+            ),
+            _ => (StatusCode::OK, json!({ "status": "ok" })),
         };
 
-        (StatusCode::OK, Json(payload)).into_response()
+        (status, Json(payload)).into_response()
     }
 
     fn header_string(headers: &HeaderMap, key: &str) -> Option<String> {
@@ -877,6 +968,24 @@ mod tests {
                 .idempotency_key
                 .as_deref()
                 .is_some_and(|value| value.starts_with("wiki-cli-write-"))
+        );
+    }
+
+    #[tokio::test]
+    async fn api_error_envelopes_are_rendered_as_cli_errors() {
+        let server = spawn_mock_server().await;
+        let api = ApiClient::new(server.api_url.clone(), Some("secret-token".to_string()));
+
+        let structured = api.get("/error-object").await.unwrap_err().to_string();
+        assert_eq!(
+            structured,
+            "API returned 400 Bad Request: VALIDATION_ERROR: Request validation failed; requestId=req-1; details=summary: required"
+        );
+
+        let simple = api.get("/error-string").await.unwrap_err().to_string();
+        assert_eq!(
+            simple,
+            "API returned 404 Not Found: document product-requirements not found"
         );
     }
 
