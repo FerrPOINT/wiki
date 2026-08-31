@@ -513,7 +513,7 @@ impl WikiStore {
             task_key: Some("SDLC-42".to_string()),
             phase_key: Some("implementation".to_string()),
             title: "Frontend smoke evidence".to_string(),
-            evidence_type: "manual_check".to_string(),
+            evidence_type: "external_url".to_string(),
             url: Some("https://ci.local/jobs/wiki-smoke".to_string()),
             attachment_id: None,
             checksum: None,
@@ -1686,6 +1686,24 @@ pub async fn create_evidence(
         attachment_id,
         checksum,
     } = body;
+    match evidence_type.as_str() {
+        "external_url" if url.is_none() => {
+            return Err(shared::AppError::invalid_input(
+                "external_url evidence requires url",
+            ));
+        }
+        "uploaded_file" if attachment_id.is_none() => {
+            return Err(shared::AppError::invalid_input(
+                "uploaded_file evidence requires attachment_id",
+            ));
+        }
+        "external_url" | "uploaded_file" => {}
+        _ => {
+            return Err(shared::AppError::invalid_input(
+                "evidence_type must be external_url or uploaded_file",
+            ));
+        }
+    }
     if let Some(attachment_id) = &attachment_id {
         if !store.attachments.contains_key(attachment_id) {
             return Err(shared::AppError::not_found("attachment", attachment_id));
@@ -2308,5 +2326,5 @@ fn default_document_type() -> String {
 }
 
 fn default_evidence_type() -> String {
-    "link".to_string()
+    "external_url".to_string()
 }

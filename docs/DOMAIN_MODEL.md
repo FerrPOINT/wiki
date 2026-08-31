@@ -79,7 +79,7 @@
 
 ### EvidenceItem
 
-- Поля: `id`, `space_id`, `task_dossier_id`, `phase_dossier_id`, `document_id`, `kind`, `title`, `url`, `attachment_id`, `checksum`, `metadata`.
+- Поля: `id`, `space_id`, `task_dossier_id`, `phase_dossier_id`, `document_id`, `evidence_type`, `title`, `url`, `attachment_id`, `checksum`, `metadata`.
 - Инварианты:
   - evidence связано минимум с document, task dossier или phase dossier;
   - file evidence имеет attachment;

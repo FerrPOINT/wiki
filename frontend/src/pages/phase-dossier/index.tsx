@@ -53,7 +53,10 @@ export function PhaseDossiersPage() {
                   <span>Заполненность</span>
                   <span>{phase.readiness}%</span>
                 </div>
-                <Progress value={phase.readiness} variant={phase.missing > 2 ? 'danger' : 'default'} />
+                <Progress
+                  value={phase.readiness}
+                  variant={phase.missing > 2 ? 'danger' : 'default'}
+                />
               </div>
               <div className="text-xs text-text-muted">
                 {phase.missing === 0 ? 'Материалы закрыты' : `Не хватает: ${phase.missing}`}

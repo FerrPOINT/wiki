@@ -97,11 +97,13 @@ Phase dossier в MVP - это представление документов/ev
 | `GET` | `/attachments/{attachment_id}` | Metadata файла |
 | `GET` | `/attachments/{attachment_id}/download` | Скачать файл |
 
+Canonical `evidence_type` values for MVP are `external_url` and `uploaded_file`. Specific source categories such as CI job, pull request, deployment or test artifact are metadata, not separate evidence types.
+
 ## 10. Search
 
 | Method | Path | Назначение |
 |---|---|---|
-| `GET` | `/search?q={query}` | Поиск документов |
+| `GET` | `/search` | Поиск документов |
 
 Фильтры MVP: `space`, `task_key`, `phase_key`, `document_type`, `include_archived`.
 

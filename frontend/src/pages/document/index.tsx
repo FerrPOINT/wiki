@@ -15,7 +15,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 const revisions = [
   { version: 3, summary: 'Уточнены границы MVP', author: 'Техлид', time: 'сегодня' },
   { version: 2, summary: 'Добавлены связи с фазами', author: 'Редактор', time: 'вчера' },
-  { version: 1, summary: 'Базовая версия требований', author: 'Администратор', time: '2 дня назад' },
+  {
+    version: 1,
+    summary: 'Базовая версия требований',
+    author: 'Администратор',
+    time: '2 дня назад',
+  },
 ]
 
 const relatedDocuments = ['Архитектура Wiki', 'План проверки', 'Заметка к релизу']
@@ -68,8 +73,8 @@ export function DocumentPage() {
               <h2 className="text-lg font-semibold text-text-primary">Назначение</h2>
               <p>
                 Wiki хранит важные документы по задаче и по каждой фазе выполненного workflow:
-                требования, архитектурные решения, заметки реализации, планы проверки, материалы
-                и заметки к релизу.
+                требования, архитектурные решения, заметки реализации, планы проверки, материалы и
+                заметки к релизу.
               </p>
             </section>
             <section className="space-y-2">

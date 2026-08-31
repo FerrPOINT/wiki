@@ -169,7 +169,7 @@ URL или файл, связанный с документом, задачей 
 | `document_id` | uuid nullable | FK documents |
 | `task_dossier_id` | uuid nullable | FK task_dossiers |
 | `phase_dossier_id` | uuid nullable | FK phase_dossiers |
-| `kind` | text | `url`, `file` |
+| `evidence_type` | text | `external_url`, `uploaded_file` |
 | `title` | text | Название evidence |
 | `url` | text nullable | Внешняя ссылка для URL evidence |
 | `attachment_id` | uuid nullable | FK attachments for file evidence |

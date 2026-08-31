@@ -17,25 +17,25 @@ phases:
       - type: requirements
         template: requirements
     required_evidence:
-      - kind: external_url
+      - evidence_type: external_url
         source_type: task_snapshot
   implementation:
     required_documents:
       - type: architecture_decision
     required_evidence:
-      - kind: external_url
+      - evidence_type: external_url
         source_type: pull_request
   testing:
     required_documents:
       - type: test_report
     required_evidence:
-      - kind: uploaded_file
+      - evidence_type: uploaded_file
         source_type: ci_artifact
   release:
     required_documents:
       - type: release_note
     required_evidence:
-      - kind: external_url
+      - evidence_type: external_url
         source_type: deployment
 ```
 

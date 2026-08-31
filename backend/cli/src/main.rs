@@ -217,7 +217,7 @@ struct EvidenceLinkArgs {
     task: Option<String>,
     #[arg(long)]
     phase: Option<String>,
-    #[arg(long = "type", default_value = "link")]
+    #[arg(long = "type", default_value = "external_url")]
     evidence_type: String,
     #[arg(long)]
     title: String,
@@ -233,7 +233,7 @@ struct EvidenceFileArgs {
     task: Option<String>,
     #[arg(long)]
     phase: Option<String>,
-    #[arg(long = "type", default_value = "file")]
+    #[arg(long = "type", default_value = "uploaded_file")]
     evidence_type: String,
     #[arg(long)]
     title: String,

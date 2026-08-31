@@ -88,10 +88,7 @@ export function AppShell() {
   const { data: user } = useCurrentUser()
   const logout = useLogout()
 
-  const navItems = [
-    ...baseNavItems,
-    ...(user?.is_system_admin ? adminNavItems : []),
-  ]
+  const navItems = [...baseNavItems, ...(user?.is_system_admin ? adminNavItems : [])]
 
   function isActive(path: string) {
     if (path === '/') return location.pathname === '/'
@@ -185,7 +182,10 @@ export function AppShell() {
 
         {mobileMenuOpen && (
           <div className="fixed inset-0 z-40 md:hidden">
-            <div className="absolute inset-0 bg-black/40" onClick={() => setMobileMenuOpen(false)} />
+            <div
+              className="absolute inset-0 bg-black/40"
+              onClick={() => setMobileMenuOpen(false)}
+            />
             <aside className="absolute left-0 top-0 h-full w-64 border-r border-border bg-surface p-3 pt-14 shadow-lg">
               {navItems.map((item) => (
                 <SidebarLink

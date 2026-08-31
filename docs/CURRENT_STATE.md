@@ -10,7 +10,7 @@
 | Product requirements | Current | `docs/PRODUCT_REQUIREMENTS.md` defines the reduced base Wiki scope |
 | Documentation set | Current | CI/CD-style document set prepared for Wiki |
 | CLI shape | Current | `wiki` CLI command surface drafted for public API operations |
-| API shell | Current | Runtime router and OpenAPI expose Wiki MVP endpoints only; old API dto/middleware/route/test files were removed; implementation is in-memory until domain/repository migration |
+| API shell | Current | Runtime router and OpenAPI expose Wiki MVP endpoints only; evidence type validation uses `external_url` / `uploaded_file`; implementation is in-memory until domain/repository migration |
 | Frontend route shell | Current | Static Wiki pages and screenshots exist for the approved MVP page set only |
 | Page design contract | Current | `docs/PAGE_DESIGN.md` fixes page composition, states and deferred boundaries before backend work |
 | Refined MVP page design | Current | Spaces, documents, tasks, phases, evidence and search pages include API-ready layouts and metadata blocks |
@@ -30,7 +30,7 @@
 | Page tree | parent/child, breadcrumbs, move within space |
 | Task links | link documents/evidence by external task key |
 | Phase links | link documents/evidence by phase key |
-| Evidence | URL evidence, file evidence, checksum, lists by owner |
+| Evidence | `external_url` and `uploaded_file` evidence, checksum, lists by owner |
 | Attachments | local storage metadata and download |
 | Search | PostgreSQL FTS over title/body with basic filters |
 | Templates | requirements, research note, implementation note, test plan, release note |
@@ -62,6 +62,8 @@ cargo check -p wiki-cli
 
 cd frontend
 .\node_modules\.bin\tsc.cmd --noEmit
+.\node_modules\.bin\eslint.cmd . --max-warnings=0
+.\node_modules\.bin\prettier.cmd --check .
 .\node_modules\.bin\vitest.cmd run
 .\node_modules\.bin\vite.cmd build
 .\node_modules\.bin\playwright.cmd test --project=chromium
@@ -72,19 +74,22 @@ Latest verification on 2026-08-31:
 
 - `cargo fmt --all -- --check` passed.
 - `cargo metadata --no-deps --format-version 1` passed; `openapi-gen` is the single OpenAPI generator binary.
-- `cargo check -p api`, `cargo check -p wiki-cli` and `cargo check -p server` blocked before project code by missing Windows MSVC `link.exe` / Windows SDK libs.
+- `cargo check -p api`, `cargo check -p wiki-cli`, `cargo check -p server` and `cargo test -p api wiki_mvp_routes_cover_public_contract` blocked before project code by missing Windows MSVC `link.exe` / Windows SDK libs.
 - `tsc --noEmit` passed.
+- `eslint . --max-warnings=0` passed.
+- `prettier --check .` passed after mechanical frontend formatting cleanup.
 - `vitest run` passed: 5 files, 17 tests.
 - `vite build` passed.
 - `playwright test --project=chromium` passed: 1 smoke test.
 - Screenshot script regenerated 22 screenshots against `vite preview`; capture wait is 1 second after navigation.
 - Screenshot dimensions passed: 17 desktop screenshots at `1920x1080`, 5 mobile full-page screenshots at `375px` width.
-- `eslint . --max-warnings=0` passed after declaring direct `@eslint/js` dev dependency used by `eslint.config.js`.
-- `prettier --check .` reports existing format drift in frontend files; broad formatting cleanup was not mixed into this MVP contract change.
+- Direct `@eslint/js` dev dependency is declared because `eslint.config.js` imports it.
 - README/manifest screenshot references resolve to existing PNG files.
 - README/manifest screenshot reference check passed: 22 unique PNGs, `missing=0`, `extra=0`.
 - Screenshot manifest dimensions match actual PNG dimensions.
 - OpenAPI path parity passed: 40 expected Wiki MVP paths, `missing=0`, `extra=0`, legacy paths `0`.
+- `docs/API.md`, `docs/PRODUCT_REQUIREMENTS.md` and `openapi/openapi.json` path parity passed.
+- Evidence vocabulary check passed: active API/CLI/OpenAPI defaults use `external_url` / `uploaded_file`; invalid legacy `manual_check` is covered by a negative API test.
 - Traceability coverage passed: 28 PRD requirement IDs, `missing=0`, `extra=0`.
 - CI/CD docs filename parity passed with `missing=0`.
 - Markdown documentation checks passed: no open placeholder markers, no Markdown document under 20 non-empty lines.

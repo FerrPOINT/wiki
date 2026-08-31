@@ -58,7 +58,10 @@ export function EvidencePage() {
       </section>
 
       <section className="grid gap-3 rounded-md border border-border bg-surface p-3 md:grid-cols-[1fr_auto_auto_auto]">
-        <Input placeholder="Поиск по материалам, задаче или источнику" aria-label="Поиск материалов" />
+        <Input
+          placeholder="Поиск по материалам, задаче или источнику"
+          aria-label="Поиск материалов"
+        />
         <Button size="sm" variant="secondary">
           <Filter className="h-4 w-4" />
           Фаза
@@ -129,7 +132,10 @@ export function EvidencePage() {
                 <TableRow key={`${item.task}-${item.title}`}>
                   <TableCell className="font-medium">{item.title}</TableCell>
                   <TableCell>
-                    <Link to={`/tasks/${item.task}`} className="text-accent hover:text-accent-hover">
+                    <Link
+                      to={`/tasks/${item.task}`}
+                      className="text-accent hover:text-accent-hover"
+                    >
                       {item.task}
                     </Link>
                   </TableCell>
