@@ -129,6 +129,8 @@ Use cases MVP:
 - Search projection: PostgreSQL full-text search.
 - Audit repository.
 
+Default `infra` crate export surface now contains only the Wiki attachment storage adapter. Inherited task-tracker `cache`, `db`, `email`, `entities`, `event_bus`, `jql`, `repos` and issue attachment `storage` modules are compatibility code behind feature `legacy-tracker`.
+
 ## 9. API Layer
 
 Целевая граница Axum API отвечает за:
@@ -141,7 +143,7 @@ Use cases MVP:
 - единый error envelope;
 - OpenAPI generation.
 
-В целевой архитектуре API не содержит SQL и не пишет файлы напрямую. Текущий переходный MVP runtime уже отделяет router/DTO и явный memory test/dev backend от постоянного хранилища: route handlers вызывают внутренний `WikiBackendPort`, конкретный `PostgresWikiBackend` приватен внутри `api::routes::wiki::postgres`, а SQLx-запросы пока живут в этом переходном модуле. `server` запускает Wiki через `app::WikiAppContext` без сборки унаследованного task-tracker service graph. Production `server::run` требует `WIKI_DATABASE__URL`; memory backend доступен только через явно названный test/dev router builder. Default app dependency tree теперь содержит только Wiki-needed deps; следующий архитектурный шаг - перенос реализации `WikiBackendPort` в application use cases и infra repositories.
+В целевой архитектуре API не содержит SQL и не пишет файлы напрямую. Текущий переходный MVP runtime уже отделяет router/DTO и явный memory test/dev backend от постоянного хранилища: route handlers вызывают внутренний `WikiBackendPort`, конкретный `PostgresWikiBackend` приватен внутри `api::routes::wiki::postgres`, а SQLx-запросы пока живут в этом переходном модуле. `server` запускает Wiki через `app::WikiAppContext` без сборки унаследованного task-tracker service graph. Production `server::run` требует `WIKI_DATABASE__URL`; memory backend доступен только через явно названный test/dev router builder. Default app/infra dependency surface теперь содержит только Wiki-needed exports; следующий архитектурный шаг - перенос реализации `WikiBackendPort` в application use cases и infra repositories.
 
 ## 10. Frontend
 
@@ -190,6 +192,7 @@ MVP pages:
 | Wiki runtime context                                                | Готово: API/server используют `app::WikiAppContext` и больше не собирают унаследованный task-tracker `AppContext`/services при запуске Wiki                                                                                                                                                                     |
 | Production PostgreSQL runtime                                       | Готово: `server::run` требует `WIKI_DATABASE__URL`; memory backend используется только через явный test/dev builder                                                                                                                                                                                             |
 | App legacy quarantine                                               | Готово: унаследованные task-tracker app modules исключены из default-сборки и доступны только через feature `legacy-tracker`                                                                                                                                                                                    |
+| Infra legacy quarantine                                             | Готово: default `infra` экспортирует только `LocalWikiAttachmentStorage`; унаследованные task-tracker infra modules и их SeaORM/JQL/email/cache зависимости доступны только через feature `legacy-tracker`                                                                                                      |
 | Замена route-level SQLx adapter на app/repositories                 | Следующий шаг                                                                                                                                                                                                                                                                                                   |
 | Замена frontend страниц на Wiki UI                                  | Готово                                                                                                                                                                                                                                                                                                          |
 | Перегенерация OpenAPI                                               | Готово для MVP API                                                                                                                                                                                                                                                                                              |

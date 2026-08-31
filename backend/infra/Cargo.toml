@@ -5,26 +5,34 @@ edition.workspace = true
 rust-version.workspace = true
 license-file.workspace = true
 
+[features]
+default = []
+legacy-tracker = [
+    "dep:chrono",
+    "dep:lettre",
+    "dep:migration",
+    "dep:moka",
+    "dep:sea-orm",
+    "dep:serde_json",
+    "dep:tracing",
+    "dep:uuid",
+]
+
 [dependencies]
 shared = { path = "../shared" }
 domain = { path = "../domain" }
-app = { path = "../app" }
-async-trait = "0.1"
-config.workspace = true
-sea-orm.workspace = true
-sea-orm-migration.workspace = true
+async-trait.workspace = true
 tokio.workspace = true
-tracing.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-chrono.workspace = true
-uuid.workspace = true
-thiserror.workspace = true
-anyhow.workspace = true
-moka.workspace = true
-migration = { path = "../migration" }
-lettre.workspace = true
+chrono = { workspace = true, optional = true }
+lettre = { workspace = true, optional = true }
+migration = { path = "../migration", optional = true }
+moka = { workspace = true, optional = true }
+sea-orm = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+tracing = { workspace = true, optional = true }
+uuid = { workspace = true, optional = true }
 
 [dev-dependencies]
 serial_test = "3.2"
 tokio = { workspace = true, features = ["macros", "rt"] }
+uuid.workspace = true

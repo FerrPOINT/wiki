@@ -17,6 +17,7 @@ The documentation, screenshots, API-backed frontend MVP pages and SQLx-backed MV
 - PostgreSQL runtime persistence is behind internal `WikiBackendPort`; the concrete SQLx adapter is private in `api::routes::wiki::postgres`, while the main Wiki route module keeps router/DTO responsibilities and an explicit memory test/dev backend;
 - API/server runtime uses `app::WikiAppContext` and no longer constructs the inherited task-tracker `AppContext`, repository bundle or report/notification/issue service graph;
 - inherited task-tracker app modules are excluded from the default `app` crate build and quarantined behind feature `legacy-tracker`;
+- inherited task-tracker infra modules are excluded from the default `infra` crate build and quarantined behind feature `legacy-tracker`;
 - public registration is guarded by `WIKI_AUTH__REGISTRATION_ENABLED` in both explicit memory test/dev backend and PostgreSQL runtime;
 - PostgreSQL runtime enforces the basic global-admin, space-role and attachment-download boundaries for core read/write paths;
 - attachment bytes are behind `domain::wiki::WikiAttachmentStorage`, with `infra::LocalWikiAttachmentStorage` wired by `server`;
@@ -47,9 +48,9 @@ Remove or quarantine remaining inherited tracker concepts from backend internals
 - issues, boards, sprints and worklogs;
 - watchers, votes, labels and issue links;
 - custom fields, components and versions;
-- reports and notifications legacy modules outside the default app build.
+- reports and notifications legacy modules outside default builds.
 
-Current status: runtime router, OpenAPI, API route files and default API tests are reduced to Wiki MVP; a Wiki domain baseline exists; SQLx runtime persistence is implemented as a transition adapter behind internal `WikiBackendPort` under `api::routes::wiki::postgres`; production `server::run` is PostgreSQL-only and memory mode is explicit test/dev composition; attachment bytes now use a dedicated storage port; shared Wiki validation/auth/settings helpers and the Wiki runtime context live in the app layer; inherited task-tracker app modules are feature-gated as compatibility code; dedicated app/repository use cases still need to replace the route-level SQLx adapter.
+Current status: runtime router, OpenAPI, API route files and default API tests are reduced to Wiki MVP; a Wiki domain baseline exists; SQLx runtime persistence is implemented as a transition adapter behind internal `WikiBackendPort` under `api::routes::wiki::postgres`; production `server::run` is PostgreSQL-only and memory mode is explicit test/dev composition; attachment bytes now use a dedicated storage port; shared Wiki validation/auth/settings helpers and the Wiki runtime context live in the app layer; inherited task-tracker app and infra modules are feature-gated as compatibility code; dedicated app/repository use cases still need to replace the route-level SQLx adapter.
 
 ## 2. Database And Migrations
 
@@ -112,7 +113,7 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 3. Add focused repository/API tests for document draft/publish/history, task/phase links, evidence and attachments.
 4. Tune PostgreSQL FTS ranking/search filters and capture query-plan evidence for the expected MVP dataset size.
 5. Bring CLI smoke tests to parity with the public API.
-6. Remove remaining inherited tracker infra/domain internals and SeaORM migration compatibility layer.
+6. Remove remaining inherited tracker domain internals and SeaORM migration compatibility layer.
 7. Replace handwritten frontend endpoint wrappers with a generated operation client after the PostgreSQL-backed contract stabilizes.
 
 ## 10. Done Criteria For Backend Start

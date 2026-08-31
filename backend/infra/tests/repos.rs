@@ -1,3 +1,5 @@
+#![cfg(feature = "legacy-tracker")]
+
 use domain::{
     Board, BoardColumn, Issue, Project, ProjectQuery, Sprint, SprintState, StatusCategory, User,
 };

@@ -1,3 +1,5 @@
+#![cfg(feature = "legacy-tracker")]
+
 use infra::repos::SeaOrmRepositories;
 use sea_orm::{DatabaseBackend, DbErr, MockDatabase, RuntimeErr};
 use shared::{AppError, IssueId, ProjectId, ProjectKey, SprintId, UserId};

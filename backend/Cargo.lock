@@ -1973,22 +1973,16 @@ dependencies = [
 name = "infra"
 version = "0.2.0"
 dependencies = [
- "anyhow",
- "app",
  "async-trait",
  "chrono",
- "config",
  "domain",
  "lettre",
  "migration",
  "moka",
  "sea-orm",
- "sea-orm-migration",
- "serde",
  "serde_json",
  "serial_test",
  "shared",
- "thiserror 2.0.19",
  "tokio",
  "tracing",
  "uuid",
