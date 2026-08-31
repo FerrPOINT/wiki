@@ -12,15 +12,26 @@ use sqlx::{PgPool, Row, postgres::PgPoolOptions, postgres::PgRow};
 use std::sync::Arc;
 
 #[derive(Clone)]
-pub(super) struct PostgresWikiBackend {
+struct PostgresWikiBackend {
     pool: PgPool,
     auth: shared::AuthConfig,
     storage: Arc<dyn domain::wiki::WikiAttachmentStorage>,
     max_upload_bytes: usize,
 }
 
+pub(super) async fn connect_persistent_backend(
+    config: &shared::AppConfig,
+    storage: Arc<dyn domain::wiki::WikiAttachmentStorage>,
+) -> Result<WikiBackend, shared::AppError> {
+    let backend = PostgresWikiBackend::connect(config, storage).await?;
+    Ok(WikiBackend::persistent(
+        Arc::new(backend),
+        config.auth.registration_enabled,
+    ))
+}
+
 impl PostgresWikiBackend {
-    pub(super) async fn connect(
+    async fn connect(
         config: &shared::AppConfig,
         storage: Arc<dyn domain::wiki::WikiAttachmentStorage>,
     ) -> Result<Self, shared::AppError> {
@@ -216,10 +227,7 @@ impl PostgresWikiBackend {
         Ok(())
     }
 
-    pub(super) async fn authenticate_access_token(
-        &self,
-        token: &str,
-    ) -> Result<WikiClaims, shared::AppError> {
+    async fn authenticate_access_token(&self, token: &str) -> Result<WikiClaims, shared::AppError> {
         let claims = decode_token(&self.auth, token, "access")?;
         let user_id = parse_uuid(&claims.sub, "user")?;
         let session_id = parse_uuid(&claims.jti, "session")?;
@@ -261,7 +269,7 @@ impl PostgresWikiBackend {
         })
     }
 
-    pub(super) async fn register(
+    async fn register(
         &self,
         body: WikiRegisterRequest,
     ) -> Result<WikiAuthResponse, shared::AppError> {
@@ -307,10 +315,7 @@ impl PostgresWikiBackend {
         self.issue_tokens(user_id, &row).await
     }
 
-    pub(super) async fn login(
-        &self,
-        body: WikiLoginRequest,
-    ) -> Result<WikiAuthResponse, shared::AppError> {
+    async fn login(&self, body: WikiLoginRequest) -> Result<WikiAuthResponse, shared::AppError> {
         let email = normalize_required(&body.email, "email")?;
         let row = sqlx::query(
             r#"
@@ -335,7 +340,7 @@ impl PostgresWikiBackend {
         self.issue_tokens(user_id, &row).await
     }
 
-    pub(super) async fn refresh(
+    async fn refresh(
         &self,
         body: WikiRefreshRequest,
     ) -> Result<WikiAuthResponse, shared::AppError> {
@@ -400,7 +405,7 @@ impl PostgresWikiBackend {
         })
     }
 
-    pub(super) async fn logout(&self, claims: &WikiClaims) -> Result<(), shared::AppError> {
+    async fn logout(&self, claims: &WikiClaims) -> Result<(), shared::AppError> {
         let user_id = parse_uuid(&claims.user_id, "user")?;
         if let Some(session_id) = claims.session_id.as_deref() {
             let session_id = parse_uuid(session_id, "session")?;
@@ -424,7 +429,7 @@ impl PostgresWikiBackend {
         Ok(())
     }
 
-    pub(super) async fn get_current_user(
+    async fn get_current_user(
         &self,
         claims: &WikiClaims,
     ) -> Result<WikiUserResponse, shared::AppError> {
@@ -432,7 +437,7 @@ impl PostgresWikiBackend {
         self.user_response(user_id).await
     }
 
-    pub(super) async fn list_users(
+    async fn list_users(
         &self,
         claims: &WikiClaims,
     ) -> Result<WikiUserListResponse, shared::AppError> {
@@ -453,7 +458,7 @@ impl PostgresWikiBackend {
         })
     }
 
-    pub(super) async fn create_user(
+    async fn create_user(
         &self,
         claims: &WikiClaims,
         body: WikiCreateUserRequest,
@@ -492,7 +497,7 @@ impl PostgresWikiBackend {
         Ok(user_response_from_row(&row))
     }
 
-    pub(super) async fn update_user(
+    async fn update_user(
         &self,
         claims: &WikiClaims,
         user_id: &str,
@@ -556,7 +561,7 @@ impl PostgresWikiBackend {
         Ok(user_response_from_row(&row))
     }
 
-    pub(super) async fn list_spaces(
+    async fn list_spaces(
         &self,
         claims: &WikiClaims,
     ) -> Result<SpaceListResponse, shared::AppError> {
@@ -571,7 +576,7 @@ impl PostgresWikiBackend {
         })
     }
 
-    pub(super) async fn create_space(
+    async fn create_space(
         &self,
         claims: &WikiClaims,
         body: CreateSpaceRequest,
@@ -622,7 +627,7 @@ impl PostgresWikiBackend {
         self.get_space_by_key(&key).await
     }
 
-    pub(super) async fn get_space(
+    async fn get_space(
         &self,
         claims: &WikiClaims,
         space_key: &str,
@@ -643,7 +648,7 @@ impl PostgresWikiBackend {
         Ok(space_response_from_row(&row))
     }
 
-    pub(super) async fn update_space(
+    async fn update_space(
         &self,
         claims: &WikiClaims,
         space_key: &str,
@@ -683,7 +688,7 @@ impl PostgresWikiBackend {
         self.get_space_by_key(&key).await
     }
 
-    pub(super) async fn archive_space(
+    async fn archive_space(
         &self,
         claims: &WikiClaims,
         space_key: &str,
@@ -708,7 +713,7 @@ impl PostgresWikiBackend {
         self.get_space_by_key(&key).await
     }
 
-    pub(super) async fn list_space_members(
+    async fn list_space_members(
         &self,
         claims: &WikiClaims,
         space_key: &str,
@@ -734,7 +739,7 @@ impl PostgresWikiBackend {
         })
     }
 
-    pub(super) async fn upsert_space_member(
+    async fn upsert_space_member(
         &self,
         claims: &WikiClaims,
         space_key: &str,
@@ -776,7 +781,7 @@ impl PostgresWikiBackend {
         })
     }
 
-    pub(super) async fn delete_space_member(
+    async fn delete_space_member(
         &self,
         claims: &WikiClaims,
         space_key: &str,
@@ -798,7 +803,7 @@ impl PostgresWikiBackend {
         Ok(())
     }
 
-    pub(super) async fn get_space_tree(
+    async fn get_space_tree(
         &self,
         claims: &WikiClaims,
         space_key: &str,
@@ -826,7 +831,7 @@ impl PostgresWikiBackend {
         })
     }
 
-    pub(super) async fn create_document(
+    async fn create_document(
         &self,
         claims: &WikiClaims,
         space_key: &str,
@@ -975,7 +980,7 @@ impl PostgresWikiBackend {
         self.document_response(document_id).await
     }
 
-    pub(super) async fn get_document(
+    async fn get_document(
         &self,
         claims: &WikiClaims,
         document_id: &str,
@@ -986,7 +991,7 @@ impl PostgresWikiBackend {
         self.document_response(document_id).await
     }
 
-    pub(super) async fn update_document_draft(
+    async fn update_document_draft(
         &self,
         claims: &WikiClaims,
         document_id: &str,
@@ -1058,7 +1063,7 @@ impl PostgresWikiBackend {
         self.document_response(document_id).await
     }
 
-    pub(super) async fn publish_document(
+    async fn publish_document(
         &self,
         claims: &WikiClaims,
         document_id: &str,
@@ -1159,7 +1164,7 @@ impl PostgresWikiBackend {
         Ok(revision_response_from_row(&revision_row))
     }
 
-    pub(super) async fn archive_document(
+    async fn archive_document(
         &self,
         claims: &WikiClaims,
         document_id: &str,
@@ -1187,7 +1192,7 @@ impl PostgresWikiBackend {
         self.document_response(document_id).await
     }
 
-    pub(super) async fn move_document(
+    async fn move_document(
         &self,
         claims: &WikiClaims,
         document_id: &str,
@@ -1227,7 +1232,7 @@ impl PostgresWikiBackend {
         self.document_response(document_id).await
     }
 
-    pub(super) async fn list_document_revisions(
+    async fn list_document_revisions(
         &self,
         claims: &WikiClaims,
         document_id: &str,
@@ -1252,7 +1257,7 @@ impl PostgresWikiBackend {
         })
     }
 
-    pub(super) async fn get_document_revision(
+    async fn get_document_revision(
         &self,
         claims: &WikiClaims,
         document_id: &str,
@@ -1278,7 +1283,7 @@ impl PostgresWikiBackend {
         Ok(revision_response_from_row(&row))
     }
 
-    pub(super) async fn list_tasks(
+    async fn list_tasks(
         &self,
         claims: &WikiClaims,
         space_key: &str,
@@ -1307,7 +1312,7 @@ impl PostgresWikiBackend {
         Ok(TaskPageListResponse { tasks })
     }
 
-    pub(super) async fn get_task(
+    async fn get_task(
         &self,
         claims: &WikiClaims,
         space_key: &str,
@@ -1320,7 +1325,7 @@ impl PostgresWikiBackend {
         self.task_page(&key, &task_key).await
     }
 
-    pub(super) async fn link_task_document(
+    async fn link_task_document(
         &self,
         claims: &WikiClaims,
         space_key: &str,
@@ -1373,7 +1378,7 @@ impl PostgresWikiBackend {
         self.task_page(&key, &task_key).await
     }
 
-    pub(super) async fn list_task_documents(
+    async fn list_task_documents(
         &self,
         claims: &WikiClaims,
         space_key: &str,
@@ -1390,7 +1395,7 @@ impl PostgresWikiBackend {
         Ok(DocumentListResponse { documents })
     }
 
-    pub(super) async fn list_task_evidence(
+    async fn list_task_evidence(
         &self,
         claims: &WikiClaims,
         space_key: &str,
@@ -1401,7 +1406,7 @@ impl PostgresWikiBackend {
         })
     }
 
-    pub(super) async fn list_phases(
+    async fn list_phases(
         &self,
         claims: &WikiClaims,
         space_key: &str,
@@ -1430,7 +1435,7 @@ impl PostgresWikiBackend {
         Ok(PhasePageListResponse { phases })
     }
 
-    pub(super) async fn get_phase(
+    async fn get_phase(
         &self,
         claims: &WikiClaims,
         space_key: &str,
@@ -1443,7 +1448,7 @@ impl PostgresWikiBackend {
         self.phase_page(&key, &phase_key).await
     }
 
-    pub(super) async fn link_phase_document(
+    async fn link_phase_document(
         &self,
         claims: &WikiClaims,
         space_key: &str,
@@ -1496,7 +1501,7 @@ impl PostgresWikiBackend {
         self.phase_page(&key, &phase_key).await
     }
 
-    pub(super) async fn list_phase_documents(
+    async fn list_phase_documents(
         &self,
         claims: &WikiClaims,
         space_key: &str,
@@ -1513,7 +1518,7 @@ impl PostgresWikiBackend {
         Ok(DocumentListResponse { documents })
     }
 
-    pub(super) async fn list_phase_evidence(
+    async fn list_phase_evidence(
         &self,
         claims: &WikiClaims,
         space_key: &str,
@@ -1524,7 +1529,7 @@ impl PostgresWikiBackend {
         })
     }
 
-    pub(super) async fn create_evidence(
+    async fn create_evidence(
         &self,
         claims: &WikiClaims,
         body: CreateEvidenceRequest,
@@ -1680,7 +1685,7 @@ impl PostgresWikiBackend {
         self.get_evidence_by_id(evidence_id).await
     }
 
-    pub(super) async fn list_evidence(
+    async fn list_evidence(
         &self,
         claims: Option<&WikiClaims>,
         query: EvidenceQuery,
@@ -1750,7 +1755,7 @@ impl PostgresWikiBackend {
         Ok(evidence_response_from_row(&row))
     }
 
-    pub(super) async fn get_evidence(
+    async fn get_evidence(
         &self,
         claims: &WikiClaims,
         evidence_id: &str,
@@ -1761,7 +1766,7 @@ impl PostgresWikiBackend {
         self.get_evidence_by_id(evidence_id).await
     }
 
-    pub(super) async fn upload_attachment(
+    async fn upload_attachment(
         &self,
         claims: &WikiClaims,
         file_name: String,
@@ -1814,7 +1819,7 @@ impl PostgresWikiBackend {
         Ok(attachment_response_from_row(&row))
     }
 
-    pub(super) async fn get_attachment(
+    async fn get_attachment(
         &self,
         claims: &WikiClaims,
         attachment_id: &str,
@@ -1830,7 +1835,7 @@ impl PostgresWikiBackend {
         Ok(attachment_response_from_row(&row))
     }
 
-    pub(super) async fn download_attachment(
+    async fn download_attachment(
         &self,
         claims: &WikiClaims,
         attachment_id: &str,
@@ -1875,7 +1880,7 @@ impl PostgresWikiBackend {
         Ok((headers, bytes).into_response())
     }
 
-    pub(super) async fn list_templates(&self) -> Result<TemplateListResponse, shared::AppError> {
+    async fn list_templates(&self) -> Result<TemplateListResponse, shared::AppError> {
         let rows = sqlx::query(
             r#"
             SELECT id, name, document_type, content_markdown
@@ -1892,7 +1897,7 @@ impl PostgresWikiBackend {
         })
     }
 
-    pub(super) async fn create_template(
+    async fn create_template(
         &self,
         claims: &WikiClaims,
         body: CreateTemplateRequest,
@@ -1923,7 +1928,7 @@ impl PostgresWikiBackend {
         Ok(template_response_from_row(&row))
     }
 
-    pub(super) async fn list_audit_log(
+    async fn list_audit_log(
         &self,
         claims: &WikiClaims,
     ) -> Result<AuditLogResponse, shared::AppError> {
@@ -1944,7 +1949,7 @@ impl PostgresWikiBackend {
         })
     }
 
-    pub(super) async fn search(
+    async fn search(
         &self,
         claims: &WikiClaims,
         query: SearchQuery,
@@ -2939,4 +2944,375 @@ fn count_to_usize(value: i64) -> usize {
 
 fn parse_uuid(value: &str, entity: &str) -> Result<Uuid, shared::AppError> {
     Uuid::parse_str(value).map_err(|_| shared::AppError::not_found(entity, value))
+}
+
+#[async_trait::async_trait]
+impl WikiBackendPort for PostgresWikiBackend {
+    async fn authenticate_access_token(&self, token: &str) -> Result<WikiClaims, shared::AppError> {
+        PostgresWikiBackend::authenticate_access_token(self, token).await
+    }
+
+    async fn register(
+        &self,
+        body: WikiRegisterRequest,
+    ) -> Result<WikiAuthResponse, shared::AppError> {
+        PostgresWikiBackend::register(self, body).await
+    }
+
+    async fn login(&self, body: WikiLoginRequest) -> Result<WikiAuthResponse, shared::AppError> {
+        PostgresWikiBackend::login(self, body).await
+    }
+
+    async fn refresh(
+        &self,
+        body: WikiRefreshRequest,
+    ) -> Result<WikiAuthResponse, shared::AppError> {
+        PostgresWikiBackend::refresh(self, body).await
+    }
+
+    async fn logout(&self, claims: &WikiClaims) -> Result<(), shared::AppError> {
+        PostgresWikiBackend::logout(self, claims).await
+    }
+
+    async fn get_current_user(
+        &self,
+        claims: &WikiClaims,
+    ) -> Result<WikiUserResponse, shared::AppError> {
+        PostgresWikiBackend::get_current_user(self, claims).await
+    }
+
+    async fn list_users(
+        &self,
+        claims: &WikiClaims,
+    ) -> Result<WikiUserListResponse, shared::AppError> {
+        PostgresWikiBackend::list_users(self, claims).await
+    }
+
+    async fn create_user(
+        &self,
+        claims: &WikiClaims,
+        body: WikiCreateUserRequest,
+    ) -> Result<WikiUserResponse, shared::AppError> {
+        PostgresWikiBackend::create_user(self, claims, body).await
+    }
+
+    async fn update_user(
+        &self,
+        claims: &WikiClaims,
+        user_id: &str,
+        body: WikiUpdateUserRequest,
+    ) -> Result<WikiUserResponse, shared::AppError> {
+        PostgresWikiBackend::update_user(self, claims, user_id, body).await
+    }
+
+    async fn list_spaces(
+        &self,
+        claims: &WikiClaims,
+    ) -> Result<SpaceListResponse, shared::AppError> {
+        PostgresWikiBackend::list_spaces(self, claims).await
+    }
+
+    async fn create_space(
+        &self,
+        claims: &WikiClaims,
+        body: CreateSpaceRequest,
+    ) -> Result<SpaceResponse, shared::AppError> {
+        PostgresWikiBackend::create_space(self, claims, body).await
+    }
+
+    async fn get_space(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+    ) -> Result<SpaceResponse, shared::AppError> {
+        PostgresWikiBackend::get_space(self, claims, space_key).await
+    }
+
+    async fn update_space(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        body: UpdateSpaceRequest,
+    ) -> Result<SpaceResponse, shared::AppError> {
+        PostgresWikiBackend::update_space(self, claims, space_key, body).await
+    }
+
+    async fn archive_space(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+    ) -> Result<SpaceResponse, shared::AppError> {
+        PostgresWikiBackend::archive_space(self, claims, space_key).await
+    }
+
+    async fn list_space_members(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+    ) -> Result<SpaceMemberListResponse, shared::AppError> {
+        PostgresWikiBackend::list_space_members(self, claims, space_key).await
+    }
+
+    async fn upsert_space_member(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        user_id: &str,
+        body: UpsertSpaceMemberRequest,
+    ) -> Result<SpaceMemberResponse, shared::AppError> {
+        PostgresWikiBackend::upsert_space_member(self, claims, space_key, user_id, body).await
+    }
+
+    async fn delete_space_member(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        user_id: &str,
+    ) -> Result<(), shared::AppError> {
+        PostgresWikiBackend::delete_space_member(self, claims, space_key, user_id).await
+    }
+
+    async fn get_space_tree(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+    ) -> Result<SpaceTreeResponse, shared::AppError> {
+        PostgresWikiBackend::get_space_tree(self, claims, space_key).await
+    }
+
+    async fn create_document(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        body: CreateDocumentRequest,
+    ) -> Result<DocumentResponse, shared::AppError> {
+        PostgresWikiBackend::create_document(self, claims, space_key, body).await
+    }
+
+    async fn get_document(
+        &self,
+        claims: &WikiClaims,
+        document_id: &str,
+    ) -> Result<DocumentResponse, shared::AppError> {
+        PostgresWikiBackend::get_document(self, claims, document_id).await
+    }
+
+    async fn update_document_draft(
+        &self,
+        claims: &WikiClaims,
+        document_id: &str,
+        body: UpdateDocumentDraftRequest,
+    ) -> Result<DocumentResponse, shared::AppError> {
+        PostgresWikiBackend::update_document_draft(self, claims, document_id, body).await
+    }
+
+    async fn publish_document(
+        &self,
+        claims: &WikiClaims,
+        document_id: &str,
+        body: PublishDocumentRequest,
+    ) -> Result<DocumentRevisionResponse, shared::AppError> {
+        PostgresWikiBackend::publish_document(self, claims, document_id, body).await
+    }
+
+    async fn archive_document(
+        &self,
+        claims: &WikiClaims,
+        document_id: &str,
+    ) -> Result<DocumentResponse, shared::AppError> {
+        PostgresWikiBackend::archive_document(self, claims, document_id).await
+    }
+
+    async fn move_document(
+        &self,
+        claims: &WikiClaims,
+        document_id: &str,
+        body: MoveDocumentRequest,
+    ) -> Result<DocumentResponse, shared::AppError> {
+        PostgresWikiBackend::move_document(self, claims, document_id, body).await
+    }
+
+    async fn list_document_revisions(
+        &self,
+        claims: &WikiClaims,
+        document_id: &str,
+    ) -> Result<DocumentRevisionListResponse, shared::AppError> {
+        PostgresWikiBackend::list_document_revisions(self, claims, document_id).await
+    }
+
+    async fn get_document_revision(
+        &self,
+        claims: &WikiClaims,
+        document_id: &str,
+        revision_id: &str,
+    ) -> Result<DocumentRevisionResponse, shared::AppError> {
+        PostgresWikiBackend::get_document_revision(self, claims, document_id, revision_id).await
+    }
+
+    async fn list_tasks(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+    ) -> Result<TaskPageListResponse, shared::AppError> {
+        PostgresWikiBackend::list_tasks(self, claims, space_key).await
+    }
+
+    async fn get_task(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        task_key: &str,
+    ) -> Result<TaskPageResponse, shared::AppError> {
+        PostgresWikiBackend::get_task(self, claims, space_key, task_key).await
+    }
+
+    async fn link_task_document(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        task_key: &str,
+        body: LinkDocumentRequest,
+    ) -> Result<TaskPageResponse, shared::AppError> {
+        PostgresWikiBackend::link_task_document(self, claims, space_key, task_key, body).await
+    }
+
+    async fn list_task_documents(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        task_key: &str,
+    ) -> Result<DocumentListResponse, shared::AppError> {
+        PostgresWikiBackend::list_task_documents(self, claims, space_key, task_key).await
+    }
+
+    async fn list_task_evidence(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        task_key: &str,
+    ) -> Result<EvidenceListResponse, shared::AppError> {
+        PostgresWikiBackend::list_task_evidence(self, claims, space_key, task_key).await
+    }
+
+    async fn list_phases(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+    ) -> Result<PhasePageListResponse, shared::AppError> {
+        PostgresWikiBackend::list_phases(self, claims, space_key).await
+    }
+
+    async fn get_phase(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        phase_key: &str,
+    ) -> Result<PhasePageResponse, shared::AppError> {
+        PostgresWikiBackend::get_phase(self, claims, space_key, phase_key).await
+    }
+
+    async fn link_phase_document(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        phase_key: &str,
+        body: LinkDocumentRequest,
+    ) -> Result<PhasePageResponse, shared::AppError> {
+        PostgresWikiBackend::link_phase_document(self, claims, space_key, phase_key, body).await
+    }
+
+    async fn list_phase_documents(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        phase_key: &str,
+    ) -> Result<DocumentListResponse, shared::AppError> {
+        PostgresWikiBackend::list_phase_documents(self, claims, space_key, phase_key).await
+    }
+
+    async fn list_phase_evidence(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        phase_key: &str,
+    ) -> Result<EvidenceListResponse, shared::AppError> {
+        PostgresWikiBackend::list_phase_evidence(self, claims, space_key, phase_key).await
+    }
+
+    async fn create_evidence(
+        &self,
+        claims: &WikiClaims,
+        body: CreateEvidenceRequest,
+    ) -> Result<EvidenceResponse, shared::AppError> {
+        PostgresWikiBackend::create_evidence(self, claims, body).await
+    }
+
+    async fn list_evidence(
+        &self,
+        claims: Option<&WikiClaims>,
+        query: EvidenceQuery,
+    ) -> Result<EvidenceListResponse, shared::AppError> {
+        PostgresWikiBackend::list_evidence(self, claims, query).await
+    }
+
+    async fn get_evidence(
+        &self,
+        claims: &WikiClaims,
+        evidence_id: &str,
+    ) -> Result<EvidenceResponse, shared::AppError> {
+        PostgresWikiBackend::get_evidence(self, claims, evidence_id).await
+    }
+
+    async fn upload_attachment(
+        &self,
+        claims: &WikiClaims,
+        file_name: String,
+        content_type: String,
+        bytes: Vec<u8>,
+    ) -> Result<AttachmentResponse, shared::AppError> {
+        PostgresWikiBackend::upload_attachment(self, claims, file_name, content_type, bytes).await
+    }
+
+    async fn get_attachment(
+        &self,
+        claims: &WikiClaims,
+        attachment_id: &str,
+    ) -> Result<AttachmentResponse, shared::AppError> {
+        PostgresWikiBackend::get_attachment(self, claims, attachment_id).await
+    }
+
+    async fn download_attachment(
+        &self,
+        claims: &WikiClaims,
+        attachment_id: &str,
+    ) -> Result<Response, shared::AppError> {
+        PostgresWikiBackend::download_attachment(self, claims, attachment_id).await
+    }
+
+    async fn list_templates(&self) -> Result<TemplateListResponse, shared::AppError> {
+        PostgresWikiBackend::list_templates(self).await
+    }
+
+    async fn create_template(
+        &self,
+        claims: &WikiClaims,
+        body: CreateTemplateRequest,
+    ) -> Result<TemplateResponse, shared::AppError> {
+        PostgresWikiBackend::create_template(self, claims, body).await
+    }
+
+    async fn list_audit_log(
+        &self,
+        claims: &WikiClaims,
+    ) -> Result<AuditLogResponse, shared::AppError> {
+        PostgresWikiBackend::list_audit_log(self, claims).await
+    }
+
+    async fn search(
+        &self,
+        claims: &WikiClaims,
+        query: SearchQuery,
+    ) -> Result<SearchResponse, shared::AppError> {
+        PostgresWikiBackend::search(self, claims, query).await
+    }
 }

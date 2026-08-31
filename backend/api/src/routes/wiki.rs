@@ -17,7 +17,6 @@ use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 mod postgres;
-use postgres::PostgresWikiBackend;
 
 #[derive(Clone, Debug)]
 pub struct WikiClaims {
@@ -25,9 +24,239 @@ pub struct WikiClaims {
     pub session_id: Option<String>,
 }
 
+#[async_trait::async_trait]
+trait WikiBackendPort: Send + Sync {
+    async fn authenticate_access_token(&self, token: &str) -> Result<WikiClaims, shared::AppError>;
+    async fn register(
+        &self,
+        body: WikiRegisterRequest,
+    ) -> Result<WikiAuthResponse, shared::AppError>;
+    async fn login(&self, body: WikiLoginRequest) -> Result<WikiAuthResponse, shared::AppError>;
+    async fn refresh(&self, body: WikiRefreshRequest)
+    -> Result<WikiAuthResponse, shared::AppError>;
+    async fn logout(&self, claims: &WikiClaims) -> Result<(), shared::AppError>;
+    async fn get_current_user(
+        &self,
+        claims: &WikiClaims,
+    ) -> Result<WikiUserResponse, shared::AppError>;
+    async fn list_users(
+        &self,
+        claims: &WikiClaims,
+    ) -> Result<WikiUserListResponse, shared::AppError>;
+    async fn create_user(
+        &self,
+        claims: &WikiClaims,
+        body: WikiCreateUserRequest,
+    ) -> Result<WikiUserResponse, shared::AppError>;
+    async fn update_user(
+        &self,
+        claims: &WikiClaims,
+        user_id: &str,
+        body: WikiUpdateUserRequest,
+    ) -> Result<WikiUserResponse, shared::AppError>;
+    async fn list_spaces(&self, claims: &WikiClaims)
+    -> Result<SpaceListResponse, shared::AppError>;
+    async fn create_space(
+        &self,
+        claims: &WikiClaims,
+        body: CreateSpaceRequest,
+    ) -> Result<SpaceResponse, shared::AppError>;
+    async fn get_space(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+    ) -> Result<SpaceResponse, shared::AppError>;
+    async fn update_space(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        body: UpdateSpaceRequest,
+    ) -> Result<SpaceResponse, shared::AppError>;
+    async fn archive_space(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+    ) -> Result<SpaceResponse, shared::AppError>;
+    async fn list_space_members(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+    ) -> Result<SpaceMemberListResponse, shared::AppError>;
+    async fn upsert_space_member(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        user_id: &str,
+        body: UpsertSpaceMemberRequest,
+    ) -> Result<SpaceMemberResponse, shared::AppError>;
+    async fn delete_space_member(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        user_id: &str,
+    ) -> Result<(), shared::AppError>;
+    async fn get_space_tree(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+    ) -> Result<SpaceTreeResponse, shared::AppError>;
+    async fn create_document(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        body: CreateDocumentRequest,
+    ) -> Result<DocumentResponse, shared::AppError>;
+    async fn get_document(
+        &self,
+        claims: &WikiClaims,
+        document_id: &str,
+    ) -> Result<DocumentResponse, shared::AppError>;
+    async fn update_document_draft(
+        &self,
+        claims: &WikiClaims,
+        document_id: &str,
+        body: UpdateDocumentDraftRequest,
+    ) -> Result<DocumentResponse, shared::AppError>;
+    async fn publish_document(
+        &self,
+        claims: &WikiClaims,
+        document_id: &str,
+        body: PublishDocumentRequest,
+    ) -> Result<DocumentRevisionResponse, shared::AppError>;
+    async fn archive_document(
+        &self,
+        claims: &WikiClaims,
+        document_id: &str,
+    ) -> Result<DocumentResponse, shared::AppError>;
+    async fn move_document(
+        &self,
+        claims: &WikiClaims,
+        document_id: &str,
+        body: MoveDocumentRequest,
+    ) -> Result<DocumentResponse, shared::AppError>;
+    async fn list_document_revisions(
+        &self,
+        claims: &WikiClaims,
+        document_id: &str,
+    ) -> Result<DocumentRevisionListResponse, shared::AppError>;
+    async fn get_document_revision(
+        &self,
+        claims: &WikiClaims,
+        document_id: &str,
+        revision_id: &str,
+    ) -> Result<DocumentRevisionResponse, shared::AppError>;
+    async fn list_tasks(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+    ) -> Result<TaskPageListResponse, shared::AppError>;
+    async fn get_task(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        task_key: &str,
+    ) -> Result<TaskPageResponse, shared::AppError>;
+    async fn link_task_document(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        task_key: &str,
+        body: LinkDocumentRequest,
+    ) -> Result<TaskPageResponse, shared::AppError>;
+    async fn list_task_documents(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        task_key: &str,
+    ) -> Result<DocumentListResponse, shared::AppError>;
+    async fn list_task_evidence(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        task_key: &str,
+    ) -> Result<EvidenceListResponse, shared::AppError>;
+    async fn list_phases(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+    ) -> Result<PhasePageListResponse, shared::AppError>;
+    async fn get_phase(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        phase_key: &str,
+    ) -> Result<PhasePageResponse, shared::AppError>;
+    async fn link_phase_document(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        phase_key: &str,
+        body: LinkDocumentRequest,
+    ) -> Result<PhasePageResponse, shared::AppError>;
+    async fn list_phase_documents(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        phase_key: &str,
+    ) -> Result<DocumentListResponse, shared::AppError>;
+    async fn list_phase_evidence(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        phase_key: &str,
+    ) -> Result<EvidenceListResponse, shared::AppError>;
+    async fn create_evidence(
+        &self,
+        claims: &WikiClaims,
+        body: CreateEvidenceRequest,
+    ) -> Result<EvidenceResponse, shared::AppError>;
+    async fn list_evidence(
+        &self,
+        claims: Option<&WikiClaims>,
+        query: EvidenceQuery,
+    ) -> Result<EvidenceListResponse, shared::AppError>;
+    async fn get_evidence(
+        &self,
+        claims: &WikiClaims,
+        evidence_id: &str,
+    ) -> Result<EvidenceResponse, shared::AppError>;
+    async fn upload_attachment(
+        &self,
+        claims: &WikiClaims,
+        file_name: String,
+        content_type: String,
+        bytes: Vec<u8>,
+    ) -> Result<AttachmentResponse, shared::AppError>;
+    async fn get_attachment(
+        &self,
+        claims: &WikiClaims,
+        attachment_id: &str,
+    ) -> Result<AttachmentResponse, shared::AppError>;
+    async fn download_attachment(
+        &self,
+        claims: &WikiClaims,
+        attachment_id: &str,
+    ) -> Result<Response, shared::AppError>;
+    async fn list_templates(&self) -> Result<TemplateListResponse, shared::AppError>;
+    async fn create_template(
+        &self,
+        claims: &WikiClaims,
+        body: CreateTemplateRequest,
+    ) -> Result<TemplateResponse, shared::AppError>;
+    async fn list_audit_log(
+        &self,
+        claims: &WikiClaims,
+    ) -> Result<AuditLogResponse, shared::AppError>;
+    async fn search(
+        &self,
+        claims: &WikiClaims,
+        query: SearchQuery,
+    ) -> Result<SearchResponse, shared::AppError>;
+}
+
 #[derive(Clone)]
 pub struct WikiBackend {
-    postgres: Option<Arc<PostgresWikiBackend>>,
+    persistent: Option<Arc<dyn WikiBackendPort>>,
     registration_enabled: bool,
 }
 
@@ -42,7 +271,14 @@ impl WikiBackend {
 
     fn memory_with_registration(registration_enabled: bool) -> Self {
         Self {
-            postgres: None,
+            persistent: None,
+            registration_enabled,
+        }
+    }
+
+    fn persistent(backend: Arc<dyn WikiBackendPort>, registration_enabled: bool) -> Self {
+        Self {
+            persistent: Some(backend),
             registration_enabled,
         }
     }
@@ -57,15 +293,11 @@ impl WikiBackend {
             ));
         }
 
-        let backend = PostgresWikiBackend::connect(config, storage).await?;
-        Ok(Self {
-            postgres: Some(Arc::new(backend)),
-            registration_enabled: config.auth.registration_enabled,
-        })
+        postgres::connect_persistent_backend(config, storage).await
     }
 
-    fn postgres(&self) -> Option<&PostgresWikiBackend> {
-        self.postgres.as_deref()
+    fn persistent_backend(&self) -> Option<&dyn WikiBackendPort> {
+        self.persistent.as_deref()
     }
 
     fn registration_enabled(&self) -> bool {
@@ -650,8 +882,8 @@ fn store() -> &'static Mutex<WikiStore> {
 
 impl WikiBackend {
     async fn authenticate_access_token(&self, token: &str) -> Result<WikiClaims, shared::AppError> {
-        if let Some(postgres) = self.postgres() {
-            return postgres.authenticate_access_token(token).await;
+        if let Some(persistent) = self.persistent_backend() {
+            return persistent.authenticate_access_token(token).await;
         }
 
         let user_id = {
@@ -699,8 +931,8 @@ pub async fn register(
         return Err(shared::AppError::Forbidden);
     }
 
-    if let Some(postgres) = backend.postgres() {
-        let response = postgres.register(body).await?;
+    if let Some(persistent) = backend.persistent_backend() {
+        let response = persistent.register(body).await?;
         return Ok((StatusCode::CREATED, Json(response)));
     }
 
@@ -743,8 +975,8 @@ pub async fn login(
     Extension(backend): Extension<WikiBackend>,
     Json(body): Json<WikiLoginRequest>,
 ) -> Result<Json<WikiAuthResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.login(body).await?));
+    if let Some(persistent) = backend.persistent_backend() {
+        return Ok(Json(persistent.login(body).await?));
     }
 
     let mut store = store().lock().expect("wiki store lock");
@@ -772,8 +1004,8 @@ pub async fn refresh(
     Extension(backend): Extension<WikiBackend>,
     Json(body): Json<WikiRefreshRequest>,
 ) -> Result<Json<WikiAuthResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.refresh(body).await?));
+    if let Some(persistent) = backend.persistent_backend() {
+        return Ok(Json(persistent.refresh(body).await?));
     }
 
     let mut store = store().lock().expect("wiki store lock");
@@ -802,8 +1034,8 @@ pub async fn logout(
     Extension(backend): Extension<WikiBackend>,
     Extension(claims): Extension<WikiClaims>,
 ) -> Result<StatusCode, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
-        postgres.logout(&claims).await?;
+    if let Some(persistent) = backend.persistent_backend() {
+        persistent.logout(&claims).await?;
         return Ok(StatusCode::NO_CONTENT);
     }
 
@@ -824,8 +1056,8 @@ pub async fn get_current_user(
     Extension(backend): Extension<WikiBackend>,
     Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<WikiUserResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.get_current_user(&claims).await?));
+    if let Some(persistent) = backend.persistent_backend() {
+        return Ok(Json(persistent.get_current_user(&claims).await?));
     }
 
     let store = store().lock().expect("wiki store lock");
@@ -848,8 +1080,8 @@ pub async fn list_users(
     Extension(backend): Extension<WikiBackend>,
     Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<WikiUserListResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.list_users(&claims).await?));
+    if let Some(persistent) = backend.persistent_backend() {
+        return Ok(Json(persistent.list_users(&claims).await?));
     }
 
     let store = store().lock().expect("wiki store lock");
@@ -872,8 +1104,8 @@ pub async fn create_user(
     Extension(claims): Extension<WikiClaims>,
     Json(body): Json<WikiCreateUserRequest>,
 ) -> Result<impl IntoResponse, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
-        let response = postgres.create_user(&claims, body).await?;
+    if let Some(persistent) = backend.persistent_backend() {
+        let response = persistent.create_user(&claims, body).await?;
         return Ok((StatusCode::CREATED, Json(response)));
     }
 
@@ -922,8 +1154,8 @@ pub async fn update_user(
     Extension(claims): Extension<WikiClaims>,
     Json(body): Json<WikiUpdateUserRequest>,
 ) -> Result<Json<WikiUserResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.update_user(&claims, &user_id, body).await?));
+    if let Some(persistent) = backend.persistent_backend() {
+        return Ok(Json(persistent.update_user(&claims, &user_id, body).await?));
     }
 
     let mut store = store().lock().expect("wiki store lock");
@@ -975,8 +1207,8 @@ pub async fn list_spaces(
     Extension(backend): Extension<WikiBackend>,
     Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<SpaceListResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.list_spaces(&claims).await?));
+    if let Some(persistent) = backend.persistent_backend() {
+        return Ok(Json(persistent.list_spaces(&claims).await?));
     }
 
     let store = store().lock().expect("wiki store lock");
@@ -998,8 +1230,8 @@ pub async fn create_space(
     Extension(claims): Extension<WikiClaims>,
     Json(body): Json<CreateSpaceRequest>,
 ) -> Result<impl IntoResponse, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
-        let response = postgres.create_space(&claims, body).await?;
+    if let Some(persistent) = backend.persistent_backend() {
+        let response = persistent.create_space(&claims, body).await?;
         return Ok((StatusCode::CREATED, Json(response)));
     }
 
@@ -1046,8 +1278,8 @@ pub async fn get_space(
     Extension(backend): Extension<WikiBackend>,
     Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<SpaceResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.get_space(&claims, &space_key).await?));
+    if let Some(persistent) = backend.persistent_backend() {
+        return Ok(Json(persistent.get_space(&claims, &space_key).await?));
     }
 
     let store = store().lock().expect("wiki store lock");
@@ -1074,9 +1306,9 @@ pub async fn update_space(
     Extension(claims): Extension<WikiClaims>,
     Json(body): Json<UpdateSpaceRequest>,
 ) -> Result<Json<SpaceResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
+    if let Some(persistent) = backend.persistent_backend() {
         return Ok(Json(
-            postgres.update_space(&claims, &space_key, body).await?,
+            persistent.update_space(&claims, &space_key, body).await?,
         ));
     }
 
@@ -1111,8 +1343,8 @@ pub async fn archive_space(
     Extension(backend): Extension<WikiBackend>,
     Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<SpaceResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.archive_space(&claims, &space_key).await?));
+    if let Some(persistent) = backend.persistent_backend() {
+        return Ok(Json(persistent.archive_space(&claims, &space_key).await?));
     }
 
     let key = space_key.to_ascii_uppercase();
@@ -1141,9 +1373,9 @@ pub async fn list_space_members(
     Extension(backend): Extension<WikiBackend>,
     Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<SpaceMemberListResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
+    if let Some(persistent) = backend.persistent_backend() {
         return Ok(Json(
-            postgres.list_space_members(&claims, &space_key).await?,
+            persistent.list_space_members(&claims, &space_key).await?,
         ));
     }
 
@@ -1181,9 +1413,9 @@ pub async fn upsert_space_member(
     Extension(claims): Extension<WikiClaims>,
     Json(body): Json<UpsertSpaceMemberRequest>,
 ) -> Result<Json<SpaceMemberResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
+    if let Some(persistent) = backend.persistent_backend() {
         return Ok(Json(
-            postgres
+            persistent
                 .upsert_space_member(&claims, &space_key, &user_id, body)
                 .await?,
         ));
@@ -1229,8 +1461,8 @@ pub async fn delete_space_member(
     Extension(backend): Extension<WikiBackend>,
     Extension(claims): Extension<WikiClaims>,
 ) -> Result<StatusCode, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
-        postgres
+    if let Some(persistent) = backend.persistent_backend() {
+        persistent
             .delete_space_member(&claims, &space_key, &user_id)
             .await?;
         return Ok(StatusCode::NO_CONTENT);
@@ -1265,8 +1497,8 @@ pub async fn get_space_tree(
     Extension(backend): Extension<WikiBackend>,
     Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<SpaceTreeResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.get_space_tree(&claims, &space_key).await?));
+    if let Some(persistent) = backend.persistent_backend() {
+        return Ok(Json(persistent.get_space_tree(&claims, &space_key).await?));
     }
 
     let store = store().lock().expect("wiki store lock");
@@ -1296,8 +1528,10 @@ pub async fn create_document(
     Extension(claims): Extension<WikiClaims>,
     Json(body): Json<CreateDocumentRequest>,
 ) -> Result<impl IntoResponse, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
-        let response = postgres.create_document(&claims, &space_key, body).await?;
+    if let Some(persistent) = backend.persistent_backend() {
+        let response = persistent
+            .create_document(&claims, &space_key, body)
+            .await?;
         return Ok((StatusCode::CREATED, Json(response)));
     }
 
@@ -1390,8 +1624,8 @@ pub async fn get_document(
     Extension(backend): Extension<WikiBackend>,
     Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<DocumentResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.get_document(&claims, &document_id).await?));
+    if let Some(persistent) = backend.persistent_backend() {
+        return Ok(Json(persistent.get_document(&claims, &document_id).await?));
     }
 
     let store = store().lock().expect("wiki store lock");
@@ -1414,9 +1648,9 @@ pub async fn update_document_draft(
     Extension(claims): Extension<WikiClaims>,
     Json(body): Json<UpdateDocumentDraftRequest>,
 ) -> Result<Json<DocumentResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
+    if let Some(persistent) = backend.persistent_backend() {
         return Ok(Json(
-            postgres
+            persistent
                 .update_document_draft(&claims, &document_id, body)
                 .await?,
         ));
@@ -1454,9 +1688,9 @@ pub async fn publish_document(
     Extension(claims): Extension<WikiClaims>,
     Json(body): Json<PublishDocumentRequest>,
 ) -> Result<Json<DocumentRevisionResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
+    if let Some(persistent) = backend.persistent_backend() {
         return Ok(Json(
-            postgres
+            persistent
                 .publish_document(&claims, &document_id, body)
                 .await?,
         ));
@@ -1509,9 +1743,9 @@ pub async fn archive_document(
     Extension(backend): Extension<WikiBackend>,
     Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<DocumentResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
+    if let Some(persistent) = backend.persistent_backend() {
         return Ok(Json(
-            postgres.archive_document(&claims, &document_id).await?,
+            persistent.archive_document(&claims, &document_id).await?,
         ));
     }
 
@@ -1543,9 +1777,11 @@ pub async fn move_document(
     Extension(claims): Extension<WikiClaims>,
     Json(body): Json<MoveDocumentRequest>,
 ) -> Result<Json<DocumentResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
+    if let Some(persistent) = backend.persistent_backend() {
         return Ok(Json(
-            postgres.move_document(&claims, &document_id, body).await?,
+            persistent
+                .move_document(&claims, &document_id, body)
+                .await?,
         ));
     }
 
@@ -1601,9 +1837,9 @@ pub async fn list_document_revisions(
     Extension(backend): Extension<WikiBackend>,
     Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<DocumentRevisionListResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
+    if let Some(persistent) = backend.persistent_backend() {
         return Ok(Json(
-            postgres
+            persistent
                 .list_document_revisions(&claims, &document_id)
                 .await?,
         ));
@@ -1629,9 +1865,9 @@ pub async fn get_document_revision(
     Extension(backend): Extension<WikiBackend>,
     Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<DocumentRevisionResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
+    if let Some(persistent) = backend.persistent_backend() {
         return Ok(Json(
-            postgres
+            persistent
                 .get_document_revision(&claims, &document_id, &revision_id)
                 .await?,
         ));
@@ -1661,8 +1897,8 @@ pub async fn list_tasks(
     Extension(backend): Extension<WikiBackend>,
     Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<TaskPageListResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.list_tasks(&claims, &space_key).await?));
+    if let Some(persistent) = backend.persistent_backend() {
+        return Ok(Json(persistent.list_tasks(&claims, &space_key).await?));
     }
 
     let store = store().lock().expect("wiki store lock");
@@ -1703,9 +1939,9 @@ pub async fn get_task(
     Extension(backend): Extension<WikiBackend>,
     Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<TaskPageResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
+    if let Some(persistent) = backend.persistent_backend() {
         return Ok(Json(
-            postgres.get_task(&claims, &space_key, &task_key).await?,
+            persistent.get_task(&claims, &space_key, &task_key).await?,
         ));
     }
 
@@ -1732,9 +1968,9 @@ pub async fn link_task_document(
     Extension(claims): Extension<WikiClaims>,
     Json(body): Json<LinkDocumentRequest>,
 ) -> Result<Json<TaskPageResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
+    if let Some(persistent) = backend.persistent_backend() {
         return Ok(Json(
-            postgres
+            persistent
                 .link_task_document(&claims, &space_key, &task_key, body)
                 .await?,
         ));
@@ -1774,9 +2010,9 @@ pub async fn list_task_documents(
     Extension(backend): Extension<WikiBackend>,
     Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<DocumentListResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
+    if let Some(persistent) = backend.persistent_backend() {
         return Ok(Json(
-            postgres
+            persistent
                 .list_task_documents(&claims, &space_key, &task_key)
                 .await?,
         ));
@@ -1808,9 +2044,9 @@ pub async fn list_task_evidence(
     Extension(backend): Extension<WikiBackend>,
     Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<EvidenceListResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
+    if let Some(persistent) = backend.persistent_backend() {
         return Ok(Json(
-            postgres
+            persistent
                 .list_task_evidence(&claims, &space_key, &task_key)
                 .await?,
         ));
@@ -1839,8 +2075,8 @@ pub async fn list_phases(
     Extension(backend): Extension<WikiBackend>,
     Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<PhasePageListResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.list_phases(&claims, &space_key).await?));
+    if let Some(persistent) = backend.persistent_backend() {
+        return Ok(Json(persistent.list_phases(&claims, &space_key).await?));
     }
 
     let store = store().lock().expect("wiki store lock");
@@ -1881,9 +2117,11 @@ pub async fn get_phase(
     Extension(backend): Extension<WikiBackend>,
     Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<PhasePageResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
+    if let Some(persistent) = backend.persistent_backend() {
         return Ok(Json(
-            postgres.get_phase(&claims, &space_key, &phase_key).await?,
+            persistent
+                .get_phase(&claims, &space_key, &phase_key)
+                .await?,
         ));
     }
 
@@ -1910,9 +2148,9 @@ pub async fn link_phase_document(
     Extension(claims): Extension<WikiClaims>,
     Json(body): Json<LinkDocumentRequest>,
 ) -> Result<Json<PhasePageResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
+    if let Some(persistent) = backend.persistent_backend() {
         return Ok(Json(
-            postgres
+            persistent
                 .link_phase_document(&claims, &space_key, &phase_key, body)
                 .await?,
         ));
@@ -1952,9 +2190,9 @@ pub async fn list_phase_documents(
     Extension(backend): Extension<WikiBackend>,
     Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<DocumentListResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
+    if let Some(persistent) = backend.persistent_backend() {
         return Ok(Json(
-            postgres
+            persistent
                 .list_phase_documents(&claims, &space_key, &phase_key)
                 .await?,
         ));
@@ -1986,9 +2224,9 @@ pub async fn list_phase_evidence(
     Extension(backend): Extension<WikiBackend>,
     Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<EvidenceListResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
+    if let Some(persistent) = backend.persistent_backend() {
         return Ok(Json(
-            postgres
+            persistent
                 .list_phase_evidence(&claims, &space_key, &phase_key)
                 .await?,
         ));
@@ -2017,8 +2255,8 @@ pub async fn create_evidence(
     Extension(claims): Extension<WikiClaims>,
     Json(body): Json<CreateEvidenceRequest>,
 ) -> Result<impl IntoResponse, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
-        let response = postgres.create_evidence(&claims, body).await?;
+    if let Some(persistent) = backend.persistent_backend() {
+        let response = persistent.create_evidence(&claims, body).await?;
         return Ok((StatusCode::CREATED, Json(response)));
     }
 
@@ -2115,8 +2353,8 @@ pub async fn list_evidence(
     Extension(claims): Extension<WikiClaims>,
     Query(query): Query<EvidenceQuery>,
 ) -> Result<Json<EvidenceListResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.list_evidence(Some(&claims), query).await?));
+    if let Some(persistent) = backend.persistent_backend() {
+        return Ok(Json(persistent.list_evidence(Some(&claims), query).await?));
     }
 
     let store = store().lock().expect("wiki store lock");
@@ -2169,8 +2407,8 @@ pub async fn get_evidence(
     Extension(backend): Extension<WikiBackend>,
     Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<EvidenceResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.get_evidence(&claims, &evidence_id).await?));
+    if let Some(persistent) = backend.persistent_backend() {
+        return Ok(Json(persistent.get_evidence(&claims, &evidence_id).await?));
     }
 
     let store = store().lock().expect("wiki store lock");
@@ -2221,8 +2459,8 @@ pub async fn upload_attachment(
         return Err(shared::AppError::invalid_input("file is required"));
     }
 
-    if let Some(postgres) = backend.postgres() {
-        let response = postgres
+    if let Some(persistent) = backend.persistent_backend() {
+        let response = persistent
             .upload_attachment(&claims, file_name, content_type, bytes)
             .await?;
         return Ok((StatusCode::CREATED, Json(response)));
@@ -2263,9 +2501,9 @@ pub async fn get_attachment(
     Extension(backend): Extension<WikiBackend>,
     Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<AttachmentResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
+    if let Some(persistent) = backend.persistent_backend() {
         return Ok(Json(
-            postgres.get_attachment(&claims, &attachment_id).await?,
+            persistent.get_attachment(&claims, &attachment_id).await?,
         ));
     }
 
@@ -2291,8 +2529,10 @@ pub async fn download_attachment(
     Extension(backend): Extension<WikiBackend>,
     Extension(claims): Extension<WikiClaims>,
 ) -> Result<Response, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
-        return postgres.download_attachment(&claims, &attachment_id).await;
+    if let Some(persistent) = backend.persistent_backend() {
+        return persistent
+            .download_attachment(&claims, &attachment_id)
+            .await;
     }
 
     let store = store().lock().expect("wiki store lock");
@@ -2328,8 +2568,8 @@ pub async fn download_attachment(
 pub async fn list_templates(
     Extension(backend): Extension<WikiBackend>,
 ) -> Result<Json<TemplateListResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.list_templates().await?));
+    if let Some(persistent) = backend.persistent_backend() {
+        return Ok(Json(persistent.list_templates().await?));
     }
 
     let store = store().lock().expect("wiki store lock");
@@ -2351,8 +2591,8 @@ pub async fn create_template(
     Extension(claims): Extension<WikiClaims>,
     Json(body): Json<CreateTemplateRequest>,
 ) -> Result<impl IntoResponse, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
-        let response = postgres.create_template(&claims, body).await?;
+    if let Some(persistent) = backend.persistent_backend() {
+        let response = persistent.create_template(&claims, body).await?;
         return Ok((StatusCode::CREATED, Json(response)));
     }
 
@@ -2380,8 +2620,8 @@ pub async fn list_audit_log(
     Extension(backend): Extension<WikiBackend>,
     Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<AuditLogResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.list_audit_log(&claims).await?));
+    if let Some(persistent) = backend.persistent_backend() {
+        return Ok(Json(persistent.list_audit_log(&claims).await?));
     }
 
     let store = store().lock().expect("wiki store lock");
@@ -2404,8 +2644,8 @@ pub async fn search(
     Extension(claims): Extension<WikiClaims>,
     Query(query): Query<SearchQuery>,
 ) -> Result<Json<SearchResponse>, shared::AppError> {
-    if let Some(postgres) = backend.postgres() {
-        return Ok(Json(postgres.search(&claims, query).await?));
+    if let Some(persistent) = backend.persistent_backend() {
+        return Ok(Json(persistent.search(&claims, query).await?));
     }
 
     let store = store().lock().expect("wiki store lock");
