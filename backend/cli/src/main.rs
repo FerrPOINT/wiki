@@ -629,6 +629,10 @@ fn find_template<'a>(value: &'a Value, requested: &str) -> Result<&'a Value> {
                     .get("name")
                     .and_then(Value::as_str)
                     .is_some_and(|name| name.to_ascii_lowercase() == requested_lower)
+                || template
+                    .get("document_type")
+                    .and_then(Value::as_str)
+                    .is_some_and(|document_type| document_type.eq_ignore_ascii_case(requested))
         })
         .with_context(|| format!("template {requested} not found"))
 }
@@ -829,8 +833,8 @@ mod tests {
             }
             "/api/v1/templates" => json!({
                 "templates": [{
-                    "id": "requirements",
-                    "name": "Requirements",
+                    "id": "00000000-0000-0000-0000-000000000042",
+                    "name": "Требования",
                     "document_type": "requirements",
                     "body_markdown": "# Requirements\n\nTemplate body"
                 }]
@@ -999,6 +1003,54 @@ mod tests {
         assert_eq!(body["title"], "CLI file evidence");
         assert_eq!(body["attachment_id"], "attachment-1");
         assert_eq!(body["checksum"], "sha256-test");
+    }
+
+    #[tokio::test]
+    async fn template_apply_matches_document_type_and_creates_document() {
+        let server = spawn_mock_server().await;
+        let api = ApiClient::new(server.api_url.clone(), Some("secret-token".to_string()));
+
+        let value = execute(
+            &api,
+            Commands::Template {
+                command: TemplateCommands::Apply(TemplateApplyArgs {
+                    template: "requirements".to_string(),
+                    space: "SDLC".to_string(),
+                    title: "CLI template document".to_string(),
+                    parent_id: Some("parent-document".to_string()),
+                    task: Some("SDLC-42".to_string()),
+                    phase: Some("requirements".to_string()),
+                }),
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(value["status"], "ok");
+        let requests = server.requests();
+        assert_eq!(requests.len(), 2);
+
+        let list_templates = &requests[0];
+        assert_eq!(list_templates.method, Method::GET);
+        assert_eq!(list_templates.path, "/api/v1/templates");
+        assert!(list_templates.idempotency_key.is_none());
+
+        let create_document = &requests[1];
+        assert_eq!(create_document.method, Method::POST);
+        assert_eq!(create_document.path, "/api/v1/spaces/SDLC/documents");
+        assert!(
+            create_document
+                .idempotency_key
+                .as_deref()
+                .is_some_and(|value| value.starts_with("wiki-cli-write-"))
+        );
+        let body: Value = serde_json::from_slice(&create_document.body).unwrap();
+        assert_eq!(body["title"], "CLI template document");
+        assert_eq!(body["document_type"], "requirements");
+        assert_eq!(body["parent_id"], "parent-document");
+        assert_eq!(body["task_key"], "SDLC-42");
+        assert_eq!(body["phase_key"], "requirements");
+        assert_eq!(body["content_markdown"], "# Requirements\n\nTemplate body");
     }
 
     fn temp_file(prefix: &str, content: &str) -> PathBuf {
