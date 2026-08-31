@@ -871,6 +871,15 @@ mod tests {
             .map(ToOwned::to_owned)
     }
 
+    fn assert_write_idempotency_key(request: &RecordedRequest) {
+        assert!(
+            request
+                .idempotency_key
+                .as_deref()
+                .is_some_and(|value| value.starts_with("wiki-cli-write-"))
+        );
+    }
+
     #[tokio::test]
     async fn search_query_builds_filtered_get_request() {
         let server = spawn_mock_server().await;
@@ -904,6 +913,155 @@ mod tests {
             Some("Bearer secret-token")
         );
         assert!(requests[0].idempotency_key.is_none());
+    }
+
+    #[tokio::test]
+    async fn auth_commands_use_public_api_paths_and_auth_headers() {
+        let server = spawn_mock_server().await;
+        let anonymous_api = ApiClient::new(server.api_url.clone(), None);
+        let authed_api = ApiClient::new(server.api_url.clone(), Some("secret-token".to_string()));
+
+        let login = execute(
+            &anonymous_api,
+            Commands::Auth {
+                command: AuthCommands::Login {
+                    email: "editor@example.com".to_string(),
+                    password: "secret".to_string(),
+                },
+            },
+        )
+        .await
+        .unwrap();
+        let logout = execute(
+            &authed_api,
+            Commands::Auth {
+                command: AuthCommands::Logout,
+            },
+        )
+        .await
+        .unwrap();
+        let whoami = execute(
+            &authed_api,
+            Commands::Auth {
+                command: AuthCommands::Whoami,
+            },
+        )
+        .await
+        .unwrap();
+
+        for value in [login, logout, whoami] {
+            assert_eq!(value["status"], "ok");
+        }
+
+        let requests = server.requests();
+        assert_eq!(requests.len(), 3);
+
+        let login = &requests[0];
+        assert_eq!(login.method, Method::POST);
+        assert_eq!(login.path, "/api/v1/auth/login");
+        assert!(login.authorization.is_none());
+        assert_write_idempotency_key(login);
+        let body: Value = serde_json::from_slice(&login.body).unwrap();
+        assert_eq!(body["email"], "editor@example.com");
+        assert_eq!(body["password"], "secret");
+
+        let logout = &requests[1];
+        assert_eq!(logout.method, Method::POST);
+        assert_eq!(logout.path, "/api/v1/auth/logout");
+        assert_eq!(logout.authorization.as_deref(), Some("Bearer secret-token"));
+        assert_write_idempotency_key(logout);
+
+        let whoami = &requests[2];
+        assert_eq!(whoami.method, Method::GET);
+        assert_eq!(whoami.path, "/api/v1/users/me");
+        assert_eq!(whoami.authorization.as_deref(), Some("Bearer secret-token"));
+        assert!(whoami.idempotency_key.is_none());
+    }
+
+    #[tokio::test]
+    async fn space_commands_use_public_api_paths() {
+        let server = spawn_mock_server().await;
+        let api = ApiClient::new(server.api_url.clone(), Some("secret-token".to_string()));
+
+        let list = execute(
+            &api,
+            Commands::Space {
+                command: SpaceCommands::List,
+            },
+        )
+        .await
+        .unwrap();
+        let create = execute(
+            &api,
+            Commands::Space {
+                command: SpaceCommands::Create {
+                    key: "SDLC KB".to_string(),
+                    name: "SDLC Knowledge Base".to_string(),
+                    description: Some("Internal docs".to_string()),
+                },
+            },
+        )
+        .await
+        .unwrap();
+        let get = execute(
+            &api,
+            Commands::Space {
+                command: SpaceCommands::Get {
+                    key: "SDLC KB".to_string(),
+                },
+            },
+        )
+        .await
+        .unwrap();
+        let tree = execute(
+            &api,
+            Commands::Space {
+                command: SpaceCommands::Tree {
+                    key: "SDLC KB".to_string(),
+                },
+            },
+        )
+        .await
+        .unwrap();
+        let members = execute(
+            &api,
+            Commands::Space {
+                command: SpaceCommands::Members {
+                    key: "SDLC KB".to_string(),
+                },
+            },
+        )
+        .await
+        .unwrap();
+
+        for value in [list, create, get, tree, members] {
+            assert_eq!(value["status"], "ok");
+        }
+
+        let requests = server.requests();
+        assert_eq!(requests.len(), 5);
+        assert_eq!(requests[0].method, Method::GET);
+        assert_eq!(requests[0].path, "/api/v1/spaces");
+        assert!(requests[0].idempotency_key.is_none());
+
+        let create = &requests[1];
+        assert_eq!(create.method, Method::POST);
+        assert_eq!(create.path, "/api/v1/spaces");
+        assert_write_idempotency_key(create);
+        let body: Value = serde_json::from_slice(&create.body).unwrap();
+        assert_eq!(body["key"], "SDLC KB");
+        assert_eq!(body["name"], "SDLC Knowledge Base");
+        assert_eq!(body["description"], "Internal docs");
+
+        assert_eq!(requests[2].method, Method::GET);
+        assert_eq!(requests[2].path, "/api/v1/spaces/SDLC%20KB");
+        assert!(requests[2].idempotency_key.is_none());
+        assert_eq!(requests[3].method, Method::GET);
+        assert_eq!(requests[3].path, "/api/v1/spaces/SDLC%20KB/tree");
+        assert!(requests[3].idempotency_key.is_none());
+        assert_eq!(requests[4].method, Method::GET);
+        assert_eq!(requests[4].path, "/api/v1/spaces/SDLC%20KB/members");
+        assert!(requests[4].idempotency_key.is_none());
     }
 
     #[tokio::test]
@@ -1095,6 +1253,220 @@ mod tests {
             "/api/v1/documents/product%20requirements/revisions"
         );
         assert!(history.idempotency_key.is_none());
+    }
+
+    #[tokio::test]
+    async fn read_commands_use_public_api_paths_without_idempotency_keys() {
+        let server = spawn_mock_server().await;
+        let api = ApiClient::new(server.api_url.clone(), Some("secret-token".to_string()));
+
+        let document = execute(
+            &api,
+            Commands::Doc {
+                command: DocCommands::Get {
+                    document_id: "product requirements".to_string(),
+                },
+            },
+        )
+        .await
+        .unwrap();
+        let evidence = execute(
+            &api,
+            Commands::Evidence {
+                command: EvidenceCommands::Get {
+                    evidence_id: "smoke evidence".to_string(),
+                },
+            },
+        )
+        .await
+        .unwrap();
+        let templates = execute(
+            &api,
+            Commands::Template {
+                command: TemplateCommands::List,
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(document["status"], "ok");
+        assert_eq!(evidence["status"], "ok");
+        assert!(templates["templates"].is_array());
+
+        let requests = server.requests();
+        assert_eq!(requests.len(), 3);
+        assert_eq!(requests[0].method, Method::GET);
+        assert_eq!(requests[0].path, "/api/v1/documents/product%20requirements");
+        assert!(requests[0].idempotency_key.is_none());
+        assert_eq!(requests[1].method, Method::GET);
+        assert_eq!(requests[1].path, "/api/v1/evidence/smoke%20evidence");
+        assert!(requests[1].idempotency_key.is_none());
+        assert_eq!(requests[2].method, Method::GET);
+        assert_eq!(requests[2].path, "/api/v1/templates");
+        assert!(requests[2].idempotency_key.is_none());
+    }
+
+    #[tokio::test]
+    async fn task_and_phase_commands_use_public_api_paths() {
+        let server = spawn_mock_server().await;
+        let api = ApiClient::new(server.api_url.clone(), Some("secret-token".to_string()));
+
+        let task_get = execute(
+            &api,
+            Commands::Task {
+                command: TaskCommands::Get(LinkTargetArgs {
+                    space: "SDLC KB".to_string(),
+                    key: "SDLC-42".to_string(),
+                }),
+            },
+        )
+        .await
+        .unwrap();
+        let task_docs = execute(
+            &api,
+            Commands::Task {
+                command: TaskCommands::Docs(LinkTargetArgs {
+                    space: "SDLC KB".to_string(),
+                    key: "SDLC-42".to_string(),
+                }),
+            },
+        )
+        .await
+        .unwrap();
+        let task_evidence = execute(
+            &api,
+            Commands::Task {
+                command: TaskCommands::Evidence(LinkTargetArgs {
+                    space: "SDLC KB".to_string(),
+                    key: "SDLC-42".to_string(),
+                }),
+            },
+        )
+        .await
+        .unwrap();
+        let task_link = execute(
+            &api,
+            Commands::Task {
+                command: TaskCommands::LinkDoc(LinkDocumentArgs {
+                    space: "SDLC KB".to_string(),
+                    key: "SDLC-42".to_string(),
+                    document: "product requirements".to_string(),
+                }),
+            },
+        )
+        .await
+        .unwrap();
+        let phase_get = execute(
+            &api,
+            Commands::Phase {
+                command: PhaseCommands::Get(LinkTargetArgs {
+                    space: "SDLC KB".to_string(),
+                    key: "implementation".to_string(),
+                }),
+            },
+        )
+        .await
+        .unwrap();
+        let phase_docs = execute(
+            &api,
+            Commands::Phase {
+                command: PhaseCommands::Docs(LinkTargetArgs {
+                    space: "SDLC KB".to_string(),
+                    key: "implementation".to_string(),
+                }),
+            },
+        )
+        .await
+        .unwrap();
+        let phase_evidence = execute(
+            &api,
+            Commands::Phase {
+                command: PhaseCommands::Evidence(LinkTargetArgs {
+                    space: "SDLC KB".to_string(),
+                    key: "implementation".to_string(),
+                }),
+            },
+        )
+        .await
+        .unwrap();
+        let phase_link = execute(
+            &api,
+            Commands::Phase {
+                command: PhaseCommands::LinkDoc(LinkDocumentArgs {
+                    space: "SDLC KB".to_string(),
+                    key: "implementation".to_string(),
+                    document: "product requirements".to_string(),
+                }),
+            },
+        )
+        .await
+        .unwrap();
+
+        for value in [
+            task_get,
+            task_docs,
+            task_evidence,
+            task_link,
+            phase_get,
+            phase_docs,
+            phase_evidence,
+            phase_link,
+        ] {
+            assert_eq!(value["status"], "ok");
+        }
+
+        let requests = server.requests();
+        assert_eq!(requests.len(), 8);
+        assert_eq!(requests[0].method, Method::GET);
+        assert_eq!(requests[0].path, "/api/v1/spaces/SDLC%20KB/tasks/SDLC-42");
+        assert!(requests[0].idempotency_key.is_none());
+        assert_eq!(requests[1].method, Method::GET);
+        assert_eq!(
+            requests[1].path,
+            "/api/v1/spaces/SDLC%20KB/tasks/SDLC-42/documents"
+        );
+        assert_eq!(requests[2].method, Method::GET);
+        assert_eq!(
+            requests[2].path,
+            "/api/v1/spaces/SDLC%20KB/tasks/SDLC-42/evidence"
+        );
+
+        let task_link = &requests[3];
+        assert_eq!(task_link.method, Method::POST);
+        assert_eq!(
+            task_link.path,
+            "/api/v1/spaces/SDLC%20KB/tasks/SDLC-42/links/documents"
+        );
+        assert_write_idempotency_key(task_link);
+        let body: Value = serde_json::from_slice(&task_link.body).unwrap();
+        assert_eq!(body["document_id"], "product requirements");
+
+        assert_eq!(requests[4].method, Method::GET);
+        assert_eq!(
+            requests[4].path,
+            "/api/v1/spaces/SDLC%20KB/phases/implementation"
+        );
+        assert!(requests[4].idempotency_key.is_none());
+        assert_eq!(requests[5].method, Method::GET);
+        assert_eq!(
+            requests[5].path,
+            "/api/v1/spaces/SDLC%20KB/phases/implementation/documents"
+        );
+        assert_eq!(requests[6].method, Method::GET);
+        assert_eq!(
+            requests[6].path,
+            "/api/v1/spaces/SDLC%20KB/phases/implementation/evidence"
+        );
+
+        let phase_link = &requests[7];
+        assert_eq!(phase_link.method, Method::POST);
+        assert_eq!(
+            phase_link.path,
+            "/api/v1/spaces/SDLC%20KB/phases/implementation/links/documents"
+        );
+        assert_write_idempotency_key(phase_link);
+        let body: Value = serde_json::from_slice(&phase_link.body).unwrap();
+        assert_eq!(body["document_id"], "product requirements");
     }
 
     #[tokio::test]
