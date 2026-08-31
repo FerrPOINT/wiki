@@ -15,6 +15,7 @@
 | SQLx schema baseline | Current | `backend/migrations/202608310001_create_wiki_mvp.*.sql` creates a fresh Wiki MVP schema without task-tracker tables; `202608310002_add_auth_runtime.*.sql` adds usernames and auth sessions |
 | SQLx runtime persistence | Current | Users, auth sessions, spaces, members, documents, drafts, revisions, task/phase links, evidence, attachments, templates, audit and search are backed by PostgreSQL in `api::routes::wiki::WikiBackend`; PostgreSQL runtime enforces basic space role and attachment-download access |
 | Attachment storage port | Current | Attachment bytes are written/read through `domain::wiki::WikiAttachmentStorage`; server wires `infra::LocalWikiAttachmentStorage` for the PostgreSQL runtime, and local storage rejects unsafe or platform-ambiguous storage keys |
+| Wiki app helpers | Current | Shared Wiki normalization, role/access predicates, Markdown text extraction, checksums and safe download names live in `app::wiki` instead of private API route helpers |
 | Frontend route shell | Current | Wiki MVP routes and screenshots exist for the approved page set only |
 | Frontend API-backed pages | Current | Dashboard, spaces, documents, tasks, phases, evidence, templates, users, audit and search read from the public Wiki API; create document, create user, URL evidence and file evidence forms call the same API |
 | Page design contract | Current | `docs/PAGE_DESIGN.md` fixes page composition, states and deferred boundaries before backend work |
@@ -54,7 +55,7 @@
 ## Inherited To Replace
 
 - Backend app/infra and old SeaORM migration crate still include task-tracker modules outside the active Wiki API shell.
-- SQLx persistence currently lives in the API route module as a pragmatic MVP runtime adapter; extracting dedicated app use cases/repositories is still target architecture work. Attachment bytes already cross a Wiki-specific storage port instead of direct route-level filesystem access.
+- SQLx persistence currently lives in the API route module as a pragmatic MVP runtime adapter; extracting dedicated app use cases/repositories is still target architecture work. Attachment bytes already cross a Wiki-specific storage port instead of direct route-level filesystem access, and shared Wiki validation helpers have moved into the application layer.
 - Per-space permission checks are implemented in the PostgreSQL runtime for core read/write paths; staged attachment, claimed file evidence, attachment-download access, missing-file handling and FTS search semantics are covered by the PostgreSQL API smoke. Deeper repository/API coverage is still needed for less common edge-case combinations.
 - Generated Wiki frontend OpenAPI client is pending backend domain/repository stabilization.
 
@@ -65,6 +66,7 @@ cd backend
 cargo fmt --all -- --check
 cargo test -p shared
 cargo test -p domain
+cargo test -p app wiki_helpers
 cargo test -p infra local_wiki_attachment_storage
 cargo test -p wiki-cli
 cargo check -p api
@@ -87,8 +89,10 @@ Latest verification on 2026-08-31:
 - `docker run ... cargo check -p api` and `cargo check -p wiki-cli` passed on Linux container.
 - `wsl bash -lc 'cargo check -p api -p server -p infra'` passed after introducing the Wiki attachment storage port and server-side infra wiring.
 - `wsl bash -lc 'cargo test -p infra local_wiki_attachment_storage -- --nocapture'` passed: local Wiki attachment storage round-trip plus unsafe and platform-ambiguous key rejection.
-- `wsl bash -lc 'cargo check --workspace'` and `wsl bash -lc 'cargo test --workspace -- --test-threads=1 --nocapture'` passed after storage-key hardening; API PostgreSQL smoke still skips when `WIKI_TEST_DATABASE_URL` is unset.
+- `wsl bash -lc 'cargo check --workspace'` and `wsl bash -lc 'cargo test --workspace -- --test-threads=1 --nocapture'` passed after storage-key hardening and the `app::wiki` helper extraction; API PostgreSQL smoke still skips when `WIKI_TEST_DATABASE_URL` is unset.
 - `cargo tree -p api -e normal --depth 1` confirms active API runtime has no normal dependency on `infra`; `server` wires `infra::LocalWikiAttachmentStorage`.
+- `wsl bash -lc 'cargo test -p app wiki_helpers -- --nocapture'` passed after moving shared Wiki helpers from API routes to `app::wiki`.
+- `wsl bash -lc 'cargo clippy -p app -p api --all-targets -- -D warnings'` passed after cleaning the helper extraction and multipart upload shape.
 - `wsl bash -lc 'cargo test -p wiki-cli -- --nocapture'` passed: 3 mocked HTTP smoke tests cover filtered search, document create and file-evidence upload/claim request flow.
 - `wsl bash -lc 'cargo test -p api -- --test-threads=1 --nocapture'` passed: memory MVP contract green; PostgreSQL persistence smoke skipped because `WIKI_TEST_DATABASE_URL` was not set in WSL.
 - `wsl bash -lc 'cargo test --workspace -- --test-threads=1 --nocapture'` passed: workspace unit/integration suite green; DB-dependent infra repository tests remain ignored and API PostgreSQL smoke is skipped without `WIKI_TEST_DATABASE_URL`.
@@ -105,7 +109,7 @@ Latest verification on 2026-08-31:
 - `prettier --check .` passed after mechanical frontend formatting cleanup.
 - `vitest run` passed: 5 files, 17 tests.
 - `vite build` passed.
-- Host `npm run typecheck`, `npm run test`, `npm run lint`, `npm run format:check`, `npm run build` passed after the current backend storage refactor; `pnpm` itself remains blocked by the local Corepack error noted below.
+- Host `npm run typecheck`, `npm run test`, `npm run lint`, `npm run format:check`, `npm run build` passed after the current backend app-helper extraction; `pnpm` itself remains blocked by the local Corepack error noted below.
 - `playwright test --project=chromium` passed: 1 smoke test.
 - Screenshot script regenerated 22 screenshots against `vite preview`; capture wait is 1 second after navigation.
 - Screenshot dimensions passed: 17 desktop screenshots at `1920x1080`, 5 mobile full-page screenshots at `375px` width.

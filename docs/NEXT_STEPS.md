@@ -16,6 +16,7 @@ The documentation, screenshots, API-backed frontend MVP pages and SQLx-backed MV
 - runtime API persistence stores users, sessions, spaces, documents, revisions, task/phase links, evidence, attachments, templates, audit and search in PostgreSQL when `WIKI_DATABASE__URL` is set;
 - PostgreSQL runtime enforces the basic global-admin, space-role and attachment-download boundaries for core read/write paths;
 - attachment bytes are behind `domain::wiki::WikiAttachmentStorage`, with `infra::LocalWikiAttachmentStorage` wired by `server`;
+- shared Wiki normalization, access predicates, content helpers and storage-name helpers are in `app::wiki`;
 - CLI has mocked HTTP smoke coverage for filtered search, document create and file-evidence upload/claim requests;
 - deferred areas are documented as reference only.
 
@@ -42,7 +43,7 @@ Remove or quarantine remaining inherited tracker concepts from backend internals
 - custom fields, components and versions;
 - reports and notifications runtime services.
 
-Current status: runtime router, OpenAPI, API route files and default API tests are reduced to Wiki MVP; a Wiki domain baseline exists; SQLx runtime persistence is implemented in the API layer; attachment bytes now use a dedicated storage port; app/repository runtime wiring still needs replacement.
+Current status: runtime router, OpenAPI, API route files and default API tests are reduced to Wiki MVP; a Wiki domain baseline exists; SQLx runtime persistence is implemented in the API layer; attachment bytes now use a dedicated storage port; shared Wiki helpers live in the app layer; app/repository runtime wiring still needs replacement.
 
 ## 2. Database And Migrations
 

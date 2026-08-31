@@ -118,6 +118,8 @@ Use cases MVP:
 
 Каждый write use case выполняется в транзакции там, где это требуется целостностью данных.
 
+Текущий первый application-layer slice: `app::wiki` содержит общие правила нормализации Wiki keys/types/roles, access predicates, Markdown text extraction, checksums и safe download filenames. API использует эти helpers вместо приватных route-level validator functions.
+
 ## 8. Infrastructure Layer
 
 - PostgreSQL repositories и migrations.
@@ -183,7 +185,7 @@ MVP pages:
 | Замена публичного API/router на Wiki MVP | Готово |
 | Wiki domain value objects and invariants | Готово |
 | Fresh SQLx Wiki schema baseline | Готово |
-| Route-level SQLx runtime persistence | Готово для MVP, включая базовые space-role checks; attachment bytes вынесены за Wiki storage port |
+| Route-level SQLx runtime persistence | Готово для MVP, включая базовые space-role checks; attachment bytes вынесены за Wiki storage port; shared Wiki helpers вынесены в app layer |
 | Замена app/repositories/runtime wiring на Wiki persistence | Следующий шаг |
 | Замена frontend страниц на Wiki UI | Готово |
 | Перегенерация OpenAPI | Готово для MVP API |

@@ -1,3 +1,10 @@
+use app::wiki::{
+    WikiSpaceAccess as SpaceAccess, checksum, clamp_limit, default_username,
+    global_role_from_request, markdown_to_text, normalize_document_type, normalize_evidence_type,
+    normalize_phase_key, normalize_required, normalize_slug, normalize_space_key,
+    normalize_space_role, normalize_task_key, safe_download_filename, slugify, snippet,
+    space_role_allows,
+};
 use axum::{
     Extension, Json,
     body::Body,
@@ -35,13 +42,6 @@ struct PostgresWikiBackend {
     auth: shared::AuthConfig,
     storage: Arc<dyn domain::wiki::WikiAttachmentStorage>,
     max_upload_bytes: usize,
-}
-
-#[derive(Debug, Clone, Copy)]
-enum SpaceAccess {
-    View,
-    Edit,
-    Admin,
 }
 
 impl WikiBackend {
@@ -2614,7 +2614,7 @@ impl PostgresWikiBackend {
             .bind(space_key.as_deref())
             .bind(task_key.as_deref())
             .bind(phase_key.as_deref())
-            .bind(document_type.as_deref())
+            .bind(document_type)
             .bind(include_archived)
             .bind(access_user_id)
             .bind(limit)
@@ -4819,7 +4819,7 @@ pub async fn upload_attachment(
     let mut content_type = "application/octet-stream".to_string();
     let mut bytes = Vec::new();
 
-    while let Some(field) = multipart
+    if let Some(field) = multipart
         .next_field()
         .await
         .map_err(|err| shared::AppError::invalid_input(err.to_string()))?
@@ -4835,7 +4835,6 @@ pub async fn upload_attachment(
             .await
             .map_err(|err| shared::AppError::invalid_input(err.to_string()))?
             .to_vec();
-        break;
     }
 
     if bytes.is_empty() {
@@ -5479,117 +5478,8 @@ fn count_to_usize(value: i64) -> usize {
     usize::try_from(value).unwrap_or(0)
 }
 
-fn clamp_limit(limit: Option<usize>, max: i64) -> i64 {
-    limit.unwrap_or(max as usize).clamp(1, max as usize) as i64
-}
-
-fn normalize_required(value: &str, field: &str) -> Result<String, shared::AppError> {
-    let value = value.trim();
-    if value.is_empty() {
-        return Err(shared::AppError::invalid_input(format!(
-            "{field} is required"
-        )));
-    }
-    Ok(value.to_string())
-}
-
-fn normalize_space_key(value: &str) -> Result<String, shared::AppError> {
-    Ok(domain::wiki::SpaceKey::parse(value)?.to_string())
-}
-
-fn normalize_slug(value: &str) -> Result<String, shared::AppError> {
-    Ok(domain::wiki::DocumentSlug::parse(value)?.to_string())
-}
-
-fn normalize_task_key(value: &str) -> Result<String, shared::AppError> {
-    Ok(domain::wiki::TaskKey::parse(value)?.to_string())
-}
-
-fn normalize_phase_key(value: &str) -> Result<String, shared::AppError> {
-    Ok(domain::wiki::PhaseKey::parse(value)?.to_string())
-}
-
-fn normalize_document_type(
-    value: &str,
-    allow_page: bool,
-) -> Result<&'static str, shared::AppError> {
-    match value.trim() {
-        "page" if allow_page => Ok("page"),
-        "requirements" => Ok("requirements"),
-        "research_note" => Ok("research_note"),
-        "implementation_note" => Ok("implementation_note"),
-        "test_plan" => Ok("test_plan"),
-        "release_note" => Ok("release_note"),
-        _ => Err(shared::AppError::invalid_input("unsupported document type")),
-    }
-}
-
-fn normalize_evidence_type(value: &str) -> Result<&'static str, shared::AppError> {
-    match value.trim() {
-        "external_url" => Ok("external_url"),
-        "uploaded_file" => Ok("uploaded_file"),
-        _ => Err(shared::AppError::invalid_input(
-            "evidence_type must be external_url or uploaded_file",
-        )),
-    }
-}
-
-fn normalize_space_role(value: &str) -> Result<&'static str, shared::AppError> {
-    match value.trim() {
-        "admin" => Ok("admin"),
-        "editor" => Ok("editor"),
-        "viewer" => Ok("viewer"),
-        _ => Err(shared::AppError::invalid_input(
-            "space member role must be admin, editor or viewer",
-        )),
-    }
-}
-
-fn space_role_allows(role: Option<&str>, required: SpaceAccess) -> bool {
-    matches!(
-        (role, required),
-        (Some("admin"), _)
-            | (Some("editor"), SpaceAccess::View | SpaceAccess::Edit)
-            | (Some("viewer"), SpaceAccess::View)
-    )
-}
-
-fn global_role_from_request(value: &str) -> Result<&'static str, shared::AppError> {
-    match value.trim() {
-        "admin" => Ok("admin"),
-        "user" | "editor" | "viewer" => Ok("user"),
-        _ => Err(shared::AppError::invalid_input(
-            "user role must be admin, user, editor or viewer",
-        )),
-    }
-}
-
 fn parse_uuid(value: &str, entity: &str) -> Result<Uuid, shared::AppError> {
     Uuid::parse_str(value).map_err(|_| shared::AppError::not_found(entity, value))
-}
-
-fn default_username(email: &str) -> String {
-    let local = email.split('@').next().unwrap_or("admin");
-    let username = slugify(local);
-    if username.is_empty() {
-        "admin".to_string()
-    } else {
-        username
-    }
-}
-
-fn markdown_to_text(markdown: &str) -> String {
-    markdown
-        .lines()
-        .map(|line| {
-            line.trim()
-                .trim_start_matches('#')
-                .trim_start_matches(['-', '*', '>', ' '])
-                .trim()
-        })
-        .filter(|line| !line.is_empty())
-        .collect::<Vec<_>>()
-        .join(" ")
 }
 
 fn hash_token(token: &str) -> String {
@@ -5819,50 +5709,6 @@ fn new_id() -> String {
 
 fn now_iso() -> String {
     Utc::now().to_rfc3339()
-}
-
-fn slugify(value: &str) -> String {
-    let slug: String = value
-        .chars()
-        .flat_map(|ch| ch.to_lowercase())
-        .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '-' })
-        .collect();
-    slug.split('-')
-        .filter(|part| !part.is_empty())
-        .collect::<Vec<_>>()
-        .join("-")
-}
-
-fn snippet(markdown: &str) -> String {
-    let normalized = markdown
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty())
-        .collect::<Vec<_>>()
-        .join(" ");
-    normalized.chars().take(180).collect()
-}
-
-fn checksum(bytes: &[u8]) -> String {
-    format!("sha256:{}", hex::encode(Sha256::digest(bytes)))
-}
-
-fn safe_download_filename(file_name: &str) -> String {
-    let sanitized: String = file_name
-        .chars()
-        .map(|ch| {
-            if ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '-') {
-                ch
-            } else {
-                '_'
-            }
-        })
-        .collect();
-    if sanitized.is_empty() {
-        "attachment.bin".to_string()
-    } else {
-        sanitized
-    }
 }
 
 fn default_user_role() -> String {
