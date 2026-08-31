@@ -2,14 +2,14 @@
 
 ## 1. Bounded Contexts
 
-| Контекст | Ответственность | Основные агрегаты |
-|---|---|---|
-| Identity & Access | Пользователи, роли, доступ к spaces | User, SpaceMember |
-| Knowledge Base | Spaces, дерево страниц, документы, версии | Space, Document, DocumentDraft, DocumentRevision |
-| SDLC Links | Связь документов/evidence с task key и phase key | TaskDossier, PhaseDossier |
-| Evidence & Attachments | URL/file evidence и metadata файлов | EvidenceItem, Attachment |
-| Search | Индексация опубликованных документов | SearchDocument |
-| Administration | Audit и базовые настройки | AuditEntry, DocumentTemplate |
+| Контекст               | Ответственность                                  | Основные агрегаты                                |
+| ---------------------- | ------------------------------------------------ | ------------------------------------------------ |
+| Identity & Access      | Пользователи, роли, доступ к spaces              | User, SpaceMember                                |
+| Knowledge Base         | Spaces, дерево страниц, документы, версии        | Space, Document, DocumentDraft, DocumentRevision |
+| SDLC Links             | Связь документов/evidence с task key и phase key | TaskDossier, PhaseDossier                        |
+| Evidence & Attachments | URL/file evidence и metadata файлов              | EvidenceItem, Attachment                         |
+| Search                 | Индексация опубликованных документов             | SearchDocument                                   |
+| Administration         | Audit, шаблоны и read-only runtime settings      | AuditEntry, DocumentTemplate                     |
 
 ## 2. Главные агрегаты
 
@@ -113,28 +113,28 @@
 
 ## 3. Value Objects
 
-| VO | Пример | Ограничения |
-|---|---|---|
-| `SpaceKey` | `ENG` | 2-32 uppercase letters, digits or hyphens |
-| `DocumentSlug` | `release-plan` | 1-96 lowercase letters, digits or single hyphens |
-| `TaskKey` | `SDLC-42` | Non-empty external key without whitespace |
-| `PhaseKey` | `implementation` | 1-64 lowercase letters, digits, hyphens or underscores |
-| `Checksum` | `sha256:...` | Target value object; baseline stores validated text |
-| `StorageKey` | `documents/{id}/...` | Target value object; baseline stores validated text |
+| VO             | Пример               | Ограничения                                            |
+| -------------- | -------------------- | ------------------------------------------------------ |
+| `SpaceKey`     | `ENG`                | 2-32 uppercase letters, digits or hyphens              |
+| `DocumentSlug` | `release-plan`       | 1-96 lowercase letters, digits or single hyphens       |
+| `TaskKey`      | `SDLC-42`            | Non-empty external key without whitespace              |
+| `PhaseKey`     | `implementation`     | 1-64 lowercase letters, digits, hyphens or underscores |
+| `Checksum`     | `sha256:...`         | Target value object; baseline stores validated text    |
+| `StorageKey`   | `documents/{id}/...` | Target value object; baseline stores validated text    |
 
 ## 4. Domain Events
 
-| Событие | Потребители |
-|---|---|
-| `document.created` | Audit |
-| `document.published` | Audit, search |
-| `document.archived` | Audit, search |
-| `document.moved` | Audit |
-| `task_dossier.linked` | Audit |
-| `phase_dossier.linked` | Audit |
-| `evidence.added` | Audit |
-| `attachment.uploaded` | Audit |
-| `space.member_changed` | Audit |
+| Событие                | Потребители   |
+| ---------------------- | ------------- |
+| `document.created`     | Audit         |
+| `document.published`   | Audit, search |
+| `document.archived`    | Audit, search |
+| `document.moved`       | Audit         |
+| `task_dossier.linked`  | Audit         |
+| `phase_dossier.linked` | Audit         |
+| `evidence.added`       | Audit         |
+| `attachment.uploaded`  | Audit         |
+| `space.member_changed` | Audit         |
 
 ## 5. Integration Boundary
 

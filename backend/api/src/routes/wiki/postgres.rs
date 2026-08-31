@@ -1,11 +1,11 @@
 use super::*;
 use app::wiki::{
-    WikiSpaceAccess as SpaceAccess, build_wiki_search_criteria, checksum, clamp_limit,
-    create_wiki_session_token_pair, create_wiki_token_pair, decode_token, default_username,
-    global_role_from_request, hash_password, hash_token, markdown_to_text, normalize_document_type,
-    normalize_evidence_type, normalize_phase_key, normalize_required, normalize_slug,
-    normalize_space_key, normalize_space_role, normalize_task_key, safe_download_filename, snippet,
-    space_role_allows, verify_password,
+    WikiSettingsSnapshot, WikiSpaceAccess as SpaceAccess, build_wiki_search_criteria, checksum,
+    clamp_limit, create_wiki_session_token_pair, create_wiki_token_pair, decode_token,
+    default_username, global_role_from_request, hash_password, hash_token, markdown_to_text,
+    normalize_document_type, normalize_evidence_type, normalize_phase_key, normalize_required,
+    normalize_slug, normalize_space_key, normalize_space_role, normalize_task_key,
+    safe_download_filename, snippet, space_role_allows, verify_password,
 };
 use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Row, postgres::PgPoolOptions, postgres::PgRow};
@@ -17,7 +17,7 @@ struct PostgresWikiBackend {
     auth: shared::AuthConfig,
     storage: Arc<dyn domain::wiki::WikiAttachmentStorage>,
     max_upload_bytes: usize,
-    settings: WikiSettingsResponse,
+    settings: WikiSettingsSnapshot,
 }
 
 pub(super) async fn connect_persistent_backend(
@@ -57,7 +57,7 @@ impl PostgresWikiBackend {
             auth: config.auth.clone(),
             storage,
             max_upload_bytes: config.storage.max_upload_bytes,
-            settings: WikiSettingsResponse::from_config(config),
+            settings: WikiSettingsSnapshot::from_config(config),
         };
         backend.bootstrap(&config.bootstrap).await?;
         Ok(backend)
@@ -461,7 +461,7 @@ impl PostgresWikiBackend {
     async fn get_settings(
         &self,
         claims: &WikiClaims,
-    ) -> Result<WikiSettingsResponse, shared::AppError> {
+    ) -> Result<WikiSettingsSnapshot, shared::AppError> {
         self.ensure_admin(claims).await?;
         Ok(self.settings.clone())
     }
@@ -3016,7 +3016,7 @@ impl WikiBackendPort for PostgresWikiBackend {
     async fn get_settings(
         &self,
         claims: &WikiClaims,
-    ) -> Result<WikiSettingsResponse, shared::AppError> {
+    ) -> Result<WikiSettingsSnapshot, shared::AppError> {
         PostgresWikiBackend::get_settings(self, claims).await
     }
 

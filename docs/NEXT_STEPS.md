@@ -20,7 +20,7 @@ The documentation, screenshots, API-backed frontend MVP pages and SQLx-backed MV
 - public registration is guarded by `WIKI_AUTH__REGISTRATION_ENABLED` in both explicit memory test/dev backend and PostgreSQL runtime;
 - PostgreSQL runtime enforces the basic global-admin, space-role and attachment-download boundaries for core read/write paths;
 - attachment bytes are behind `domain::wiki::WikiAttachmentStorage`, with `infra::LocalWikiAttachmentStorage` wired by `server`;
-- shared Wiki normalization, access predicates, content helpers, storage-name helpers, password hashing, Wiki JWT/session token helpers and access/refresh token-pair TTL assembly are in `app::wiki`;
+- shared Wiki normalization, access predicates, content helpers, storage-name helpers, safe runtime settings snapshot, password hashing, Wiki JWT/session token helpers and access/refresh token-pair TTL assembly are in `app::wiki`;
 - search q/filter/limit normalization is in `app::wiki`; the PostgreSQL adapter still owns the SQL query and ranking details;
 - the API crate no longer declares direct Wiki auth crypto dependencies after the helper extraction;
 - CLI has mocked HTTP smoke coverage for auth, spaces, documents, task/phase dossiers, templates, settings, search, URL/file evidence request flows and API error envelopes; compiled-binary smoke verifies non-zero exit for API errors;
@@ -49,7 +49,7 @@ Remove or quarantine remaining inherited tracker concepts from backend internals
 - custom fields, components and versions;
 - reports and notifications legacy modules outside the default app build.
 
-Current status: runtime router, OpenAPI, API route files and default API tests are reduced to Wiki MVP; a Wiki domain baseline exists; SQLx runtime persistence is implemented as a transition adapter behind internal `WikiBackendPort` under `api::routes::wiki::postgres`; production `server::run` is PostgreSQL-only and memory mode is explicit test/dev composition; attachment bytes now use a dedicated storage port; shared Wiki validation/auth helpers and the Wiki runtime context live in the app layer; inherited task-tracker app modules are feature-gated as compatibility code; dedicated app/repository use cases still need to replace the route-level SQLx adapter.
+Current status: runtime router, OpenAPI, API route files and default API tests are reduced to Wiki MVP; a Wiki domain baseline exists; SQLx runtime persistence is implemented as a transition adapter behind internal `WikiBackendPort` under `api::routes::wiki::postgres`; production `server::run` is PostgreSQL-only and memory mode is explicit test/dev composition; attachment bytes now use a dedicated storage port; shared Wiki validation/auth/settings helpers and the Wiki runtime context live in the app layer; inherited task-tracker app modules are feature-gated as compatibility code; dedicated app/repository use cases still need to replace the route-level SQLx adapter.
 
 ## 2. Database And Migrations
 

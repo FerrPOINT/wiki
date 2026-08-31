@@ -1,4 +1,4 @@
-use app::wiki::{checksum, safe_download_filename, slugify, snippet};
+use app::wiki::{WikiSettingsSnapshot, checksum, safe_download_filename, slugify, snippet};
 use axum::{
     Extension, Json,
     body::Body,
@@ -57,7 +57,7 @@ trait WikiBackendPort: Send + Sync {
     async fn get_settings(
         &self,
         claims: &WikiClaims,
-    ) -> Result<WikiSettingsResponse, shared::AppError>;
+    ) -> Result<WikiSettingsSnapshot, shared::AppError>;
     async fn list_spaces(&self, claims: &WikiClaims)
     -> Result<SpaceListResponse, shared::AppError>;
     async fn create_space(
@@ -261,7 +261,7 @@ trait WikiBackendPort: Send + Sync {
 #[derive(Clone)]
 pub struct WikiBackend {
     persistent: Option<Arc<dyn WikiBackendPort>>,
-    settings: WikiSettingsResponse,
+    settings: WikiSettingsSnapshot,
 }
 
 impl WikiBackend {
@@ -272,21 +272,21 @@ impl WikiBackend {
     pub fn memory_from_config(config: &shared::AppConfig) -> Self {
         Self {
             persistent: None,
-            settings: WikiSettingsResponse::from_config(config),
+            settings: WikiSettingsSnapshot::from_config(config),
         }
     }
 
     fn memory_with_registration(registration_enabled: bool) -> Self {
         Self {
             persistent: None,
-            settings: WikiSettingsResponse::from_values(
+            settings: WikiSettingsSnapshot::from_values(
                 registration_enabled,
                 shared::StorageConfig::default().max_upload_bytes,
             ),
         }
     }
 
-    fn persistent(backend: Arc<dyn WikiBackendPort>, settings: WikiSettingsResponse) -> Self {
+    fn persistent(backend: Arc<dyn WikiBackendPort>, settings: WikiSettingsSnapshot) -> Self {
         Self {
             persistent: Some(backend),
             settings,
@@ -314,7 +314,7 @@ impl WikiBackend {
         self.settings.registration_enabled
     }
 
-    fn settings_snapshot(&self) -> WikiSettingsResponse {
+    fn settings_snapshot(&self) -> WikiSettingsSnapshot {
         self.settings.clone()
     }
 }
@@ -429,27 +429,20 @@ pub struct WikiSettingsResponse {
 }
 
 impl WikiSettingsResponse {
-    fn from_config(config: &shared::AppConfig) -> Self {
-        Self::from_values(
-            config.auth.registration_enabled,
-            config.storage.max_upload_bytes,
-        )
-    }
-
-    fn from_values(registration_enabled: bool, max_upload_bytes: usize) -> Self {
+    fn from_snapshot(snapshot: WikiSettingsSnapshot) -> Self {
         Self {
-            instance_name: "Wiki".to_string(),
-            api_base_path: "/api/v1".to_string(),
-            default_space_key: "SDLC".to_string(),
-            default_language: "ru".to_string(),
-            timezone: "Europe/Moscow".to_string(),
-            registration_enabled,
-            public_links_enabled: false,
-            search_backend: "PostgreSQL FTS".to_string(),
-            storage_backend: "local".to_string(),
-            max_upload_bytes,
-            markdown_renderer: "comrak".to_string(),
-            html_sanitizer: "ammonia".to_string(),
+            instance_name: snapshot.instance_name,
+            api_base_path: snapshot.api_base_path,
+            default_space_key: snapshot.default_space_key,
+            default_language: snapshot.default_language,
+            timezone: snapshot.timezone,
+            registration_enabled: snapshot.registration_enabled,
+            public_links_enabled: snapshot.public_links_enabled,
+            search_backend: snapshot.search_backend,
+            storage_backend: snapshot.storage_backend,
+            max_upload_bytes: snapshot.max_upload_bytes,
+            markdown_renderer: snapshot.markdown_renderer,
+            html_sanitizer: snapshot.html_sanitizer,
         }
     }
 }
@@ -1137,12 +1130,16 @@ pub async fn get_settings(
     Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<WikiSettingsResponse>, shared::AppError> {
     if let Some(persistent) = backend.persistent_backend() {
-        return Ok(Json(persistent.get_settings(&claims).await?));
+        return Ok(Json(WikiSettingsResponse::from_snapshot(
+            persistent.get_settings(&claims).await?,
+        )));
     }
 
     let store = store().lock().expect("wiki store lock");
     ensure_system_admin(&store, &claims.user_id)?;
-    Ok(Json(backend.settings_snapshot()))
+    Ok(Json(WikiSettingsResponse::from_snapshot(
+        backend.settings_snapshot(),
+    )))
 }
 
 #[utoipa::path(

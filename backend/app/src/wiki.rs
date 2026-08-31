@@ -61,6 +61,48 @@ pub struct WikiSearchCriteria {
     pub limit: i64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WikiSettingsSnapshot {
+    pub instance_name: String,
+    pub api_base_path: String,
+    pub default_space_key: String,
+    pub default_language: String,
+    pub timezone: String,
+    pub registration_enabled: bool,
+    pub public_links_enabled: bool,
+    pub search_backend: String,
+    pub storage_backend: String,
+    pub max_upload_bytes: usize,
+    pub markdown_renderer: String,
+    pub html_sanitizer: String,
+}
+
+impl WikiSettingsSnapshot {
+    pub fn from_config(config: &AppConfig) -> Self {
+        Self::from_values(
+            config.auth.registration_enabled,
+            config.storage.max_upload_bytes,
+        )
+    }
+
+    pub fn from_values(registration_enabled: bool, max_upload_bytes: usize) -> Self {
+        Self {
+            instance_name: "Wiki".to_string(),
+            api_base_path: "/api/v1".to_string(),
+            default_space_key: "SDLC".to_string(),
+            default_language: "ru".to_string(),
+            timezone: "Europe/Moscow".to_string(),
+            registration_enabled,
+            public_links_enabled: false,
+            search_backend: "PostgreSQL FTS".to_string(),
+            storage_backend: "local".to_string(),
+            max_upload_bytes,
+            markdown_renderer: "comrak".to_string(),
+            html_sanitizer: "ammonia".to_string(),
+        }
+    }
+}
+
 pub fn clamp_limit(limit: Option<usize>, max: i64) -> i64 {
     limit.unwrap_or(max as usize).clamp(1, max as usize) as i64
 }
@@ -371,6 +413,17 @@ mod tests {
         }
     }
 
+    fn test_app_config() -> AppConfig {
+        let mut config = AppConfig::default();
+        config.database.url = "postgres://wiki:secret-password@db.internal:5432/wiki".to_string();
+        config.auth = test_auth_config();
+        config.auth.jwt_secret = "super-secret-jwt".to_string();
+        config.auth.registration_enabled = false;
+        config.storage.dir = "/srv/wiki/private/uploads".to_string();
+        config.storage.max_upload_bytes = 42 * 1024 * 1024;
+        config
+    }
+
     #[test]
     fn wiki_helpers_normalize_domain_values() {
         assert_eq!(normalize_space_key(" sdlc ").unwrap(), "SDLC");
@@ -474,6 +527,37 @@ mod tests {
         assert_eq!(criteria.needle, "");
         assert_eq!(criteria.evidence_like_pattern, "%%");
         assert_eq!(criteria.limit, 50);
+    }
+
+    #[test]
+    fn wiki_settings_snapshot_exposes_only_safe_runtime_values() {
+        let snapshot = WikiSettingsSnapshot::from_config(&test_app_config());
+
+        assert_eq!(snapshot.instance_name, "Wiki");
+        assert_eq!(snapshot.api_base_path, "/api/v1");
+        assert_eq!(snapshot.default_space_key, "SDLC");
+        assert_eq!(snapshot.default_language, "ru");
+        assert_eq!(snapshot.timezone, "Europe/Moscow");
+        assert!(!snapshot.registration_enabled);
+        assert!(!snapshot.public_links_enabled);
+        assert_eq!(snapshot.search_backend, "PostgreSQL FTS");
+        assert_eq!(snapshot.storage_backend, "local");
+        assert_eq!(snapshot.max_upload_bytes, 42 * 1024 * 1024);
+        assert_eq!(snapshot.markdown_renderer, "comrak");
+        assert_eq!(snapshot.html_sanitizer, "ammonia");
+
+        let rendered = format!("{snapshot:?}");
+        assert!(!rendered.contains("secret"));
+        assert!(!rendered.contains("postgres://"));
+        assert!(!rendered.contains("/srv/wiki"));
+    }
+
+    #[test]
+    fn wiki_settings_snapshot_can_be_built_for_explicit_test_modes() {
+        let snapshot = WikiSettingsSnapshot::from_values(true, 25 * 1024 * 1024);
+
+        assert!(snapshot.registration_enabled);
+        assert_eq!(snapshot.max_upload_bytes, 25 * 1024 * 1024);
     }
 
     #[test]
