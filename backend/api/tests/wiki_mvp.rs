@@ -39,7 +39,7 @@ fn test_config() -> Arc<shared::AppConfig> {
 
 fn test_app_with_config(config: Arc<shared::AppConfig>) -> axum::Router {
     let ctx = Arc::new(app::WikiAppContext::new(config));
-    api::router(ctx.clone()).with_state(ctx)
+    api::router_for_memory_tests(ctx.clone()).with_state(ctx)
 }
 
 fn test_app() -> axum::Router {
@@ -213,6 +213,25 @@ async fn login_admin(app: &axum::Router) -> String {
     .await;
     assert_eq!(status, StatusCode::OK);
     login["access_token"].as_str().unwrap().to_string()
+}
+
+#[tokio::test]
+async fn wiki_persistent_backend_requires_database_url() {
+    let config = test_config();
+    let storage_dir = env::temp_dir().join(format!("wiki-api-test-{}", Uuid::now_v7()));
+    let storage = Arc::new(infra::LocalWikiAttachmentStorage::new(storage_dir));
+
+    let backend_result =
+        api::routes::wiki::WikiBackend::from_config_with_storage(&config, storage).await;
+    let err = match backend_result {
+        Ok(_) => panic!("persistent backend must reject an empty database URL"),
+        Err(err) => err,
+    };
+
+    assert!(matches!(
+        err,
+        shared::AppError::InvalidInput(message) if message.contains("WIKI_DATABASE__URL")
+    ));
 }
 
 #[tokio::test]

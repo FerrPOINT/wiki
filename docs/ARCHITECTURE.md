@@ -141,7 +141,7 @@ Use cases MVP:
 - единый error envelope;
 - OpenAPI generation.
 
-В целевой архитектуре API не содержит SQL и не пишет файлы напрямую. Текущий переходный MVP runtime уже отделяет router/DTO/memory fallback от PostgreSQL-реализации: SQLx-запросы живут в `api::routes::wiki::postgres`, а `server` запускает Wiki через `app::WikiAppContext` без сборки унаследованного task-tracker service graph. Default app dependency tree теперь содержит только Wiki-needed deps; следующий архитектурный шаг - перенос SQLx-поведения в application use cases и infra repositories.
+В целевой архитектуре API не содержит SQL и не пишет файлы напрямую. Текущий переходный MVP runtime уже отделяет router/DTO и явный memory test/dev backend от PostgreSQL-реализации: SQLx-запросы живут в `api::routes::wiki::postgres`, а `server` запускает Wiki через `app::WikiAppContext` без сборки унаследованного task-tracker service graph. Production `server::run` требует `WIKI_DATABASE__URL`; memory backend доступен только через явно названный test/dev router builder. Default app dependency tree теперь содержит только Wiki-needed deps; следующий архитектурный шаг - перенос SQLx-поведения в application use cases и infra repositories.
 
 ## 10. Frontend
 
@@ -158,7 +158,7 @@ MVP pages:
 - templates;
 - users/settings/audit for admin.
 
-Текущий React shell уже заменён на Wiki-навигацию и страницы целевого продукта. Backend API переключён на Wiki MVP router/OpenAPI: публичный слой больше не экспонирует task-tracker endpoints. Runtime использует memory fallback для быстрых тестов и переходный SQLx/PostgreSQL adapter `api::routes::wiki::postgres` при заданном `WIKI_DATABASE__URL`; server/API state уже использует Wiki-specific context, а полноценные app use cases/repositories ещё должны заменить переходный route-level persistence adapter.
+Текущий React shell уже заменён на Wiki-навигацию и страницы целевого продукта. Backend API переключён на Wiki MVP router/OpenAPI: публичный слой больше не экспонирует task-tracker endpoints. Production server использует переходный SQLx/PostgreSQL adapter `api::routes::wiki::postgres` и не стартует без `WIKI_DATABASE__URL`; memory backend остаётся явным режимом быстрых тестов. Server/API state уже использует Wiki-specific context, а полноценные app use cases/repositories ещё должны заменить переходный route-level persistence adapter.
 
 ## 11. CLI
 
@@ -187,6 +187,7 @@ MVP pages:
 | Fresh SQLx Wiki schema baseline                                     | Готово                                                                                                                                                                                                                                                        |
 | Route-level SQLx runtime persistence                                | Готово для MVP: PostgreSQL adapter вынесен из основного router/DTO файла в `api::routes::wiki::postgres`; базовые space-role checks включены; attachment bytes вынесены за Wiki storage port; shared Wiki validation/auth/search helpers вынесены в app layer |
 | Wiki runtime context                                                | Готово: API/server используют `app::WikiAppContext` и больше не собирают унаследованный task-tracker `AppContext`/services при запуске Wiki                                                                                                                   |
+| Production PostgreSQL runtime                                       | Готово: `server::run` требует `WIKI_DATABASE__URL`; memory backend используется только через явный test/dev builder                                                                                                                                           |
 | App legacy quarantine                                               | Готово: унаследованные task-tracker app modules исключены из default-сборки и доступны только через feature `legacy-tracker`                                                                                                                                  |
 | Замена route-level SQLx adapter на app/repositories                 | Следующий шаг                                                                                                                                                                                                                                                 |
 | Замена frontend страниц на Wiki UI                                  | Готово                                                                                                                                                                                                                                                        |

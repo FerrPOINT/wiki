@@ -52,7 +52,9 @@ impl WikiBackend {
         storage: Arc<dyn domain::wiki::WikiAttachmentStorage>,
     ) -> Result<Self, shared::AppError> {
         if config.database.url.trim().is_empty() {
-            return Ok(Self::memory_from_config(config));
+            return Err(shared::AppError::invalid_input(
+                "WIKI_DATABASE__URL is required for PostgreSQL Wiki runtime",
+            ));
         }
 
         let backend = PostgresWikiBackend::connect(config, storage).await?;

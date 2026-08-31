@@ -13,11 +13,11 @@ The documentation, screenshots, API-backed frontend MVP pages and SQLx-backed MV
 - Wiki-owned domain value objects/invariants exist in `domain::wiki`;
 - a fresh SQLx MVP schema baseline exists in `backend/migrations/202608310001_create_wiki_mvp.*.sql`;
 - frontend MVP pages read from the public Wiki API; create document, edit/publish/archive/move document, create user, evidence and search flows call the same API;
-- runtime API persistence stores users, sessions, spaces, documents, revisions, task/phase links, evidence, attachments, templates, audit and search in PostgreSQL when `WIKI_DATABASE__URL` is set;
-- PostgreSQL runtime persistence is isolated in `api::routes::wiki::postgres`, while the main Wiki route module keeps router/DTO/memory fallback responsibilities;
+- production server runtime stores users, sessions, spaces, documents, revisions, task/phase links, evidence, attachments, templates, audit and search in PostgreSQL and refuses to start without `WIKI_DATABASE__URL`;
+- PostgreSQL runtime persistence is isolated in `api::routes::wiki::postgres`, while the main Wiki route module keeps router/DTO responsibilities and an explicit memory test/dev backend;
 - API/server runtime uses `app::WikiAppContext` and no longer constructs the inherited task-tracker `AppContext`, repository bundle or report/notification/issue service graph;
 - inherited task-tracker app modules are excluded from the default `app` crate build and quarantined behind feature `legacy-tracker`;
-- public registration is guarded by `WIKI_AUTH__REGISTRATION_ENABLED` in both memory fallback and PostgreSQL runtime;
+- public registration is guarded by `WIKI_AUTH__REGISTRATION_ENABLED` in both explicit memory test/dev backend and PostgreSQL runtime;
 - PostgreSQL runtime enforces the basic global-admin, space-role and attachment-download boundaries for core read/write paths;
 - attachment bytes are behind `domain::wiki::WikiAttachmentStorage`, with `infra::LocalWikiAttachmentStorage` wired by `server`;
 - shared Wiki normalization, access predicates, content helpers, storage-name helpers, password hashing, Wiki JWT/session token helpers and access/refresh token-pair TTL assembly are in `app::wiki`;
@@ -49,7 +49,7 @@ Remove or quarantine remaining inherited tracker concepts from backend internals
 - custom fields, components and versions;
 - reports and notifications legacy modules outside the default app build.
 
-Current status: runtime router, OpenAPI, API route files and default API tests are reduced to Wiki MVP; a Wiki domain baseline exists; SQLx runtime persistence is implemented as a transition adapter under `api::routes::wiki::postgres`; attachment bytes now use a dedicated storage port; shared Wiki validation/auth helpers and the Wiki runtime context live in the app layer; inherited task-tracker app modules are feature-gated as compatibility code; dedicated app/repository use cases still need to replace the route-level SQLx adapter.
+Current status: runtime router, OpenAPI, API route files and default API tests are reduced to Wiki MVP; a Wiki domain baseline exists; SQLx runtime persistence is implemented as a transition adapter under `api::routes::wiki::postgres`; production `server::run` is PostgreSQL-only and memory mode is explicit test/dev composition; attachment bytes now use a dedicated storage port; shared Wiki validation/auth helpers and the Wiki runtime context live in the app layer; inherited task-tracker app modules are feature-gated as compatibility code; dedicated app/repository use cases still need to replace the route-level SQLx adapter.
 
 ## 2. Database And Migrations
 
@@ -92,7 +92,7 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 
 - Add backend unit tests for domain invariants.
 - Add repository/API tests beyond the current persistence, permission and file-evidence smoke for spaces, documents, revisions, task/phase links, evidence, attachments, search and audit.
-- Rerun PostgreSQL-backed API smoke with `WIKI_TEST_DATABASE_URL` set, including persistence across router rebuilds and disabled public registration.
+- Rerun PostgreSQL-backed API smoke with `WIKI_TEST_DATABASE_URL` set, including production backend construction, persistence across router rebuilds and disabled public registration.
 - Add frontend component tests for editor/tree/revision/evidence states.
 - Keep screenshot evidence regenerated after route or UI changes.
 - Fix local Rust toolchain by installing MSVC Build Tools so `cargo check/test` can run on this host.
@@ -123,6 +123,7 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 - OpenAPI exposes only Wiki MVP endpoints.
 - UI and CLI use the same public API operations.
 - API/server runtime uses `app::WikiAppContext` instead of the inherited task-tracker `AppContext`.
+- Production server refuses to start without `WIKI_DATABASE__URL`; memory runtime is available only through the explicit test/dev builder.
 - Postgres persistence smoke passes across router rebuilds.
 - Non-member/viewer/editor/admin access boundaries are enforced by the PostgreSQL runtime.
 - Static frontend data is limited to settings/admin readiness copy and deterministic test/screenshot fixtures.

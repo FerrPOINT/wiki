@@ -16,5 +16,8 @@ async fn main() {
     let config = Arc::new(AppConfig::from_env().expect("failed to load config"));
     let (ready_tx, _ready_rx) = tokio::sync::oneshot::channel();
     let (_shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
-    run(config, ready_tx, shutdown_rx).await;
+    if let Err(err) = run(config, ready_tx, shutdown_rx).await {
+        tracing::error!(error = %err, "server stopped");
+        std::process::exit(1);
+    }
 }

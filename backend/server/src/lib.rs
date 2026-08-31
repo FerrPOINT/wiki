@@ -1,7 +1,7 @@
 use std::{future::IntoFuture, sync::Arc};
 
 use app::WikiAppContext;
-use shared::AppConfig;
+use shared::{AppConfig, AppError};
 use tokio::sync::oneshot;
 use tracing::{error, warn};
 
@@ -12,19 +12,31 @@ pub async fn run(
     config: Arc<AppConfig>,
     ready: oneshot::Sender<std::net::SocketAddr>,
     shutdown: oneshot::Receiver<()>,
-) {
-    let ctx = Arc::new(WikiAppContext::new(config.clone()));
+) -> Result<(), AppError> {
+    let wiki_backend = persistent_wiki_backend(&config).await?;
+    run_with_wiki_backend(config, wiki_backend, ready, shutdown).await
+}
+
+pub async fn persistent_wiki_backend(
+    config: &AppConfig,
+) -> Result<api::routes::wiki::WikiBackend, AppError> {
     let wiki_storage = Arc::new(infra::LocalWikiAttachmentStorage::new(&config.storage.dir));
-    let wiki_backend =
-        api::routes::wiki::WikiBackend::from_config_with_storage(&config, wiki_storage)
-            .await
-            .expect("failed to initialize Wiki backend");
+    api::routes::wiki::WikiBackend::from_config_with_storage(config, wiki_storage).await
+}
+
+pub async fn run_with_wiki_backend(
+    config: Arc<AppConfig>,
+    wiki_backend: api::routes::wiki::WikiBackend,
+    ready: oneshot::Sender<std::net::SocketAddr>,
+    shutdown: oneshot::Receiver<()>,
+) -> Result<(), AppError> {
+    let ctx = Arc::new(WikiAppContext::new(config.clone()));
 
     let address = format!("{}:{}", config.server.address, config.server.port);
     let listener = tokio::net::TcpListener::bind(address)
         .await
-        .expect("failed to bind server");
-    let bound_addr = listener.local_addr().expect("local addr");
+        .map_err(AppError::internal)?;
+    let bound_addr = listener.local_addr().map_err(AppError::internal)?;
     let _ = ready.send(bound_addr);
 
     let (shutdown_started_tx, shutdown_started_rx) = tokio::sync::oneshot::channel();
@@ -43,6 +55,7 @@ pub async fn run(
         result = &mut server => {
             if let Err(e) = result {
                 error!("server error: {e}");
+                return Err(AppError::internal(e));
             }
         }
         _ = shutdown_started_rx => {
@@ -51,4 +64,6 @@ pub async fn run(
             }
         }
     }
+
+    Ok(())
 }

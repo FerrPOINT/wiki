@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use serial_test::serial;
-use server::run;
+use server::{run, run_with_wiki_backend};
 use shared::{AppConfig, AuthConfig, EmailConfig, ServerConfig};
 
 fn test_config() -> Arc<AppConfig> {
@@ -30,13 +30,50 @@ fn test_config() -> Arc<AppConfig> {
     })
 }
 
+async fn run_test_server(
+    config: Arc<AppConfig>,
+    ready: tokio::sync::oneshot::Sender<std::net::SocketAddr>,
+    shutdown: tokio::sync::oneshot::Receiver<()>,
+) -> Result<(), shared::AppError> {
+    let wiki_backend = api::routes::wiki::WikiBackend::memory_from_config(&config);
+    run_with_wiki_backend(config, wiki_backend, ready, shutdown).await
+}
+
+async fn assert_server_stops(handle: tokio::task::JoinHandle<Result<(), shared::AppError>>) {
+    let result = tokio::time::timeout(std::time::Duration::from_secs(5), handle)
+        .await
+        .expect("server did not shut down in time")
+        .expect("server task panicked");
+    result.expect("server returned error");
+}
+
+#[tokio::test]
+#[serial]
+async fn production_run_requires_database_url() {
+    let config = test_config();
+    let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
+    let (_shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
+
+    let result = run(config, ready_tx, shutdown_rx).await;
+
+    assert!(matches!(
+        result,
+        Err(shared::AppError::InvalidInput(message))
+            if message.contains("WIKI_DATABASE__URL")
+    ));
+    assert!(
+        ready_rx.await.is_err(),
+        "production server must not signal readiness without PostgreSQL"
+    );
+}
+
 #[tokio::test]
 #[serial]
 async fn server_starts_and_serves_health() {
     let config = test_config();
     let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
     let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
-    let handle = tokio::spawn(run(config, ready_tx, shutdown_rx));
+    let handle = tokio::spawn(run_test_server(config, ready_tx, shutdown_rx));
 
     let addr = tokio::time::timeout(std::time::Duration::from_secs(30), ready_rx)
         .await
@@ -65,8 +102,7 @@ async fn server_starts_and_serves_health() {
     assert_eq!(res.status(), 200);
 
     let _ = shutdown_tx.send(());
-    let result = tokio::time::timeout(std::time::Duration::from_secs(5), handle).await;
-    assert!(result.is_ok(), "server did not shut down in time");
+    assert_server_stops(handle).await;
 }
 
 #[tokio::test]
@@ -75,7 +111,7 @@ async fn full_smoke_with_wiki_api_shell() {
     let config = test_config();
     let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
     let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
-    let handle = tokio::spawn(run(config, ready_tx, shutdown_rx));
+    let handle = tokio::spawn(run_test_server(config, ready_tx, shutdown_rx));
 
     let addr = tokio::time::timeout(std::time::Duration::from_secs(30), ready_rx)
         .await
@@ -117,6 +153,5 @@ async fn full_smoke_with_wiki_api_shell() {
     assert_eq!(body["task_key"], "SDLC-42");
 
     let _ = shutdown_tx.send(());
-    let result = tokio::time::timeout(std::time::Duration::from_secs(5), handle).await;
-    assert!(result.is_ok(), "server did not shut down in time");
+    assert_server_stops(handle).await;
 }

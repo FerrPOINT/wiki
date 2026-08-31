@@ -185,7 +185,7 @@ impl Modify for SecurityAddon {
     }
 }
 
-pub fn router(ctx: Arc<app::WikiAppContext>) -> Router<Arc<app::WikiAppContext>> {
+pub fn router_for_memory_tests(ctx: Arc<app::WikiAppContext>) -> Router<Arc<app::WikiAppContext>> {
     let wiki_backend = routes::wiki::WikiBackend::memory_from_config(&ctx.config);
     router_with_wiki(ctx, wiki_backend)
 }
@@ -415,22 +415,4 @@ where
                 HeaderValue::from_static("max-age=31536000; includeSubDomains"),
             )),
     )
-}
-
-pub async fn bind(
-    ctx: Arc<app::WikiAppContext>,
-) -> Result<tokio::net::TcpListener, std::io::Error> {
-    tokio::net::TcpListener::bind(ctx.server_addr()).await
-}
-
-pub async fn serve_forever(
-    listener: tokio::net::TcpListener,
-    ctx: Arc<app::WikiAppContext>,
-) -> Result<(), std::io::Error> {
-    axum::serve(listener, router(ctx.clone()).with_state(ctx)).await
-}
-
-pub async fn serve(ctx: Arc<app::WikiAppContext>) {
-    let listener = bind(ctx.clone()).await.expect("failed to bind");
-    serve_forever(listener, ctx).await.expect("server failed");
 }
