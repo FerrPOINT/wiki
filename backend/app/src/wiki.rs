@@ -6,6 +6,7 @@ use domain::wiki::{SpaceRole, TaskKey};
 use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+pub use shared::WikiSettingsSnapshot;
 use shared::{AppConfig, AppError, AuthConfig};
 use uuid::Uuid;
 
@@ -59,48 +60,6 @@ pub struct WikiSearchCriteria {
     pub document_type: Option<&'static str>,
     pub include_archived: bool,
     pub limit: i64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct WikiSettingsSnapshot {
-    pub instance_name: String,
-    pub api_base_path: String,
-    pub default_space_key: String,
-    pub default_language: String,
-    pub timezone: String,
-    pub registration_enabled: bool,
-    pub public_links_enabled: bool,
-    pub search_backend: String,
-    pub storage_backend: String,
-    pub max_upload_bytes: usize,
-    pub markdown_renderer: String,
-    pub html_sanitizer: String,
-}
-
-impl WikiSettingsSnapshot {
-    pub fn from_config(config: &AppConfig) -> Self {
-        Self::from_values(
-            config.auth.registration_enabled,
-            config.storage.max_upload_bytes,
-        )
-    }
-
-    pub fn from_values(registration_enabled: bool, max_upload_bytes: usize) -> Self {
-        Self {
-            instance_name: "Wiki".to_string(),
-            api_base_path: "/api/v1".to_string(),
-            default_space_key: "SDLC".to_string(),
-            default_language: "ru".to_string(),
-            timezone: "Europe/Moscow".to_string(),
-            registration_enabled,
-            public_links_enabled: false,
-            search_backend: "PostgreSQL FTS".to_string(),
-            storage_backend: "local".to_string(),
-            max_upload_bytes,
-            markdown_renderer: "comrak".to_string(),
-            html_sanitizer: "ammonia".to_string(),
-        }
-    }
 }
 
 pub fn clamp_limit(limit: Option<usize>, max: i64) -> i64 {

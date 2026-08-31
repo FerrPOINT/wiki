@@ -1,4 +1,4 @@
-use app::wiki::{WikiSettingsSnapshot, checksum, safe_download_filename, slugify, snippet};
+use app::wiki::{checksum, safe_download_filename, slugify, snippet};
 use axum::{
     Extension, Json,
     body::Body,
@@ -8,253 +8,13 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use chrono::Utc;
-use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::{Arc, Mutex, OnceLock},
 };
-use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
-#[derive(Clone, Debug)]
-pub struct WikiClaims {
-    pub user_id: String,
-    pub session_id: Option<String>,
-}
-
-#[async_trait::async_trait]
-pub(crate) trait WikiBackendPort: Send + Sync {
-    async fn authenticate_access_token(&self, token: &str) -> Result<WikiClaims, shared::AppError>;
-    async fn register(
-        &self,
-        body: WikiRegisterRequest,
-    ) -> Result<WikiAuthResponse, shared::AppError>;
-    async fn login(&self, body: WikiLoginRequest) -> Result<WikiAuthResponse, shared::AppError>;
-    async fn refresh(&self, body: WikiRefreshRequest)
-    -> Result<WikiAuthResponse, shared::AppError>;
-    async fn logout(&self, claims: &WikiClaims) -> Result<(), shared::AppError>;
-    async fn get_current_user(
-        &self,
-        claims: &WikiClaims,
-    ) -> Result<WikiUserResponse, shared::AppError>;
-    async fn list_users(
-        &self,
-        claims: &WikiClaims,
-    ) -> Result<WikiUserListResponse, shared::AppError>;
-    async fn create_user(
-        &self,
-        claims: &WikiClaims,
-        body: WikiCreateUserRequest,
-    ) -> Result<WikiUserResponse, shared::AppError>;
-    async fn update_user(
-        &self,
-        claims: &WikiClaims,
-        user_id: &str,
-        body: WikiUpdateUserRequest,
-    ) -> Result<WikiUserResponse, shared::AppError>;
-    async fn get_settings(
-        &self,
-        claims: &WikiClaims,
-    ) -> Result<WikiSettingsSnapshot, shared::AppError>;
-    async fn list_spaces(&self, claims: &WikiClaims)
-    -> Result<SpaceListResponse, shared::AppError>;
-    async fn create_space(
-        &self,
-        claims: &WikiClaims,
-        body: CreateSpaceRequest,
-    ) -> Result<SpaceResponse, shared::AppError>;
-    async fn get_space(
-        &self,
-        claims: &WikiClaims,
-        space_key: &str,
-    ) -> Result<SpaceResponse, shared::AppError>;
-    async fn update_space(
-        &self,
-        claims: &WikiClaims,
-        space_key: &str,
-        body: UpdateSpaceRequest,
-    ) -> Result<SpaceResponse, shared::AppError>;
-    async fn archive_space(
-        &self,
-        claims: &WikiClaims,
-        space_key: &str,
-    ) -> Result<SpaceResponse, shared::AppError>;
-    async fn list_space_members(
-        &self,
-        claims: &WikiClaims,
-        space_key: &str,
-    ) -> Result<SpaceMemberListResponse, shared::AppError>;
-    async fn upsert_space_member(
-        &self,
-        claims: &WikiClaims,
-        space_key: &str,
-        user_id: &str,
-        body: UpsertSpaceMemberRequest,
-    ) -> Result<SpaceMemberResponse, shared::AppError>;
-    async fn delete_space_member(
-        &self,
-        claims: &WikiClaims,
-        space_key: &str,
-        user_id: &str,
-    ) -> Result<(), shared::AppError>;
-    async fn get_space_tree(
-        &self,
-        claims: &WikiClaims,
-        space_key: &str,
-    ) -> Result<SpaceTreeResponse, shared::AppError>;
-    async fn create_document(
-        &self,
-        claims: &WikiClaims,
-        space_key: &str,
-        body: CreateDocumentRequest,
-    ) -> Result<DocumentResponse, shared::AppError>;
-    async fn get_document(
-        &self,
-        claims: &WikiClaims,
-        document_id: &str,
-    ) -> Result<DocumentResponse, shared::AppError>;
-    async fn update_document_draft(
-        &self,
-        claims: &WikiClaims,
-        document_id: &str,
-        body: UpdateDocumentDraftRequest,
-    ) -> Result<DocumentResponse, shared::AppError>;
-    async fn publish_document(
-        &self,
-        claims: &WikiClaims,
-        document_id: &str,
-        body: PublishDocumentRequest,
-    ) -> Result<DocumentRevisionResponse, shared::AppError>;
-    async fn archive_document(
-        &self,
-        claims: &WikiClaims,
-        document_id: &str,
-    ) -> Result<DocumentResponse, shared::AppError>;
-    async fn move_document(
-        &self,
-        claims: &WikiClaims,
-        document_id: &str,
-        body: MoveDocumentRequest,
-    ) -> Result<DocumentResponse, shared::AppError>;
-    async fn list_document_revisions(
-        &self,
-        claims: &WikiClaims,
-        document_id: &str,
-    ) -> Result<DocumentRevisionListResponse, shared::AppError>;
-    async fn get_document_revision(
-        &self,
-        claims: &WikiClaims,
-        document_id: &str,
-        revision_id: &str,
-    ) -> Result<DocumentRevisionResponse, shared::AppError>;
-    async fn list_tasks(
-        &self,
-        claims: &WikiClaims,
-        space_key: &str,
-    ) -> Result<TaskPageListResponse, shared::AppError>;
-    async fn get_task(
-        &self,
-        claims: &WikiClaims,
-        space_key: &str,
-        task_key: &str,
-    ) -> Result<TaskPageResponse, shared::AppError>;
-    async fn link_task_document(
-        &self,
-        claims: &WikiClaims,
-        space_key: &str,
-        task_key: &str,
-        body: LinkDocumentRequest,
-    ) -> Result<TaskPageResponse, shared::AppError>;
-    async fn list_task_documents(
-        &self,
-        claims: &WikiClaims,
-        space_key: &str,
-        task_key: &str,
-    ) -> Result<DocumentListResponse, shared::AppError>;
-    async fn list_task_evidence(
-        &self,
-        claims: &WikiClaims,
-        space_key: &str,
-        task_key: &str,
-    ) -> Result<EvidenceListResponse, shared::AppError>;
-    async fn list_phases(
-        &self,
-        claims: &WikiClaims,
-        space_key: &str,
-    ) -> Result<PhasePageListResponse, shared::AppError>;
-    async fn get_phase(
-        &self,
-        claims: &WikiClaims,
-        space_key: &str,
-        phase_key: &str,
-    ) -> Result<PhasePageResponse, shared::AppError>;
-    async fn link_phase_document(
-        &self,
-        claims: &WikiClaims,
-        space_key: &str,
-        phase_key: &str,
-        body: LinkDocumentRequest,
-    ) -> Result<PhasePageResponse, shared::AppError>;
-    async fn list_phase_documents(
-        &self,
-        claims: &WikiClaims,
-        space_key: &str,
-        phase_key: &str,
-    ) -> Result<DocumentListResponse, shared::AppError>;
-    async fn list_phase_evidence(
-        &self,
-        claims: &WikiClaims,
-        space_key: &str,
-        phase_key: &str,
-    ) -> Result<EvidenceListResponse, shared::AppError>;
-    async fn create_evidence(
-        &self,
-        claims: &WikiClaims,
-        body: CreateEvidenceRequest,
-    ) -> Result<EvidenceResponse, shared::AppError>;
-    async fn list_evidence(
-        &self,
-        claims: Option<&WikiClaims>,
-        query: EvidenceQuery,
-    ) -> Result<EvidenceListResponse, shared::AppError>;
-    async fn get_evidence(
-        &self,
-        claims: &WikiClaims,
-        evidence_id: &str,
-    ) -> Result<EvidenceResponse, shared::AppError>;
-    async fn upload_attachment(
-        &self,
-        claims: &WikiClaims,
-        file_name: String,
-        content_type: String,
-        bytes: Vec<u8>,
-    ) -> Result<AttachmentResponse, shared::AppError>;
-    async fn get_attachment(
-        &self,
-        claims: &WikiClaims,
-        attachment_id: &str,
-    ) -> Result<AttachmentResponse, shared::AppError>;
-    async fn download_attachment(
-        &self,
-        claims: &WikiClaims,
-        attachment_id: &str,
-    ) -> Result<Response, shared::AppError>;
-    async fn list_templates(&self) -> Result<TemplateListResponse, shared::AppError>;
-    async fn create_template(
-        &self,
-        claims: &WikiClaims,
-        body: CreateTemplateRequest,
-    ) -> Result<TemplateResponse, shared::AppError>;
-    async fn list_audit_log(
-        &self,
-        claims: &WikiClaims,
-    ) -> Result<AuditLogResponse, shared::AppError>;
-    async fn search(
-        &self,
-        claims: &WikiClaims,
-        query: SearchQuery,
-    ) -> Result<SearchResponse, shared::AppError>;
-}
+pub use shared::wiki_contract::*;
 
 #[derive(Clone)]
 pub struct WikiBackend {
@@ -284,27 +44,11 @@ impl WikiBackend {
         }
     }
 
-    pub(crate) fn persistent(
-        backend: Arc<dyn WikiBackendPort>,
-        settings: WikiSettingsSnapshot,
-    ) -> Self {
+    pub fn persistent(backend: Arc<dyn WikiBackendPort>, settings: WikiSettingsSnapshot) -> Self {
         Self {
             persistent: Some(backend),
             settings,
         }
-    }
-
-    pub async fn from_config_with_storage(
-        config: &shared::AppConfig,
-        storage: Arc<dyn domain::wiki::WikiAttachmentStorage>,
-    ) -> Result<Self, shared::AppError> {
-        if config.database.url.trim().is_empty() {
-            return Err(shared::AppError::invalid_input(
-                "WIKI_DATABASE__URL is required for PostgreSQL Wiki runtime",
-            ));
-        }
-
-        crate::wiki_postgres::connect_persistent_backend(config, storage).await
     }
 
     fn persistent_backend(&self) -> Option<&dyn WikiBackendPort> {
@@ -343,413 +87,6 @@ pub async fn require_wiki_auth(
 
     req.extensions_mut().insert(claims);
     Ok(next.run(req).await)
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct WikiAuthResponse {
-    pub access_token: String,
-    pub refresh_token: String,
-    pub token_type: String,
-    pub user_id: String,
-    pub email: String,
-    pub username: String,
-    pub display_name: String,
-    pub expires_in: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct WikiRegisterRequest {
-    pub email: String,
-    pub username: String,
-    pub password: String,
-    #[serde(default)]
-    pub name: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct WikiLoginRequest {
-    pub email: String,
-    pub password: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct WikiRefreshRequest {
-    pub refresh_token: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct WikiUserResponse {
-    pub id: String,
-    pub email: String,
-    pub username: String,
-    pub display_name: String,
-    pub role: String,
-    pub is_system_admin: bool,
-    pub active: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct WikiUserListResponse {
-    pub users: Vec<WikiUserResponse>,
-}
-
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct WikiCreateUserRequest {
-    pub email: String,
-    pub username: String,
-    pub password: String,
-    pub display_name: String,
-    #[serde(default = "default_user_role")]
-    pub role: String,
-}
-
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct WikiUpdateUserRequest {
-    pub email: Option<String>,
-    pub username: Option<String>,
-    pub display_name: Option<String>,
-    pub role: Option<String>,
-    pub is_system_admin: Option<bool>,
-    pub active: Option<bool>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct WikiSettingsResponse {
-    pub instance_name: String,
-    pub api_base_path: String,
-    pub default_space_key: String,
-    pub default_language: String,
-    pub timezone: String,
-    pub registration_enabled: bool,
-    pub public_links_enabled: bool,
-    pub search_backend: String,
-    pub storage_backend: String,
-    pub max_upload_bytes: usize,
-    pub markdown_renderer: String,
-    pub html_sanitizer: String,
-}
-
-impl WikiSettingsResponse {
-    fn from_snapshot(snapshot: WikiSettingsSnapshot) -> Self {
-        Self {
-            instance_name: snapshot.instance_name,
-            api_base_path: snapshot.api_base_path,
-            default_space_key: snapshot.default_space_key,
-            default_language: snapshot.default_language,
-            timezone: snapshot.timezone,
-            registration_enabled: snapshot.registration_enabled,
-            public_links_enabled: snapshot.public_links_enabled,
-            search_backend: snapshot.search_backend,
-            storage_backend: snapshot.storage_backend,
-            max_upload_bytes: snapshot.max_upload_bytes,
-            markdown_renderer: snapshot.markdown_renderer,
-            html_sanitizer: snapshot.html_sanitizer,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct SpaceResponse {
-    pub id: String,
-    pub key: String,
-    pub name: String,
-    pub description: Option<String>,
-    pub owner_id: String,
-    pub status: String,
-    pub document_count: usize,
-    pub member_count: usize,
-    pub created_at: String,
-    pub updated_at: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct SpaceListResponse {
-    pub spaces: Vec<SpaceResponse>,
-}
-
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct CreateSpaceRequest {
-    pub key: String,
-    pub name: String,
-    pub description: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct UpdateSpaceRequest {
-    pub name: Option<String>,
-    pub description: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct SpaceMemberResponse {
-    pub user_id: String,
-    pub email: String,
-    pub display_name: String,
-    pub role: String,
-    pub joined_at: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct SpaceMemberListResponse {
-    pub members: Vec<SpaceMemberResponse>,
-}
-
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct UpsertSpaceMemberRequest {
-    pub role: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct SpaceTreeNodeResponse {
-    pub id: String,
-    pub slug: String,
-    pub title: String,
-    pub document_type: String,
-    pub status: String,
-    #[schema(no_recursion)]
-    pub children: Vec<SpaceTreeNodeResponse>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct SpaceTreeResponse {
-    pub space_key: String,
-    pub documents: Vec<SpaceTreeNodeResponse>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct DocumentRevisionResponse {
-    pub id: String,
-    pub document_id: String,
-    pub version: u32,
-    pub title: String,
-    pub body_markdown: String,
-    pub summary: Option<String>,
-    pub author_id: String,
-    pub published_at: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct DocumentRevisionListResponse {
-    pub revisions: Vec<DocumentRevisionResponse>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct DocumentResponse {
-    pub id: String,
-    pub space_key: String,
-    pub parent_id: Option<String>,
-    pub slug: String,
-    pub title: String,
-    pub document_type: String,
-    pub status: String,
-    pub body_markdown: String,
-    pub draft_markdown: String,
-    pub current_revision: Option<DocumentRevisionResponse>,
-    pub task_keys: Vec<String>,
-    pub phase_keys: Vec<String>,
-    pub evidence: Vec<EvidenceResponse>,
-    pub created_by: String,
-    pub updated_by: String,
-    pub created_at: String,
-    pub updated_at: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct DocumentListResponse {
-    pub documents: Vec<DocumentResponse>,
-}
-
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct CreateDocumentRequest {
-    pub title: String,
-    pub slug: Option<String>,
-    #[serde(default = "default_document_type")]
-    pub document_type: String,
-    pub parent_id: Option<String>,
-    #[serde(default)]
-    pub content_markdown: String,
-    pub task_key: Option<String>,
-    pub phase_key: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct UpdateDocumentDraftRequest {
-    pub title: Option<String>,
-    pub content_markdown: String,
-}
-
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct PublishDocumentRequest {
-    pub summary: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct MoveDocumentRequest {
-    pub parent_id: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct LinkDocumentRequest {
-    pub document_id: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct TaskPageResponse {
-    pub space_key: String,
-    pub task_key: String,
-    pub title: Option<String>,
-    pub document_count: usize,
-    pub evidence_count: usize,
-    pub documents: Vec<DocumentSummaryResponse>,
-    pub evidence: Vec<EvidenceResponse>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct TaskPageListResponse {
-    pub tasks: Vec<TaskPageResponse>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct PhasePageResponse {
-    pub space_key: String,
-    pub phase_key: String,
-    pub title: Option<String>,
-    pub document_count: usize,
-    pub evidence_count: usize,
-    pub documents: Vec<DocumentSummaryResponse>,
-    pub evidence: Vec<EvidenceResponse>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct PhasePageListResponse {
-    pub phases: Vec<PhasePageResponse>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct DocumentSummaryResponse {
-    pub id: String,
-    pub slug: String,
-    pub title: String,
-    pub document_type: String,
-    pub status: String,
-    pub updated_at: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct EvidenceResponse {
-    pub id: String,
-    pub space_key: String,
-    pub document_id: Option<String>,
-    pub task_key: Option<String>,
-    pub phase_key: Option<String>,
-    pub title: String,
-    pub evidence_type: String,
-    pub url: Option<String>,
-    pub attachment_id: Option<String>,
-    pub checksum: Option<String>,
-    pub created_by: String,
-    pub created_at: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct EvidenceListResponse {
-    pub evidence: Vec<EvidenceResponse>,
-}
-
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct CreateEvidenceRequest {
-    pub space: Option<String>,
-    pub document_id: Option<String>,
-    pub task_key: Option<String>,
-    pub phase_key: Option<String>,
-    pub title: String,
-    #[serde(default = "default_evidence_type")]
-    pub evidence_type: String,
-    pub url: Option<String>,
-    pub attachment_id: Option<String>,
-    pub checksum: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize, IntoParams)]
-pub struct EvidenceQuery {
-    pub space: Option<String>,
-    pub document_id: Option<String>,
-    pub task_key: Option<String>,
-    pub phase_key: Option<String>,
-    pub limit: Option<usize>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct AttachmentResponse {
-    pub id: String,
-    pub file_name: String,
-    pub content_type: String,
-    pub size_bytes: usize,
-    pub checksum: String,
-    pub uploaded_by: String,
-    pub uploaded_at: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct TemplateResponse {
-    pub id: String,
-    pub name: String,
-    pub document_type: String,
-    pub body_markdown: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct TemplateListResponse {
-    pub templates: Vec<TemplateResponse>,
-}
-
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct CreateTemplateRequest {
-    pub name: String,
-    pub document_type: String,
-    pub body_markdown: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct AuditEntryResponse {
-    pub id: String,
-    pub actor_id: String,
-    pub action: String,
-    pub entity_type: String,
-    pub entity_id: String,
-    pub created_at: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct AuditLogResponse {
-    pub entries: Vec<AuditEntryResponse>,
-}
-
-#[derive(Debug, Clone, Deserialize, IntoParams)]
-pub struct SearchQuery {
-    pub q: Option<String>,
-    pub space: Option<String>,
-    pub task_key: Option<String>,
-    pub phase_key: Option<String>,
-    pub document_type: Option<String>,
-    pub include_archived: Option<bool>,
-    pub limit: Option<usize>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct SearchResultResponse {
-    pub id: String,
-    pub result_type: String,
-    pub title: String,
-    pub space_key: String,
-    pub url: String,
-    pub snippet: String,
-    pub updated_at: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct SearchResponse {
-    pub results: Vec<SearchResultResponse>,
 }
 
 #[derive(Debug, Clone)]
@@ -2609,9 +1946,10 @@ pub async fn download_attachment(
     Extension(claims): Extension<WikiClaims>,
 ) -> Result<Response, shared::AppError> {
     if let Some(persistent) = backend.persistent_backend() {
-        return persistent
+        let download = persistent
             .download_attachment(&claims, &attachment_id)
-            .await;
+            .await?;
+        return attachment_download_response(download);
     }
 
     let store = store().lock().expect("wiki store lock");
@@ -2620,21 +1958,31 @@ pub async fn download_attachment(
         .get(&attachment_id)
         .cloned()
         .ok_or_else(|| shared::AppError::not_found("attachment", &attachment_id))?;
+    attachment_download_response(AttachmentDownloadResponse {
+        file_name: attachment.metadata.file_name,
+        content_type: attachment.metadata.content_type,
+        bytes: attachment.bytes,
+    })
+}
+
+fn attachment_download_response(
+    download: AttachmentDownloadResponse,
+) -> Result<Response, shared::AppError> {
     let mut headers = HeaderMap::new();
     headers.insert(
         header::CONTENT_TYPE,
-        HeaderValue::from_str(&attachment.metadata.content_type)
+        HeaderValue::from_str(&download.content_type)
             .map_err(|err| shared::AppError::internal(err.to_string()))?,
     );
     headers.insert(
         header::CONTENT_DISPOSITION,
         HeaderValue::from_str(&format!(
             "attachment; filename=\"{}\"",
-            safe_download_filename(&attachment.metadata.file_name)
+            safe_download_filename(&download.file_name)
         ))
         .map_err(|err| shared::AppError::internal(err.to_string()))?,
     );
-    Ok((headers, attachment.bytes).into_response())
+    Ok((headers, download.bytes).into_response())
 }
 
 #[utoipa::path(
@@ -3030,12 +2378,4 @@ fn now_iso() -> String {
 
 fn default_user_role() -> String {
     "viewer".to_string()
-}
-
-fn default_document_type() -> String {
-    "page".to_string()
-}
-
-fn default_evidence_type() -> String {
-    "external_url".to_string()
 }

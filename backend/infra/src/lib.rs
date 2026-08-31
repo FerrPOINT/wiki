@@ -14,6 +14,7 @@ pub mod jql;
 pub mod repos;
 #[cfg(feature = "legacy-tracker")]
 pub mod storage;
+pub mod wiki_postgres;
 pub mod wiki_storage;
 
 #[cfg(feature = "legacy-tracker")]
@@ -30,4 +31,5 @@ pub use event_bus::*;
 pub use repos::*;
 #[cfg(feature = "legacy-tracker")]
 pub use storage::*;
+pub use wiki_postgres::*;
 pub use wiki_storage::*;

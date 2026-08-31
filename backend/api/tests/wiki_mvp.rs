@@ -77,9 +77,10 @@ async fn postgres_test_app_with_registration(
         postgres_test_config_with_registration(database_url, storage_dir, registration_enabled);
     let ctx = Arc::new(app::WikiAppContext::new(config.clone()));
     let storage = Arc::new(infra::LocalWikiAttachmentStorage::new(&config.storage.dir));
-    let wiki_backend = api::routes::wiki::WikiBackend::from_config_with_storage(&config, storage)
+    let (backend, settings) = infra::connect_postgres_wiki_backend(&config, storage)
         .await
         .unwrap();
+    let wiki_backend = api::routes::wiki::WikiBackend::persistent(backend, settings);
     (
         api::router_with_wiki(ctx.clone(), wiki_backend).with_state(ctx),
         config,
@@ -221,8 +222,7 @@ async fn wiki_persistent_backend_requires_database_url() {
     let storage_dir = env::temp_dir().join(format!("wiki-api-test-{}", Uuid::now_v7()));
     let storage = Arc::new(infra::LocalWikiAttachmentStorage::new(storage_dir));
 
-    let backend_result =
-        api::routes::wiki::WikiBackend::from_config_with_storage(&config, storage).await;
+    let backend_result = infra::connect_postgres_wiki_backend(&config, storage).await;
     let err = match backend_result {
         Ok(_) => panic!("persistent backend must reject an empty database URL"),
         Err(err) => err,

@@ -8,32 +8,30 @@ license-file.workspace = true
 [features]
 default = []
 legacy-tracker = [
-    "dep:chrono",
     "dep:lettre",
     "dep:migration",
     "dep:moka",
     "dep:sea-orm",
     "dep:serde_json",
-    "dep:tracing",
-    "dep:uuid",
     "domain/legacy-tracker",
 ]
 
 [dependencies]
 shared = { path = "../shared" }
 domain = { path = "../domain" }
+app = { path = "../app" }
 async-trait.workspace = true
 tokio.workspace = true
-chrono = { workspace = true, optional = true }
+chrono.workspace = true
 lettre = { workspace = true, optional = true }
 migration = { path = "../migration", optional = true }
 moka = { workspace = true, optional = true }
 sea-orm = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
-tracing = { workspace = true, optional = true }
-uuid = { workspace = true, optional = true }
+sqlx.workspace = true
+tracing.workspace = true
+uuid.workspace = true
 
 [dev-dependencies]
 serial_test = "3.2"
 tokio = { workspace = true, features = ["macros", "rt"] }
-uuid.workspace = true

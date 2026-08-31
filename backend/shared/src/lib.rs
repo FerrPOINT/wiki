@@ -2,11 +2,13 @@ pub mod config;
 pub mod error;
 pub mod events;
 pub mod id;
+pub mod wiki_contract;
 
 pub use config::*;
 pub use error::*;
 pub use events::*;
 pub use id::*;
+pub use wiki_contract::*;
 
 use chrono::{DateTime, FixedOffset, Utc};
 

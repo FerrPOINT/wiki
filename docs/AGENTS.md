@@ -19,7 +19,7 @@
 
 - Backend: целевая слоистая архитектура `api/routes → app/services → domain → infra/repositories`.
 - Runtime DI для Wiki идёт через `WikiAppContext`; унаследованный task-tracker `AppContext` доступен только как временный compatibility слой за feature `legacy-tracker`.
-- API routes обращаются к постоянному хранилищу через внутренний `WikiBackendPort`; конкретные SQLx/PostgreSQL adapters не вызывать напрямую из handlers и переносить дальше в app/infra repositories.
+- API routes обращаются к постоянному хранилищу через `shared::wiki_contract::WikiBackendPort`; конкретные SQLx/PostgreSQL adapters не вызывать напрямую из handlers. Production composition создаётся в `server` через `infra`.
 - Все публичные API покрыты OpenAPI через `utoipa-axum`.
 - Rust-хендлеры и DTO — единственный источник правды для схемы; frontend DTO types генерируются из `openapi/openapi.json`, а thin endpoint wrappers остаются временным слоем до полного generated operation client.
 - Новую Wiki persistence-логику писать на SQLx по ADR-0001. Унаследованный SeaORM/task-tracker код можно трогать только для удаления, карантина или временной совместимости, не расширяя task-tracker модель. Default backend-сборка не должна зависеть от унаследованных task-tracker domain/app/infra services.

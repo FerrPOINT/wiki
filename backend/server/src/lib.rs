@@ -21,7 +21,10 @@ pub async fn persistent_wiki_backend(
     config: &AppConfig,
 ) -> Result<api::routes::wiki::WikiBackend, AppError> {
     let wiki_storage = Arc::new(infra::LocalWikiAttachmentStorage::new(&config.storage.dir));
-    api::routes::wiki::WikiBackend::from_config_with_storage(config, wiki_storage).await
+    let (backend, settings) = infra::connect_postgres_wiki_backend(config, wiki_storage).await?;
+    Ok(api::routes::wiki::WikiBackend::persistent(
+        backend, settings,
+    ))
 }
 
 pub async fn run_with_wiki_backend(

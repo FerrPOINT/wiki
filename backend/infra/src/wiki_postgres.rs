@@ -1,17 +1,13 @@
-use crate::routes::wiki::*;
 use app::wiki::{
-    WikiSettingsSnapshot, WikiSpaceAccess as SpaceAccess, build_wiki_search_criteria, checksum,
-    clamp_limit, create_wiki_session_token_pair, create_wiki_token_pair, decode_token,
-    default_username, global_role_from_request, hash_password, hash_token, markdown_to_text,
-    normalize_document_type, normalize_evidence_type, normalize_phase_key, normalize_required,
-    normalize_slug, normalize_space_key, normalize_space_role, normalize_task_key,
-    safe_download_filename, slugify, snippet, space_role_allows, verify_password,
-};
-use axum::{
-    http::{HeaderMap, HeaderValue, header},
-    response::{IntoResponse, Response},
+    WikiSpaceAccess as SpaceAccess, build_wiki_search_criteria, checksum, clamp_limit,
+    create_wiki_session_token_pair, create_wiki_token_pair, decode_token, default_username,
+    global_role_from_request, hash_password, hash_token, markdown_to_text, normalize_document_type,
+    normalize_evidence_type, normalize_phase_key, normalize_required, normalize_slug,
+    normalize_space_key, normalize_space_role, normalize_task_key, safe_download_filename, slugify,
+    snippet, space_role_allows, verify_password,
 };
 use chrono::{DateTime, Utc};
+use shared::wiki_contract::*;
 use sqlx::{PgPool, Row, postgres::PgPoolOptions, postgres::PgRow};
 use std::{collections::BTreeSet, sync::Arc};
 use uuid::Uuid;
@@ -25,13 +21,19 @@ struct PostgresWikiBackend {
     settings: WikiSettingsSnapshot,
 }
 
-pub(crate) async fn connect_persistent_backend(
+pub async fn connect_postgres_wiki_backend(
     config: &shared::AppConfig,
     storage: Arc<dyn domain::wiki::WikiAttachmentStorage>,
-) -> Result<WikiBackend, shared::AppError> {
+) -> Result<(Arc<dyn WikiBackendPort>, WikiSettingsSnapshot), shared::AppError> {
+    if config.database.url.trim().is_empty() {
+        return Err(shared::AppError::invalid_input(
+            "WIKI_DATABASE__URL is required for PostgreSQL Wiki runtime",
+        ));
+    }
+
     let backend = PostgresWikiBackend::connect(config, storage).await?;
     let settings = backend.settings.clone();
-    Ok(WikiBackend::persistent(Arc::new(backend), settings))
+    Ok((Arc::new(backend), settings))
 }
 
 impl PostgresWikiBackend {
@@ -1860,7 +1862,7 @@ impl PostgresWikiBackend {
         &self,
         claims: &WikiClaims,
         attachment_id: &str,
-    ) -> Result<Response, shared::AppError> {
+    ) -> Result<AttachmentDownloadResponse, shared::AppError> {
         let attachment_id = parse_uuid(attachment_id, "attachment")?;
         self.ensure_attachment_access(claims, attachment_id).await?;
         let row = sqlx::query(
@@ -1885,20 +1887,11 @@ impl PostgresWikiBackend {
                 err
             }
         })?;
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            header::CONTENT_TYPE,
-            HeaderValue::from_str(&content_type).map_err(shared::AppError::internal)?,
-        );
-        headers.insert(
-            header::CONTENT_DISPOSITION,
-            HeaderValue::from_str(&format!(
-                "attachment; filename=\"{}\"",
-                safe_download_filename(&file_name)
-            ))
-            .map_err(shared::AppError::internal)?,
-        );
-        Ok((headers, bytes).into_response())
+        Ok(AttachmentDownloadResponse {
+            file_name,
+            content_type,
+            bytes,
+        })
     }
 
     async fn list_templates(&self) -> Result<TemplateListResponse, shared::AppError> {
@@ -3337,7 +3330,7 @@ impl WikiBackendPort for PostgresWikiBackend {
         &self,
         claims: &WikiClaims,
         attachment_id: &str,
-    ) -> Result<Response, shared::AppError> {
+    ) -> Result<AttachmentDownloadResponse, shared::AppError> {
         PostgresWikiBackend::download_attachment(self, claims, attachment_id).await
     }
 
