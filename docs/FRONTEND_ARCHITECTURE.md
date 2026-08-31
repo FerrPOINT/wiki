@@ -140,8 +140,8 @@ The frontend contains only the approved Wiki MVP pages. Deferred reporting, noti
 ## 10. Testing
 
 - Unit/component tests for document tree, editor, evidence feed and permissions states.
-- Current E2E smoke: login and navigate through API-backed MVP pages with deterministic Wiki API mocks.
-- Target E2E expansion: create draft, publish document, attach evidence and search.
+- Current E2E smoke: login, navigate through API-backed MVP pages, save a document draft, publish a revision, filter evidence by document and search by document type with deterministic Wiki API mocks.
+- Целевое расширение E2E: создать черновик из `/documents/new`, приложить evidence и покрыть состояния запрета доступа.
 - Visual checks for document layout on mobile and desktop.
 
 ## 11. References

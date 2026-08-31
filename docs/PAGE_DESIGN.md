@@ -72,6 +72,10 @@ Document compose includes:
 Document view includes:
 
 - breadcrumb, status and current revision;
+- draft title/Markdown editor;
+- publish action with revision summary;
+- archive action with confirmation;
+- parent document field for moving within the tree;
 - primary body content;
 - linked task and phase;
 - revision timeline;
@@ -102,11 +106,11 @@ Phase page shows:
 Evidence registry shows:
 
 - file and URL material counts;
-- filters by text and space;
-- table with material title, task, phase, evidence type and date;
+- filters by text, space, document, task and phase;
+- table with material title, document, task, phase, evidence type and date;
 - upload and add-link actions.
 
-Evidence is permission-filtered by space and by linked task/phase visibility.
+Evidence is permission-filtered by space and by linked document/task/phase visibility.
 
 ## 9. Templates
 

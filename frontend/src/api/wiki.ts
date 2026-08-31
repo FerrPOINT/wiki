@@ -91,6 +91,19 @@ export type CreateDocumentRequest = {
   phase_key?: string | null
 }
 
+export type UpdateDocumentDraftRequest = {
+  title?: string | null
+  content_markdown: string
+}
+
+export type PublishDocumentRequest = {
+  summary?: string | null
+}
+
+export type MoveDocumentRequest = {
+  parent_id?: string | null
+}
+
 export type TaskPage = {
   space_key: string
   task_key: string
@@ -213,6 +226,39 @@ export function createDocument(spaceKey: string, body: CreateDocumentRequest): P
 
 export function getDocument(documentId: string): Promise<Document> {
   return apiRequest(`/api/v1/documents/${encodeURIComponent(documentId)}`)
+}
+
+export function updateDocumentDraft(
+  documentId: string,
+  body: UpdateDocumentDraftRequest,
+): Promise<Document> {
+  return apiRequest(`/api/v1/documents/${encodeURIComponent(documentId)}/draft`, {
+    method: 'PUT',
+    body,
+  })
+}
+
+export function publishDocument(
+  documentId: string,
+  body: PublishDocumentRequest,
+): Promise<DocumentRevision> {
+  return apiRequest(`/api/v1/documents/${encodeURIComponent(documentId)}/publish`, {
+    method: 'POST',
+    body,
+  })
+}
+
+export function archiveDocument(documentId: string): Promise<Document> {
+  return apiRequest(`/api/v1/documents/${encodeURIComponent(documentId)}/archive`, {
+    method: 'POST',
+  })
+}
+
+export function moveDocument(documentId: string, body: MoveDocumentRequest): Promise<Document> {
+  return apiRequest(`/api/v1/documents/${encodeURIComponent(documentId)}/move`, {
+    method: 'POST',
+    body,
+  })
 }
 
 export function listDocumentRevisions(

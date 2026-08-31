@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
 import { getCurrentUser, login, logout, register } from '@/api/auth'
 import {
+  archiveDocument,
   createDocument,
   createEvidence,
   createUser,
@@ -17,11 +18,18 @@ import {
   listTasks,
   listTemplates,
   listUsers,
+  moveDocument,
+  publishDocument,
   searchWiki,
   type CreateDocumentRequest,
   type CreateEvidenceRequest,
+  type Document,
   type EvidenceListParams,
+  type MoveDocumentRequest,
+  type PublishDocumentRequest,
   type SearchParams,
+  updateDocumentDraft,
+  type UpdateDocumentDraftRequest,
   uploadAttachment,
   type CreateUserRequest,
 } from '@/api/wiki'
@@ -226,6 +234,70 @@ export function useCreateDocument() {
       queryClient.invalidateQueries({ queryKey: wikiKeys.tasks(document.space_key) })
       queryClient.invalidateQueries({ queryKey: wikiKeys.phases(document.space_key) })
       queryClient.invalidateQueries({ queryKey: ['wiki', 'search'] })
+    },
+  })
+}
+
+function writeDocumentCache(
+  queryClient: ReturnType<typeof useQueryClient>,
+  document: Document,
+  requestedId?: string,
+) {
+  if (requestedId) queryClient.setQueryData(wikiKeys.document(requestedId), document)
+  queryClient.setQueryData(wikiKeys.document(document.id), document)
+  queryClient.setQueryData(wikiKeys.document(document.slug), document)
+  queryClient.invalidateQueries({ queryKey: wikiKeys.spaces })
+  queryClient.invalidateQueries({ queryKey: wikiKeys.spaceTree(document.space_key) })
+  queryClient.invalidateQueries({ queryKey: wikiKeys.tasks(document.space_key) })
+  queryClient.invalidateQueries({ queryKey: wikiKeys.phases(document.space_key) })
+  queryClient.invalidateQueries({ queryKey: ['wiki', 'search'] })
+}
+
+export function useUpdateDocumentDraft() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ documentId, body }: { documentId: string; body: UpdateDocumentDraftRequest }) =>
+      updateDocumentDraft(documentId, body),
+    onSuccess: (document, variables) => {
+      writeDocumentCache(queryClient, document, variables.documentId)
+    },
+  })
+}
+
+export function usePublishDocument() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ documentId, body }: { documentId: string; body: PublishDocumentRequest }) =>
+      publishDocument(documentId, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['wiki', 'documents'] })
+      queryClient.invalidateQueries({ queryKey: ['wiki', 'spaces'] })
+      queryClient.invalidateQueries({ queryKey: ['wiki', 'search'] })
+    },
+  })
+}
+
+export function useArchiveDocument() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: archiveDocument,
+    onSuccess: (document, requestedId) => {
+      writeDocumentCache(queryClient, document, requestedId)
+    },
+  })
+}
+
+export function useMoveDocument() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ documentId, body }: { documentId: string; body: MoveDocumentRequest }) =>
+      moveDocument(documentId, body),
+    onSuccess: (document, variables) => {
+      writeDocumentCache(queryClient, document, variables.documentId)
     },
   })
 }

@@ -93,6 +93,10 @@ function routeJson(route: Route, body: unknown, status = 200) {
 }
 
 async function installWikiApiMocks(page: Page) {
+  let currentDocument = { ...document }
+  let currentRevisions = [document.current_revision]
+  const documentDraftRequests: Array<{ title?: string; content_markdown: string }> = []
+  const documentPublishRequests: Array<{ summary?: string | null }> = []
   const searchRequests: string[] = []
   const evidenceRequests: string[] = []
 
@@ -153,10 +157,53 @@ async function installWikiApiMocks(page: Page) {
       })
     }
     if (method === 'GET' && path === '/documents/product-requirements') {
-      return routeJson(route, document)
+      return routeJson(route, currentDocument)
     }
     if (method === 'GET' && path === '/documents/product-requirements/revisions') {
-      return routeJson(route, { revisions: [document.current_revision] })
+      return routeJson(route, { revisions: currentRevisions })
+    }
+    if (method === 'PUT' && path === '/documents/product-requirements/draft') {
+      const body = request.postDataJSON() as { title?: string; content_markdown: string }
+      documentDraftRequests.push(body)
+      currentDocument = {
+        ...currentDocument,
+        title: body.title ?? currentDocument.title,
+        status: 'draft',
+        draft_markdown: body.content_markdown,
+        updated_at: now,
+      }
+      return routeJson(route, currentDocument)
+    }
+    if (method === 'POST' && path === '/documents/product-requirements/publish') {
+      const body = request.postDataJSON() as { summary?: string | null }
+      documentPublishRequests.push(body)
+      const revision = {
+        ...document.current_revision,
+        id: 'revision-product-requirements-2',
+        version: 2,
+        title: currentDocument.title,
+        body_markdown: currentDocument.draft_markdown,
+        summary: body.summary ?? null,
+        published_at: now,
+      }
+      currentDocument = {
+        ...currentDocument,
+        status: 'published',
+        body_markdown: currentDocument.draft_markdown,
+        current_revision: revision,
+        updated_at: now,
+      }
+      currentRevisions = [revision, ...currentRevisions]
+      return routeJson(route, revision)
+    }
+    if (method === 'POST' && path === '/documents/product-requirements/archive') {
+      currentDocument = { ...currentDocument, status: 'archived', updated_at: now }
+      return routeJson(route, currentDocument)
+    }
+    if (method === 'POST' && path === '/documents/product-requirements/move') {
+      const body = request.postDataJSON() as { parent_id?: string | null }
+      currentDocument = { ...currentDocument, parent_id: body.parent_id ?? null, updated_at: now }
+      return routeJson(route, currentDocument)
     }
     if (method === 'GET' && path === '/spaces/SDLC/tasks')
       return routeJson(route, { tasks: [task] })
@@ -226,7 +273,7 @@ async function installWikiApiMocks(page: Page) {
     return routeJson(route, { error: `Unhandled mock route ${method} ${path}` }, 404)
   })
 
-  return { evidenceRequests, searchRequests }
+  return { documentDraftRequests, documentPublishRequests, evidenceRequests, searchRequests }
 }
 
 test.describe('wiki smoke', () => {
@@ -246,6 +293,21 @@ test.describe('wiki smoke', () => {
 
     await page.goto(`${baseURL}/documents/new`)
     await expect(page.getByRole('heading', { name: 'Новый документ' })).toBeVisible()
+
+    await page.goto(`${baseURL}/documents/product-requirements`)
+    await expect(page.getByRole('heading', { name: 'Требования к Wiki MVP' })).toBeVisible()
+    await page.getByLabel('Markdown черновика').fill('# Обновлено\n\nЧерновик из e2e.')
+    await page.getByRole('button', { name: 'Сохранить', exact: true }).click()
+    await expect.poll(() => apiMocks.documentDraftRequests.length).toBe(1)
+    await expect(page.getByText('Черновик сохранён')).toBeVisible()
+    await page.getByLabel('Комментарий к публикации').fill('E2E publish')
+    await page.getByRole('button', { name: 'Опубликовать', exact: true }).click()
+    await expect
+      .poll(() =>
+        apiMocks.documentPublishRequests.some((request) => request.summary === 'E2E publish'),
+      )
+      .toBe(true)
+    await expect(page.getByText('Опубликована ревизия 2')).toBeVisible()
 
     await page.goto(`${baseURL}/tasks/SDLC-42`)
     await expect(page.getByRole('heading', { name: 'SDLC-42' })).toBeVisible()
