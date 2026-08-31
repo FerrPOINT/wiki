@@ -796,4 +796,38 @@ async fn wiki_postgres_routes_persist_across_router_rebuilds() {
             .iter()
             .any(|item| item["title"] == "Persistent Requirements")
     );
+
+    let (status, phrase_search) = call(
+        &app,
+        Method::GET,
+        "/api/v1/search?q=Postgres%20Wiki%20document&space=SDLC",
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        phrase_search["results"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["id"] == persisted_document_id)
+    );
+
+    let (status, substring_search) = call(
+        &app,
+        Method::GET,
+        "/api/v1/search?q=gres&space=SDLC",
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        !substring_search["results"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["id"] == persisted_document_id)
+    );
 }

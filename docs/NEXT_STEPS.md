@@ -31,7 +31,7 @@ The public API/router is now a Wiki MVP runtime with memory test fallback and SQ
 - evidence items and attachments;
 - templates;
 - audit log;
-- PostgreSQL full-text search.
+- PostgreSQL full-text search for document title/body.
 
 Remove or quarantine remaining inherited tracker concepts from backend internals:
 
@@ -74,7 +74,7 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 
 ## 6. Search, Storage And Audit
 
-- Upgrade current PostgreSQL-backed search to tuned FTS with query plans and language decisions.
+- Tune current PostgreSQL FTS with ranking, query plans and language decisions.
 - Keep current local filesystem storage behind a dedicated storage port; add S3/MinIO later behind the same abstraction.
 - Expand attachment tests beyond the current staged upload, claim, download and missing-file smoke for less common storage edge cases.
 - Expand audit tests for document publish/archive, evidence writes, user changes and permission changes.
@@ -101,7 +101,7 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 1. Extract SQLx route-level persistence into repository interfaces/implementations for identity, spaces and documents using `domain::wiki`.
 2. Wire server composition to those repositories behind feature-compatible app use cases.
 3. Add focused repository/API tests for document draft/publish/history, task/phase links, evidence and attachments.
-4. Tune PostgreSQL FTS/search filters and capture query-plan evidence for the expected MVP dataset size.
+4. Tune PostgreSQL FTS ranking/search filters and capture query-plan evidence for the expected MVP dataset size.
 5. Bring CLI smoke tests to parity with the public API.
 6. Remove remaining inherited tracker backend internals and SeaORM migration compatibility layer.
 7. Generate frontend API client after the PostgreSQL-backed contract stabilizes.

@@ -36,7 +36,7 @@
 | Phase links | link documents/evidence by phase key |
 | Evidence | `external_url` and `uploaded_file` evidence, checksum, lists by owner |
 | Attachments | local storage metadata and download |
-| Search | PostgreSQL-backed search over title/body/evidence with basic filters |
+| Search | PostgreSQL FTS over published document title/body with basic filters; evidence metadata stays bounded metadata search |
 | Templates | requirements, research note, implementation note, test plan, release note |
 | Audit | write actions and access/role changes |
 | API/UI/CLI | same MVP operations through public `/api/v1` |
@@ -54,7 +54,7 @@
 
 - Backend app/infra and old SeaORM migration crate still include task-tracker modules outside the active Wiki API shell.
 - SQLx persistence currently lives in the API route module as a pragmatic MVP runtime adapter; extracting dedicated app use cases/repositories is still target architecture work.
-- Per-space permission checks are implemented in the PostgreSQL runtime for core read/write paths; staged attachment, claimed file evidence, attachment-download access and missing-file handling are covered by the PostgreSQL API smoke. Deeper repository/API coverage is still needed for less common edge-case combinations.
+- Per-space permission checks are implemented in the PostgreSQL runtime for core read/write paths; staged attachment, claimed file evidence, attachment-download access, missing-file handling and FTS search semantics are covered by the PostgreSQL API smoke. Deeper repository/API coverage is still needed for less common edge-case combinations.
 - Generated Wiki frontend OpenAPI client is pending backend domain/repository stabilization.
 
 ## Verification Commands
@@ -81,9 +81,9 @@ Latest verification on 2026-08-31:
 
 - `docker run ... cargo check --workspace` passed on Linux container; direct Windows linking remains blocked by missing MSVC `link.exe`.
 - `docker run ... cargo check -p api` and `cargo check -p wiki-cli` passed on Linux container.
-- `docker run ... cargo test -p api -- --test-threads=1 --nocapture` passed: memory MVP contract plus PostgreSQL persistence, space-permission, file-evidence/download and missing-file smoke.
+- `docker run ... cargo test -p api -- --test-threads=1 --nocapture` passed: memory MVP contract plus PostgreSQL persistence, space-permission, file-evidence/download, missing-file and FTS search smoke.
 - `docker run ... cargo test -p shared`, `cargo test -p domain`, `cargo test -p app` and `cargo test -p server` passed on Linux container.
-- `docker run ... cargo test -p api wiki_postgres_routes_persist_across_router_rebuilds -- --test-threads=1 --nocapture` passed against explicit `wiki-test` compose PostgreSQL on `host.docker.internal:3458`.
+- `docker run ... cargo test -p api wiki_postgres_routes_persist_across_router_rebuilds -- --test-threads=1 --nocapture` passed against explicit `wiki-test` compose PostgreSQL on `host.docker.internal:3458`, including FTS multi-token positive and substring-negative checks.
 - `docker run ... cargo run -p api --bin openapi-gen -- /workspace/openapi/openapi.json` regenerated OpenAPI successfully.
 - `cargo fmt --all -- --check` passed.
 - `cargo clippy --workspace --all-targets -- -D warnings` is blocked on this Windows host by missing MSVC `link.exe`; the checked Linux image also has no bundled `cargo-clippy`/`rustup` component manager.

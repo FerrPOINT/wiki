@@ -2593,7 +2593,7 @@ impl PostgresWikiBackend {
         query: SearchQuery,
     ) -> Result<SearchResponse, shared::AppError> {
         let needle = query.q.unwrap_or_default();
-        let pattern = format!("%{}%", needle.to_lowercase());
+        let evidence_pattern = format!("%{}%", needle.to_lowercase());
         let space_key = query
             .space
             .as_deref()
@@ -2622,7 +2622,7 @@ impl PostgresWikiBackend {
         let limit = clamp_limit(query.limit, 50);
 
         let document_rows = sqlx::query(SEARCH_DOCUMENTS_SQL)
-            .bind(&pattern)
+            .bind(&needle)
             .bind(space_key.as_deref())
             .bind(task_key.as_deref())
             .bind(phase_key.as_deref())
@@ -2634,7 +2634,7 @@ impl PostgresWikiBackend {
             .await
             .map_err(shared::AppError::database)?;
         let evidence_rows = sqlx::query(SEARCH_EVIDENCE_SQL)
-            .bind(&pattern)
+            .bind(&evidence_pattern)
             .bind(space_key.as_deref())
             .bind(task_key.as_deref())
             .bind(phase_key.as_deref())
@@ -5249,28 +5249,34 @@ const ATTACHMENT_ONE_SQL: &str = r#"
 "#;
 
 const SEARCH_DOCUMENTS_SQL: &str = r#"
-    WITH latest_revision AS (
-        SELECT DISTINCT ON (document_id)
-               document_id, content_markdown, content_text, published_at
-        FROM document_revisions
-        ORDER BY document_id, published_at DESC
+    WITH search_query AS (
+        SELECT CASE
+            WHEN NULLIF(btrim($1::text), '') IS NULL THEN NULL
+            ELSE websearch_to_tsquery('simple', $1::text)
+        END AS query
     )
     SELECT d.id,
            'document' AS result_type,
            d.title,
            s.key AS space_key,
            '/documents/' || d.slug AS url,
-           COALESCE(NULLIF(lr.content_text, ''), NULLIF(dd.content_markdown, ''), d.title) AS snippet,
+           COALESCE(NULLIF(cr.content_text, ''), NULLIF(dd.content_markdown, ''), d.title) AS snippet,
            d.updated_at
-    FROM documents d
+    FROM search_query sq
+    CROSS JOIN documents d
     JOIN spaces s ON s.id = d.space_id
     LEFT JOIN document_drafts dd ON dd.document_id = d.id
-    LEFT JOIN latest_revision lr ON lr.document_id = d.id
+    LEFT JOIN document_revisions cr ON cr.id = d.current_revision_id
     WHERE (
-        $1 = '%%'
-        OR lower(d.title) LIKE $1
-        OR lower(COALESCE(dd.content_markdown, '')) LIKE $1
-        OR lower(COALESCE(lr.content_text, '')) LIKE $1
+        sq.query IS NULL
+        OR cr.search_vector @@ sq.query
+        OR (
+            cr.id IS NULL
+            AND (
+                setweight(to_tsvector('simple', coalesce(d.title, '')), 'A')
+                || setweight(to_tsvector('simple', coalesce(dd.content_markdown, '')), 'B')
+            ) @@ sq.query
+        )
     )
       AND ($2::text IS NULL OR s.key = $2)
       AND ($3::text IS NULL OR EXISTS (
