@@ -74,7 +74,7 @@ wiki evidence list --space SDLC --task SDLC-42
 ```bash
 wiki template list
 wiki template apply requirements --space SDLC --title "Requirements"
-wiki search query "authorization" --space SDLC
+wiki search query "authorization" --space SDLC --type requirements
 ```
 
 ## Требования

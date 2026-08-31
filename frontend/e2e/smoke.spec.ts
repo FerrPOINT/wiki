@@ -93,6 +93,8 @@ function routeJson(route: Route, body: unknown, status = 200) {
 }
 
 async function installWikiApiMocks(page: Page) {
+  const searchRequests: string[] = []
+
   await page.route('**/api/v1/**', (route) => {
     const request = route.request()
     const url = new URL(request.url())
@@ -192,6 +194,7 @@ async function installWikiApiMocks(page: Page) {
       })
     }
     if (method === 'GET' && path === '/search') {
+      searchRequests.push(url.search)
       return routeJson(route, {
         results: [
           {
@@ -218,11 +221,13 @@ async function installWikiApiMocks(page: Page) {
 
     return routeJson(route, { error: `Unhandled mock route ${method} ${path}` }, 404)
   })
+
+  return { searchRequests }
 }
 
 test.describe('wiki smoke', () => {
   test('login and navigate through wiki shell pages', async ({ page }) => {
-    await installWikiApiMocks(page)
+    const apiMocks = await installWikiApiMocks(page)
     await page.goto(`${baseURL}/login`)
     await page.getByRole('textbox').nth(0).fill('demo@example.com')
     await page.getByRole('textbox').nth(1).fill('demo')
@@ -246,5 +251,11 @@ test.describe('wiki smoke', () => {
 
     await page.goto(`${baseURL}/search`)
     await expect(page.getByRole('heading', { name: 'Поиск' })).toBeVisible()
+    await page.getByRole('button', { name: 'Требования', exact: true }).click()
+    await expect
+      .poll(() =>
+        apiMocks.searchRequests.some((query) => query.includes('document_type=requirements')),
+      )
+      .toBe(true)
   })
 })

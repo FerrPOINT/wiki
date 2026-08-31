@@ -8,10 +8,19 @@ import { Input } from '@/shared/ui/input'
 import { formatDateTime } from '@/shared/lib/wiki-format'
 import type { SearchResult } from '@/api/wiki'
 
-const filters = [
+const resultTypeFilters = [
   { label: 'Все', value: 'all' },
   { label: 'Документы', value: 'document' },
   { label: 'Материалы', value: 'evidence' },
+]
+
+const documentTypeFilters = [
+  { label: 'Любой тип', value: 'all' },
+  { label: 'Требования', value: 'requirements' },
+  { label: 'Исследование', value: 'research_note' },
+  { label: 'Реализация', value: 'implementation_note' },
+  { label: 'План проверки', value: 'test_plan' },
+  { label: 'Релиз', value: 'release_note' },
 ]
 
 function resultIcon(type: string) {
@@ -33,13 +42,19 @@ function countResults(results: SearchResult[], type: string) {
 
 export function WikiSearchPage() {
   const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState('all')
-  const searchQuery = useWikiSearch({ q: query, space: defaultSpaceKey, limit: 25 })
+  const [resultTypeFilter, setResultTypeFilter] = useState('all')
+  const [documentTypeFilter, setDocumentTypeFilter] = useState('all')
+  const searchQuery = useWikiSearch({
+    q: query,
+    space: defaultSpaceKey,
+    document_type: documentTypeFilter === 'all' ? undefined : documentTypeFilter,
+    limit: 25,
+  })
   const results = useMemo(() => searchQuery.data?.results ?? [], [searchQuery.data?.results])
   const filteredResults = useMemo(() => {
-    if (filter === 'all') return results
-    return results.filter((result) => result.result_type === filter)
-  }, [filter, results])
+    if (resultTypeFilter === 'all') return results
+    return results.filter((result) => result.result_type === resultTypeFilter)
+  }, [resultTypeFilter, results])
 
   return (
     <div className="space-y-5">
@@ -60,21 +75,39 @@ export function WikiSearchPage() {
             placeholder="релиз, SDLC-42, требования..."
           />
         </div>
-        <div className="flex flex-wrap gap-2">
-          {filters.map((item) => (
-            <button
-              key={item.value}
-              type="button"
-              className={`rounded-md border px-3 py-1.5 text-xs ${
-                filter === item.value
-                  ? 'border-accent bg-accent text-white'
-                  : 'border-border text-text-secondary hover:bg-surface-raised'
-              }`}
-              onClick={() => setFilter(item.value)}
-            >
-              {item.label}
-            </button>
-          ))}
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-2">
+            {resultTypeFilters.map((item) => (
+              <button
+                key={item.value}
+                type="button"
+                className={`min-h-8 rounded-md border px-3 py-1.5 text-xs ${
+                  resultTypeFilter === item.value
+                    ? 'border-accent bg-accent text-white'
+                    : 'border-border text-text-secondary hover:bg-surface-raised'
+                }`}
+                onClick={() => setResultTypeFilter(item.value)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {documentTypeFilters.map((item) => (
+              <button
+                key={item.value}
+                type="button"
+                className={`min-h-8 rounded-md border px-3 py-1.5 text-xs ${
+                  documentTypeFilter === item.value
+                    ? 'border-accent bg-accent text-white'
+                    : 'border-border text-text-secondary hover:bg-surface-raised'
+                }`}
+                onClick={() => setDocumentTypeFilter(item.value)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
         </div>
       </section>
 

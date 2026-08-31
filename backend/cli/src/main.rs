@@ -272,6 +272,8 @@ enum SearchCommands {
         task: Option<String>,
         #[arg(long)]
         phase: Option<String>,
+        #[arg(long = "type")]
+        document_type: Option<String>,
     },
 }
 
@@ -596,12 +598,14 @@ async fn execute_search(api: &ApiClient, command: SearchCommands) -> Result<Valu
             space,
             task,
             phase,
+            document_type,
         } => {
             let query = query_string([
                 ("q", Some(query)),
                 ("space", space),
                 ("task_key", task),
                 ("phase_key", phase),
+                ("document_type", document_type),
             ]);
             api.get(&format!("/search{}", query)).await
         }
@@ -857,6 +861,7 @@ mod tests {
                     space: Some("SDLC KB".to_string()),
                     task: Some("SDLC-42".to_string()),
                     phase: Some("testing".to_string()),
+                    document_type: Some("requirements".to_string()),
                 },
             },
         )
@@ -869,7 +874,7 @@ mod tests {
         assert_eq!(requests[0].method, Method::GET);
         assert_eq!(
             requests[0].path,
-            "/api/v1/search?q=release%20gate&space=SDLC%20KB&task_key=SDLC-42&phase_key=testing"
+            "/api/v1/search?q=release%20gate&space=SDLC%20KB&task_key=SDLC-42&phase_key=testing&document_type=requirements"
         );
         assert_eq!(
             requests[0].authorization.as_deref(),
