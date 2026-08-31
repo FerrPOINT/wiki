@@ -5,6 +5,7 @@ pub mod jql;
 pub mod repositories;
 pub mod stubs;
 pub mod value_objects;
+pub mod wiki;
 
 pub use email_port::*;
 pub use entities::*;

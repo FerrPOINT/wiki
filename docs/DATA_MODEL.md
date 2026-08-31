@@ -8,7 +8,7 @@ Wiki хранит документы, связанные с задачами SDL
 
 ## 2. Общие правила
 
-- Все идентификаторы - UUIDv7.
+- Все идентификаторы - UUIDv7, создаются приложением до записи в PostgreSQL.
 - Основные таблицы имеют `created_at`, `updated_at`, а для архивирования - `archived_at`.
 - Текст документов хранится в Markdown как исходник и в sanitized HTML как производное представление.
 - Опубликованные ревизии неизменяемы.
@@ -69,6 +69,7 @@ Primary key: `(space_id, user_id)`.
 | `status` | text | `draft`, `published`, `archived` |
 | `current_revision_id` | uuid nullable | FK document_revisions |
 | `owner_id` | uuid | FK users |
+| `position` | int | Порядок внутри parent для дерева |
 | `created_at` | timestamptz | Создание |
 | `updated_at` | timestamptz | Обновление |
 | `archived_at` | timestamptz nullable | Архивирование |
@@ -140,6 +141,7 @@ Unique: `(space_id, phase_key)`.
 
 | Поле | Тип | Описание |
 |---|---|---|
+| `space_id` | uuid | FK spaces, нужен для same-space constraints |
 | `document_id` | uuid | FK documents |
 | `task_dossier_id` | uuid | FK task_dossiers |
 | `created_by` | uuid | FK users |
@@ -151,6 +153,7 @@ Primary key: `(document_id, task_dossier_id)`.
 
 | Поле | Тип | Описание |
 |---|---|---|
+| `space_id` | uuid | FK spaces, нужен для same-space constraints |
 | `document_id` | uuid | FK documents |
 | `phase_dossier_id` | uuid | FK phase_dossiers |
 | `created_by` | uuid | FK users |
@@ -185,9 +188,9 @@ Constraint: минимум одно из `document_id`, `task_dossier_id`, `phas
 | Поле | Тип | Описание |
 |---|---|---|
 | `id` | uuid | PK |
-| `space_id` | uuid | FK spaces |
-| `owner_entity_type` | text | `document`, `revision`, `evidence` |
-| `owner_entity_id` | uuid | ID владельца |
+| `space_id` | uuid nullable | FK spaces; nullable для staged upload до привязки к evidence |
+| `owner_entity_type` | text nullable | `document`, `revision`, `evidence`; nullable для staged upload |
+| `owner_entity_id` | uuid nullable | ID владельца; nullable для staged upload |
 | `file_name` | text | Исходное имя |
 | `content_type` | text | MIME |
 | `size_bytes` | bigint | Размер |
@@ -203,7 +206,7 @@ Constraint: минимум одно из `document_id`, `task_dossier_id`, `phas
 | `id` | uuid | PK |
 | `space_id` | uuid nullable | Локальный или глобальный шаблон |
 | `name` | text | Название |
-| `kind` | text | `requirements`, `research_note`, `implementation_note`, `test_plan`, `release_note` |
+| `document_type` | text | `requirements`, `research_note`, `implementation_note`, `test_plan`, `release_note` |
 | `content_markdown` | text | Тело шаблона |
 | `is_active` | bool | Доступен для выбора |
 | `created_at` | timestamptz | Создание |

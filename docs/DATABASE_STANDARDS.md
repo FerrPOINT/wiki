@@ -3,17 +3,17 @@
 ## 1. СУБД
 
 - PostgreSQL 17.6+.
-- Тип UUID — `UUID` (pgcrypto / uuid-ossp). PK по умолчанию `gen_random_uuid()`.
-- Для новых PK рекомендуется UUIDv7, но пока допустим UUIDv4.
+- Тип UUID — `UUID`.
+- Для Wiki-owned таблиц PK создаётся приложением как UUIDv7; database default для PK не задаём, чтобы не смешивать версии UUID.
 
 ## 2. Миграции
 
 - Целевой инструмент - `sqlx migrate` и plain SQL migrations по ADR-0001.
 - Унаследованный `backend/migration` на SeaORM относится к task-tracker scaffold и должен быть заменён или изолирован до реализации Wiki persistence.
-- Имя файла: `YYYYMMDDHHMMSS_description.sql`.
+- Имя файла: `YYYYMMDDHHMMSS_description.up.sql` и `YYYYMMDDHHMMSS_description.down.sql`.
 - Каждая миграция:
-  - оборачивается в `BEGIN; ... COMMIT;`
-  - имеет `ROLLBACK` в down-файле
+  - выполняется транзакционно через SQLx, если явно не указан no-transaction case
+  - имеет обратный `.down.sql` для local/test reset
   - не удаляет данные без `WHERE` и бэкапа
 - Запрещено:
   - изменять уже применённую миграцию
@@ -36,7 +36,7 @@
 
 | Назначение | Тип | Примечание |
 |---|---|---|
-| ID | `UUID` | PK default `gen_random_uuid()` |
+| ID | `UUID` | application-supplied UUIDv7 |
 | Timestamp | `TIMESTAMPTZ` | всегда UTC |
 | JSON | `JSONB` | для неструктурированных/расширяемых данных |
 | Перечисления | `TEXT` + check / native `enum` | для маленьких стабильных списков — native enum; для часто меняющихся — lookup table |
@@ -49,7 +49,7 @@
 - Каждый FK — индекс.
 - Частые фильтры и сортировки — покрывающие индексы.
 - GIN для `JSONB` полей, по которым идёт поиск.
-- Уникальные индексы для бизнес-ключей (`spaces_key_unique`, `documents_space_parent_slug_unique`, `task_links_space_task_key_unique`).
+- Уникальные индексы для бизнес-ключей (`spaces_key_idx`, `documents_root_slug_idx`, `documents_child_slug_idx`, `task_dossiers_space_key_idx`).
 
 ## 6. Soft delete
 
@@ -92,7 +92,7 @@ LIMIT 50;
 
 - Seed-данные для dev — `backend/migrations/seeds/`.
 - Fixtures для тестов — `backend/tests/fixtures/`.
-- Продакшен defaults (admin user, base spaces/templates) - через миграцию `00000000000000_baseline.sql`.
+- Продакшен defaults (admin user, base spaces/templates) создаются seed/bootstrap flow, а не смешиваются с DDL baseline.
 
 ## 11. References
 

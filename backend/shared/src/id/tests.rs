@@ -1,6 +1,7 @@
 use crate::{
-    AttachmentId, BoardId, CommentId, IssueId, IssueKey, IssueType, LabelId, Priority, ProjectId,
-    ProjectKey, SprintId, StatusId, UserId,
+    AttachmentId, BoardId, CommentId, DocumentId, DocumentRevisionId, DocumentTemplateId,
+    EvidenceId, IssueId, IssueKey, IssueType, LabelId, PhaseDossierId, Priority, ProjectId,
+    ProjectKey, SpaceId, SprintId, StatusId, TaskDossierId, UserId,
 };
 use std::str::FromStr;
 
@@ -44,6 +45,34 @@ fn all_uuid_ids_roundtrip_and_nil() {
         (
             Box::new(|| StatusId::new().to_string()),
             Box::new(|s| StatusId::from_str(s).is_ok()),
+        ),
+        (
+            Box::new(|| SpaceId::new().to_string()),
+            Box::new(|s| SpaceId::from_str(s).is_ok()),
+        ),
+        (
+            Box::new(|| DocumentId::new().to_string()),
+            Box::new(|s| DocumentId::from_str(s).is_ok()),
+        ),
+        (
+            Box::new(|| DocumentRevisionId::new().to_string()),
+            Box::new(|s| DocumentRevisionId::from_str(s).is_ok()),
+        ),
+        (
+            Box::new(|| DocumentTemplateId::new().to_string()),
+            Box::new(|s| DocumentTemplateId::from_str(s).is_ok()),
+        ),
+        (
+            Box::new(|| TaskDossierId::new().to_string()),
+            Box::new(|s| TaskDossierId::from_str(s).is_ok()),
+        ),
+        (
+            Box::new(|| PhaseDossierId::new().to_string()),
+            Box::new(|s| PhaseDossierId::from_str(s).is_ok()),
+        ),
+        (
+            Box::new(|| EvidenceId::new().to_string()),
+            Box::new(|s| EvidenceId::from_str(s).is_ok()),
         ),
     ];
     for (maker, parse) in cases {

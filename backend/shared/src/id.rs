@@ -14,7 +14,7 @@ macro_rules! uuid_id {
 
         impl $name {
             pub fn new() -> Self {
-                Self(Uuid::new_v4())
+                Self(Uuid::now_v7())
             }
 
             pub fn nil() -> Self {
@@ -71,6 +71,13 @@ uuid_id!(AuditLogId);
 uuid_id!(ProjectComponentId);
 uuid_id!(ProjectVersionId);
 uuid_id!(CustomFieldId);
+uuid_id!(SpaceId);
+uuid_id!(DocumentId);
+uuid_id!(DocumentRevisionId);
+uuid_id!(DocumentTemplateId);
+uuid_id!(TaskDossierId);
+uuid_id!(PhaseDossierId);
+uuid_id!(EvidenceId);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ProjectKey(Arc<str>);

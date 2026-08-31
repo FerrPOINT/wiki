@@ -171,6 +171,23 @@ async fn wiki_mvp_routes_cover_public_contract() {
         Some(json!({
             "space": "SDLC",
             "task_key": "SDLC-99",
+            "title": "Mixed evidence payload",
+            "evidence_type": "external_url",
+            "url": "https://ci.local/jobs/wiki-smoke",
+            "attachment_id": "00000000-0000-0000-0000-000000000001"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(token),
+        Some(json!({
+            "space": "SDLC",
+            "task_key": "SDLC-99",
             "title": "Missing attachment",
             "evidence_type": "uploaded_file",
             "url": "https://ci.local/jobs/wiki-smoke"

@@ -11,6 +11,8 @@
 | Documentation set | Current | CI/CD-style document set prepared for Wiki |
 | CLI shape | Current | `wiki` CLI command surface drafted for public API operations |
 | API shell | Current | Runtime router and OpenAPI expose Wiki MVP endpoints only; evidence type validation uses `external_url` / `uploaded_file`; implementation is in-memory until domain/repository migration |
+| Domain baseline | Current | `domain::wiki` defines Wiki-owned value objects, roles, documents, revisions, evidence, attachments and core invariants |
+| SQLx schema baseline | Current | `backend/migrations/202608310001_create_wiki_mvp.*.sql` creates a fresh Wiki MVP schema without task-tracker tables |
 | Frontend route shell | Current | Static Wiki pages and screenshots exist for the approved MVP page set only |
 | Page design contract | Current | `docs/PAGE_DESIGN.md` fixes page composition, states and deferred boundaries before backend work |
 | Refined MVP page design | Current | Spaces, documents, tasks, phases, evidence and search pages include API-ready layouts and metadata blocks |
@@ -48,8 +50,8 @@
 
 ## Inherited To Replace
 
-- Backend app/domain/infra/migrations still include old task-tracker modules outside the active Wiki API shell.
-- PostgreSQL persistence for Wiki spaces/documents/revisions/evidence/search/audit is still target work.
+- Backend app/infra and old SeaORM migration crate still include task-tracker modules outside the active Wiki API shell.
+- SQLx repositories and API wiring for Wiki spaces/documents/revisions/evidence/search/audit are still target work.
 - Generated Wiki frontend OpenAPI client is pending backend domain/repository stabilization.
 
 ## Verification Commands
@@ -57,6 +59,8 @@
 ```bash
 cd backend
 cargo fmt --all -- --check
+cargo test -p shared
+cargo test -p domain
 cargo check -p api
 cargo check -p wiki-cli
 
@@ -74,7 +78,7 @@ Latest verification on 2026-08-31:
 
 - `cargo fmt --all -- --check` passed.
 - `cargo metadata --no-deps --format-version 1` passed; `openapi-gen` is the single OpenAPI generator binary.
-- `cargo check -p api`, `cargo check -p wiki-cli`, `cargo check -p server` and `cargo test -p api wiki_mvp_routes_cover_public_contract` blocked before project code by missing Windows MSVC `link.exe` / Windows SDK libs.
+- `cargo check -p shared`, `cargo check -p domain`, `cargo check -p api`, `cargo check -p wiki-cli`, `cargo check -p server`, `cargo test -p shared`, `cargo test -p domain` and `cargo test -p api wiki_mvp_routes_cover_public_contract` are blocked before project code by missing Windows MSVC `link.exe` / Windows SDK libs.
 - `tsc --noEmit` passed.
 - `eslint . --max-warnings=0` passed.
 - `prettier --check .` passed after mechanical frontend formatting cleanup.
@@ -90,6 +94,8 @@ Latest verification on 2026-08-31:
 - OpenAPI path parity passed: 40 expected Wiki MVP paths, `missing=0`, `extra=0`, legacy paths `0`.
 - `docs/API.md`, `docs/PRODUCT_REQUIREMENTS.md` and `openapi/openapi.json` path parity passed.
 - Evidence vocabulary check passed: active API/CLI/OpenAPI defaults use `external_url` / `uploaded_file`; invalid legacy `manual_check` is covered by a negative API test.
+- Evidence payload shape is aligned between runtime validation, `domain::wiki` and SQLx schema: `external_url` uses URL only; `uploaded_file` uses `attachment_id` only.
+- SQLx migration baseline smoke passed on local `postgres:17.6-alpine`: `up` creates the fresh Wiki schema without task-tracker tables, and `down` leaves the public schema empty.
 - Traceability coverage passed: 28 PRD requirement IDs, `missing=0`, `extra=0`.
 - CI/CD docs filename parity passed with `missing=0`.
 - Markdown documentation checks passed: no open placeholder markers, no Markdown document under 20 non-empty lines.

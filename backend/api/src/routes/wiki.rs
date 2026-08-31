@@ -1687,14 +1687,14 @@ pub async fn create_evidence(
         checksum,
     } = body;
     match evidence_type.as_str() {
-        "external_url" if url.is_none() => {
+        "external_url" if url.is_none() || attachment_id.is_some() => {
             return Err(shared::AppError::invalid_input(
-                "external_url evidence requires url",
+                "external_url evidence requires url only",
             ));
         }
-        "uploaded_file" if attachment_id.is_none() => {
+        "uploaded_file" if attachment_id.is_none() || url.is_some() => {
             return Err(shared::AppError::invalid_input(
-                "uploaded_file evidence requires attachment_id",
+                "uploaded_file evidence requires attachment_id only",
             ));
         }
         "external_url" | "uploaded_file" => {}

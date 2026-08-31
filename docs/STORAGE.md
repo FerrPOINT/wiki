@@ -34,12 +34,13 @@ pub trait FileStore: Send + Sync {
 
 ## 5. Upload Flow
 
-1. Client uploads a file to `/api/v1/attachments` with target owner fields.
-2. Server validates size, MIME, filename and owner permissions.
-3. Server creates attachment UUIDv7 and storage key.
+1. Client uploads a file to `/api/v1/attachments`.
+2. Server validates size, MIME and filename.
+3. Server creates attachment UUIDv7 and staged storage key.
 4. File is written to object storage.
-5. Attachment metadata is saved in PostgreSQL.
-6. Optional maintenance jobs may clean expired temporary files after the base storage flow is stable.
+5. Attachment metadata is saved in PostgreSQL without owner fields yet.
+6. When `uploaded_file` evidence is created, backend claims the attachment in the same transaction by setting `space_id`, `owner_entity_type = evidence` and `owner_entity_id`.
+7. Optional maintenance jobs may clean expired staged files after the base storage flow is stable.
 
 ## 6. Storage Path Schema
 
@@ -55,8 +56,9 @@ attachments/
 ```rust
 pub struct Attachment {
     pub id: Uuid,
-    pub owner_entity_type: AttachmentOwnerType,
-    pub owner_entity_id: Uuid,
+    pub space_id: Option<Uuid>,
+    pub owner_entity_type: Option<AttachmentOwnerType>,
+    pub owner_entity_id: Option<Uuid>,
     pub file_name: String,
     pub storage_key: String,
     pub content_type: String,

@@ -13,6 +13,8 @@
 
 ## 2. Главные агрегаты
 
+Кодовый baseline домена находится в `backend/domain/src/wiki.rs`. Старые task-tracker сущности остаются compatibility scaffold до замены app/infra слоя и не должны расширяться новыми Wiki capability.
+
 ### User
 
 - Поля: `id`, `email`, `display_name`, `password_hash`, `role`, `is_active`.
@@ -55,7 +57,7 @@
 
 ### DocumentRevision
 
-- Поля: `id`, `document_id`, `version`, `title`, `content_markdown`, `content_html`, `checksum`, `author_id`, `published_at`.
+- Поля: `id`, `document_id`, `version`, `title`, `content_markdown`, `content_html`, `content_text`, `content_checksum`, `summary`, `author_id`, `published_at`.
 - Инварианты:
   - revision неизменяема после публикации;
   - version монотонно растёт внутри document;
@@ -63,7 +65,7 @@
 
 ### TaskDossier
 
-- Поля: `id`, `space_id`, `task_key`, `title_snapshot`, `external_url`, `metadata`.
+- Поля: `id`, `space_id`, `task_key`, `title_snapshot`, `external_url`.
 - Инварианты:
   - один dossier на `(space_id, task_key)`;
   - Wiki не владеет статусом внешней задачи;
@@ -71,7 +73,7 @@
 
 ### PhaseDossier
 
-- Поля: `id`, `space_id`, `phase_key`, `phase_name`, `metadata`.
+- Поля: `id`, `space_id`, `phase_key`, `phase_name`.
 - Инварианты:
   - один dossier на `(space_id, phase_key)`;
   - Wiki не управляет переходами phase state;
@@ -82,22 +84,24 @@
 - Поля: `id`, `space_id`, `task_dossier_id`, `phase_dossier_id`, `document_id`, `evidence_type`, `title`, `url`, `attachment_id`, `checksum`, `metadata`.
 - Инварианты:
   - evidence связано минимум с document, task dossier или phase dossier;
-  - file evidence имеет attachment;
-  - URL evidence имеет url;
+  - `uploaded_file` evidence имеет attachment и не имеет url;
+  - `external_url` evidence имеет url и не имеет attachment;
   - evidence другого space недоступно через связи текущего space.
 
 ### Attachment
 
 - Поля: `id`, `space_id`, `owner_entity_type`, `owner_entity_id`, `file_name`, `content_type`, `size_bytes`, `storage_key`, `checksum`, `uploaded_by`, `uploaded_at`.
 - Инварианты:
+  - staged upload до создания evidence имеет пустые owner-поля;
+  - claimed attachment имеет `space_id`, `owner_entity_type` и `owner_entity_id`;
   - bytes хранятся вне PostgreSQL;
   - download проверяет права на owner entity;
   - checksum вычисляется при загрузке.
 
 ### DocumentTemplate
 
-- Поля: `id`, `space_id`, `name`, `kind`, `content_markdown`, `is_active`.
-- MVP kinds: `requirements`, `research_note`, `implementation_note`, `test_plan`, `release_note`.
+- Поля: `id`, `space_id`, `name`, `document_type`, `content_markdown`, `is_active`.
+- MVP document types: `requirements`, `research_note`, `implementation_note`, `test_plan`, `release_note`.
 
 ### AuditEntry
 
@@ -111,12 +115,12 @@
 
 | VO | Пример | Ограничения |
 |---|---|---|
-| `SpaceKey` | `ENG` | `[A-Z0-9][A-Z0-9_-]{1,15}` |
-| `DocumentSlug` | `release-plan` | lowercase slug внутри parent |
-| `TaskKey` | `SDLC-42` | Строка внешней системы |
-| `PhaseKey` | `implementation` | lowercase stable key |
-| `Checksum` | `sha256:...` | Алгоритм + hex digest |
-| `StorageKey` | `documents/{id}/...` | Без `..`, null bytes и абсолютных путей |
+| `SpaceKey` | `ENG` | 2-32 uppercase letters, digits or hyphens |
+| `DocumentSlug` | `release-plan` | 1-96 lowercase letters, digits or single hyphens |
+| `TaskKey` | `SDLC-42` | Non-empty external key without whitespace |
+| `PhaseKey` | `implementation` | 1-64 lowercase letters, digits, hyphens or underscores |
+| `Checksum` | `sha256:...` | Target value object; baseline stores validated text |
+| `StorageKey` | `documents/{id}/...` | Target value object; baseline stores validated text |
 
 ## 4. Domain Events
 

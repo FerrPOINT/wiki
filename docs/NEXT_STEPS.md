@@ -10,6 +10,8 @@ The documentation and static frontend page design are ready enough to start back
 - CI/CD-style documentation filename parity is preserved;
 - env/local setup/deployment docs use current `WIKI_*__*` variables and service names;
 - migration docs direct new Wiki persistence work toward SQLx and quarantine inherited SeaORM task-tracker migrations;
+- Wiki-owned domain value objects/invariants exist in `domain::wiki`;
+- a fresh SQLx MVP schema baseline exists in `backend/migrations/202608310001_create_wiki_mvp.*.sql`;
 - deferred areas are documented as reference only.
 
 The remaining work is implementation, not product-scope expansion.
@@ -35,13 +37,13 @@ Remove or quarantine remaining inherited tracker concepts from backend internals
 - custom fields, components and versions;
 - reports and notifications runtime services.
 
-Current status: runtime router, OpenAPI, API route files and default API tests are reduced to Wiki MVP; persistence/domain internals still need replacement.
+Current status: runtime router, OpenAPI, API route files and default API tests are reduced to Wiki MVP; a Wiki domain baseline exists; app/infra runtime wiring still needs replacement.
 
 ## 2. Database And Migrations
 
-- Create a clean Wiki schema migration set.
-- Decide whether this project starts from a fresh Wiki schema or a compatibility migration from inherited tracker tables.
-- Add indexes for document tree, revisions, task key, phase key, evidence owner and search.
+- Extend the clean SQLx baseline only through new SQLx migrations.
+- Treat Wiki as a fresh schema; inherited tracker migrations are compatibility/quarantine only.
+- Review indexes with `EXPLAIN` when repositories are implemented.
 - Keep audit writes transactional with the command that caused them.
 - Update `docs/MIGRATIONS.md` after the schema decision.
 
@@ -93,21 +95,21 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 
 ## 9. Recommended Implementation Order
 
-1. Decide fresh Wiki schema vs compatibility migration from inherited tables.
-2. Implement domain value objects and invariants without database dependencies.
-3. Add PostgreSQL migrations and repositories for identity, spaces and documents.
-4. Implement document draft/publish/history API and OpenAPI generation.
-5. Wire frontend document/spaces pages to API with loading/error/empty states.
-6. Add task and phase link tables/endpoints, then connect task/phase pages.
-7. Implement evidence and attachment storage.
-8. Add templates, search and audit coverage.
-9. Bring CLI to parity with the public API.
-10. Remove remaining inherited tracker backend internals and regenerate clients/specs.
+1. Add SQLx repository interfaces/implementations for identity, spaces and documents using `domain::wiki`.
+2. Wire server composition to SQLx repositories behind feature-compatible app use cases.
+3. Implement document draft/publish/history API against PostgreSQL and regenerate OpenAPI.
+4. Wire frontend document/spaces pages to API with loading/error/empty states.
+5. Add task and phase link repository operations, then connect task/phase pages.
+6. Implement evidence and attachment storage transactionally, including staged attachment claim.
+7. Add templates, search and audit coverage.
+8. Bring CLI smoke tests to parity with the public API.
+9. Remove remaining inherited tracker backend internals and SeaORM migration compatibility layer.
+10. Generate frontend API client after the PostgreSQL-backed contract stabilizes.
 
 ## 10. Done Criteria For Backend Start
 
 - `cargo check` and backend tests run on a host with MSVC Build Tools or another configured linker.
-- Clean Wiki migrations create an empty database without tracker tables.
+- Clean Wiki SQLx migrations create an empty database without tracker tables.
 - OpenAPI exposes only Wiki MVP endpoints.
 - UI and CLI use the same public API operations.
 - Static frontend data is replaced or isolated behind mock fixtures used only in tests/screenshots.

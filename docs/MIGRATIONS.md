@@ -2,9 +2,9 @@
 
 ## 1. Overview
 
-Миграции управляют схемой PostgreSQL. Целевой Wiki-подход - **SQLx migrations**: plain SQL-файлы, применяемые через `sqlx migrate` или thin migration runner в backend startup.
+Миграции управляют схемой PostgreSQL. Wiki-подход - **SQLx migrations**: plain SQL-файлы, применяемые через `sqlx migrate` или thin migration runner в backend startup.
 
-Текущий `backend/migration` на SeaORM унаследован из `task-tracker` и не является целевой Wiki-схемой. Его нельзя расширять новыми Wiki capability; на этапе backend migration он должен быть заменён clean SQLx migration set или явно изолирован как compatibility layer.
+Clean Wiki baseline lives in `backend/migrations/202608310001_create_wiki_mvp.*.sql` and creates a fresh MVP schema without task-tracker tables. Текущий `backend/migration` на SeaORM унаследован из `task-tracker` и остаётся только compatibility/quarantine layer до удаления старых infra-модулей; его нельзя расширять новыми Wiki capability.
 
 ## 2. Tooling
 
@@ -20,20 +20,12 @@ Target Wiki migration set:
 
 ```
 backend/migrations/
-├── 20260828000001_identity.sql
-├── 20260828000002_spaces.sql
-├── 20260828000003_documents.sql
-├── 20260828000004_document_tree.sql
-├── 20260828000005_task_phase_links.sql
-├── 20260828000006_evidence_attachments.sql
-├── 20260828000007_templates.sql
-├── 20260828000008_audit.sql
-├── 20260828000009_search_indexes.sql
-├── 20260828000010_permissions_indexes.sql
+├── 202608310001_create_wiki_mvp.up.sql
+├── 202608310001_create_wiki_mvp.down.sql
 └── seeds/
 ```
 
-The current repository still contains inherited task-tracker migration files. They are not the target Wiki schema and must be replaced or quarantined during backend migration before OpenAPI is regenerated.
+The current repository still contains inherited task-tracker migration files under `backend/migration`. They are not the target Wiki schema and must be removed or isolated after SQLx repositories replace the old infra layer.
 
 ## 4. Naming Convention
 
@@ -50,8 +42,8 @@ The current repository still contains inherited task-tracker migration files. Th
 
 ### 5.1 Must
 
-- Каждая миграция содержит атомарный DDL-блок для одной логической области.
-- Все изменения обратимы через отдельную compensating migration или безопасны для повторного применения в test reset flow.
+- Каждая migration pair содержит атомарный DDL-блок для одной логической области.
+- Для local/test есть `.down.sql`; production rollback идёт через compensating migration.
 - Добавлять новые колонки nullable или с explicit default/backfill plan.
 - Создавать индексы concurrently в production.
 - Использовать явный SQL, который можно проверить ревью и EXPLAIN.
@@ -65,7 +57,7 @@ The current repository still contains inherited task-tracker migration files. Th
 
 ## 6. Applying Migrations
 
-Миграции применяются автоматически при старте сервера после подключения к PostgreSQL:
+Целевой startup runner после подключения к PostgreSQL:
 
 ```rust
 // target shape in backend/infra
@@ -78,8 +70,8 @@ sqlx::migrate!("./migrations").run(&pool).await?;
 # Применить все миграции
 DATABASE_URL=postgres://... sqlx migrate run --source backend/migrations
 
-# Добавить новую миграцию
-sqlx migrate add -r -s backend/migrations evidence_attachments
+# Добавить новую миграцию после baseline
+sqlx migrate add -r -s backend/migrations document_revision_restore
 
 # Проверить статус
 DATABASE_URL=postgres://... sqlx migrate info --source backend/migrations
@@ -94,7 +86,7 @@ CI проверяет применение всех миграций на чис
 ## 8. Creating a New Migration
 
 ```bash
-sqlx migrate add -r -s backend/migrations document_revisions
+sqlx migrate add -r -s backend/migrations document_revision_restore
 ```
 
 ## 9. Production

@@ -1,2 +1,2 @@
--- Seed data: demo project and issues
--- This file is a placeholder. Real seed SQL will be generated once the schema stabilizes.
+-- Seed data directory for Wiki bootstrap SQL.
+-- Keep DDL in backend/migrations; put local/demo seed scripts here.
