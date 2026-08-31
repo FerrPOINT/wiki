@@ -2492,9 +2492,16 @@ impl PostgresWikiBackend {
         let file_name: String = row.get("file_name");
         let content_type: String = row.get("content_type");
         let storage_key: String = row.get("storage_key");
-        let bytes = tokio::fs::read(self.storage_dir.join(storage_key))
-            .await
-            .map_err(shared::AppError::internal)?;
+        let bytes = match tokio::fs::read(self.storage_dir.join(storage_key)).await {
+            Ok(bytes) => bytes,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                return Err(shared::AppError::not_found(
+                    "attachment file",
+                    attachment_id,
+                ));
+            }
+            Err(err) => return Err(shared::AppError::internal(err)),
+        };
         let mut headers = HeaderMap::new();
         headers.insert(
             header::CONTENT_TYPE,

@@ -1,6 +1,6 @@
 use axum::{
     body::{Body, to_bytes},
-    http::{Method, Request, StatusCode},
+    http::{HeaderMap, Method, Request, StatusCode},
 };
 use serde_json::{Value, json};
 use sqlx::postgres::PgPoolOptions;
@@ -103,8 +103,19 @@ async fn call(
     body: Option<Value>,
 ) -> (StatusCode, Value) {
     let body = body.map_or_else(Vec::new, |value| serde_json::to_vec(&value).unwrap());
+    call_body(app, method, path, token, "application/json", body).await
+}
+
+async fn call_body(
+    app: &axum::Router,
+    method: Method,
+    path: &str,
+    token: Option<&str>,
+    content_type: &str,
+    body: Vec<u8>,
+) -> (StatusCode, Value) {
     let mut request = Request::builder().method(method).uri(path);
-    request = request.header("content-type", "application/json");
+    request = request.header("content-type", content_type);
     if let Some(token) = token {
         request = request.header("authorization", format!("Bearer {token}"));
     }
@@ -122,6 +133,58 @@ async fn call(
             .unwrap_or_else(|_| json!({ "raw": String::from_utf8_lossy(&bytes) }))
     };
     (status, value)
+}
+
+async fn call_binary(
+    app: &axum::Router,
+    method: Method,
+    path: &str,
+    token: Option<&str>,
+) -> (StatusCode, HeaderMap, Vec<u8>) {
+    let mut request = Request::builder().method(method).uri(path);
+    if let Some(token) = token {
+        request = request.header("authorization", format!("Bearer {token}"));
+    }
+    let response = app
+        .clone()
+        .oneshot(request.body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let status = response.status();
+    let headers = response.headers().clone();
+    let bytes = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap()
+        .to_vec();
+    (status, headers, bytes)
+}
+
+async fn upload_test_file(
+    app: &axum::Router,
+    token: &str,
+    file_name: &str,
+    content_type: &str,
+    bytes: &[u8],
+) -> (StatusCode, Value) {
+    let boundary = "wiki-test-boundary";
+    let mut body = Vec::new();
+    body.extend_from_slice(
+        format!(
+            "--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{file_name}\"\r\nContent-Type: {content_type}\r\n\r\n"
+        )
+        .as_bytes(),
+    );
+    body.extend_from_slice(bytes);
+    body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+    call_body(
+        app,
+        Method::POST,
+        "/api/v1/attachments",
+        Some(token),
+        &format!("multipart/form-data; boundary={boundary}"),
+        body,
+    )
+    .await
 }
 
 async fn login_admin(app: &axum::Router) -> String {
@@ -356,6 +419,22 @@ async fn wiki_postgres_routes_persist_across_router_rebuilds() {
     let viewer_token = outsider["access_token"].as_str().unwrap();
     let viewer_id = outsider["user_id"].as_str().unwrap();
 
+    let (status, stranger) = call(
+        &app,
+        Method::POST,
+        "/api/v1/auth/register",
+        None,
+        Some(json!({
+            "email": "stranger@example.com",
+            "username": "stranger",
+            "password": "stranger-password",
+            "name": "Stranger"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let stranger_token = stranger["access_token"].as_str().unwrap();
+
     let (status, spaces) = call(
         &app,
         Method::GET,
@@ -410,6 +489,61 @@ async fn wiki_postgres_routes_persist_across_router_rebuilds() {
     )
     .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let attachment_bytes = b"wiki attachment bytes";
+    let (status, attachment) = upload_test_file(
+        &app,
+        &token,
+        "test evidence.txt",
+        "text/plain",
+        attachment_bytes,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let attachment_id = attachment["id"].as_str().unwrap();
+    assert_eq!(attachment["file_name"], "test evidence.txt");
+    assert_eq!(attachment["content_type"], "text/plain");
+    assert_eq!(attachment["size_bytes"], attachment_bytes.len());
+
+    let (status, _) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/attachments/{attachment_id}"),
+        Some(viewer_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, _, _) = call_binary(
+        &app,
+        Method::GET,
+        &format!("/api/v1/attachments/{attachment_id}/download"),
+        Some(stranger_token),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, missing_file_attachment) =
+        upload_test_file(&app, &token, "missing.txt", "text/plain", b"deleted later").await;
+    assert_eq!(status, StatusCode::CREATED);
+    let missing_file_attachment_id = missing_file_attachment["id"].as_str().unwrap();
+    tokio::fs::remove_file(
+        storage_dir
+            .join("attachments")
+            .join(missing_file_attachment_id)
+            .join("missing.txt"),
+    )
+    .await
+    .unwrap();
+    let (status, _, _) = call_binary(
+        &app,
+        Method::GET,
+        &format!("/api/v1/attachments/{missing_file_attachment_id}/download"),
+        Some(&token),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
 
     let (status, _) = call(
         &app,
@@ -488,11 +622,106 @@ async fn wiki_postgres_routes_persist_across_router_rebuilds() {
     .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
 
+    let (status, viewer_attachment) = upload_test_file(
+        &app,
+        viewer_token,
+        "viewer-staged.txt",
+        "text/plain",
+        b"viewer staged bytes",
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let viewer_attachment_id = viewer_attachment["id"].as_str().unwrap();
+
+    let (status, own_staged_attachment) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/attachments/{viewer_attachment_id}"),
+        Some(viewer_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(own_staged_attachment["id"], viewer_attachment_id);
+
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(viewer_token),
+        Some(json!({
+            "space": "SDLC",
+            "document_id": document_id.clone(),
+            "title": "Viewer must not claim file evidence",
+            "evidence_type": "uploaded_file",
+            "attachment_id": viewer_attachment_id
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
     let (status, _) = call(
         &app,
         Method::GET,
         "/api/v1/spaces/SDLC/members",
         Some(viewer_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, file_evidence) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(&token),
+        Some(json!({
+            "space": "SDLC",
+            "document_id": document_id.clone(),
+            "task_key": "SDLC-777",
+            "phase_key": "testing",
+            "title": "Persistent file evidence",
+            "evidence_type": "uploaded_file",
+            "attachment_id": attachment_id
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(file_evidence["attachment_id"], attachment_id);
+    assert_eq!(file_evidence["checksum"], attachment["checksum"]);
+
+    let (status, attached_metadata) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/attachments/{attachment_id}"),
+        Some(viewer_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(attached_metadata["id"], attachment_id);
+
+    let (status, headers, downloaded) = call_binary(
+        &app,
+        Method::GET,
+        &format!("/api/v1/attachments/{attachment_id}/download"),
+        Some(viewer_token),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(downloaded, attachment_bytes);
+    assert_eq!(
+        headers
+            .get("content-type")
+            .and_then(|value| value.to_str().ok()),
+        Some("text/plain")
+    );
+
+    let (status, _) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/attachments/{attachment_id}"),
+        Some(stranger_token),
         None,
     )
     .await;
@@ -530,7 +759,14 @@ async fn wiki_postgres_routes_persist_across_router_rebuilds() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(task["document_count"], 1);
-    assert_eq!(task["evidence_count"], 1);
+    assert_eq!(task["evidence_count"], 2);
+    assert!(
+        task["evidence"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["evidence_type"] == "uploaded_file")
+    );
 
     let persisted_document_id = task["documents"][0]["id"].as_str().unwrap();
     let (status, revisions) = call(

@@ -14,7 +14,7 @@ The documentation, screenshots, API-backed frontend MVP pages and SQLx-backed MV
 - a fresh SQLx MVP schema baseline exists in `backend/migrations/202608310001_create_wiki_mvp.*.sql`;
 - frontend MVP pages read from the public Wiki API and basic create flows call the same API;
 - runtime API persistence stores users, sessions, spaces, documents, revisions, task/phase links, evidence, attachments, templates, audit and search in PostgreSQL when `WIKI_DATABASE__URL` is set;
-- PostgreSQL runtime enforces the basic global-admin and space-role boundaries for core read/write paths;
+- PostgreSQL runtime enforces the basic global-admin, space-role and attachment-download boundaries for core read/write paths;
 - deferred areas are documented as reference only.
 
 The remaining work is hardening and architecture cleanup, not product-scope expansion.
@@ -76,13 +76,13 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 
 - Upgrade current PostgreSQL-backed search to tuned FTS with query plans and language decisions.
 - Keep current local filesystem storage behind a dedicated storage port; add S3/MinIO later behind the same abstraction.
-- Expand attachment tests for staged upload claim, download and missing-file behavior.
+- Expand attachment tests beyond the current staged upload, claim, download and missing-file smoke for less common storage edge cases.
 - Expand audit tests for document publish/archive, evidence writes, user changes and permission changes.
 
 ## 7. Tests And Release Readiness
 
 - Add backend unit tests for domain invariants.
-- Add repository/API tests beyond the current persistence and permission smoke for spaces, documents, revisions, task/phase links, evidence, attachments, search and audit.
+- Add repository/API tests beyond the current persistence, permission and file-evidence smoke for spaces, documents, revisions, task/phase links, evidence, attachments, search and audit.
 - Add frontend component tests for editor/tree/revision/evidence states.
 - Keep screenshot evidence regenerated after route or UI changes.
 - Fix local Rust toolchain by installing MSVC Build Tools so `cargo check/test` can run on this host.
