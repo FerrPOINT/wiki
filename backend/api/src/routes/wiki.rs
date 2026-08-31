@@ -1,9 +1,9 @@
 use app::wiki::{
-    WikiSpaceAccess as SpaceAccess, checksum, clamp_limit, default_username,
-    global_role_from_request, markdown_to_text, normalize_document_type, normalize_evidence_type,
-    normalize_phase_key, normalize_required, normalize_slug, normalize_space_key,
-    normalize_space_role, normalize_task_key, safe_download_filename, slugify, snippet,
-    space_role_allows,
+    WikiSpaceAccess as SpaceAccess, checksum, clamp_limit, create_token, decode_token,
+    default_username, global_role_from_request, hash_password, hash_token, markdown_to_text,
+    normalize_document_type, normalize_evidence_type, normalize_phase_key, normalize_required,
+    normalize_slug, normalize_space_key, normalize_space_role, normalize_task_key,
+    safe_download_filename, slugify, snippet, space_role_allows, verify_password,
 };
 use axum::{
     Extension, Json,
@@ -14,9 +14,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use chrono::{DateTime, Duration, Utc};
-use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Row, postgres::PgPoolOptions, postgres::PgRow};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -665,14 +663,6 @@ static STORE: OnceLock<Mutex<WikiStore>> = OnceLock::new();
 
 fn store() -> &'static Mutex<WikiStore> {
     STORE.get_or_init(|| Mutex::new(WikiStore::seeded()))
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct TokenClaims {
-    sub: String,
-    exp: usize,
-    jti: String,
-    typ: String,
 }
 
 impl PostgresWikiBackend {
@@ -5480,74 +5470,6 @@ fn count_to_usize(value: i64) -> usize {
 
 fn parse_uuid(value: &str, entity: &str) -> Result<Uuid, shared::AppError> {
     Uuid::parse_str(value).map_err(|_| shared::AppError::not_found(entity, value))
-}
-
-fn hash_token(token: &str) -> String {
-    hex::encode(Sha256::digest(token.as_bytes()))
-}
-
-fn hash_password(password: &str) -> Result<String, shared::AppError> {
-    use argon2::{
-        Argon2,
-        password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
-    };
-    let salt = SaltString::generate(&mut OsRng);
-    Argon2::default()
-        .hash_password(password.as_bytes(), &salt)
-        .map(|hash| hash.to_string())
-        .map_err(shared::AppError::internal)
-}
-
-fn verify_password(password: &str, hash: &str) -> Result<bool, shared::AppError> {
-    use argon2::{
-        Argon2,
-        password_hash::{PasswordHash, PasswordVerifier},
-    };
-    let parsed = PasswordHash::new(hash).map_err(shared::AppError::internal)?;
-    Ok(Argon2::default()
-        .verify_password(password.as_bytes(), &parsed)
-        .is_ok())
-}
-
-fn create_token(
-    config: &shared::AuthConfig,
-    user_id: Uuid,
-    session_id: Uuid,
-    token_type: &str,
-    ttl: Duration,
-) -> Result<String, shared::AppError> {
-    let exp = Utc::now() + ttl;
-    let claims = TokenClaims {
-        sub: user_id.to_string(),
-        exp: exp.timestamp() as usize,
-        jti: session_id.to_string(),
-        typ: token_type.to_string(),
-    };
-    jsonwebtoken::encode(
-        &Header::default(),
-        &claims,
-        &EncodingKey::from_secret(config.jwt_secret.as_bytes()),
-    )
-    .map_err(shared::AppError::internal)
-}
-
-fn decode_token(
-    config: &shared::AuthConfig,
-    token: &str,
-    expected_type: &str,
-) -> Result<TokenClaims, shared::AppError> {
-    let claims = jsonwebtoken::decode::<TokenClaims>(
-        token,
-        &DecodingKey::from_secret(config.jwt_secret.as_bytes()),
-        &Validation::default(),
-    )
-    .map_err(|_| shared::AppError::Unauthorized)?
-    .claims;
-    if claims.typ == expected_type {
-        Ok(claims)
-    } else {
-        Err(shared::AppError::Unauthorized)
-    }
 }
 
 fn document_response(store: &WikiStore, id: &str) -> Result<DocumentResponse, shared::AppError> {
