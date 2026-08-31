@@ -15,12 +15,17 @@ use tower_http::{
 };
 use utoipa::{
     Modify, OpenApi,
-    openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme},
+    openapi::{
+        License,
+        security::{HttpAuthScheme, HttpBuilder, SecurityScheme},
+    },
 };
 use utoipa_swagger_ui::SwaggerUi;
 
 /// Global Prometheus metrics handle, initialized once and reused across router builds.
 static METRIC_HANDLE: OnceLock<PrometheusHandle> = OnceLock::new();
+const OPENAPI_LICENSE_NAME: &str = "FerrPOINT Proprietary Source-Available Evaluation License v1.0";
+const OPENAPI_LICENSE_URL: &str = "./LICENSE";
 
 fn metric_handle() -> PrometheusHandle {
     METRIC_HANDLE
@@ -170,6 +175,10 @@ struct SecurityAddon;
 
 impl Modify for SecurityAddon {
     fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        let mut license = License::new(OPENAPI_LICENSE_NAME);
+        license.url = Some(OPENAPI_LICENSE_URL.to_string());
+        openapi.info.license = Some(license);
+
         let components = openapi
             .components
             .get_or_insert_with(utoipa::openapi::Components::new);

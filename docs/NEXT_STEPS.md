@@ -64,7 +64,7 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 - Move the current `WikiBackendPort` PostgreSQL implementation into application use cases backed by Wiki repositories.
 - Keep inherited tracker routes out of the runtime router.
 - Regenerate `openapi/openapi.json` after any handler DTO/route change.
-- Add generated frontend API types after OpenAPI is stable.
+- Keep generated frontend DTO types in sync with OpenAPI; replace handwritten endpoint wrappers with a generated operation client after the app/infra boundary stabilizes.
 - Keep UI and CLI as ordinary clients of the same public API.
 
 ## 4. CLI Parity
@@ -114,7 +114,7 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 4. Tune PostgreSQL FTS ranking/search filters and capture query-plan evidence for the expected MVP dataset size.
 5. Bring CLI smoke tests to parity with the public API.
 6. Remove remaining inherited tracker infra/domain internals and SeaORM migration compatibility layer.
-7. Generate frontend API client after the PostgreSQL-backed contract stabilizes.
+7. Replace handwritten frontend endpoint wrappers with a generated operation client after the PostgreSQL-backed contract stabilizes.
 
 ## 10. Done Criteria For Backend Start
 

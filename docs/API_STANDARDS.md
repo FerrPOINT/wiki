@@ -15,6 +15,7 @@
 - Swagger UI доступен по `/swagger-ui/` в dev-режиме.
 - Каждый endpoint должен иметь summary, схемы request/response, статус-коды и ошибки `400`, `401`, `403`, `404`, `409`, `422`, если они применимы.
 - `openapi/openapi.json` коммитится для hermetic frontend build, но не редактируется вручную.
+- После изменения API выполнить `cargo run -p api --bin openapi-gen -- ../openapi/openapi.json`, затем `npm run generate:api` в `frontend`.
 
 ## 3. URL и ресурсы
 
@@ -29,13 +30,13 @@
 
 ## 4. HTTP Methods
 
-| Метод | Операция | Семантика |
-|---|---|---|
-| `GET` | Чтение | Идемпотентный, без side effects |
-| `POST` | Создание/команда | `201 Created` для создания, `200/202` для команд |
-| `PUT` | Полная замена | Идемпотентный |
-| `PATCH` | Частичное обновление | JSON Merge Patch по умолчанию |
-| `DELETE` | Удаление | `204 No Content` или soft archive command |
+| Метод    | Операция             | Семантика                                        |
+| -------- | -------------------- | ------------------------------------------------ |
+| `GET`    | Чтение               | Идемпотентный, без side effects                  |
+| `POST`   | Создание/команда     | `201 Created` для создания, `200/202` для команд |
+| `PUT`    | Полная замена        | Идемпотентный                                    |
+| `PATCH`  | Частичное обновление | JSON Merge Patch по умолчанию                    |
+| `DELETE` | Удаление             | `204 No Content` или soft archive command        |
 
 ## 5. Пагинация
 
@@ -58,9 +59,7 @@
   "error": {
     "code": "VALIDATION_ERROR",
     "message": "Request validation failed",
-    "details": [
-      { "field": "title", "message": "required" }
-    ],
+    "details": [{ "field": "title", "message": "required" }],
     "request_id": "req_01J..."
   }
 }

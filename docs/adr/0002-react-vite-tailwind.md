@@ -10,12 +10,12 @@ Wiki frontend is an operational knowledge interface: dashboard, spaces, document
 
 ## Alternatives Considered
 
-| Option | Pros | Cons |
-|---|---|---|
-| Next.js | SSR and file routing | Extra runtime complexity for a private SPA |
-| Vue + Vite | Simple and productive | Less local reuse from existing React SDLC projects |
-| SvelteKit | Small bundles, good DX | Smaller local ecosystem and fewer reusable patterns |
-| React + Vite + Tailwind | Existing stack, broad ecosystem, fast dev server | Requires explicit routing/data conventions |
+| Option                  | Pros                                             | Cons                                                |
+| ----------------------- | ------------------------------------------------ | --------------------------------------------------- |
+| Next.js                 | SSR and file routing                             | Extra runtime complexity for a private SPA          |
+| Vue + Vite              | Simple and productive                            | Less local reuse from existing React SDLC projects  |
+| SvelteKit               | Small bundles, good DX                           | Smaller local ecosystem and fewer reusable patterns |
+| React + Vite + Tailwind | Existing stack, broad ecosystem, fast dev server | Requires explicit routing/data conventions          |
 
 ## Decision
 
@@ -26,7 +26,7 @@ Use React 19, Vite, TypeScript and Tailwind CSS. The app remains a SPA served be
 - Frontend can reuse existing build/deploy knowledge from CI/CD and task-tracker projects.
 - Static hosting is simple.
 - UI is optimized for dense operational screens, not marketing pages.
-- Generated OpenAPI client remains target state after backend Wiki API migration.
+- Generated OpenAPI DTO types are used for the MVP API boundary; full operation-client generation remains target state after backend Wiki repository migration.
 - SSR and collaborative editing are postponed until a concrete requirement appears.
 
 ## References

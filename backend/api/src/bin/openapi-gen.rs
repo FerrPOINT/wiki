@@ -10,6 +10,6 @@ fn main() {
             .unwrap_or_else(|| "openapi/openapi.json".to_string()),
     );
     fs::create_dir_all(out.parent().unwrap()).unwrap();
-    fs::write(&out, json).unwrap();
+    fs::write(&out, format!("{json}\n")).unwrap();
     println!("Wrote {}", out.display());
 }

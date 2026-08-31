@@ -6,16 +6,16 @@ Self-hosted база знаний для SDLC: документы, ревизи�
 
 Проект находится в стадии подготовки MVP. Кодовая база скопирована из `task-tracker`, но публичный Wiki router/OpenAPI, CLI surface, документация, frontend-shell и SQLx runtime persistence уже сведены к базовому Wiki scope.
 
-| Capability | Статус |
-|---|---|
-| Документы требований и архитектурный каркас | Current |
-| MVP route/page set и screenshot evidence | Current |
-| Frontend pages/navigation под Wiki | Current, API-backed MVP pages |
-| CLI command surface под Wiki | Current, HTTP client surface |
-| Public Wiki API/OpenAPI | Current, Wiki MVP endpoints only |
-| PostgreSQL domain/migrations под Wiki | Current baseline + auth/session migration |
-| SQLx runtime persistence | Current for MVP API operations |
-| Generated frontend OpenAPI client | Target |
+| Capability                                  | Статус                                      |
+| ------------------------------------------- | ------------------------------------------- |
+| Документы требований и архитектурный каркас | Current                                     |
+| MVP route/page set и screenshot evidence    | Current                                     |
+| Frontend pages/navigation под Wiki          | Current, API-backed MVP pages               |
+| CLI command surface под Wiki                | Current, HTTP client surface                |
+| Public Wiki API/OpenAPI                     | Current, Wiki MVP endpoints only            |
+| PostgreSQL domain/migrations под Wiki       | Current baseline + auth/session migration   |
+| SQLx runtime persistence                    | Current for MVP API operations              |
+| Generated frontend OpenAPI types            | Current, DTO schemas generated from OpenAPI |
 
 Полный срез: [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md).
 
@@ -95,23 +95,23 @@ target\debug\wiki.exe evidence add-link --space SDLC --document product-requirem
 
 ## Frontend Pages
 
-| Route | Назначение |
-|---|---|
-| `/login` | Вход пользователя |
-| `/register` | Регистрация пользователя |
-| `/` | Dashboard: последние документы и незакрытые связи |
-| `/spaces` | Пространства и дерево документов |
-| `/documents/new` | Создание документа |
-| `/documents/:documentId` | Просмотр документа |
-| `/tasks` / `/tasks/:taskKey` | Карточки задач и связанные документы |
-| `/phases` / `/phases/:phaseId` | Карточки фаз workflow |
-| `/evidence` | Реестр материалов |
-| `/templates` | Шаблоны документов |
-| `/audit-log` | Журнал аудита |
-| `/users` | Пользователи и роли |
-| `/settings` | Настройки инстанса |
-| `/search` | Поиск по документам, задачам, фазам и материалам |
-| `/admin` | Администрирование |
+| Route                          | Назначение                                        |
+| ------------------------------ | ------------------------------------------------- |
+| `/login`                       | Вход пользователя                                 |
+| `/register`                    | Регистрация пользователя                          |
+| `/`                            | Dashboard: последние документы и незакрытые связи |
+| `/spaces`                      | Пространства и дерево документов                  |
+| `/documents/new`               | Создание документа                                |
+| `/documents/:documentId`       | Просмотр документа                                |
+| `/tasks` / `/tasks/:taskKey`   | Карточки задач и связанные документы              |
+| `/phases` / `/phases/:phaseId` | Карточки фаз workflow                             |
+| `/evidence`                    | Реестр материалов                                 |
+| `/templates`                   | Шаблоны документов                                |
+| `/audit-log`                   | Журнал аудита                                     |
+| `/users`                       | Пользователи и роли                               |
+| `/settings`                    | Настройки инстанса                                |
+| `/search`                      | Поиск по документам, задачам, фазам и материалам  |
+| `/admin`                       | Администрирование                                 |
 
 ## Скриншоты страниц
 

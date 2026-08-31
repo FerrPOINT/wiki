@@ -60,7 +60,7 @@ app -> pages -> widgets -> features -> entities -> shared
 1. Add or update REQ-ID in `docs/PRODUCT_REQUIREMENTS.md`.
 2. Update contract docs.
 3. Add migration/domain/service/API.
-4. Regenerate OpenAPI after API DTO/route changes; generate the frontend client after the backend Wiki API is stable.
+4. Regenerate OpenAPI after API DTO/route changes; run `npm run generate:api` to refresh frontend DTO types; replace handwritten endpoint wrappers with a full generated operation client after the backend Wiki API is stable.
 5. Add focused backend and frontend tests.
 6. Update user/operations docs.
 

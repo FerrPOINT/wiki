@@ -13,7 +13,7 @@
     "test:e2e": "playwright test",
     "preview": "vite preview --port 4173",
     "shoot:evidence": "node scripts/shoot-evidence.mjs",
-    "generate:api": "echo \"Wiki OpenAPI generation is pending backend domain migration\"",
+    "generate:api": "node scripts/generate-api-types.mjs",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

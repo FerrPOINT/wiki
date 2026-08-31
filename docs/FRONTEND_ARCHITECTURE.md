@@ -6,19 +6,19 @@ Frontend - React SPA on Vite, TypeScript and Tailwind. The UI is an operational 
 
 ## 2. Tech Stack
 
-| Layer | Library |
-|---|---|
-| Framework | React 19 |
-| Build | Vite |
-| Language | TypeScript |
-| Styling | Tailwind CSS with CSS variables |
-| Components | Radix primitives / local shadcn-style components |
-| Icons | lucide-react |
-| Server state | TanStack Query |
-| Client state | Zustand |
-| Routing | react-router |
-| Forms | native React forms or local validators |
-| Tests | Vitest, Testing Library, Playwright |
+| Layer        | Library                                          |
+| ------------ | ------------------------------------------------ |
+| Framework    | React 19                                         |
+| Build        | Vite                                             |
+| Language     | TypeScript                                       |
+| Styling      | Tailwind CSS with CSS variables                  |
+| Components   | Radix primitives / local shadcn-style components |
+| Icons        | lucide-react                                     |
+| Server state | TanStack Query                                   |
+| Client state | Zustand                                          |
+| Routing      | react-router                                     |
+| Forms        | native React forms or local validators           |
+| Tests        | Vitest, Testing Library, Playwright              |
 
 ## 3. Target Folders
 
@@ -96,21 +96,21 @@ app -> pages -> widgets -> features -> entities -> shared
 
 ## 6. Server State
 
-Current frontend uses a thin handwritten client in `frontend/src/api/wiki.ts` and TanStack Query hooks in `frontend/src/shared/api/hooks.ts`. Generated OpenAPI types are deferred until the PostgreSQL-backed backend contract stabilizes.
+Current frontend uses generated OpenAPI DTO types in `frontend/src/api/generated.ts`, a thin handwritten HTTP wrapper in `frontend/src/api/wiki.ts` / `frontend/src/api/auth.ts`, and TanStack Query hooks in `frontend/src/shared/api/hooks.ts`. `npm run generate:api` refreshes DTO schemas from `openapi/openapi.json`; full operation-client generation remains deferred until the app/infra repository boundary stabilizes.
 
 Query key examples:
 
 ```ts
 export const documentKeys = {
-  all: ['documents'] as const,
-  detail: (id: string) => [...documentKeys.all, 'detail', id] as const,
-  revisions: (id: string) => [...documentKeys.all, 'revisions', id] as const,
-}
+  all: ["documents"] as const,
+  detail: (id: string) => [...documentKeys.all, "detail", id] as const,
+  revisions: (id: string) => [...documentKeys.all, "revisions", id] as const,
+};
 
 export const dossierKeys = {
-  task: (space: string, key: string) => ['task-dossier', space, key] as const,
-  phase: (space: string, key: string) => ['phase-dossier', space, key] as const,
-}
+  task: (space: string, key: string) => ["task-dossier", space, key] as const,
+  phase: (space: string, key: string) => ["phase-dossier", space, key] as const,
+};
 ```
 
 ## 7. Client State

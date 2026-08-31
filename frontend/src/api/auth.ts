@@ -1,32 +1,18 @@
 import { apiRequest } from './client'
+import type {
+  WikiAuthResponse,
+  WikiLoginRequest,
+  WikiRegisterRequest,
+  WikiUserResponse,
+} from './generated'
 
-export type LoginRequest = {
-  email: string
-  password: string
-}
+export type LoginRequest = WikiLoginRequest
 
-export type RegisterRequest = {
-  username: string
-  email: string
-  password: string
-}
+export type RegisterRequest = WikiRegisterRequest
 
-export type AuthResponse = {
-  access_token: string
-  refresh_token?: string | null
-  user_id: string
-  email: string
-  username?: string | null
-  display_name?: string | null
-}
+export type AuthResponse = WikiAuthResponse
 
-export type UserResponse = {
-  id: string
-  email: string
-  username?: string | null
-  display_name?: string | null
-  is_system_admin?: boolean
-}
+export type UserResponse = WikiUserResponse
 
 export async function login(req: LoginRequest): Promise<AuthResponse> {
   return apiRequest<AuthResponse>('/api/v1/auth/login', {

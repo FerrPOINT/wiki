@@ -6,17 +6,17 @@ The test plan covers document lifecycle, task/phase links, evidence ingestion, p
 
 ## 2. Backend Tests
 
-| Area | Scenarios |
-|---|---|
-| Spaces | create/update/archive, membership, duplicate key |
-| Documents | draft, publish, conflict, archive/restore |
-| Revisions | immutable content, diff, history |
-| Task dossiers | idempotent link creation, external task key lookup, permission filtering |
-| Phase dossiers | phase key grouping, linked documents/evidence, permission filtering |
-| Evidence | add file/url evidence, checksum, dedup |
-| Attachments | upload/download, MIME, quota |
-| Search | indexing, permission filtering, archived filters |
-| Authz | viewer/editor/owner boundaries |
+| Area           | Scenarios                                                                |
+| -------------- | ------------------------------------------------------------------------ |
+| Spaces         | create/update/archive, membership, duplicate key                         |
+| Documents      | draft, publish, conflict, archive/restore                                |
+| Revisions      | immutable content, diff, history                                         |
+| Task dossiers  | idempotent link creation, external task key lookup, permission filtering |
+| Phase dossiers | phase key grouping, linked documents/evidence, permission filtering      |
+| Evidence       | add file/url evidence, checksum, dedup                                   |
+| Attachments    | upload/download, MIME, quota                                             |
+| Search         | indexing, permission filtering, archived filters                         |
+| Authz          | viewer/editor/owner boundaries                                           |
 
 ## 3. Frontend Tests
 
@@ -43,6 +43,6 @@ The test plan covers document lifecycle, task/phase links, evidence ingestion, p
 - All P0/P1 REQs mapped in `docs/TRACEABILITY.md`.
 - Backend unit/integration tests green.
 - Frontend unit and E2E smoke green.
-- Current thin frontend API client typechecks.
-- Wiki OpenAPI and generated frontend client are enabled after backend domain migration.
+- Current generated frontend OpenAPI DTO types and thin endpoint wrappers typecheck.
+- Full generated operation client is enabled after backend domain migration.
 - Security test covers cross-space data isolation.

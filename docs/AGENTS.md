@@ -21,7 +21,7 @@
 - Runtime DI для Wiki идёт через `WikiAppContext`; унаследованный task-tracker `AppContext` доступен только как временный compatibility слой за feature `legacy-tracker`.
 - API routes обращаются к постоянному хранилищу через внутренний `WikiBackendPort`; конкретные SQLx/PostgreSQL adapters не вызывать напрямую из handlers и переносить дальше в app/infra repositories.
 - Все публичные API покрыты OpenAPI через `utoipa-axum`.
-- Rust-хендлеры и DTO — единственный источник правды для схемы; фронт генерирует клиент из `openapi/openapi.json`.
+- Rust-хендлеры и DTO — единственный источник правды для схемы; frontend DTO types генерируются из `openapi/openapi.json`, а thin endpoint wrappers остаются временным слоем до полного generated operation client.
 - Новую Wiki persistence-логику писать на SQLx по ADR-0001. Унаследованный SeaORM/task-tracker код можно трогать только для удаления, карантина или временной совместимости, не расширяя task-tracker модель. Default backend-сборка не должна зависеть от унаследованных task-tracker app services.
 - Все endpoint тестируются интеграционно через testcontainers.
 - Frontend: компоненты на `shadcn/ui` + Tailwind.
