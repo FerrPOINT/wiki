@@ -41,10 +41,10 @@
 | Файл | Route | Назначение | Размер |
 |---|---|---|---|
 | [m-dashboard.png](../../screenshots/m-dashboard.png) | `/` | Dashboard mobile layout | 375x1376 |
-| [m-spaces.png](../../screenshots/m-spaces.png) | `/spaces` | Spaces mobile layout | 375x812 |
-| [m-document-view.png](../../screenshots/m-document-view.png) | `/documents/product-requirements` | Document view mobile layout | 375x812 |
-| [m-task-dossier.png](../../screenshots/m-task-dossier.png) | `/tasks/SDLC-42` | Task page mobile layout | 375x812 |
-| [m-search.png](../../screenshots/m-search.png) | `/search` | Search mobile layout | 375x812 |
+| [m-spaces.png](../../screenshots/m-spaces.png) | `/spaces` | Spaces mobile layout | 375x1138 |
+| [m-document-view.png](../../screenshots/m-document-view.png) | `/documents/product-requirements` | Document view mobile layout | 375x1940 |
+| [m-task-dossier.png](../../screenshots/m-task-dossier.png) | `/tasks/SDLC-42` | Task page mobile layout | 375x1089 |
+| [m-search.png](../../screenshots/m-search.png) | `/search` | Search mobile layout | 375x918 |
 
 ## Review checklist
 

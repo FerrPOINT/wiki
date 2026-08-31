@@ -64,8 +64,8 @@ features/
 
 ## 6. Формы
 
-- `react-hook-form` + `zod` для валидации.
-- Схемы валидации хранятся рядом с формой в `features/<name>/lib/schema.ts`.
+- Простые формы MVP делают validation locally in React; form/schema libraries добавляются только если сложность формы реально выросла.
+- Правила валидации хранятся рядом с формой в `features/<name>/lib/validation.ts`.
 - Каждая форма должна поддерживать состояния: pristine, submitting, submit error, success.
 - Disabled состояние всех полей при `isSubmitting`.
 
@@ -74,7 +74,7 @@ features/
 - Серверное состояние — `@tanstack/react-query`.
 - Глобальное клиентское состояние — `zustand` (максимум 3-4 stores).
 - Локальное состояние компонента — `useState`/`useReducer`.
-- Side-effects внутри features — через `effector` или кастомные hooks, если усложняется логика.
+- Side-effects внутри features — через кастомные hooks; новые state/effects библиотеки добавляются только отдельным решением.
 
 ## 8. Стилизация
 

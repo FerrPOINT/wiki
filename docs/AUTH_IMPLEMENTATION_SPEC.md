@@ -2,7 +2,7 @@
 
 ## 1. Scope
 
-Authentication provides sessions/JWT and scoped API tokens for users, UI and CLI clients.
+MVP authentication provides user sessions/JWT for UI and CLI clients. Scoped API tokens are deferred and require a separate approval before implementation.
 
 ## 2. User Login
 
@@ -12,21 +12,21 @@ Authentication provides sessions/JWT and scoped API tokens for users, UI and CLI
 4. Refresh token/session is persisted hashed.
 5. Login event is written to audit log.
 
-## 3. API Tokens
+## 3. Deferred API Tokens
 
-Token scopes:
+Future token scopes may include:
 
 - `documents:read`
 - `documents:write`
 - `evidence:write`
 - `admin:read`
 
-Tokens may be limited to space and capability.
+Tokens must be limited to space and capability if this scope is approved later.
 
 ## 4. Middleware
 
 - Parse bearer token.
-- Resolve user or service principal.
+- Resolve user principal.
 - Attach claims to request extensions.
 - Reject inactive users and revoked tokens.
 

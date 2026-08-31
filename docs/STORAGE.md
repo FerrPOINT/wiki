@@ -2,26 +2,21 @@
 
 ## 1. Overview
 
-Wiki хранит вложения документов, материалы evidence и изображения. Backend абстрагирует хранилище через `FileStore` trait и может работать с локальной файловой системой, S3-compatible storage или MinIO.
+Wiki хранит вложения документов и материалы evidence. Backend абстрагирует хранилище через `FileStore` trait. MVP начинает с локальной файловой системы; S3-compatible storage или MinIO остаются расширением за тем же trait.
 
 ## 2. Supported Backends
 
 | Backend | Use Case |
 |---|---|
-| `filesystem` | Local dev, single-node deploy |
-| `s3` | Production, scalable storage |
-| `minio` | Self-hosted S3-compatible setup |
+| `filesystem` | MVP local dev and single-node deploy |
+| `s3` | Future production scalable storage |
+| `minio` | Future self-hosted S3-compatible setup |
 
 ## 3. Configuration
 
 ```env
-WIKI_FILE_STORAGE_BACKEND=s3
-WIKI_FILE_STORAGE_BUCKET=wiki-artifacts
-WIKI_FILE_STORAGE_REGION=ru-central1
-WIKI_FILE_STORAGE_ENDPOINT=https://s3.example.com
-WIKI_FILE_STORAGE_ACCESS_KEY=...
-WIKI_FILE_STORAGE_SECRET_KEY=...
-WIKI_FILE_STORAGE_PATH=/var/lib/wiki/uploads
+WIKI_STORAGE__DIR=/var/lib/wiki/uploads
+WIKI_STORAGE__MAX_UPLOAD_BYTES=26214400
 ```
 
 ## 4. FileStore Trait
@@ -44,7 +39,7 @@ pub trait FileStore: Send + Sync {
 3. Server creates attachment UUIDv7 and storage key.
 4. File is written to object storage.
 5. Attachment metadata is saved in PostgreSQL.
-6. Optional maintenance jobs may generate previews and thumbnails after the base storage flow is stable.
+6. Optional maintenance jobs may clean expired temporary files after the base storage flow is stable.
 
 ## 6. Storage Path Schema
 
@@ -52,11 +47,7 @@ pub trait FileStore: Send + Sync {
 attachments/
   documents/{document_id}/{attachment_id}/{sanitized_filename}
   revisions/{revision_id}/{attachment_id}/{sanitized_filename}
-  tasks/{space_key}/{task_key}/{attachment_id}/{sanitized_filename}
-  phases/{space_key}/{phase_key}/{attachment_id}/{sanitized_filename}
   evidence/{evidence_id}/{attachment_id}/{sanitized_filename}
-previews/
-  attachments/{attachment_id}.webp
 ```
 
 ## 7. Attachment Entity
@@ -89,12 +80,11 @@ pub struct Attachment {
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `POST` | `/api/v1/attachments` | Upload attachment for document/dossier/evidence |
-| `GET` | `/api/v1/attachments/{id}` | Download attachment |
-| `GET` | `/api/v1/attachments/{id}/preview` | Download preview |
-| `DELETE` | `/api/v1/attachments/{id}` | Delete attachment metadata and storage object |
-| `POST` | `/api/v1/evidence/{id}/attachments` | Attach file directly to evidence |
-| `GET` | `/api/v1/documents/{id}/attachments` | List document attachments |
+| `POST` | `/api/v1/attachments` | Upload attachment metadata and bytes |
+| `GET` | `/api/v1/attachments/{attachment_id}` | Read attachment metadata |
+| `GET` | `/api/v1/attachments/{attachment_id}/download` | Download attachment bytes |
+
+Attachment delete, preview generation and document attachment listing are deferred until after the base document/evidence lifecycle is implemented.
 
 ## 10. Quotas
 

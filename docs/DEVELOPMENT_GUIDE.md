@@ -8,11 +8,24 @@ cd wiki
 cp .env.example .env
 ```
 
+`.env` is read by Docker Compose. Host-side `cargo run` reads process environment variables and `backend/config/default.toml`; export overrides before starting the backend.
+
 Backend:
 
 ```bash
 cd backend
 cargo build
+export WIKI_JWT_SECRET=dev-secret-32-chars-minimum
+export WIKI_DATABASE__URL=postgres://wiki:[CHANGE_ME]@localhost:3457/wiki
+cargo run --bin server
+```
+
+PowerShell equivalent:
+
+```powershell
+cd backend
+$env:WIKI_JWT_SECRET = "dev-secret-32-chars-minimum"
+$env:WIKI_DATABASE__URL = "postgres://wiki:[CHANGE_ME]@localhost:3457/wiki"
 cargo run --bin server
 ```
 

@@ -177,7 +177,7 @@ onError: (error) => {
 
 - Queries: retry только для 5xx.
 - Mutations: no retry.
-- WebSocket: exponential reconnect до 30s max.
+- Stale route data: refetch после восстановления сети или явного retry.
 
 ## 6. Request ID
 

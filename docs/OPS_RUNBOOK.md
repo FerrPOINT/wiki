@@ -8,9 +8,9 @@
 
 ```bash
 docker compose ps
-docker compose logs --tail 100 api
-curl -f https://wiki.example.com:19876/api/v1/health
-curl -f https://wiki.example.com:19876/metrics | grep up
+docker compose logs --tail 100 backend
+curl -f https://wiki.example.com/api/v1/health
+curl -f https://wiki.example.com/metrics | grep up
 ```
 
 ## 3. Deploy New Version
@@ -22,7 +22,7 @@ git checkout main
 git pull origin main
 docker compose build
 docker compose up -d
-docker compose run --rm migrator
+DATABASE_URL=postgres://... sqlx migrate run --source backend/migrations
 docker compose ps
 ```
 
@@ -35,8 +35,7 @@ git revert <bad-commit>
 docker compose build
 docker compose up -d
 
-# DB rollback: apply down-migration (если есть)
-docker compose run --rm migrator down
+# DB rollback: apply compensating migration if the release changed schema
 ```
 
 ## 5. Backup
@@ -51,7 +50,7 @@ ls -lh /backups
 
 ```bash
 # Stop app
-docker compose stop api
+docker compose stop backend
 
 # Restore DB
 ./scripts/restore.sh /backups/wiki-YYYY-MM-DD.tar.gz
@@ -63,7 +62,7 @@ docker compose up -d
 ## 7. Scaling API
 
 ```bash
-docker compose up -d --scale api=3
+docker compose up -d --scale backend=3
 ```
 
 ## 8. High CPU / Memory
@@ -87,23 +86,24 @@ Mitigation:
 
 ## 10. Redis Failure
 
-- Switch to single-instance mode temporarily (`WIKI_REDIS_URL` → localhost fallback).
-- Rebuild Redis slave.
-- WebSocket real-time будет задерживаться.
+- Current API shell should continue for non-cache reads/writes.
+- Target idempotency/cache behavior may degrade to DB-backed checks.
+- Recreate Redis from compose if healthcheck fails: `docker compose up -d redis`.
 
 ## 11. Disk Full
 
 ```bash
 df -h
-docker system prune -a --volumes  # careful
+docker system df
+docker image prune -a
 ./scripts/cleanup_old_backups.sh
 ```
 
 ## 12. Incident Contacts
 
-- On-call: ...
-- Slack channel: #alerts
-- PagerDuty: ...
+- Primary operator: project owner.
+- Alert channel: configured by deployment environment.
+- Escalation: hosting provider and database administrator.
 
 ## 13. Post-Mortem
 

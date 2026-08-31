@@ -50,7 +50,7 @@ Recommended default templates:
 Not part of MVP:
 
 - external source sync;
-- notification settings;
+- notification settings and delivery;
 - import/export bundles;
 - retention policy UI.
 

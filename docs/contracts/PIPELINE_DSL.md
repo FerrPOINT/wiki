@@ -17,23 +17,26 @@ phases:
       - type: requirements
         template: requirements
     required_evidence:
-      - kind: task_snapshot
+      - kind: external_url
+        source_type: task_snapshot
   implementation:
     required_documents:
       - type: architecture_decision
     required_evidence:
-      - kind: pull_request
       - kind: external_url
+        source_type: pull_request
   testing:
     required_documents:
       - type: test_report
     required_evidence:
-      - kind: ci_artifact
+      - kind: uploaded_file
+        source_type: ci_artifact
   release:
     required_documents:
       - type: release_note
     required_evidence:
-      - kind: deployment
+      - kind: external_url
+        source_type: deployment
 ```
 
 ## 3. Fields
@@ -61,21 +64,16 @@ Canonical document types:
 - `test_plan`;
 - `test_report`;
 - `release_note`;
-- `incident_note`;
-- `manual_note`.
+- `incident_note`.
 
 ## 5. Evidence Kinds
 
 Canonical evidence kinds:
 
-- `task_snapshot`;
-- `pull_request`;
-- `review`;
-- `ci_artifact`;
-- `deployment`;
-- `file`;
-- `url`;
-- `manual_note`.
+- `external_url`;
+- `uploaded_file`.
+
+Optional `source_type` metadata can classify evidence as `task_snapshot`, `pull_request`, `review`, `ci_artifact`, `deployment`, `test_artifact` or `release_proof` without creating new MVP evidence entities.
 
 ## 6. Validation Rules
 

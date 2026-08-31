@@ -5,8 +5,8 @@
 | Инструмент | Минимальная версия | Примечание |
 |---|---|---|
 | Docker + Compose | 24.x | для Postgres, Redis, Traefik |
-| Rust | 1.80+ | backend |
-| cargo | 1.80+ | backend |
+| Rust | 1.86+ | backend workspace |
+| cargo | 1.86+ | backend workspace |
 | Node.js | 22 LTS | frontend |
 | pnpm | 9.x | frontend package manager |
 | just | — | task runner (опционально) |
@@ -22,24 +22,44 @@ cp .env.example .env
 # отредактируй .env под себя
 
 docker compose up -d postgres
-cd backend && cargo run --bin server
-cd frontend && pnpm install && pnpm dev
 ```
 
-Приложение доступно по `http://localhost:19876`.
+`.env` читает Docker Compose. Если backend запускается с хоста через `cargo run`, передайте override-переменные в окружение процесса:
+
+```bash
+cd backend
+export WIKI_JWT_SECRET=dev-secret-32-chars-minimum
+export WIKI_DATABASE__URL=postgres://wiki:[CHANGE_ME]@localhost:3457/wiki
+cargo run --bin server
+```
+
+```powershell
+cd backend
+$env:WIKI_JWT_SECRET = "dev-secret-32-chars-minimum"
+$env:WIKI_DATABASE__URL = "postgres://wiki:[CHANGE_ME]@localhost:3457/wiki"
+cargo run --bin server
+```
+
+Frontend:
+
+```bash
+cd frontend
+pnpm install
+pnpm dev
+```
+
+Frontend dev-сервер доступен по `http://localhost:5173`. Docker frontend публикуется на `http://localhost:19877`; backend API - `http://localhost:3456/api/v1`.
 
 ## 3. Переменные окружения
 
 Основные для локальной разработки:
 
 ```env
-WIKI_DATABASE__URL=postgres://wiki:[CHANGE_ME]@localhost:5432/wiki
+WIKI_DATABASE__URL=postgres://wiki:[CHANGE_ME]@localhost:3457/wiki
 WIKI_JWT_SECRET=[CHANGE_ME_32BYTES_MIN]
-WIKI_REFRESH_SECRET=[CHANGE_ME_32BYTES_MIN]
-WIKI_ADMIN_EMAIL=admin@example.com
-WIKI_ADMIN_PASSWORD=[CHANGE_ME]
-VITE_API_URL=/api/v1
-VITE_WS_URL=/ws/v1
+WIKI_STORAGE__DIR=/var/lib/wiki/uploads
+WIKI_STORAGE__MAX_UPLOAD_BYTES=26214400
+VITE_API_BASE_URL=http://127.0.0.1:3456/api/v1
 ```
 
 Полный список — в `.env.example`.
@@ -52,10 +72,13 @@ cd backend
 # Установка зависимостей
 cargo build
 
-# Запуск миграций
-cargo run -p migration -- up
+# Current API shell runs in-memory. Target Wiki persistence will use SQLx migrations.
+# Until migration is replaced, inherited migration commands are for compatibility only:
+DATABASE_URL=postgres://wiki:[CHANGE_ME]@localhost:3457/wiki cargo run -p migration -- status
 
 # Запуск API сервера
+export WIKI_JWT_SECRET=dev-secret-32-chars-minimum
+export WIKI_DATABASE__URL=postgres://wiki:[CHANGE_ME]@localhost:3457/wiki
 cargo run --bin server
 
 # Запуск тестов
@@ -98,7 +121,7 @@ docker compose build
 docker compose up -d
 
 # Логи
-docker compose logs -f api
+docker compose logs -f backend
 ```
 
 ## 7. Тестовые данные
@@ -128,7 +151,8 @@ docker compose logs -f api
 
 | Проблема | Решение |
 |---|---|
-| Порт 19876 занят | `WIKI_SERVER__PORT` в `.env` / `docker-compose.override.yml` |
+| Порт 19877 занят | Изменить frontend port mapping в `docker-compose.override.yml` |
+| Порт 3456 занят | `WIKI_SERVER__PORT` в `.env` / `docker-compose.override.yml` |
 | Postgres не стартует | `docker compose down -v` и пересоздать volume |
 | Redis connection refused | Redis не используется бекендом (event bus in-process); сервис в compose опционален |
 | `cargo` долго компилирует | `sccache` + `cargo nextest` |

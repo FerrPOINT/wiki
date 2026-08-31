@@ -7,28 +7,28 @@
 - Redis.
 - Object storage: filesystem, MinIO or S3.
 - Frontend static app.
-- Optional maintenance jobs for previews and cleanup after backend domain migration.
+- Optional in-process maintenance jobs for cleanup after backend domain migration.
 
 ## 2. Health Checks
 
 | Endpoint | Meaning |
 |---|---|
-| `/health` | process is alive |
-| `/ready` | database/cache/storage reachable |
+| `/api/v1/health` | current process liveness |
+| `/api/v1/health/ready` | target database/cache/storage readiness |
 | `/metrics` | Prometheus metrics |
 
 ## 3. Routine Tasks
 
 - Verify backups and restore drills.
 - Monitor search freshness and upload failures.
-- Rotate API tokens.
+- Rotate JWT/refresh secrets; rotate future API tokens only if that deferred scope is enabled.
 - Review audit logs for permission changes.
 - Clean expired temporary files.
 
 ## 4. Deployment Checklist
 
-- `WIKI_AUTH_SECRET` set.
-- `WIKI_DATABASE_URL` points to production PostgreSQL.
+- `WIKI_JWT_SECRET` or `WIKI_AUTH__JWT_SECRET` set.
+- `WIKI_DATABASE__URL` points to production PostgreSQL.
 - Storage backend configured and writable.
 - CORS and public URL match deployment host.
 - Backups enabled before first production traffic.
@@ -37,11 +37,11 @@
 
 | Incident | First Action |
 |---|---|
-| API unavailable | Check `/ready`, DB pool, logs |
+| API unavailable | Check `/api/v1/health`, target readiness, DB pool and logs |
 | Search stale | Check PostgreSQL FTS update path |
 | Upload failure | Check storage credentials/quota |
 | Duplicate evidence | Check idempotency keys and source refs |
-| Permission leak suspicion | Disable affected token, inspect audit |
+| Permission leak suspicion | Disable affected user/session, inspect audit |
 
 ## 6. References
 

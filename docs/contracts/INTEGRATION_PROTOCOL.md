@@ -12,7 +12,7 @@ MVP evidence can store source metadata as ordinary fields:
 
 | Field | Purpose |
 |---|---|
-| `source_type` | Human-readable source category such as `ci_pipeline`, `deployment`, `manual_note` |
+| `source_type` | Human-readable source category such as `ci_pipeline`, `deployment`, `pull_request` or `test_artifact` |
 | `source_url` | External URL if the material lives outside Wiki |
 | `checksum` | Optional checksum for uploaded files or stable artifacts |
 | `task_key` | Optional external task key |
@@ -22,7 +22,7 @@ The API treats these fields as metadata. Wiki does not call the external system,
 
 ## 3. Auth
 
-MVP authentication is the standard user/session or API-token mechanism defined in `docs/API.md` and `docs/SECURITY.md`. A script using CLI or HTTP API has the same permission checks as any other client.
+MVP authentication is the standard user/session/JWT mechanism defined in `docs/API.md` and `docs/SECURITY.md`. A script using CLI or HTTP API has the same permission checks as any other client.
 
 ## 4. Idempotency
 

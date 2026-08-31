@@ -9,12 +9,12 @@ Self-hosted база знаний для SDLC: документы, ревизи�
 | Capability | Статус |
 |---|---|
 | Документы требований и архитектурный каркас | Current |
-| Frontend pages/navigation под Wiki | Current |
-| CLI command surface под Wiki | Current |
-| Spaces/documents/revisions API | Target |
-| Task/phase links | Target |
-| Evidence/attachments/search | Target |
-| Backend domain/migrations/OpenAPI под Wiki | Target |
+| MVP route/page set и screenshot evidence | Current |
+| Frontend pages/navigation под Wiki | Current, static prototype |
+| CLI command surface под Wiki | Current, HTTP client surface |
+| Public Wiki API/OpenAPI | Current, in-memory shell |
+| PostgreSQL domain/repositories/migrations под Wiki | Target |
+| API-backed frontend/generated client | Target |
 
 Полный срез: [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md).
 
@@ -177,7 +177,7 @@ target\debug\wiki.exe evidence add-link --task SDLC-42 --phase testing --title "
 wiki/
 ├── backend/         # Rust workspace; public API shell is Wiki MVP, domain persistence still being migrated
 ├── frontend/        # React/Vite Wiki shell and pages
-├── cli/             # CLI usage notes
+├── cli/             # Codex/project helper skill notes
 ├── docs/            # requirements, architecture, contracts, operations, quality
 ├── openapi/         # Wiki MVP API artifact
 ├── scripts/         # helper scripts

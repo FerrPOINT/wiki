@@ -79,7 +79,7 @@
 
 ## 10. Security
 
-- Protected endpoints требуют JWT/session или scoped API token.
+- Protected endpoints требуют JWT/session. Scoped API tokens are deferred and must not be required by MVP clients.
 - Permissions проверяются на уровне space и entity.
 - API не возвращает storage secrets, internal errors и stack traces.
 

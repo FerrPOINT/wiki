@@ -91,8 +91,8 @@ Restore must validate attachment checksums and report missing storage objects.
 
 System admin and operators monitor:
 
-- `/health`;
-- `/ready`;
+- `/api/v1/health`;
+- target `/api/v1/health/ready`;
 - `/metrics`;
 - PostgreSQL connectivity;
 - storage availability;

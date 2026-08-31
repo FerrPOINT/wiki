@@ -12,10 +12,11 @@
 - Сервер сохраняет mapping `key → response` на 24 часа.
 - При повторном запросе с тем же ключом возвращается сохранённый ответ.
 - Применяется к:
-  - `POST /api/v1/documents`
   - `POST /api/v1/spaces`
-  - `POST /api/v1/comments`
-  - bulk operations
+  - `POST /api/v1/spaces/{space_key}/documents`
+  - `POST /api/v1/documents/{document_id}/publish`
+  - `POST /api/v1/evidence`
+  - `POST /api/v1/attachments`
 
 ### 2.2 Natural Idempotency
 
@@ -35,16 +36,13 @@
 | Component Fails | Fallback Behavior |
 |-------------------|-------------------|
 | Redis | Cache miss → DB query; sessions stateless via JWT |
-| Search service | Degrade to `LIKE`/`tsvector` query |
+| PostgreSQL search projection | Degrade to bounded title search when safe |
 | File storage S3 | Switch to local filesystem |
 | Audit write path | Reject mutation if audit cannot be recorded |
 
 ## 5. Bulk Operations
 
-- `POST /api/v1/evidence/bulk` - создание до 100 evidence records.
-- `POST /api/v1/spaces/{space_key}/documents/import` - импорт до 100 документов.
-- Ответ содержит `processed`, `failed`, `errors`.
-- Bulk requests обязательно с `Idempotency-Key`.
+Bulk evidence creation and document import are deferred. If added later, they must define max item count, per-item error shape and idempotency semantics before any API route is introduced.
 
 ## 6. Optimistic Locking
 
@@ -78,9 +76,8 @@
 
 ## 10. Soft Delete
 
-- `spaces`, `documents`, `comments`, `attachments` имеют `archived_at` или `deleted_at` по правилам retention.
-- DELETE endpoint помечает `deleted_at`.
-- Trash UI позволяет восстановить в течение 30 дней.
+- `spaces`, `documents`, `evidence_items`, `attachments` имеют `archived_at`, `quarantined_at` или `deleted_at` по правилам retention.
+- MVP uses archive commands rather than a trash UI.
 - Hard delete после retention policy.
 
 ## References

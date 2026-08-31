@@ -9,10 +9,10 @@ Deferred reference flow for capturing repository, commit and pull request refere
 ```text
 API or CLI client
   -> POST /api/v1/evidence
-  -> API verifies user/service token and idempotency key
+  -> API verifies user session/JWT and idempotency key
   -> Application service normalizes repository, commit and PR fields
   -> Task page is found or created by external task key
-  -> Source link and review evidence are upserted
+  -> Evidence metadata is stored
   -> Search index is updated
 ```
 
@@ -28,7 +28,7 @@ API or CLI client
 | Failure | Handling |
 |---|---|
 | Invalid token | Reject `401`, audit security event |
-| Unknown repository | Store source-link error or route to manual triage |
+| Unknown repository | Reject invalid metadata or route to manual triage after a future source-sync scope is approved |
 | Duplicate write | Return success without duplicate evidence |
 | Search update failed | Return retryable error or roll back evidence write |
 

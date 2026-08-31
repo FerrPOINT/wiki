@@ -17,7 +17,7 @@ Frontend - React SPA on Vite, TypeScript and Tailwind. The UI is an operational 
 | Server state | TanStack Query |
 | Client state | Zustand |
 | Routing | react-router |
-| Forms | react-hook-form + zod |
+| Forms | native React forms or local validators |
 | Tests | Vitest, Testing Library, Playwright |
 
 ## 3. Target Folders

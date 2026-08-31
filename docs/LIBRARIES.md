@@ -9,7 +9,7 @@
 | Database | `sqlx` | Explicit SQL, migrations, transactions and search queries |
 | Serialization | `serde`, `serde_json` | API DTOs, metadata JSON |
 | Auth | `argon2`, `jsonwebtoken` | Password hashing, JWT/session tokens |
-| Config | `figment`, `dotenvy` | TOML/env configuration with `WIKI_` prefix |
+| Config | `config` | Typed TOML/process-env configuration with `WIKI_` prefix |
 | Observability | `tracing`, `metrics`, `metrics-exporter-prometheus` | Logs, spans, Prometheus metrics |
 | OpenAPI | `utoipa`, `utoipa-axum`, `utoipa-swagger-ui` | Generated schema and Swagger UI |
 | Testing | `mockall`, `testcontainers`, `wiremock`, `rstest` | Trait mocks, DB tests, external HTTP mocks |

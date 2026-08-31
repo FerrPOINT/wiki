@@ -8,14 +8,12 @@ This document exists for parity with the CI/CD documentation set and defines the
 
 ## 2. Scope
 
-Wiki supports:
+MVP supports:
 
-- repository metadata configured manually or received through ordinary API/CLI writes;
-- links from documents to repository, branch, commit and pull request URLs;
-- pull request summaries in task pages;
+- links from documents, task pages or phase pages to repository, branch, commit and pull request URLs as ordinary evidence URL materials;
 - evidence records for review approval, checks and merge events;
-- search facets by repository, commit SHA, branch and pull request number;
-- audit entries for created, updated and removed source links.
+- search by document title/body and evidence metadata already stored in Wiki;
+- audit entries for normal evidence/document mutations.
 
 Wiki does not support:
 
@@ -66,18 +64,11 @@ References are snapshots. Published document revisions must keep the original re
 - Commit/PR metadata is indexed only after permission filtering.
 - Imported descriptions are treated as untrusted content and escaped or sanitized.
 
-## 7. API Contract
+## 7. API Boundary
 
-Target endpoints:
+There is no dedicated source-links API in MVP. Source references are stored through the regular evidence API as URL evidence with source metadata. A future source-links API requires separate requirements, OpenAPI changes and UI scope.
 
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/api/v1/source-links` | List source references with filters |
-| `POST` | `/api/v1/documents/{id}/source-links` | Attach source reference to document |
-| `POST` | `/api/v1/tasks/{source}/{key}/source-links` | Attach source reference to task page |
-| `DELETE` | `/api/v1/source-links/{id}` | Remove reference |
-
-Write operations are idempotent by `(owner_type, owner_id, source_system, repository_url, commit_sha, pull_request_url)`.
+Write operations should be idempotent by `(owner_type, owner_id, source_system, repository_url, commit_sha, pull_request_url)` when clients submit an `Idempotency-Key`.
 
 ## 8. Acceptance Criteria
 

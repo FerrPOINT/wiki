@@ -4,14 +4,15 @@
 
 ### `cargo build` падает с ошибкой линковки
 
-- Убедиться, что установлены dev-зависимости: `openssl-dev`, `pkg-config` (Debian/Ubuntu: `libssl-dev pkg-config`).
-- Проверить версию Rust: `rustc --version` ≥ 1.80.
+- Linux: убедиться, что установлены dev-зависимости `libssl-dev pkg-config`.
+- Windows MSVC: установить Visual Studio Build Tools / Windows SDK, чтобы был доступен `link.exe`.
+- Проверить версию Rust: `rustc --version` ≥ 1.86.
 
 ### Frontend dev-сервер не стартует
 
 - Проверить Node.js: `node --version` ≥ 22.
 - Удалить `node_modules` и lockfile: `rm -rf node_modules pnpm-lock.yaml`, затем `pnpm install`.
-- Проверить, что порт 19876 не занят: `lsof -i :19876`.
+- Проверить, что порт 5173 не занят для dev server: `lsof -i :5173`.
 
 ### Docker compose не поднимается
 
@@ -27,9 +28,9 @@ docker compose up -d --build
 
 ```bash
 cd backend
-cargo run --bin migrator -- --status
-# или
-sqlx migrate info
+DATABASE_URL=postgres://wiki:[CHANGE_ME]@localhost:3457/wiki cargo run -p migration -- status
+# target after SQLx migration replacement:
+sqlx migrate info --source backend/migrations
 ```
 
 Если застряло — откатить вручную:
@@ -60,13 +61,9 @@ LIMIT 10;
 ### Redis connection refused
 
 - `docker compose ps` — redis healthy?
-- Проверить `WIKI_REDIS_URL`.
 - Проверить, что не путаете host `redis` vs `localhost`.
 
-### WebSocket не рассылает между инстансами
-
-- Убедиться, что `WIKI_REDIS_URL` настроен.
-- Проверить pub/sub: `redis-cli PUBLISH test "hello"`.
+Current Wiki API shell should not require Redis for normal reads/writes. Target cache/idempotency behavior may degrade until Redis is restored.
 
 ## 4. Auth
 
@@ -104,7 +101,7 @@ LIMIT 10;
 ### Белый экран после сборки
 
 - Открыть DevTools → Console.
-- Проверить, что `VITE_API_URL` доступен.
+- Проверить, что `VITE_API_BASE_URL` доступен.
 - Проверить 404 на `index.html` — настройка SPA fallback.
 
 ### Tailwind стили не применяются
@@ -136,9 +133,8 @@ pnpm exec playwright test --workers=1 --retries=2
 ### Health checks
 
 ```bash
-curl http://localhost:8080/health
-curl http://localhost:8080/health/ready
-curl http://localhost:8080/metrics
+curl http://localhost:3456/api/v1/health
+curl http://localhost:3456/metrics
 ```
 
 ### Логи
@@ -148,7 +144,7 @@ curl http://localhost:8080/metrics
 cargo run --bin server 2>&1 | jq
 
 # docker
-docker compose logs -f api
+docker compose logs -f backend
 ```
 
 ## 9. References

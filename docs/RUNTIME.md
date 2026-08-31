@@ -10,9 +10,9 @@
 
 | Probe | Path | Success | Failure |
 |-------|------|---------|---------|
-| Liveness | `GET /health/live` | HTTP 200 | HTTP 503 |
-| Readiness | `GET /health/ready` | DB, Redis OK | HTTP 503 |
-| Startup | `GET /health/startup` | migrations done | HTTP 503 |
+| Current liveness | `GET /api/v1/health` | HTTP 200 | HTTP 503 |
+| Target readiness | `GET /api/v1/health/ready` | DB, Redis, storage OK | HTTP 503 |
+| Target startup | `GET /api/v1/health/startup` | migrations done | HTTP 503 |
 
 ### 2.2 Startup Probe
 
@@ -39,7 +39,7 @@
    - Initial delay: 1s.
    - Max delay: 30s.
    - Max retries: 30.
-3. Применение миграций (`sea-orm-migration`).
+3. Применение Wiki SQLx migrations.
 4. Seed default data (admin, default spaces, document templates).
 5. Подключение к Redis с retry.
 6. Запуск HTTP сервера.
@@ -76,7 +76,7 @@
 ## 7. Maintenance Jobs
 
 - MVP can run without a separate worker process.
-- Optional maintenance jobs may generate previews and cleanup expired temporary files.
+- Optional in-process maintenance jobs may cleanup expired temporary files.
 - Retry policy: 3 attempts, then audit/admin event.
 
 ## 8. Watchdogs

@@ -14,7 +14,7 @@ Project administration is deferred reference material. Wiki MVP manages spaces d
 | Task dossier | External task key |
 | Phase dossier | project-workflow phase instance |
 | Source link | Repository/PR/commit |
-| Evidence | CI/CD artifact, deployment, review or manual note |
+| Evidence | URL or uploaded file for CI/CD artifact, deployment or review proof |
 
 One space may contain multiple external projects. One external project should map to one default space unless migration requires a temporary split.
 
@@ -41,7 +41,7 @@ They cannot bypass system-wide retention, security, audit or secret policies.
 | Space owner | Mappings inside owned spaces |
 | Editor | Create documents/evidence inside permitted spaces |
 | Reader | View permitted documents and evidence |
-| Service token | Write scoped source references only |
+| Future service token | Deferred; scoped source writes only after a separate approval |
 
 All project admin actions produce audit entries.
 

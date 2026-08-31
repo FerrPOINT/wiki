@@ -12,15 +12,15 @@
 - `spaces_total`
 - `documents_total{status}`
 - `document_revisions_total`
-- `task_dossiers_total{source_system}`
-- `phase_dossiers_total{state}`
+- `task_dossiers_total`
+- `phase_dossiers_total`
 - `evidence_items_total{source_type}`
 - `attachments_total`
 
 ## 3. Indexing And Maintenance
 
 - `search_index_lag_seconds`
-- `file_preview_jobs_total{status}`
+- `search_index_updates_total{status}`
 
 ## 4. Storage
 
@@ -32,4 +32,3 @@
 
 - `auth_login_attempts_total{result}`
 - `permission_denied_total{entity_type}`
-- `api_tokens_total{scope}`

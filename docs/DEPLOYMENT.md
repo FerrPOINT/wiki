@@ -26,8 +26,9 @@ Self-hosted Wiki для SDLC knowledge base. MVP поставляется как
 ## 4. Quick Start
 
 ```bash
-cp backend/.env.example backend/.env
+cp .env.example .env
 # отредактируйте секреты
+# Для backend в контейнере с PostgreSQL persistence используйте host `postgres:5432`.
 docker compose up -d postgres redis backend
 curl -sf http://localhost:3456/api/v1/health
 ```
@@ -36,8 +37,11 @@ curl -sf http://localhost:3456/api/v1/health
 
 ```bash
 # Terminal 1
-docker compose up -d postgres redis backend
-cd backend && cargo run --bin server
+docker compose up -d postgres redis
+cd backend
+export WIKI_JWT_SECRET=dev-secret-32-chars-minimum
+export WIKI_DATABASE__URL=postgres://wiki:[CHANGE_ME]@localhost:3457/wiki
+cargo run --bin server
 
 # Terminal 2
 cd frontend
@@ -62,7 +66,7 @@ pnpm build
 - Email: `demo@example.com`
 - Password: `demo`
 
-Создаётся seed-миграцией при первом запуске backend.
+Создаётся текущим in-memory API shell. После PostgreSQL migration demo/admin seed должен быть перенесён в миграции или explicit seed command.
 
 ## 8. Health Checks
 

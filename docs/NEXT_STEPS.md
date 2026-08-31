@@ -8,6 +8,8 @@ The documentation and static frontend page design are ready enough to start back
 - integrations, reports and notifications screens are out of frontend scope;
 - README screenshot gallery points to 22 existing screenshots;
 - CI/CD-style documentation filename parity is preserved;
+- env/local setup/deployment docs use current `WIKI_*__*` variables and service names;
+- migration docs direct new Wiki persistence work toward SQLx and quarantine inherited SeaORM task-tracker migrations;
 - deferred areas are documented as reference only.
 
 The remaining work is implementation, not product-scope expansion.

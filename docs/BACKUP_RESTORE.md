@@ -35,7 +35,7 @@
 docker compose exec postgres pg_dump -U wiki wiki | gzip > wiki-$(date +%F).sql.gz
 
 # Attachments
-docker compose cp api:/var/lib/wiki/uploads ./attachments-backup
+docker compose cp backend:/var/lib/wiki/uploads ./attachments-backup
 ```
 
 ## 4. Восстановление
@@ -46,13 +46,13 @@ docker compose cp api:/var/lib/wiki/uploads ./attachments-backup
 
 Порядок:
 
-1. Остановить `api` и `frontend`.
+1. Остановить `backend` и `frontend`.
 2. Восстановить Postgres:
    ```bash
    gunzip -c postgres-2026-07-13.sql.gz | docker compose exec -T postgres psql -U wiki -d wiki
    ```
 3. Восстановить attachments.
-4. Запустить `api` и проверить `/health/ready`.
+4. Запустить `backend` и проверить `/api/v1/health`, затем target readiness после её реализации.
 
 ## 5. Point-in-time recovery
 

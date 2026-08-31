@@ -16,6 +16,7 @@
 | Refined MVP page design | Current | Spaces, documents, tasks, phases, evidence and search pages include API-ready layouts and metadata blocks |
 | Screenshot evidence | Current | 17 desktop and 5 mobile screenshots regenerated for the MVP page set |
 | MVP documentation cleanup | Current | Removed visible/technical integrations, reports and notifications scope from frontend routes, README gallery and screenshot manifest |
+| Development readiness docs | Current | README, local setup, env, migrations, storage, security, ops and runbooks are aligned with Wiki MVP/current-vs-target boundaries; host-side `cargo run` env is documented separately from Docker Compose `.env` |
 | Frontend API shell | Current | Thin handwritten auth client; old tracker generated client removed |
 | Env/project identity | Current | `WIKI_` prefix, docker names and frontend package identity |
 
@@ -76,15 +77,22 @@ Latest verification on 2026-08-31:
 - `vitest run` passed: 5 files, 17 tests.
 - `vite build` passed.
 - `playwright test --project=chromium` passed: 1 smoke test.
-- Screenshot script regenerated 22 screenshots.
-- `eslint . --max-warnings=0` is blocked by missing `@eslint/js` in the local frontend install/config.
+- Screenshot script regenerated 22 screenshots against `vite preview`; capture wait is 1 second after navigation.
+- Screenshot dimensions passed: 17 desktop screenshots at `1920x1080`, 5 mobile full-page screenshots at `375px` width.
+- `eslint . --max-warnings=0` passed after declaring direct `@eslint/js` dev dependency used by `eslint.config.js`.
 - `prettier --check .` reports existing format drift in frontend files; broad formatting cleanup was not mixed into this MVP contract change.
 - README/manifest screenshot references resolve to existing PNG files.
+- README/manifest screenshot reference check passed: 22 unique PNGs, `missing=0`, `extra=0`.
+- Screenshot manifest dimensions match actual PNG dimensions.
 - OpenAPI path parity passed: 40 expected Wiki MVP paths, `missing=0`, `extra=0`, legacy paths `0`.
+- Traceability coverage passed: 28 PRD requirement IDs, `missing=0`, `extra=0`.
 - CI/CD docs filename parity passed with `missing=0`.
+- Markdown documentation checks passed: no open placeholder markers, no Markdown document under 20 non-empty lines.
+- Local setup/deployment docs distinguish Docker Compose `.env` from process env used by host-side `cargo run`.
+- Active route/API cleanup check passed: no `/integrations`, `/reports`, `/notifications` routes or old task-tracker API groups in active frontend/API/server/CLI/OpenAPI; only package name `@sentry/integrations` remains in `pnpm-lock.yaml`.
 
 ## Known Local Environment Limits
 
 - MSVC `link.exe` is required for full Rust linking on the current Windows host.
-- If `pnpm` blocks on ignored native build scripts, direct package binaries under `frontend/node_modules/.bin` can still be used for TypeScript/tests/build verification.
-- Frontend lint needs the local ESLint dependency set fixed before it can be used as a release gate on this host.
+- `pnpm add` is blocked on this host by Corepack/Node `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING`; package/lock changes were reviewed manually when needed.
+- If `pnpm` blocks, direct package binaries under `frontend/node_modules/.bin` can still be used for TypeScript/tests/build/lint verification.

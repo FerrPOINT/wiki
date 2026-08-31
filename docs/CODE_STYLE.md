@@ -41,7 +41,7 @@ use std::sync::Arc;
 
 // 2. external crates
 use axum::extract::State;
-use sea_orm::DatabaseConnection;
+use sqlx::PgPool;
 
 // 3. internal crates
 use crate::app::AppContext;
@@ -212,7 +212,7 @@ describe("DocumentCard", () => {
 feat(documents): add revision publishing
 fix(auth): refresh cookie path
 refactor(evidence): split EvidenceFeed component
-docs(api): add SSE payload examples
+docs(api): clarify evidence endpoints
 ```
 
 ## 6. PR Rules
@@ -283,7 +283,7 @@ doc-markdown = true
 
 ## 14. Security
 
-- SQL только через parameterized queries / ORM.
+- SQL только через parameterized queries.
 - Никакого `eval` / `innerHTML` с пользовательским контентом.
 - CSP headers в production.
 - Sanitize filenames и user input.

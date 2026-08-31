@@ -4,30 +4,28 @@
 
 | Variable | Description |
 |---|---|
-| `WIKI_DATABASE_URL` | PostgreSQL connection string |
-| `WIKI_AUTH_SECRET` | JWT/session signing secret |
-| `WIKI_ADMIN_EMAIL` | Initial system admin email |
-| `WIKI_ADMIN_PASSWORD` | Initial system admin password |
+| `WIKI_DATABASE__URL` | PostgreSQL connection string for target persistence and compose |
+| `WIKI_JWT_SECRET` | Backwards-compatible alias for `WIKI_AUTH__JWT_SECRET` |
+| `WIKI_AUTH__JWT_SECRET` | JWT/session signing secret when using nested config |
 
 ## 2. HTTP
 
 | Variable | Default | Description |
 |---|---|---|
-| `WIKI_HTTP_HOST` | `0.0.0.0` | Bind host |
-| `WIKI_HTTP_PORT` | `3456` | Backend API port |
-| `WIKI_PUBLIC_URL` | `http://localhost:19877` | Public frontend URL |
-| `WIKI_CORS_ORIGINS` | local dev origins | Allowed origins |
+| `WIKI_SERVER__ADDRESS` | `0.0.0.0` | Bind host |
+| `WIKI_SERVER__PORT` | `3456` | Backend API port |
+| `WIKI_SERVER__CORS_ALLOWED_ORIGINS` | local dev origins | Allowed origins |
+| `WIKI_SERVER__AUTH_RATE_BURST` | `5` | Auth rate-limit burst |
+| `WIKI_SERVER__AUTH_RATE_PERIOD_SECS` | `15` | Auth rate-limit period |
+| `WIKI_SERVER__GENERAL_RATE_BURST` | `60` | General API rate-limit burst |
+| `WIKI_SERVER__GENERAL_RATE_PERIOD_SECS` | `60` | General API rate-limit period |
 
 ## 3. Storage
 
 | Variable | Default | Description |
 |---|---|---|
-| `WIKI_FILE_STORAGE_BACKEND` | `filesystem` | `filesystem`, `s3`, `minio` |
-| `WIKI_FILE_STORAGE_PATH` | `/var/lib/wiki/uploads` | Local storage path |
-| `WIKI_FILE_STORAGE_BUCKET` | | S3/MinIO bucket |
-| `WIKI_FILE_STORAGE_ENDPOINT` | | S3-compatible endpoint |
-| `WIKI_FILE_STORAGE_ACCESS_KEY` | | Storage access key |
-| `WIKI_FILE_STORAGE_SECRET_KEY` | | Storage secret |
+| `WIKI_STORAGE__DIR` | `/var/lib/wiki/uploads` | Local storage path |
+| `WIKI_STORAGE__MAX_UPLOAD_BYTES` | `26214400` | Max upload size in bytes |
 
 ## 4. Future External Sources
 
@@ -38,6 +36,8 @@
 | `WIKI_PROJECT_WORKFLOW_URL` | Optional project-workflow URL |
 
 These variables are not required for MVP.
+
+Initial system admin seed variables (`WIKI_ADMIN_EMAIL`, `WIKI_ADMIN_PASSWORD`) are target variables for the PostgreSQL migration phase. The current in-memory API shell uses demo credentials documented in `docs/DEPLOYMENT.md`.
 
 ## 5. Frontend
 

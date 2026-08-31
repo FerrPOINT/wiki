@@ -60,6 +60,7 @@ MVP не включает:
 |---|---|---|
 | REQ-AUTH-001 | Auth | Пользователь может войти, выйти и получить текущий профиль |
 | REQ-AUTH-002 | Roles | Admin управляет пользователями и назначает роли в space |
+| REQ-AUTH-003 | Registration | Пользователь может создать учётную запись через public register flow, если регистрация включена настройкой инстанса |
 | REQ-SPC-001 | Spaces | Пользователь видит список доступных spaces |
 | REQ-SPC-002 | Space management | Admin создаёт, редактирует и архивирует space |
 | REQ-SPC-003 | Space members | Admin управляет участниками space |
@@ -121,7 +122,9 @@ API является единственным контрактом backend. UI �
 
 ### Auth
 
+- `POST /api/v1/auth/register`
 - `POST /api/v1/auth/login`
+- `POST /api/v1/auth/refresh`
 - `POST /api/v1/auth/logout`
 - `GET /api/v1/users/me`
 
@@ -289,7 +292,7 @@ CLI requirements:
 | Sanitization | `ammonia` | Очистка HTML |
 | Storage | local FS за trait | Файлы MVP |
 | Auth | `argon2`, JWT/session middleware | Пароли и сессии |
-| Config | `config` или `figment`, `dotenvy` | Typed config |
+| Config | `config` + process env | Typed config from TOML and `WIKI_` variables |
 | Observability | `tracing`, `metrics` | Логи, health, базовые метрики |
 
 ## 14. Связанные документы

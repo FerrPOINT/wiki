@@ -31,7 +31,7 @@ Authorization is space-first. A user receives permissions through space membersh
 
 - Repository queries must filter by authorized space.
 - Missing permission should return `404` where entity existence would leak data.
-- Integration tokens are scoped by source and allowed spaces.
+- Scoped API tokens are deferred and must use the same space permissions as user sessions if approved later.
 - Admin APIs require system admin even if user owns a space.
 
 ## 5. Tests
@@ -39,4 +39,4 @@ Authorization is space-first. A user receives permissions through space membersh
 - Viewer cannot publish.
 - Editor cannot manage members.
 - User from another space cannot read document.
-- Integration token cannot write outside allowed source/space.
+- A user from another space cannot write evidence or attachments into an inaccessible space.

@@ -122,7 +122,7 @@ async function shoot(shot) {
 
   try {
     await page.goto(`${BASE}${shot.path}`, { waitUntil: 'networkidle', timeout: 30_000 })
-    await page.waitForTimeout(300)
+    await page.waitForTimeout(1000)
     await page.screenshot({ path: join(OUT, shot.name), fullPage: true })
     console.log(`shot ${shot.name} ${shot.path} ${shot.title}`)
   } finally {

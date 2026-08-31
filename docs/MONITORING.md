@@ -14,15 +14,13 @@
 | `http_request_duration_seconds` | histogram | request latency |
 | `http_request_size_bytes` | histogram | request body size |
 | `http_response_size_bytes` | histogram | response body size |
-| `active_websocket_connections` | gauge | current WS connections |
-| `websocket_messages_total` | counter | messages sent/received |
 | `db_pool_connections` | gauge | active/idle DB connections |
 | `db_query_duration_seconds` | histogram | query latency |
 | `redis_pool_connections` | gauge | Redis connections |
 | `cache_hit_total` | counter | cache hits by namespace |
 | `cache_miss_total` | counter | cache misses by namespace |
-| `background_jobs_total` | counter | jobs processed |
-| `background_jobs_failed_total` | counter | failed jobs |
+| `attachment_upload_bytes_total` | counter | uploaded attachment bytes |
+| `search_index_updates_total` | counter | document search projection updates |
 | `rate_limited_requests_total` | counter | rate-limited requests |
 
 ### 2.2 Frontend Metrics
@@ -101,7 +99,7 @@ JSON structured logs:
 
 | Dashboard | Panels |
 |-----------|--------|
-| API Overview | RPS, latency, errors, WS connections |
+| API Overview | RPS, latency, errors, rate limits |
 | Database | query time, pool, slow queries |
 | Cache | hit/miss, size, eviction |
 | Infrastructure | CPU, memory, disk, network |
@@ -117,26 +115,28 @@ JSON structured logs:
 
 | Endpoint | Purpose |
 |----------|---------|
-| `GET /health` | liveness |
-| `GET /health/ready` | readiness (DB + Redis) |
+| `GET /api/v1/health` | current liveness |
+| `GET /api/v1/health/ready` | target readiness (DB + Redis + storage) |
 | `GET /metrics` | Prometheus |
 
 ## 9. Uptime Monitoring
 
 - Blackbox exporter или external service (UptimeRobot).
-- Check `/health` каждые 60s.
+- Check `/api/v1/health` каждые 60s.
 
 ## 10. Profiling
 
 - CPU/memory profiling через `pprof` (future).
 - Async flamegraphs для Rust.
 
-## 11. CI/CD Observability
+## 11. Delivery Observability
 
 - Build duration.
 - Test pass/fail rate.
 - Deployment frequency.
 - Mean time to recovery (MTTR).
+
+These metrics describe Wiki delivery health only. Wiki does not run CI/CD pipelines.
 
 ## 12. Configuration
 

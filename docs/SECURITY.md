@@ -28,10 +28,10 @@ Wiki — self-hosted приложение с конфиденциальными 
 
 ## 5. Input Validation
 
-- Strict DTO validation на входе (validator, zod).
+- Strict DTO validation на входе backend/frontend validators.
 - Whitelist mime-types для attachments.
 - Filename sanitization.
-- SQL только через parameterized queries / ORM.
+- SQL только через parameterized queries.
 - No `eval`, no dynamic SQL.
 
 ## 6. XSS / CSP
@@ -50,7 +50,7 @@ Wiki — self-hosted приложение с конфиденциальными 
   form-action 'self';
   ```
 - User-generated content escaped при render.
-- Rich text — TipTap с whitelist nodes/marks.
+- Markdown рендерится через controlled renderer, HTML проходит sanitizer.
 
 ## 7. CSRF
 
@@ -85,20 +85,20 @@ Wiki — self-hosted приложение с конфиденциальными 
 
 - `tower_governor` per IP and per user.
 - Stricter limits for auth endpoints.
-- WebSocket connection limits per user.
+- Stricter limits for auth and upload endpoints.
 
 | Endpoint | Limit |
 |----------|-------|
 | Login | 5/min |
 | Register | 3/min |
 | API general | 100/min |
-| Search/JQL | 60/min |
+| Search | 60/min |
 
 ## 12. Audit Logging
 
 - Login/logout events.
 - Permission changes.
-- Project/role modifications.
+- Space/member/role modifications.
 - Admin actions.
 - Stored in `audit_log` table, retained 1 year.
 
@@ -121,7 +121,7 @@ Wiki — self-hosted приложение с конфиденциальными 
 
 - PostgreSQL и Redis доступны только в internal network.
 - Traefik на edge.
-- Firewall: 19876, 80, 443 only.
+- Firewall: expose only frontend/reverse-proxy ports and required backend admin ports; keep PostgreSQL/Redis internal.
 
 ## 16. Incident Response
 
@@ -158,11 +158,5 @@ Content-Security-Policy: ...
 - `docs/SYSTEM_ADMIN.md` — users/groups/permissions.
 - `docs/STORAGE.md` — attachment security.
 - `docs/ERROR_HANDLING.md` — error disclosure.
-- `docs/SECURITY.md` — детали refresh rotation, reuse detection, rate limits.
-- `docs/SECURITY.md` — план реагирования на инциденты.
-
-## References
-
 - `docs/ARCHITECTURE.md`
 - `docs/DEPLOYMENT.md`
-- `docs/API.md`

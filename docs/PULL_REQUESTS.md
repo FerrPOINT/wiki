@@ -68,15 +68,7 @@ Sensitive comments are not copied unless the source explicitly marks them safe f
 
 Dedicated PR endpoints are deferred. In MVP, PR links are stored through the regular evidence API as external URL materials.
 
-Future target endpoints:
-
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/api/v1/pull-requests` | Filter imported PR snapshots |
-| `POST` | `/api/v1/tasks/{source}/{key}/pull-requests` | Link PR to task dossier |
-| `POST` | `/api/v1/documents/{id}/pull-requests` | Link PR to document |
-
-Future ingestion is idempotent by provider event id or by `(source_reference, repository_url, pull_request_number, updated_at)`.
+A future dedicated PR API may add imported PR snapshots and provider-specific linking routes. That requires separate requirements and OpenAPI changes. Future ingestion must be idempotent by provider event id or by `(source_reference, repository_url, pull_request_number, updated_at)`.
 
 ## 7. Acceptance Criteria
 

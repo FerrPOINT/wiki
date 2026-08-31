@@ -4,20 +4,21 @@
 
 Track third-party dependencies, licenses and supply-chain risks for backend, frontend and infrastructure.
 
-## 2. Backend Dependencies
+## 2. Target Backend Dependencies
 
 Key Rust dependencies:
 
 - axum
 - tokio
-- sea-orm
 - sqlx
 - comrak
 - ammonia
-- object_store
-- tantivy
 - utoipa
-- apalis
+- sha2
+- jsonwebtoken
+- argon2
+
+Inherited `sea-orm` / `sea-orm-migration` dependencies may exist until backend migration is complete. They are not the target for new Wiki persistence work.
 
 ## 3. Frontend Dependencies
 

@@ -14,7 +14,7 @@ Roadmap фиксирует только базовое приложение. Р�
 - Реализовать page tree: parent/child, breadcrumbs, move within space.
 - Реализовать Markdown render и HTML sanitization.
 - Реализовать PostgreSQL migrations для базовых сущностей.
-- Поднять Docker Compose, `/health`, `/ready`.
+- Поднять Docker Compose, `/api/v1/health` и target readiness endpoint.
 
 ## Phase 2 - SDLC Links
 

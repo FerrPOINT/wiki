@@ -11,10 +11,10 @@ The test plan covers document lifecycle, task/phase links, evidence ingestion, p
 | Spaces | create/update/archive, membership, duplicate key |
 | Documents | draft, publish, conflict, archive/restore |
 | Revisions | immutable content, diff, history |
-| Task dossiers | idempotent upsert, external source snapshot |
-| Phase dossiers | workflow sync, completion policy |
-| Evidence | add file/url/manual note, checksum, dedup |
-| Attachments | upload/download/delete, MIME, quota |
+| Task dossiers | idempotent link creation, external task key lookup, permission filtering |
+| Phase dossiers | phase key grouping, linked documents/evidence, permission filtering |
+| Evidence | add file/url evidence, checksum, dedup |
+| Attachments | upload/download, MIME, quota |
 | Search | indexing, permission filtering, archived filters |
 | Authz | viewer/editor/owner boundaries |
 

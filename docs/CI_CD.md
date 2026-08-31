@@ -105,8 +105,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test --test '*'
         env:
-          WIKI_DATABASE_URL: postgres://wiki:wiki@localhost:5432/wiki
-          WIKI_REDIS_URL: redis://localhost:6379
+          WIKI_DATABASE__URL: postgres://wiki:wiki@localhost:5432/wiki
+          WIKI_JWT_SECRET: test-secret-32-chars-long!!!!!
 
   test-frontend-unit:
     runs-on: ubuntu-latest
@@ -203,8 +203,8 @@ jobs:
 
 - Каждый test получает чистое состояние:
   - новый браузерный контекст
-  - seed БД через API endpoint `/api/v1/test/seed`
-  - deterministic fixtures
+  - deterministic DB fixtures or test-only fixture loader
+  - no public `/api/v1/test/*` endpoints in the MVP API
 - Parallel workers = 4 (sharding по CI-нодам).
 
 ## 5. Flaky Tests Strategy

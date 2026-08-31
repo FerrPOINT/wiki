@@ -34,7 +34,7 @@ If notifications are approved later, candidate events are:
 | `in_app` | Bell icon and notification center |
 | `email` | Optional digest |
 
-External webhook delivery is a separate future feature and not part of notification MVP.
+External webhook delivery is a separate future feature and not part of the base Wiki MVP. Any future notification scope must be approved separately.
 
 ## 5. Future Requirements
 

@@ -8,7 +8,8 @@
 
 ## 2. Миграции
 
-- Фреймворк — `sea-orm-migration` / `sea-orm-migration` (решение зафиксировано в ADR).
+- Целевой инструмент - `sqlx migrate` и plain SQL migrations по ADR-0001.
+- Унаследованный `backend/migration` на SeaORM относится к task-tracker scaffold и должен быть заменён или изолирован до реализации Wiki persistence.
 - Имя файла: `YYYYMMDDHHMMSS_description.sql`.
 - Каждая миграция:
   - оборачивается в `BEGIN; ... COMMIT;`
@@ -61,7 +62,7 @@
 - `NOT NULL` по умолчанию для обязательных полей.
 - `DEFAULT` только для технических полей (`created_at`, `id`).
 - `ON DELETE`:
-  - `CASCADE` - для явно дочерних сущностей (comments к document)
+  - `CASCADE` - для явно дочерних сущностей (`document_drafts` к `documents`)
   - `RESTRICT` - для ссылок на справочники, если удаление нарушает целостность
   - `SET NULL` - для опциональных FK (`summary_document_id`)
 

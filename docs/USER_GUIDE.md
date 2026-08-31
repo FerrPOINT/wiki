@@ -12,7 +12,7 @@ Wiki stores the important materials around SDLC tasks: requirements, design note
 | Document | Markdown page with revisions |
 | Task dossier | Knowledge folder linked to an external task |
 | Phase dossier | Materials for one project-workflow phase |
-| Evidence | CI job, PR, artifact, link, file or manual note proving a phase result |
+| Evidence | Link or uploaded file proving a task or phase result |
 
 ## 3. Daily Flow
 
@@ -33,11 +33,10 @@ Wiki stores the important materials around SDLC tasks: requirements, design note
 
 ## 5. Evidence Types
 
-- `ci_job`
-- `pull_request`
-- `artifact`
-- `manual_note`
-- `external_url`
+- `external_url` - ссылка на CI job, PR, artifact, release check или другой внешний материал.
+- `uploaded_file` - загруженный файл со checksum и metadata.
+
+`source_type` can additionally classify URL/file evidence as CI job, pull request, deployment, test artifact or release proof without adding a separate MVP entity.
 
 ## 6. Search
 

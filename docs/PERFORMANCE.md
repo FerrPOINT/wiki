@@ -54,6 +54,8 @@ Avoid N+1 by loading document metadata, current revision, author and permissions
 - Rebuild search projection.
 - Clean orphaned uploads.
 
+These jobs are future work and must not be required for MVP request latency.
+
 ## 7. Monitoring
 
 Key metrics:

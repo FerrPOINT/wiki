@@ -3,9 +3,9 @@
 1. Backend handlers and DTOs are the source of truth for API schema.
 2. Rust code uses `utoipa` / `utoipa-axum` (`#[derive(ToSchema)]`, `#[utoipa::path]`).
 3. `cargo run --bin openapi-gen` writes `openapi/openapi.json` without starting a server.
-4. `pnpm generate:api` consumes `openapi/openapi.json` and writes `frontend/src/api/generated.ts`.
-5. Frontend uses `openapi-fetch` with generated `paths` and `components`.
-6. `pnpm build` regenerates the client before `tsc` and `vite build`.
+4. `pnpm generate:api` will consume `openapi/openapi.json` and write `frontend/src/api/generated.ts` after backend domain/repository migration is complete.
+5. Frontend temporarily uses a thin handwritten API shell; the generated client becomes the source once Wiki schemas stabilize.
+6. `pnpm build` currently runs `tsc --noEmit && vite build`.
 
 ## Commands
 
@@ -15,7 +15,7 @@ cd /opt/dev/wiki/backend
 cargo build --bin openapi-gen
 ./target/debug/openapi-gen /opt/dev/wiki/openapi/openapi.json
 
-# Regenerate frontend client
+# Regenerate frontend client after generated-client support is enabled
 cd /opt/dev/wiki/frontend
 pnpm generate:api
 
@@ -29,7 +29,7 @@ docker compose up -d postgres redis backend
 
 ## Current State
 
-`openapi/openapi.json` is inherited from the task-tracker base. Replace it after implementing Wiki endpoints for spaces, documents, revisions, task dossiers, phase dossiers, evidence, attachments, search and admin operations.
+`openapi/openapi.json` is the committed Wiki MVP public API artifact. It currently represents the approved route/DTO contract and in-memory API shell. Regenerate it from `openapi-gen` after implementing PostgreSQL-backed Wiki handlers and schemas.
 
 ## Notes
 

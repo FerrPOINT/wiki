@@ -3,7 +3,7 @@
 ## Репозиторий
 
 - **GitHub**: `git@github.com:FerrPOINT/wiki.git`
-- **Стек**: backend Rust (Axum + SeaORM + PostgreSQL), frontend React 19.1.0 + Vite 6.2.0 + Tailwind CSS 4.1.0
+- **Стек**: backend Rust (Axum + PostgreSQL; target persistence SQLx, inherited SeaORM только как временный слой), frontend React 19.1.0 + Vite 6.2.0 + Tailwind CSS 4.1.0
 - **Env prefix**: `WIKI_`
 - **Публичные порты по умолчанию**: frontend docker `19877`, backend `3456`, PostgreSQL `3457`, Redis `6379`
 
@@ -17,25 +17,26 @@
 
 ### 2. Код
 
-- Backend: слоистая архитектура `controller → service → repository`.
+- Backend: целевая слоистая архитектура `api/routes → app/services → domain → infra/repositories`.
 - DI через `AppContext`.
 - Все публичные API покрыты OpenAPI через `utoipa-axum`.
 - Rust-хендлеры и DTO — единственный источник правды для схемы; фронт генерирует клиент из `openapi/openapi.json`.
+- Новую Wiki persistence-логику писать на SQLx по ADR-0001. Унаследованный SeaORM-код можно трогать только для удаления, карантина или временной совместимости, не расширяя task-tracker модель.
 - Все endpoint тестируются интеграционно через testcontainers.
 - Frontend: компоненты на `shadcn/ui` + Tailwind.
 - Состояние: серверное — `@tanstack/react-query`, клиентское — `zustand`.
-- Формы — `react-hook-form` + `zod`.
+- Формы — native React forms/local validators для MVP; новые form/schema библиотеки добавлять только при явной необходимости.
 
 ### 3. Коммиты
 
 - Conventional commits (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`).
 - Один коммит = одна логическая единица.
 - Не amend/squash без явного запроса.
-- Push только после проверки `cargo test`, `pnpm typecheck`, `pnpm test`.
+- Push только после релевантных проверок. Если проверка заблокирована окружением, зафиксировать причину в `docs/CURRENT_STATE.md` и финальном отчёте.
 
 ### 4. Тестирование
 
-- Backend: `cargo test`, интеграционные тесты с PostgreSQL testcontainer.
+- Backend: `cargo fmt`, `cargo clippy`, `cargo test`, интеграционные тесты с PostgreSQL testcontainer.
 - Frontend: Vitest + Playwright.
 - После UI-изменений — скриншоты full-page (375 / 1920 / 2560).
 - Все новые endpoint — curl-проверка.

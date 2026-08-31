@@ -3,8 +3,9 @@
 ## 1. Principals
 
 - User principal.
-- Integration token principal.
 - System admin principal.
+
+Scoped API-token principals are deferred and require a separate contract update.
 
 ## 2. Scope
 

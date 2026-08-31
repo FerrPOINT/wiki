@@ -1,8 +1,8 @@
-# Pagination & Bulk Operations - Wiki
+# Pagination - Wiki
 
 ## 1. Overview
 
-Wiki uses pagination for document trees, search results, revision history, evidence feeds, comments and audit log.
+Wiki uses pagination for document trees, search results, revision history, evidence feeds, attachments and audit log.
 
 ## 2. Cursor Pagination
 
@@ -46,7 +46,7 @@ GET /api/v1/spaces?limit=20&offset=0
 
 ## 4. Keyset Pagination
 
-Used for ordered trees and comments:
+Used for ordered trees and append-only feeds:
 
 ```http
 GET /api/v1/spaces/ENG/tree?after_id=018f...&limit=50
@@ -63,50 +63,16 @@ Sort by stable tuple: `(position, id)` or `(created_at, id)`.
 | document revisions | 100 | 20 |
 | search results | 100 | 20 |
 | evidence | 100 | 30 |
-| comments | 50 | 20 |
 | audit log | 200 | 50 |
 | attachments | 50 | 20 |
 
-## 6. Bulk Operations
+## 6. Future Bulk Operations
 
 Bulk endpoints are reserved for admin import/export after the base domain is implemented.
 
-### Bulk Evidence Ingest
+No bulk endpoints are part of MVP. Future bulk evidence ingest or document import must define route shape, max item count, idempotency, partial failure response and permission model before implementation.
 
-```json
-POST /api/v1/evidence/bulk
-Idempotency-Key: 018f...
-
-{
-  "items": [
-    {
-      "task_dossier_id": "018f...",
-      "phase_key": "testing",
-      "source_type": "ci_job",
-      "source_ref": "backend-tests#1842"
-    }
-  ]
-}
-```
-
-### Bulk Document Import
-
-```json
-POST /api/v1/spaces/ENG/documents/import
-Idempotency-Key: 018f...
-
-{
-  "documents": [
-    {
-      "path": "requirements/wiki.md",
-      "title": "Wiki Requirements",
-      "content_markdown": "# Wiki"
-    }
-  ]
-}
-```
-
-## 7. Response Format
+## 7. Future Bulk Response Format
 
 ```json
 {
@@ -124,7 +90,7 @@ Idempotency-Key: 018f...
 | Type | Limit |
 |---|---|
 | JSON body | 10 MiB |
-| Bulk items | 100 |
+| Future bulk items | 100 |
 | Single attachment | 50 MiB |
 | Query params length | 4096 chars |
 
@@ -133,7 +99,7 @@ Idempotency-Key: 018f...
 - Search filters are encoded as URL query.
 - Document location is encoded by document ID or stable path.
 - Task links preserve external task key.
-- Phase links preserve workflow run and phase key where possible.
+- Phase links preserve external phase key.
 
 ## 10. References
 

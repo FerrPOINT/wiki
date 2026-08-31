@@ -48,7 +48,7 @@ Wiki is an operational knowledge tool. It should feel quiet, readable and effici
 - The page has a desktop screenshot in README and screenshot manifest.
 - Mobile smoke covers navigation-heavy, document-reading, task-reading and search flows.
 - The page shows the main object context above the fold.
-- The page has clear placeholders for loading, empty, permission denied and validation error states before API wiring.
+- The page has clear loading, empty, permission denied and validation error states before API wiring.
 - The page does not expose deferred reports, notifications, webhook delivery or runner controls.
 
 ## 6. References
