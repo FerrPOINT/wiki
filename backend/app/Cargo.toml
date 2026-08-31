@@ -7,7 +7,7 @@ license-file.workspace = true
 
 [features]
 default = []
-legacy-tracker = ["dep:async-trait", "dep:serde_json", "dep:tokio"]
+legacy-tracker = ["dep:async-trait", "dep:serde_json", "dep:tokio", "domain/legacy-tracker"]
 
 [dependencies]
 tokio = { workspace = true, features = ["sync"], optional = true }

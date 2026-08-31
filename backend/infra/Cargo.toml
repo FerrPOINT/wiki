@@ -16,6 +16,7 @@ legacy-tracker = [
     "dep:serde_json",
     "dep:tracing",
     "dep:uuid",
+    "domain/legacy-tracker",
 ]
 
 [dependencies]

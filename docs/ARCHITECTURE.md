@@ -100,6 +100,8 @@ server   -> api/app/infra runtime composition
 - Wiki не меняет состояние внешних задач, фаз или pipeline;
 - секреты и токены не попадают в search index, audit и пользовательский HTML.
 
+Default `domain` crate export surface содержит Wiki-модель и общие `value_objects`, нужные Wiki. Унаследованные task-tracker `email_port`, `entities`, `events`, `jql`, `repositories`, memory compatibility repositories, `IssueQuery` и `StatusDto` доступны только через feature `legacy-tracker`.
+
 ## 7. Application Layer
 
 Use cases MVP:
@@ -143,7 +145,7 @@ Default `infra` crate export surface now contains only the Wiki attachment stora
 - единый error envelope;
 - OpenAPI generation.
 
-В целевой архитектуре API не содержит SQL и не пишет файлы напрямую. Текущий переходный MVP runtime уже отделяет router/DTO и явный memory test/dev backend от постоянного хранилища: route handlers вызывают внутренний `WikiBackendPort`, конкретный `PostgresWikiBackend` приватен внутри `api::wiki_postgres`, а SQLx-запросы пока живут в отдельном crate-level переходном модуле API. `server` запускает Wiki через `app::WikiAppContext` без сборки унаследованного task-tracker service graph. Production `server::run` требует `WIKI_DATABASE__URL`; memory backend доступен только через явно названный test/dev router builder. Default app/infra dependency surface теперь содержит только Wiki-needed exports; следующий архитектурный шаг - перенос реализации `WikiBackendPort` в application use cases и infra repositories.
+В целевой архитектуре API не содержит SQL и не пишет файлы напрямую. Текущий переходный MVP runtime уже отделяет router/DTO и явный memory test/dev backend от постоянного хранилища: route handlers вызывают внутренний `WikiBackendPort`, конкретный `PostgresWikiBackend` приватен внутри `api::wiki_postgres`, а SQLx-запросы пока живут в отдельном crate-level переходном модуле API. `server` запускает Wiki через `app::WikiAppContext` без сборки унаследованного task-tracker service graph. Production `server::run` требует `WIKI_DATABASE__URL`; memory backend доступен только через явно названный test/dev router builder. Default domain/app/infra dependency surface теперь содержит только Wiki-needed exports; следующий архитектурный шаг - перенос реализации `WikiBackendPort` в application use cases и infra repositories.
 
 ## 10. Frontend
 
@@ -186,6 +188,7 @@ MVP pages:
 | Удаление task-tracker-only documentation/screenshots/frontend pages | Готово                                                                                                                                                                                                                                                                                              |
 | Замена публичного API/router на Wiki MVP                            | Готово                                                                                                                                                                                                                                                                                              |
 | Wiki domain value objects and invariants                            | Готово                                                                                                                                                                                                                                                                                              |
+| Domain legacy quarantine                                            | Готово: default `domain` экспортирует только Wiki/value-object слой; унаследованные task-tracker domain modules доступны только через feature `legacy-tracker`                                                                                                                                      |
 | Fresh SQLx Wiki schema baseline                                     | Готово                                                                                                                                                                                                                                                                                              |
 | Route-level SQLx runtime persistence                                | Готово для MVP: PostgreSQL adapter закрыт за внутренним `WikiBackendPort` и вынесен из route subtree в отдельный `api::wiki_postgres`; базовые space-role checks включены; attachment bytes вынесены за Wiki storage port; shared Wiki validation/auth/search/settings helpers вынесены в app layer |
 | Wiki backend port                                                   | Готово: route handlers завязаны на внутренний `WikiBackendPort`, а конкретный `PostgresWikiBackend` приватен внутри переходного PostgreSQL-модуля                                                                                                                                                   |

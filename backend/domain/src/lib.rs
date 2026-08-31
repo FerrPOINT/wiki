@@ -1,22 +1,36 @@
+#[cfg(feature = "legacy-tracker")]
 pub mod email_port;
+#[cfg(feature = "legacy-tracker")]
 pub mod entities;
+#[cfg(feature = "legacy-tracker")]
 pub mod events;
+#[cfg(feature = "legacy-tracker")]
 pub mod jql;
+#[cfg(feature = "legacy-tracker")]
 pub mod repositories;
+#[cfg(feature = "legacy-tracker")]
 pub mod stubs;
 pub mod value_objects;
 pub mod wiki;
 
+#[cfg(feature = "legacy-tracker")]
 pub use email_port::*;
+#[cfg(feature = "legacy-tracker")]
 pub use entities::*;
+#[cfg(feature = "legacy-tracker")]
 pub use events::*;
+#[cfg(feature = "legacy-tracker")]
 pub use repositories::*;
+#[cfg(feature = "legacy-tracker")]
 pub use stubs::*;
 pub use value_objects::*;
 
+#[cfg(feature = "legacy-tracker")]
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "legacy-tracker")]
 pub use shared::{IssueTypeId, ProjectId, SprintId, StatusId, UserId, WorkflowTransitionId};
 
+#[cfg(feature = "legacy-tracker")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IssueQuery {
     pub project_id: Option<ProjectId>,
@@ -45,6 +59,7 @@ pub struct IssueQuery {
     pub deleted_only: bool,
 }
 
+#[cfg(feature = "legacy-tracker")]
 impl Default for IssueQuery {
     fn default() -> Self {
         Self {
@@ -67,6 +82,7 @@ impl Default for IssueQuery {
     }
 }
 
+#[cfg(feature = "legacy-tracker")]
 impl IssueQuery {
     pub fn project(project_id: ProjectId) -> Self {
         Self {
@@ -89,6 +105,7 @@ impl IssueQuery {
     }
 }
 
+#[cfg(feature = "legacy-tracker")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StatusDto {
     pub id: String,

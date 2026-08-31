@@ -1089,7 +1089,6 @@ dependencies = [
  "serde",
  "serde_json",
  "shared",
- "thiserror 2.0.19",
  "tokio",
  "uuid",
 ]
