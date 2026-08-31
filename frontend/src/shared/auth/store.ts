@@ -1,5 +1,7 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { createJSONStorage, persist } from 'zustand/middleware'
+
+import { getSafeBrowserStorage } from '@/shared/lib/browser-storage'
 
 function readStoredAuth(): {
   token: string | null
@@ -9,7 +11,7 @@ function readStoredAuth(): {
   displayName: string | null
 } {
   try {
-    const raw = localStorage.getItem('wiki-auth')
+    const raw = getSafeBrowserStorage().getItem('wiki-auth')
     if (!raw)
       return {
         token: null,
@@ -42,8 +44,9 @@ const REFRESH_KEY = 'wiki-refresh-token'
 
 export function storeRefreshToken(token: string | null): void {
   try {
-    if (token) localStorage.setItem(REFRESH_KEY, token)
-    else localStorage.removeItem(REFRESH_KEY)
+    const storage = getSafeBrowserStorage()
+    if (token) storage.setItem(REFRESH_KEY, token)
+    else storage.removeItem(REFRESH_KEY)
   } catch {
     // storage unavailable — cookie flow remains
   }
@@ -51,7 +54,7 @@ export function storeRefreshToken(token: string | null): void {
 
 export function readRefreshToken(): string | null {
   try {
-    return localStorage.getItem(REFRESH_KEY)
+    return getSafeBrowserStorage().getItem(REFRESH_KEY)
   } catch {
     return null
   }
@@ -115,6 +118,9 @@ export const useAuthStore = create<AuthState>()(
         })
       },
     }),
-    { name: 'wiki-auth' },
+    {
+      name: 'wiki-auth',
+      storage: createJSONStorage(getSafeBrowserStorage),
+    },
   ),
 )

@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 
+import { getSafeBrowserStorage } from './browser-storage'
+
 type Theme = 'dark' | 'gray' | 'light'
 
 interface ThemeContextValue {
@@ -9,17 +11,25 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null)
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    const stored = typeof window !== 'undefined' ? window.localStorage.getItem('theme') : null
+function readInitialTheme(): Theme {
+  try {
+    const stored = getSafeBrowserStorage().getItem('theme')
     if (stored === 'dark' || stored === 'gray' || stored === 'light') return stored
-    return 'dark'
-  })
+  } catch {
+    // Theme can still render with the default when storage cannot be read.
+  }
+  return 'dark'
+}
+
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const [theme, setThemeState] = useState<Theme>(readInitialTheme)
 
   const setTheme = (value: Theme) => {
     setThemeState(value)
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem('theme', value)
+    try {
+      getSafeBrowserStorage().setItem('theme', value)
+    } catch {
+      // Theme still updates in memory even when browser storage is unavailable.
     }
   }
 
