@@ -5,9 +5,10 @@ import { defaultSpaceKey, useWikiSearch } from '@/shared/api/hooks'
 import { EmptyState, ErrorState, LoadingState } from '@/shared/ui/async-states'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import { Input } from '@/shared/ui/input'
+import { Label } from '@/shared/ui/label'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime } from '@/shared/lib/wiki-format'
-import type { SearchResult } from '@/api/wiki'
+import type { SearchParams, SearchResult } from '@/api/wiki'
 
 const resultTypeFilters = [
   { label: 'Все', value: 'all' },
@@ -41,16 +42,30 @@ function countResults(results: SearchResult[], type: string) {
   return results.filter((result) => result.result_type === type).length
 }
 
+function optional(value: string) {
+  const trimmed = value.trim()
+  return trimmed === '' ? undefined : trimmed
+}
+
 export function WikiSearchPage() {
   const [query, setQuery] = useState('')
+  const [spaceFilter, setSpaceFilter] = useState(defaultSpaceKey)
+  const [taskFilter, setTaskFilter] = useState('')
+  const [phaseFilter, setPhaseFilter] = useState('')
   const [resultTypeFilter, setResultTypeFilter] = useState('all')
   const [documentTypeFilter, setDocumentTypeFilter] = useState('all')
-  const searchQuery = useWikiSearch({
-    q: query,
-    space: defaultSpaceKey,
-    document_type: documentTypeFilter === 'all' ? undefined : documentTypeFilter,
-    limit: 25,
-  })
+  const searchParams: SearchParams = useMemo(
+    () => ({
+      q: query,
+      space: optional(spaceFilter) ?? defaultSpaceKey,
+      task_key: optional(taskFilter),
+      phase_key: optional(phaseFilter),
+      document_type: documentTypeFilter === 'all' ? undefined : documentTypeFilter,
+      limit: 25,
+    }),
+    [documentTypeFilter, phaseFilter, query, spaceFilter, taskFilter],
+  )
+  const searchQuery = useWikiSearch(searchParams)
   const results = useMemo(() => searchQuery.data?.results ?? [], [searchQuery.data?.results])
   const filteredResults = useMemo(() => {
     if (resultTypeFilter === 'all') return results
@@ -70,11 +85,41 @@ export function WikiSearchPage() {
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-text-muted" />
           <Input
+            aria-label="Поисковый запрос"
             className="pl-9"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="релиз, SDLC-42, требования..."
           />
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="search-space">Пространство поиска</Label>
+            <Input
+              id="search-space"
+              value={spaceFilter}
+              onChange={(event) => setSpaceFilter(event.target.value.toUpperCase())}
+              placeholder="SDLC"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="search-task">Задача</Label>
+            <Input
+              id="search-task"
+              value={taskFilter}
+              onChange={(event) => setTaskFilter(event.target.value)}
+              placeholder="SDLC-42"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="search-phase">Фаза</Label>
+            <Input
+              id="search-phase"
+              value={phaseFilter}
+              onChange={(event) => setPhaseFilter(event.target.value)}
+              placeholder="implementation"
+            />
+          </div>
         </div>
         <div className="space-y-2">
           <div className="flex flex-wrap gap-2">

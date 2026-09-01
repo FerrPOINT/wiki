@@ -54,7 +54,7 @@ describe('WikiSearchPage', () => {
     vi.clearAllMocks()
   })
 
-  it('filters visible result types and sends the selected document type to the API hook', () => {
+  it('filters visible result types and sends selected search filters to the API hook', () => {
     setupSearch()
 
     expect(screen.getByRole('link', { name: /Требования Wiki/ })).toHaveAttribute(
@@ -67,12 +67,22 @@ describe('WikiSearchPage', () => {
     expect(screen.getByRole('link', { name: /Требования Wiki/ })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /Smoke proof/ })).not.toBeInTheDocument()
 
+    fireEvent.change(screen.getByLabelText('Поисковый запрос'), {
+      target: { value: 'релиз' },
+    })
+    fireEvent.change(screen.getByLabelText('Пространство поиска'), {
+      target: { value: 'eng' },
+    })
+    fireEvent.change(screen.getByLabelText('Задача'), { target: { value: 'SDLC-42' } })
+    fireEvent.change(screen.getByLabelText('Фаза'), { target: { value: 'testing' } })
     fireEvent.click(screen.getByRole('button', { name: 'План проверки' }))
     expect(useWikiSearch).toHaveBeenLastCalledWith({
       document_type: 'test_plan',
       limit: 25,
-      q: '',
-      space: 'SDLC',
+      phase_key: 'testing',
+      q: 'релиз',
+      space: 'ENG',
+      task_key: 'SDLC-42',
     })
   })
 

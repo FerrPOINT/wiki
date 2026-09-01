@@ -461,10 +461,21 @@ test.describe('wiki smoke', () => {
 
     await page.goto(`${baseURL}/search`)
     await expect(page.getByRole('heading', { name: 'Поиск' })).toBeVisible()
+    await page.getByLabel('Поисковый запрос').fill('релиз')
+    await page.getByLabel('Пространство поиска').fill('SDLC')
+    await page.getByLabel('Задача').fill('SDLC-42')
+    await page.getByLabel('Фаза').fill('implementation')
     await page.getByRole('button', { name: 'Требования', exact: true }).click()
     await expect
       .poll(() =>
-        apiMocks.searchRequests.some((query) => query.includes('document_type=requirements')),
+        apiMocks.searchRequests.some(
+          (query) =>
+            query.includes('q=%D1%80%D0%B5%D0%BB%D0%B8%D0%B7') &&
+            query.includes('space=SDLC') &&
+            query.includes('task_key=SDLC-42') &&
+            query.includes('phase_key=implementation') &&
+            query.includes('document_type=requirements'),
+        ),
       )
       .toBe(true)
 
