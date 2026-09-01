@@ -3279,6 +3279,23 @@ async fn wiki_postgres_routes_persist_across_router_rebuilds() {
     .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
 
+    let (status, reused_attachment) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(&token),
+        Some(json!({
+            "space": "SDLC",
+            "document_id": document_id.clone(),
+            "title": "Reused persistent attachment",
+            "evidence_type": "uploaded_file",
+            "attachment_id": attachment_id
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(reused_attachment["error"]["code"], "NOT_FOUND");
+
     let (status, _) = call(
         &app,
         Method::POST,
