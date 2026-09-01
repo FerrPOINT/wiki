@@ -7,6 +7,8 @@ import {
   useCreateDocument,
   useCreateFileEvidence,
   useCreateEvidence,
+  useDocumentRevisions,
+  useEvidence,
   useEvidenceItem,
   useLinkPhaseDocument,
   useLinkTaskDocument,
@@ -21,6 +23,8 @@ const createEvidence = vi.hoisted(() => vi.fn())
 const getEvidence = vi.hoisted(() => vi.fn())
 const linkPhaseDocument = vi.hoisted(() => vi.fn())
 const linkTaskDocument = vi.hoisted(() => vi.fn())
+const listDocumentRevisions = vi.hoisted(() => vi.fn())
+const listEvidence = vi.hoisted(() => vi.fn())
 const moveDocument = vi.hoisted(() => vi.fn())
 const publishDocument = vi.hoisted(() => vi.fn())
 const updateDocumentDraft = vi.hoisted(() => vi.fn())
@@ -55,8 +59,8 @@ vi.mock('@/api/wiki', () => ({
   linkTaskDocument,
   listSpaceMembers: vi.fn(),
   listAuditLog: vi.fn(),
-  listDocumentRevisions: vi.fn(),
-  listEvidence: vi.fn(),
+  listDocumentRevisions,
+  listEvidence,
   listPhases: vi.fn(),
   listSpaces: vi.fn(),
   listTasks: vi.fn(),
@@ -150,6 +154,22 @@ describe('wiki API hooks', () => {
       evidence_type: 'uploaded_file',
       attachment_id: 'attachment-1',
     })
+  })
+
+  it('uses bounded defaults for revision and evidence list queries', async () => {
+    listDocumentRevisions.mockResolvedValueOnce({ revisions: [] })
+    listEvidence.mockResolvedValueOnce({ evidence: [] })
+
+    const revisionsHook = renderHook(() => useDocumentRevisions('product-requirements'), {
+      wrapper,
+    })
+    const evidenceHook = renderHook(() => useEvidence(), { wrapper })
+
+    await waitFor(() => expect(revisionsHook.result.current.isSuccess).toBe(true))
+    await waitFor(() => expect(evidenceHook.result.current.isSuccess).toBe(true))
+
+    expect(listDocumentRevisions).toHaveBeenCalledWith('product-requirements', { limit: 20 })
+    expect(listEvidence).toHaveBeenCalledWith({ limit: 30 })
   })
 
   it('invalidates audit log after document and evidence write mutations', async () => {

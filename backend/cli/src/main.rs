@@ -202,6 +202,8 @@ enum DocCommands {
     },
     History {
         document_id: String,
+        #[arg(long)]
+        limit: Option<usize>,
     },
     Revision {
         document_id: String,
@@ -769,9 +771,14 @@ async fn execute_doc(api: &ApiClient, command: DocCommands) -> Result<Value> {
             )
             .await
         }
-        DocCommands::History { document_id } => {
-            api.get(&format!("/documents/{}/revisions", enc(&document_id)))
-                .await
+        DocCommands::History { document_id, limit } => {
+            let query = query_string([("limit", limit.map(|value| value.to_string()))]);
+            api.get(&format!(
+                "/documents/{}/revisions{}",
+                enc(&document_id),
+                query
+            ))
+            .await
         }
         DocCommands::Revision {
             document_id,
@@ -1819,6 +1826,7 @@ mod tests {
             Commands::Doc {
                 command: DocCommands::History {
                     document_id: "product requirements".to_string(),
+                    limit: None,
                 },
             },
         )
@@ -1918,6 +1926,38 @@ mod tests {
             "/api/v1/documents/product%20requirements/revisions/revision%201"
         );
         assert!(revision.idempotency_key.is_none());
+    }
+
+    #[tokio::test]
+    async fn doc_history_builds_bounded_query_request() {
+        let server = spawn_mock_server().await;
+        let api = ApiClient::new(server.api_url.clone(), Some("secret-token".to_string()));
+
+        let value = execute(
+            &api,
+            Commands::Doc {
+                command: DocCommands::History {
+                    document_id: "product requirements".to_string(),
+                    limit: Some(20),
+                },
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(value["status"], "ok");
+        let requests = server.requests();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].method, Method::GET);
+        assert_eq!(
+            requests[0].path,
+            "/api/v1/documents/product%20requirements/revisions?limit=20"
+        );
+        assert_eq!(
+            requests[0].authorization.as_deref(),
+            Some("Bearer secret-token")
+        );
+        assert!(requests[0].idempotency_key.is_none());
     }
 
     #[tokio::test]

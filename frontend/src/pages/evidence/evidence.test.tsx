@@ -176,6 +176,7 @@ describe('EvidencePage', () => {
       document_id: undefined,
       task_key: undefined,
       phase_key: undefined,
+      limit: 30,
     })
   })
 
@@ -200,6 +201,7 @@ describe('EvidencePage', () => {
       document_id: undefined,
       task_key: 'DOCS-7',
       phase_key: 'testing',
+      limit: 30,
     })
     expect(screen.getByLabelText('Пространство')).toHaveValue('DOCS')
     expect(screen.getByLabelText('Задача')).toHaveValue('DOCS-7')

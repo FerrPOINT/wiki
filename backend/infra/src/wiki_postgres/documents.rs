@@ -392,6 +392,7 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
     fn list_revisions<'a>(
         &'a self,
         document_id: Uuid,
+        limit: usize,
     ) -> WikiDocumentRepositoryFuture<'a, Vec<DocumentRevisionResponse>> {
         Box::pin(async move {
             let rows = sqlx::query(
@@ -400,9 +401,11 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
                 FROM document_revisions
                 WHERE document_id = $1
                 ORDER BY version DESC
+                LIMIT $2
                 "#,
             )
             .bind(document_id)
+            .bind(limit as i64)
             .fetch_all(&self.backend.pool)
             .await
             .map_err(shared::AppError::database)?;
@@ -592,6 +595,7 @@ impl PostgresWikiBackend {
         &self,
         claims: &WikiClaims,
         document_id: &str,
+        query: DocumentRevisionQuery,
     ) -> Result<DocumentRevisionListResponse, shared::AppError> {
         let document_id = self.resolve_document_id(document_id).await?;
         self.ensure_document_access(claims, document_id, SpaceAccess::View)
@@ -601,7 +605,7 @@ impl PostgresWikiBackend {
             request_id: None,
         };
         WikiDocumentUseCase::new(&repository)
-            .list_revisions(document_id)
+            .list_revisions(document_id, query)
             .await
     }
 

@@ -87,6 +87,10 @@ export type EvidenceListParams = {
   limit?: number
 }
 
+export type DocumentRevisionListParams = {
+  limit?: number
+}
+
 export type AuditLogParams = {
   limit?: number
 }
@@ -205,9 +209,12 @@ export function moveDocument(documentId: string, body: MoveDocumentRequest): Pro
   })
 }
 
-export function listDocumentRevisions(documentId: string): Promise<DocumentRevisionListResponse> {
+export function listDocumentRevisions(
+  documentId: string,
+  params: DocumentRevisionListParams = {},
+): Promise<DocumentRevisionListResponse> {
   return apiRequest<DocumentRevisionListResponse>(
-    `/api/v1/documents/${encodeURIComponent(documentId)}/revisions`,
+    `/api/v1/documents/${encodeURIComponent(documentId)}/revisions${queryString(params)}`,
   )
 }
 

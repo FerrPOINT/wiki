@@ -19,7 +19,7 @@ export function DashboardPage() {
   const searchQuery = useWikiSearch({ space: defaultSpaceKey, limit: 6 })
   const tasksQuery = useTasks(defaultSpaceKey)
   const phasesQuery = usePhases(defaultSpaceKey)
-  const evidenceQuery = useEvidence({ space: defaultSpaceKey })
+  const evidenceQuery = useEvidence({ space: defaultSpaceKey, limit: 6 })
 
   const spaces = spacesQuery.data?.spaces ?? []
   const results = searchQuery.data?.results ?? []

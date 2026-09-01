@@ -38,6 +38,7 @@ import {
   type CreateDocumentRequest,
   type CreateEvidenceRequest,
   type Document,
+  type DocumentRevisionListParams,
   type EvidenceListParams,
   type LinkDocumentRequest,
   type MoveDocumentRequest,
@@ -62,6 +63,8 @@ const authKeys = {
 }
 
 export const defaultSpaceKey = 'SDLC'
+const defaultDocumentRevisionListParams: DocumentRevisionListParams = { limit: 20 }
+const defaultEvidenceListParams: EvidenceListParams = { limit: 30 }
 const defaultAuditLogParams: AuditLogParams = { limit: 50 }
 
 export const wikiKeys = {
@@ -70,8 +73,8 @@ export const wikiKeys = {
   spaceMembers: (spaceKey: string) => ['wiki', 'spaces', spaceKey, 'members'] as const,
   spaceTree: (spaceKey: string) => ['wiki', 'spaces', spaceKey, 'tree'] as const,
   document: (documentId: string) => ['wiki', 'documents', documentId] as const,
-  documentRevisions: (documentId: string) =>
-    ['wiki', 'documents', documentId, 'revisions'] as const,
+  documentRevisionsList: (documentId: string, params: DocumentRevisionListParams = {}) =>
+    ['wiki', 'documents', documentId, 'revisions', params] as const,
   documentRevision: (documentId: string, revisionId: string) =>
     ['wiki', 'documents', documentId, 'revisions', revisionId] as const,
   tasks: (spaceKey: string) => ['wiki', 'spaces', spaceKey, 'tasks'] as const,
@@ -270,10 +273,13 @@ export function useDocument(documentId: string) {
   })
 }
 
-export function useDocumentRevisions(documentId: string) {
+export function useDocumentRevisions(
+  documentId: string,
+  params: DocumentRevisionListParams = defaultDocumentRevisionListParams,
+) {
   return useQuery({
-    queryKey: wikiKeys.documentRevisions(documentId),
-    queryFn: () => listDocumentRevisions(documentId),
+    queryKey: wikiKeys.documentRevisionsList(documentId, params),
+    queryFn: () => listDocumentRevisions(documentId, params),
     enabled: Boolean(documentId),
   })
 }
@@ -362,7 +368,7 @@ export function useLinkPhaseDocument() {
   })
 }
 
-export function useEvidence(params: EvidenceListParams = {}) {
+export function useEvidence(params: EvidenceListParams = defaultEvidenceListParams) {
   return useQuery({
     queryKey: wikiKeys.evidence(params),
     queryFn: () => listEvidence(params),

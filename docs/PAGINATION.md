@@ -2,11 +2,13 @@
 
 ## 1. Overview
 
-Wiki uses pagination for document trees, search results, revision history, evidence feeds, attachments and audit log.
+Wiki MVP uses bounded `limit` windows for large API reads where the public route already exposes query parameters: search results, revision history, evidence feeds and audit log.
+
+Cursor, offset and keyset pagination below define the future standard for larger datasets. They are not active MVP route promises until the matching OpenAPI query parameters exist.
 
 ## 2. Cursor Pagination
 
-Default for large or frequently changing lists:
+Future default for large or frequently changing lists:
 
 ```http
 GET /api/v1/search?q=release&cursor=eyJpZCI6IjAxOGYifQ&limit=20
@@ -29,7 +31,7 @@ Rules:
 
 ## 3. Offset Pagination
 
-Allowed for small admin dictionaries:
+Future option for small admin dictionaries:
 
 ```http
 GET /api/v1/spaces?limit=20&offset=0
@@ -46,7 +48,7 @@ GET /api/v1/spaces?limit=20&offset=0
 
 ## 4. Keyset Pagination
 
-Used for ordered trees and append-only feeds:
+Future option for ordered trees and append-only feeds:
 
 ```http
 GET /api/v1/spaces/ENG/tree?after_id=018f...&limit=50
@@ -56,15 +58,14 @@ Sort by stable tuple: `(position, id)` or `(created_at, id)`.
 
 ## 5. Limits
 
-| Resource | Max Limit | Default |
+| MVP resource | Max Limit | Default |
 |---|---|---|
-| spaces | 100 | 20 |
-| documents | 100 | 30 |
 | document revisions | 100 | 20 |
 | search results | 100 | 20 |
 | evidence | 100 | 30 |
 | audit log | 200 | 50 |
-| attachments | 50 | 20 |
+
+Future list resources such as spaces, user dictionaries, document tree windows and attachment collections must define their own OpenAPI parameters before being treated as paginated MVP endpoints.
 
 ## 6. Future Bulk Operations
 

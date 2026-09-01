@@ -387,8 +387,9 @@ impl WikiBackendPort for PostgresWikiBackend {
         &self,
         claims: &WikiClaims,
         document_id: &str,
+        query: DocumentRevisionQuery,
     ) -> Result<DocumentRevisionListResponse, shared::AppError> {
-        PostgresWikiBackend::list_document_revisions(self, claims, document_id).await
+        PostgresWikiBackend::list_document_revisions(self, claims, document_id, query).await
     }
 
     async fn get_document_revision(

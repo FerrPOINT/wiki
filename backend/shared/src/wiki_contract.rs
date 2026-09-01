@@ -164,6 +164,7 @@ pub trait WikiBackendPort: Send + Sync {
         &self,
         claims: &WikiClaims,
         document_id: &str,
+        query: DocumentRevisionQuery,
     ) -> Result<DocumentRevisionListResponse, AppError>;
     async fn get_document_revision(
         &self,
@@ -470,6 +471,12 @@ pub struct DocumentRevisionListResponse {
     pub revisions: Vec<DocumentRevisionResponse>,
 }
 
+#[derive(Debug, Clone, Deserialize, IntoParams)]
+pub struct DocumentRevisionQuery {
+    #[param(minimum = 1, maximum = 100)]
+    pub limit: Option<usize>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct DocumentResponse {
     pub id: String,
@@ -614,6 +621,7 @@ pub struct EvidenceQuery {
     pub document_id: Option<String>,
     pub task_key: Option<String>,
     pub phase_key: Option<String>,
+    #[param(minimum = 1, maximum = 100)]
     pub limit: Option<usize>,
 }
 
@@ -685,6 +693,7 @@ pub struct SearchQuery {
     pub phase_key: Option<String>,
     pub document_type: Option<String>,
     pub include_archived: Option<bool>,
+    #[param(minimum = 1, maximum = 100)]
     pub limit: Option<usize>,
 }
 

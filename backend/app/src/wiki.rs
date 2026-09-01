@@ -609,6 +609,15 @@ impl<'a, R: WikiSpaceRepository + ?Sized> WikiSpaceUseCase<'a, R> {
 pub type WikiDocumentRepositoryFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, AppError>> + Send + 'a>>;
 
+pub const DEFAULT_DOCUMENT_REVISION_LIMIT: usize = 20;
+pub const MAX_DOCUMENT_REVISION_LIMIT: usize = 100;
+pub const DEFAULT_EVIDENCE_LIMIT: usize = 30;
+pub const MAX_EVIDENCE_LIMIT: usize = 100;
+pub const DEFAULT_SEARCH_LIMIT: usize = 20;
+pub const MAX_SEARCH_LIMIT: usize = 100;
+pub const DEFAULT_AUDIT_LIMIT: usize = 50;
+pub const MAX_AUDIT_LIMIT: usize = 200;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WikiCreateDocumentCommand {
     pub document_id: Uuid,
@@ -687,6 +696,7 @@ pub trait WikiDocumentRepository {
     fn list_revisions<'a>(
         &'a self,
         document_id: Uuid,
+        limit: usize,
     ) -> WikiDocumentRepositoryFuture<'a, Vec<shared::DocumentRevisionResponse>>;
 
     fn get_revision<'a>(
@@ -812,9 +822,15 @@ impl<'a, R: WikiDocumentRepository + ?Sized> WikiDocumentUseCase<'a, R> {
     pub async fn list_revisions(
         &self,
         document_id: Uuid,
+        query: shared::DocumentRevisionQuery,
     ) -> Result<shared::DocumentRevisionListResponse, AppError> {
+        let limit = clamp_limit_with_default(
+            query.limit,
+            DEFAULT_DOCUMENT_REVISION_LIMIT,
+            MAX_DOCUMENT_REVISION_LIMIT,
+        );
         Ok(shared::DocumentRevisionListResponse {
-            revisions: self.repository.list_revisions(document_id).await?,
+            revisions: self.repository.list_revisions(document_id, limit).await?,
         })
     }
 
@@ -1228,7 +1244,8 @@ impl<'a, R: WikiEvidenceRepository + ?Sized> WikiEvidenceUseCase<'a, R> {
             task_key: task_key.map(normalize_task_key).transpose()?,
             phase_key: phase_key.map(normalize_phase_key).transpose()?,
             access_user_id,
-            limit: clamp_limit(limit, 100),
+            limit: clamp_limit_with_default(limit, DEFAULT_EVIDENCE_LIMIT, MAX_EVIDENCE_LIMIT)
+                as i64,
         };
         Ok(shared::EvidenceListResponse {
             evidence: self.repository.list_evidence(&criteria).await?,
@@ -1451,7 +1468,7 @@ impl<'a, R: WikiAuditRepository + ?Sized> WikiAuditUseCase<'a, R> {
         &self,
         query: shared::AuditLogQuery,
     ) -> Result<shared::AuditLogResponse, AppError> {
-        let limit = query.limit.unwrap_or(50).clamp(1, 200);
+        let limit = clamp_limit_with_default(query.limit, DEFAULT_AUDIT_LIMIT, MAX_AUDIT_LIMIT);
         Ok(shared::AuditLogResponse {
             entries: self.repository.list_recent_entries(limit).await?,
         })
@@ -1475,7 +1492,11 @@ impl<'a, R: WikiAuditRepository + ?Sized> WikiAuditUseCase<'a, R> {
 }
 
 pub fn clamp_limit(limit: Option<usize>, max: i64) -> i64 {
-    limit.unwrap_or(max as usize).clamp(1, max as usize) as i64
+    clamp_limit_with_default(limit, max as usize, max as usize) as i64
+}
+
+pub fn clamp_limit_with_default(limit: Option<usize>, default: usize, max: usize) -> usize {
+    limit.unwrap_or(default).clamp(1, max)
 }
 
 pub fn normalize_required(value: &str, field: &str) -> Result<String, AppError> {
@@ -1595,7 +1616,7 @@ pub fn build_wiki_search_criteria(
             .map(|value| normalize_document_type(value, true))
             .transpose()?,
         include_archived: include_archived.unwrap_or(false),
-        limit: clamp_limit(limit, 50),
+        limit: clamp_limit_with_default(limit, DEFAULT_SEARCH_LIMIT, MAX_SEARCH_LIMIT) as i64,
     })
 }
 
@@ -1901,7 +1922,7 @@ mod tests {
         published: std::sync::Mutex<Vec<(Uuid, WikiPublishDocumentCommand)>>,
         archived: std::sync::Mutex<Vec<(Uuid, WikiArchiveDocumentCommand)>>,
         moved: std::sync::Mutex<Vec<(Uuid, WikiMoveDocumentCommand)>>,
-        listed_revisions: std::sync::Mutex<Vec<Uuid>>,
+        listed_revisions: std::sync::Mutex<Vec<(Uuid, usize)>>,
         requested_revisions: std::sync::Mutex<Vec<(Uuid, Uuid)>>,
     }
 
@@ -2282,12 +2303,13 @@ mod tests {
         fn list_revisions<'a>(
             &'a self,
             document_id: Uuid,
+            limit: usize,
         ) -> WikiDocumentRepositoryFuture<'a, Vec<shared::DocumentRevisionResponse>> {
             Box::pin(async move {
                 self.listed_revisions
                     .lock()
                     .expect("listed revision documents should be lockable")
-                    .push(document_id);
+                    .push((document_id, limit));
                 Ok(self.revisions.clone())
             })
         }
@@ -3444,7 +3466,13 @@ mod tests {
             [document_id]
         );
 
-        let revisions = use_case.list_revisions(document_id).await.unwrap();
+        let revisions = use_case
+            .list_revisions(
+                document_id,
+                shared::DocumentRevisionQuery { limit: Some(500) },
+            )
+            .await
+            .unwrap();
         assert_eq!(revisions.revisions.len(), 1);
         assert_eq!(revisions.revisions[0].version, 1);
         assert_eq!(
@@ -3453,7 +3481,7 @@ mod tests {
                 .lock()
                 .expect("listed revision documents should be lockable")
                 .as_slice(),
-            [document_id]
+            [(document_id, MAX_DOCUMENT_REVISION_LIMIT)]
         );
 
         let revision = use_case
@@ -3911,8 +3939,24 @@ mod tests {
                 task_key: Some("SDLC-42".to_string()),
                 phase_key: Some("implementation".to_string()),
                 access_user_id: Some(access_user_id),
-                limit: 100,
+                limit: MAX_EVIDENCE_LIMIT as i64,
             }]
+        );
+
+        let list = use_case
+            .list(None, None, None, None, None, None)
+            .await
+            .unwrap();
+        assert_eq!(list.evidence.len(), 1);
+        assert_eq!(
+            repository
+                .listed
+                .lock()
+                .expect("listed evidence should be lockable")
+                .last()
+                .expect("default evidence list criteria should be recorded")
+                .limit,
+            DEFAULT_EVIDENCE_LIMIT as i64
         );
 
         assert_eq!(
@@ -4076,6 +4120,9 @@ mod tests {
     fn wiki_helpers_prepare_content_and_storage_names() {
         assert_eq!(normalize_required("  title  ", "title").unwrap(), "title");
         assert_eq!(clamp_limit(Some(500), 100), 100);
+        assert_eq!(clamp_limit_with_default(None, 20, 100), 20);
+        assert_eq!(clamp_limit_with_default(Some(0), 20, 100), 1);
+        assert_eq!(clamp_limit_with_default(Some(500), 20, 100), 100);
         assert_eq!(markdown_to_text("# Title\n\n- Item"), "Title Item");
         let html =
             markdown_to_html("# Title\n\n<script>alert(1)</script>\n\n[Link](https://example.com)");
@@ -4113,7 +4160,7 @@ mod tests {
         assert_eq!(criteria.phase_key.as_deref(), Some("implementation"));
         assert_eq!(criteria.document_type, Some("requirements"));
         assert!(criteria.include_archived);
-        assert_eq!(criteria.limit, 50);
+        assert_eq!(criteria.limit, 100);
     }
 
     #[test]
@@ -4141,7 +4188,7 @@ mod tests {
 
         assert_eq!(criteria.needle, "");
         assert_eq!(criteria.evidence_like_pattern, "%%");
-        assert_eq!(criteria.limit, 50);
+        assert_eq!(criteria.limit, DEFAULT_SEARCH_LIMIT as i64);
     }
 
     #[tokio::test]

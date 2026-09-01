@@ -166,6 +166,7 @@ export function EvidencePage() {
       document_id: optional(filterDocument) ?? undefined,
       task_key: optional(filterTask) ?? undefined,
       phase_key: optional(filterPhase) ?? undefined,
+      limit: 30,
     }),
     [filterDocument, filterPhase, filterSpace, filterTask],
   )

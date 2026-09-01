@@ -1,8 +1,10 @@
 use app::wiki::{
-    WikiSpaceAccess, checksum, markdown_to_html, normalize_attachment_file_name,
-    normalize_document_type, normalize_evidence_type, normalize_phase_key, normalize_required,
-    normalize_space_key, normalize_space_role, normalize_task_key, safe_download_filename, slugify,
-    snippet, space_role_allows,
+    DEFAULT_AUDIT_LIMIT, DEFAULT_DOCUMENT_REVISION_LIMIT, DEFAULT_EVIDENCE_LIMIT,
+    DEFAULT_SEARCH_LIMIT, MAX_AUDIT_LIMIT, MAX_DOCUMENT_REVISION_LIMIT, MAX_EVIDENCE_LIMIT,
+    MAX_SEARCH_LIMIT, WikiSpaceAccess, checksum, clamp_limit_with_default, markdown_to_html,
+    normalize_attachment_file_name, normalize_document_type, normalize_evidence_type,
+    normalize_phase_key, normalize_required, normalize_space_key, normalize_space_role,
+    normalize_task_key, safe_download_filename, slugify, snippet, space_role_allows,
 };
 use axum::{
     Extension, Json,
@@ -1555,7 +1557,7 @@ pub async fn move_document(
     get,
     path = "/api/v1/documents/{document_id}/revisions",
     tag = "documents",
-    params(("document_id" = String, Path)),
+    params(("document_id" = String, Path), DocumentRevisionQuery),
     responses((status = 200, body = DocumentRevisionListResponse), (status = 404)),
     security(("bearer" = []))
 )]
@@ -1563,11 +1565,12 @@ pub async fn list_document_revisions(
     Path(document_id): Path<String>,
     Extension(backend): Extension<WikiBackend>,
     Extension(claims): Extension<WikiClaims>,
+    Query(query): Query<DocumentRevisionQuery>,
 ) -> Result<Json<DocumentRevisionListResponse>, shared::AppError> {
     if let Some(persistent) = backend.persistent_backend() {
         return Ok(Json(
             persistent
-                .list_document_revisions(&claims, &document_id)
+                .list_document_revisions(&claims, &document_id, query)
                 .await?,
         ));
     }
@@ -1577,6 +1580,11 @@ pub async fn list_document_revisions(
     ensure_document_access(&store, &id, &claims.user_id, WikiSpaceAccess::View)?;
     let mut revisions = store.revisions.get(&id).cloned().unwrap_or_default();
     revisions.sort_by_key(|revision| std::cmp::Reverse(revision.version));
+    revisions.truncate(clamp_limit_with_default(
+        query.limit,
+        DEFAULT_DOCUMENT_REVISION_LIMIT,
+        MAX_DOCUMENT_REVISION_LIMIT,
+    ));
     Ok(Json(DocumentRevisionListResponse { revisions }))
 }
 
@@ -2197,9 +2205,11 @@ pub async fn list_evidence(
         .cloned()
         .collect();
     items.sort_by(|a, b| b.created_at.cmp(&a.created_at));
-    if let Some(limit) = query.limit {
-        items.truncate(limit);
-    }
+    items.truncate(clamp_limit_with_default(
+        query.limit,
+        DEFAULT_EVIDENCE_LIMIT,
+        MAX_EVIDENCE_LIMIT,
+    ));
     Ok(Json(EvidenceListResponse { evidence: items }))
 }
 
@@ -2480,7 +2490,7 @@ pub async fn list_audit_log(
 
     let store = store().lock().expect("wiki store lock");
     ensure_system_admin(&store, &claims.user_id)?;
-    let limit = query.limit.unwrap_or(50).clamp(1, 200);
+    let limit = clamp_limit_with_default(query.limit, DEFAULT_AUDIT_LIMIT, MAX_AUDIT_LIMIT);
     Ok(Json(AuditLogResponse {
         entries: store.audit.iter().rev().take(limit).cloned().collect(),
     }))
@@ -2631,9 +2641,11 @@ pub async fn search(
     }
 
     results.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
-    if let Some(limit) = query.limit {
-        results.truncate(limit);
-    }
+    results.truncate(clamp_limit_with_default(
+        query.limit,
+        DEFAULT_SEARCH_LIMIT,
+        MAX_SEARCH_LIMIT,
+    ));
     Ok(Json(SearchResponse { results }))
 }
 

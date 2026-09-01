@@ -92,7 +92,7 @@ wiki doc draft <document-id> --title "Updated title" --from-file updated.md
 wiki doc publish <document-id> --summary "Clarified scope"
 wiki doc archive <document-id>
 wiki doc move <document-id> --parent <parent-document-id>
-wiki doc history <document-id>
+wiki doc history <document-id> --limit 20
 wiki doc revision <document-id> <revision-id>
 ```
 
@@ -122,7 +122,7 @@ wiki phase link-doc --space SDLC --key implementation --document <document-id>
 wiki evidence add-link --space SDLC --document <document-id> --task SDLC-42 --phase testing --title "Smoke test" --url "https://ci.local/jobs/42"
 wiki evidence add-file --space SDLC --document <document-id> --task SDLC-42 --phase testing --file ./screen.png
 wiki evidence get <evidence-id>
-wiki evidence list --space SDLC --document <document-id>
+wiki evidence list --space SDLC --document <document-id> --limit 30
 ```
 
 ### Attachments
@@ -151,6 +151,8 @@ wiki settings get
 ```
 
 `wiki audit list` returns the API JSON as-is, including `request_id` for correlating CLI/UI/API write operations with backend logs. Without `--limit`, the API returns the latest 50 events; `--limit` is clamped server-side to `1..200`.
+
+Bounded read commands use the same limits as the public API: `wiki doc history` defaults to 20 and clamps to `1..100`; `wiki evidence list` defaults to 30 and clamps to `1..100`; `wiki search query` defaults to 20 and clamps to `1..100`.
 
 ## Contract Freeze
 

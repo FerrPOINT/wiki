@@ -10,12 +10,12 @@ The test plan covers document lifecycle, task/phase links, evidence ingestion, p
 | -------------- | ------------------------------------------------------------------------ |
 | Spaces         | create/update/archive, membership, duplicate key                         |
 | Documents      | draft, publish, conflict, archive, move cycle rejection, archived document/space write rejection |
-| Revisions      | immutable content, diff, history                                         |
+| Revisions      | immutable content, diff, latest-first history, bounded `1..100` limit     |
 | Task dossiers  | idempotent link creation, external task key lookup, permission filtering |
 | Phase dossiers | phase key grouping, linked documents/evidence, permission filtering      |
-| Evidence       | add file/url evidence, checksum, dedup                                   |
+| Evidence       | add file/url evidence, checksum, dedup, bounded list limit                |
 | Attachments    | upload/download, filename/content-type validation, quota                  |
-| Search         | indexing, permission filtering, archived filters                         |
+| Search         | indexing, permission filtering, archived filters, bounded `1..100` limit  |
 | Settings       | admin-only safe runtime snapshot                                         |
 | Health         | liveness, readiness before/after runtime dependency initialization       |
 | Authz          | viewer/editor/admin boundaries                                           |
@@ -25,7 +25,7 @@ The test plan covers document lifecycle, task/phase links, evidence ingestion, p
 - `openapi/openapi.json` must expose every route implemented by the public API router.
 - `docs/API.md` and `docs/PRODUCT_REQUIREMENTS.md` must document the same endpoint paths as OpenAPI.
 - API error responses must keep the standard `{ error: { code, message } }` envelope.
-- List endpoints must keep bounded `limit` behavior and stable ordering; audit log defaults to the latest 50 events and clamps `limit` to `1..200`.
+- Large list endpoints must keep bounded `limit` behavior and stable ordering: revisions default 20 and clamp `1..100`, evidence default 30 and clamp `1..100`, search default 20 and clamp `1..100`, audit log default 50 and clamp `1..200`.
 - Upload endpoints must reject empty files, unsafe filenames and payloads over the configured size limit.
 - File evidence tests must reject staged attachments uploaded by another user even when the caller has edit rights in the target space.
 - Search endpoints must verify permission filtering before returning document, task, phase or evidence results.

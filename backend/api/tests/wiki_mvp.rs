@@ -1612,6 +1612,20 @@ async fn wiki_memory_document_revision_history_is_latest_first_and_immutable() {
     assert_eq!(revisions[1]["id"], first_revision_id);
     assert_eq!(revisions[1]["version"], 1);
 
+    let (status, limited_history) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/documents/{document_id}/revisions?limit=1"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let limited_revisions = limited_history["revisions"].as_array().unwrap();
+    assert_eq!(limited_revisions.len(), 1);
+    assert_eq!(limited_revisions[0]["id"], second_revision_id);
+    assert_eq!(limited_revisions[0]["version"], 2);
+
     let (status, old_revision) = call(
         &app,
         Method::GET,
@@ -1777,6 +1791,17 @@ async fn wiki_memory_search_filters_document_type_task_phase_archived_and_permis
     let by_phase_ids = ids(&by_phase);
     assert!(by_phase_ids.contains(&requirements_id));
     assert!(!by_phase_ids.contains(&test_plan_id));
+
+    let (status, limited_search) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/search?q={search_token}&space=SDLC&limit=1"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(limited_search["results"].as_array().unwrap().len(), 1);
 
     let (status, _) = call(
         &app,
@@ -2199,6 +2224,17 @@ async fn wiki_memory_evidence_infers_document_space_and_claims_file_attachments(
     assert_eq!(file_evidence["document_id"], document_id);
     assert_eq!(file_evidence["attachment_id"], attachment_id);
     assert_eq!(file_evidence["checksum"], attachment["checksum"]);
+
+    let (status, limited_evidence) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/evidence?space={other_space_key}&limit=1"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(limited_evidence["evidence"].as_array().unwrap().len(), 1);
 
     let (status, metadata) = call(
         &app,
@@ -4137,7 +4173,46 @@ async fn wiki_postgres_routes_persist_across_router_rebuilds() {
             .contains("alert('x')")
     );
 
-    let revision_id = Uuid::parse_str(revision["id"].as_str().unwrap()).unwrap();
+    let first_revision_id = Uuid::parse_str(revision["id"].as_str().unwrap()).unwrap();
+
+    let (status, _) = call(
+        &app,
+        Method::PUT,
+        &format!("/api/v1/documents/{document_id}/draft"),
+        Some(&token),
+        Some(json!({
+            "title": "Persistent Requirements v2",
+            "content_markdown": "# Persistent Requirements v2\n\nPostgres-backed Wiki document with bounded revision history"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, second_revision) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/documents/{document_id}/publish"),
+        Some(&token),
+        Some(json!({ "summary": "Postgres bounded history" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(second_revision["version"], 2);
+
+    let (status, limited_history) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/documents/{document_id}/revisions?limit=1"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let limited_revisions = limited_history["revisions"].as_array().unwrap();
+    assert_eq!(limited_revisions.len(), 1);
+    assert_eq!(limited_revisions[0]["id"], second_revision["id"]);
+    assert_eq!(limited_revisions[0]["version"], 2);
+
     let pool = PgPoolOptions::new()
         .max_connections(1)
         .connect(&database_url)
@@ -4145,7 +4220,7 @@ async fn wiki_postgres_routes_persist_across_router_rebuilds() {
         .unwrap();
     let content_html: String =
         sqlx::query_scalar("SELECT content_html FROM document_revisions WHERE id = $1")
-            .bind(revision_id)
+            .bind(first_revision_id)
             .fetch_one(&pool)
             .await
             .unwrap();
@@ -4547,7 +4622,19 @@ async fn wiki_postgres_routes_persist_across_router_rebuilds() {
     )
     .await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(revisions["revisions"].as_array().unwrap().len(), 1);
+    assert_eq!(revisions["revisions"].as_array().unwrap().len(), 2);
+
+    let (status, limited_revisions) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/documents/{persisted_document_id}/revisions?limit=1"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(limited_revisions["revisions"].as_array().unwrap().len(), 1);
+    assert_eq!(limited_revisions["revisions"][0]["version"], 2);
 
     let (status, search) = call(
         &app,
@@ -4563,7 +4650,7 @@ async fn wiki_postgres_routes_persist_across_router_rebuilds() {
             .as_array()
             .unwrap()
             .iter()
-            .any(|item| item["title"] == "Persistent Requirements")
+            .any(|item| item["title"] == "Persistent Requirements v2")
     );
 
     let (status, phrase_search) = call(

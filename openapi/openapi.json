@@ -523,6 +523,19 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "maximum": 100,
+              "minimum": 1
+            }
           }
         ],
         "responses": {
@@ -653,7 +666,8 @@
                 "integer",
                 "null"
               ],
-              "minimum": 0
+              "maximum": 100,
+              "minimum": 1
             }
           }
         ],
@@ -885,7 +899,8 @@
                 "integer",
                 "null"
               ],
-              "minimum": 0
+              "maximum": 100,
+              "minimum": 1
             }
           }
         ],

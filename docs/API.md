@@ -13,7 +13,7 @@ REST API Wiki предоставляет базовые операции про�
 - Все ответы JSON, кроме download endpoints.
 - Ошибки MVP возвращаются единым JSON envelope `{ "error": { "code": "CODE", "message": "message" } }`; `requestId` и `details` добавляются как опциональные поля, когда доступны.
 - Backend возвращает `X-Request-ID` на каждый ответ: echo валидного клиентского заголовка или новый `req_` UUIDv7 для запроса без request id.
-- Списки используют `limit` и стабильную сортировку.
+- Большие списки MVP используют bounded `limit` и стабильную сортировку: revisions, evidence, search, audit.
 - CLI может отправлять `Idempotency-Key` для повторяемых write-команд; серверная дедупликация ключей вынесена в hardening после MVP.
 - Protected endpoints требуют session/JWT.
 - API не раскрывает секреты, bearer tokens, private storage keys и stack traces.
@@ -78,7 +78,7 @@ Operational endpoints are part of the public API surface but do not create Wiki 
 
 Архивированный документ остаётся доступен на чтение пользователям с правом доступа к space, но write-команды `draft`, `publish`, `move`, `archive` и task/phase document links возвращают `400 VALIDATION_ERROR`.
 
-`GET /documents/{document_id}/revisions` возвращает историю в порядке от последней опубликованной ревизии к первой. Опубликованные ревизии immutable: новый draft или повторная публикация не меняют тело, заголовок и summary уже созданных ревизий.
+`GET /documents/{document_id}/revisions` возвращает историю в порядке от последней опубликованной ревизии к первой. Endpoint bounded: без `limit` отдаёт последние 20 ревизий, `limit` ограничивается диапазоном `1..100`. Опубликованные ревизии immutable: новый draft или повторная публикация не меняют тело, заголовок и summary уже созданных ревизий.
 
 `DocumentResponse` and `DocumentRevisionResponse` expose both `body_markdown` and `body_html`. `body_markdown` is the canonical source for editing and CLI export; `body_html` is the sanitized HTML rendered by the backend from the published revision and is the only HTML surface the UI should render.
 
@@ -117,7 +117,7 @@ Phase dossier в MVP - это представление документов/ev
 | `GET`  | `/attachments/{attachment_id}`          | Metadata файла              |
 | `GET`  | `/attachments/{attachment_id}/download` | Скачать файл                |
 
-Canonical `evidence_type` values for MVP are `external_url` and `uploaded_file`. `external_url` accepts a non-empty `url` and must not include `attachment_id` or `checksum`; `uploaded_file` accepts `attachment_id` without `url` and stores checksum from the staged attachment. Evidence can be linked to `document_id`, `task_key`, `phase_key` or their combination inside one space. If `document_id` is present and `space` is omitted, API uses the document's space; if explicit `space` conflicts with the document's space, API returns `400 VALIDATION_ERROR`. `GET /evidence` supports `space`, `document_id`, `task_key` and `phase_key` filters and returns only spaces visible to the caller. Specific source categories such as CI job, pull request, deployment or test artifact are metadata, not separate evidence types.
+Canonical `evidence_type` values for MVP are `external_url` and `uploaded_file`. `external_url` accepts a non-empty `url` and must not include `attachment_id` or `checksum`; `uploaded_file` accepts `attachment_id` without `url` and stores checksum from the staged attachment. Evidence can be linked to `document_id`, `task_key`, `phase_key` or their combination inside one space. If `document_id` is present and `space` is omitted, API uses the document's space; if explicit `space` conflicts with the document's space, API returns `400 VALIDATION_ERROR`. `GET /evidence` supports `space`, `document_id`, `task_key`, `phase_key` and `limit` filters and returns only spaces visible to the caller. Without `limit`, API returns the latest 30 evidence items; `limit` is clamped to `1..100`. Specific source categories such as CI job, pull request, deployment or test artifact are metadata, not separate evidence types.
 
 ## 11. Search
 
@@ -125,7 +125,7 @@ Canonical `evidence_type` values for MVP are `external_url` and `uploaded_file`.
 | ------ | --------- | ---------------- |
 | `GET`  | `/search` | Поиск документов |
 
-Фильтры MVP: `space`, `task_key`, `phase_key`, `document_type`, `include_archived`.
+Фильтры MVP: `space`, `task_key`, `phase_key`, `document_type`, `include_archived`, `limit`. Без `limit` поиск возвращает 20 результатов; `limit` ограничивается диапазоном `1..100`.
 
 Для опубликованных документов поиск использует текущую опубликованную ревизию. Если у опубликованного документа есть новый непубликованный draft, его текст не попадает в общий search response до следующей публикации.
 
