@@ -485,7 +485,10 @@ impl ApiClient {
 
     fn request(&self, method: Method, path: &str) -> reqwest::RequestBuilder {
         let url = format!("{}{}", self.base_url, path);
-        let request = self.client.request(method, url);
+        let request = self
+            .client
+            .request(method, url)
+            .header("X-Request-ID", request_id());
         match &self.token {
             Some(token) if !token.trim().is_empty() => request.bearer_auth(token),
             _ => request,
@@ -1126,11 +1129,18 @@ fn enc(value: &str) -> String {
 }
 
 fn idempotency_key(scope: &str) -> String {
-    let nanos = SystemTime::now()
+    format!("wiki-cli-{scope}-{}", timestamp_nanos())
+}
+
+fn request_id() -> String {
+    format!("wiki-cli-request-{}", timestamp_nanos())
+}
+
+fn timestamp_nanos() -> u128 {
+    SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_nanos())
-        .unwrap_or_default();
-    format!("wiki-cli-{scope}-{nanos}")
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -1153,6 +1163,7 @@ mod tests {
         authorization: Option<String>,
         content_type: Option<String>,
         idempotency_key: Option<String>,
+        request_id: Option<String>,
         body: Vec<u8>,
     }
 
@@ -1208,6 +1219,7 @@ mod tests {
             authorization: header_string(&headers, "authorization"),
             content_type: header_string(&headers, "content-type"),
             idempotency_key: header_string(&headers, "idempotency-key"),
+            request_id: header_string(&headers, "x-request-id"),
             body: body.to_vec(),
         });
 
@@ -1285,11 +1297,21 @@ mod tests {
     }
 
     fn assert_write_idempotency_key(request: &RecordedRequest) {
+        assert_request_id(request);
         assert!(
             request
                 .idempotency_key
                 .as_deref()
                 .is_some_and(|value| value.starts_with("wiki-cli-write-"))
+        );
+    }
+
+    fn assert_request_id(request: &RecordedRequest) {
+        assert!(
+            request
+                .request_id
+                .as_deref()
+                .is_some_and(|value| value.starts_with("wiki-cli-request-"))
         );
     }
 
@@ -1345,7 +1367,27 @@ mod tests {
             requests[0].authorization.as_deref(),
             Some("Bearer secret-token")
         );
+        assert_request_id(&requests[0]);
         assert!(requests[0].idempotency_key.is_none());
+    }
+
+    #[tokio::test]
+    async fn api_client_sends_request_id_headers_for_read_and_write_requests() {
+        let server = spawn_mock_server().await;
+        let api = ApiClient::new(server.api_url.clone(), Some("secret-token".to_string()));
+
+        api.get("/settings").await.unwrap();
+        api.post_json("/spaces", json!({ "key": "DOCS", "name": "Docs" }))
+            .await
+            .unwrap();
+
+        let requests = server.requests();
+        assert_eq!(requests.len(), 2);
+        assert_eq!(requests[0].method, Method::GET);
+        assert_request_id(&requests[0]);
+        assert!(requests[0].idempotency_key.is_none());
+        assert_eq!(requests[1].method, Method::POST);
+        assert_write_idempotency_key(&requests[1]);
     }
 
     #[tokio::test]

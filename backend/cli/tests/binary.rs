@@ -21,6 +21,7 @@ struct RecordedRequest {
     authorization: Option<String>,
     content_type: Option<String>,
     idempotency_key: Option<String>,
+    request_id: Option<String>,
     body: Vec<u8>,
 }
 
@@ -72,6 +73,7 @@ async fn record_request(State(state): State<Arc<MockState>>, request: Request<Bo
         authorization: header_string(&headers, "authorization"),
         content_type: header_string(&headers, "content-type"),
         idempotency_key: header_string(&headers, "idempotency-key"),
+        request_id: header_string(&headers, "x-request-id"),
         body: body.to_vec(),
     });
 
@@ -227,6 +229,12 @@ async fn compiled_binary_reads_markdown_from_stdin_for_doc_create() {
             .idempotency_key
             .as_deref()
             .is_some_and(|value| value.starts_with("wiki-cli-write-"))
+    );
+    assert!(
+        request
+            .request_id
+            .as_deref()
+            .is_some_and(|value| value.starts_with("wiki-cli-request-"))
     );
 
     let body: serde_json::Value = serde_json::from_slice(&request.body).unwrap();

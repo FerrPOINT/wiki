@@ -216,6 +216,40 @@ async fn call_body(
     (status, value)
 }
 
+async fn call_with_headers(
+    app: &axum::Router,
+    method: Method,
+    path: &str,
+    token: Option<&str>,
+    body: Option<Value>,
+    headers: &[(&str, &str)],
+) -> (StatusCode, HeaderMap, Value) {
+    let body = body.map_or_else(Vec::new, |value| serde_json::to_vec(&value).unwrap());
+    let mut request = Request::builder().method(method).uri(path);
+    request = request.header("content-type", "application/json");
+    if let Some(token) = token {
+        request = request.header("authorization", format!("Bearer {token}"));
+    }
+    for (name, value) in headers {
+        request = request.header(*name, *value);
+    }
+    let response = app
+        .clone()
+        .oneshot(request.body(Body::from(body)).unwrap())
+        .await
+        .unwrap();
+    let status = response.status();
+    let headers = response.headers().clone();
+    let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let value = if bytes.is_empty() {
+        json!({})
+    } else {
+        serde_json::from_slice(&bytes)
+            .unwrap_or_else(|_| json!({ "raw": String::from_utf8_lossy(&bytes) }))
+    };
+    (status, headers, value)
+}
+
 async fn call_binary(
     app: &axum::Router,
     method: Method,
@@ -3467,6 +3501,38 @@ async fn wiki_postgres_search_uses_fts_index_when_database_available() {
     assert!(
         plan.contains("document_revisions_search_idx"),
         "expected Postgres FTS plan to use document_revisions_search_idx:\n{plan}"
+    );
+}
+
+#[tokio::test]
+async fn wiki_api_propagates_request_id_header() {
+    let app = test_app();
+
+    let (status, headers, _) =
+        call_with_headers(&app, Method::GET, "/api/v1/health", None, None, &[]).await;
+    assert_eq!(status, StatusCode::OK);
+    let generated = headers
+        .get("x-request-id")
+        .and_then(|value| value.to_str().ok())
+        .expect("generated request id header should be present");
+    assert!(generated.starts_with("req_"));
+
+    let (status, headers, body) = call_with_headers(
+        &app,
+        Method::GET,
+        "/api/v1/users/me",
+        None,
+        None,
+        &[("x-request-id", "req-client-1")],
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert_eq!(body["error"]["code"], "UNAUTHORIZED");
+    assert_eq!(
+        headers
+            .get("x-request-id")
+            .and_then(|value| value.to_str().ok()),
+        Some("req-client-1")
     );
 }
 

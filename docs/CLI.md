@@ -49,6 +49,8 @@ CLI exit codes for MVP:
 
 Markdown input for `--from-file` accepts a filesystem path or `-` for stdin. Attachment download writes only to the path passed in `--out`.
 
+Every CLI HTTP request sends `X-Request-ID` with a `wiki-cli-request-` prefix for backend log correlation. Mutating commands additionally send `Idempotency-Key`.
+
 ## Команды MVP
 
 ### Auth

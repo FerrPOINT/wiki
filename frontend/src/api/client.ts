@@ -2,6 +2,7 @@ import { readRefreshToken, storeRefreshToken, useAuthStore } from '@/shared/auth
 
 const rawBaseUrl = import.meta.env.VITE_API_BASE_URL ?? ''
 export const apiBaseUrl = rawBaseUrl.replace(/\/api\/v1\/?$/, '')
+const requestIdHeader = 'X-Request-ID'
 
 type ApiRequestOptions = Omit<RequestInit, 'body'> & {
   body?: unknown
@@ -59,6 +60,20 @@ function buildUrl(path: string): string {
   return `${apiBaseUrl}${path.startsWith('/') ? path : `/${path}`}`
 }
 
+function createRequestId(): string {
+  const randomUUID = globalThis.crypto?.randomUUID?.bind(globalThis.crypto)
+  if (randomUUID) return `wiki-ui-${randomUUID()}`
+  return `wiki-ui-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+function ensureRequestId(headers: Headers): void {
+  if (!headers.has(requestIdHeader)) headers.set(requestIdHeader, createRequestId())
+}
+
+function responseRequestId(response: Response): string | undefined {
+  return response.headers.get(requestIdHeader) ?? undefined
+}
+
 async function readApiError(response: Response): Promise<ApiError> {
   try {
     const body = (await response.json()) as ApiErrorBody
@@ -68,6 +83,7 @@ async function readApiError(response: Response): Promise<ApiError> {
         status: response.status,
         statusText: response.statusText,
         message: body.error,
+        requestId: responseRequestId(response),
       })
     }
     if (body.error && typeof body.error === 'object') {
@@ -78,11 +94,20 @@ async function readApiError(response: Response): Promise<ApiError> {
         status: response.status,
         statusText: response.statusText,
         message: body.message,
+        requestId: responseRequestId(response),
       })
     }
-    return new ApiError({ status: response.status, statusText: response.statusText })
+    return new ApiError({
+      status: response.status,
+      statusText: response.statusText,
+      requestId: responseRequestId(response),
+    })
   } catch {
-    return new ApiError({ status: response.status, statusText: response.statusText })
+    return new ApiError({
+      status: response.status,
+      statusText: response.statusText,
+      requestId: responseRequestId(response),
+    })
   }
 }
 
@@ -94,7 +119,7 @@ function readStructuredError(error: Record<string, unknown>, response: Response)
       ? error.requestId
       : typeof error.request_id === 'string'
         ? error.request_id
-        : undefined
+        : responseRequestId(response)
   const details = readErrorDetails(error.details)
 
   return new ApiError({
@@ -175,10 +200,12 @@ async function refreshAccessToken(): Promise<boolean> {
   refreshPromise = (async () => {
     try {
       const refreshToken = readRefreshToken()
+      const headers = new Headers({ 'Content-Type': 'application/json' })
+      ensureRequestId(headers)
       const response = await fetch(buildUrl('/api/v1/auth/refresh'), {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(refreshToken ? { refresh_token: refreshToken } : {}),
       })
 
@@ -215,6 +242,7 @@ async function send(path: string, options: ApiRequestOptions): Promise<Response>
   const { body, headers, skipAuth, ...init } = options
   const requestHeaders = new Headers(headers)
   const token = useAuthStore.getState().token
+  ensureRequestId(requestHeaders)
 
   if (body !== undefined && !requestHeaders.has('Content-Type')) {
     if (!(body instanceof FormData)) requestHeaders.set('Content-Type', 'application/json')

@@ -1,7 +1,9 @@
 use axum::{
     Extension, Router,
+    extract::Request,
     http::{HeaderName, HeaderValue, Method},
-    middleware::from_fn_with_state,
+    middleware::{Next, from_fn, from_fn_with_state},
+    response::Response,
     routing::{get, post, put},
 };
 use axum_prometheus::{GenericMetricLayer, PrometheusMetricLayer};
@@ -26,6 +28,7 @@ use utoipa_swagger_ui::SwaggerUi;
 static METRIC_HANDLE: OnceLock<PrometheusHandle> = OnceLock::new();
 const OPENAPI_LICENSE_NAME: &str = "FerrPOINT Proprietary Source-Available Evaluation License v1.0";
 const OPENAPI_LICENSE_URL: &str = "./LICENSE";
+const REQUEST_ID_HEADER: &str = "x-request-id";
 
 fn metric_handle() -> PrometheusHandle {
     METRIC_HANDLE
@@ -373,6 +376,34 @@ pub fn router_with_wiki(
     with_security_headers(app)
         .layer(prometheus_layer)
         .layer(cors)
+        .layer(from_fn(request_id_middleware))
+}
+
+async fn request_id_middleware(request: Request, next: Next) -> Response {
+    let request_id = request
+        .headers()
+        .get(REQUEST_ID_HEADER)
+        .and_then(normalize_request_id)
+        .unwrap_or_else(new_request_id);
+    let mut response = next.run(request).await;
+    if let Ok(value) = HeaderValue::from_str(&request_id) {
+        response
+            .headers_mut()
+            .insert(HeaderName::from_static(REQUEST_ID_HEADER), value);
+    }
+    response
+}
+
+fn normalize_request_id(value: &HeaderValue) -> Option<String> {
+    let normalized = value.to_str().ok()?.trim();
+    if normalized.is_empty() || normalized.len() > 128 {
+        return None;
+    }
+    Some(normalized.to_string())
+}
+
+fn new_request_id() -> String {
+    format!("req_{}", uuid::Uuid::now_v7().simple())
 }
 
 fn cors_layer(origins: &[String]) -> CorsLayer {

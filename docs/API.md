@@ -12,6 +12,7 @@ REST API Wiki предоставляет базовые операции про�
 - UI и CLI используют один и тот же публичный API.
 - Все ответы JSON, кроме download endpoints.
 - Ошибки MVP возвращаются единым JSON envelope `{ "error": { "code": "CODE", "message": "message" } }`; `requestId` и `details` добавляются как опциональные поля, когда доступны.
+- Backend возвращает `X-Request-ID` на каждый ответ: echo валидного клиентского заголовка или новый `req_` UUIDv7 для запроса без request id.
 - Списки используют `limit` и стабильную сортировку.
 - CLI может отправлять `Idempotency-Key` для повторяемых write-команд; серверная дедупликация ключей вынесена в hardening после MVP.
 - Protected endpoints требуют session/JWT.
