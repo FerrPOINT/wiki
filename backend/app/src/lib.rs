@@ -1,25 +1,3 @@
-#[cfg(feature = "legacy-tracker")]
-pub mod auth;
-#[cfg(feature = "legacy-tracker")]
-pub mod authz;
-#[cfg(feature = "legacy-tracker")]
-pub mod commands;
-#[cfg(feature = "legacy-tracker")]
-pub mod context;
-#[cfg(feature = "legacy-tracker")]
-pub mod dto;
-#[cfg(feature = "legacy-tracker")]
-pub mod services;
 pub mod wiki;
 
-#[cfg(feature = "legacy-tracker")]
-pub use auth::*;
-#[cfg(feature = "legacy-tracker")]
-pub use commands::*;
-#[cfg(feature = "legacy-tracker")]
-pub use context::*;
-#[cfg(feature = "legacy-tracker")]
-pub use dto::*;
-#[cfg(feature = "legacy-tracker")]
-pub use services::*;
 pub use wiki::*;

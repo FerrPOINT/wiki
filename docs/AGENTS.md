@@ -3,7 +3,7 @@
 ## Репозиторий
 
 - **GitHub**: `git@github.com:FerrPOINT/wiki.git`
-- **Стек**: backend Rust (Axum + SQLx/PostgreSQL; inherited SeaORM только как временный слой), frontend React 19.1.0 + Vite 6.2.0 + Tailwind CSS 4.1.0
+- **Стек**: backend Rust (Axum + SQLx/PostgreSQL), frontend React 19.1.0 + Vite 6.2.0 + Tailwind CSS 4.1.0
 - **Env prefix**: `WIKI_`
 - **Публичные порты по умолчанию**: frontend docker `19877`, backend `3456`, PostgreSQL `3457`, Redis `6379`
 
@@ -18,11 +18,11 @@
 ### 2. Код
 
 - Backend: целевая слоистая архитектура `api/routes → app/services → domain → infra/repositories`.
-- Runtime DI для Wiki идёт через `WikiAppContext`; унаследованный task-tracker `AppContext` доступен только как временный compatibility слой за feature `legacy-tracker`.
+- Runtime DI для Wiki идёт через `WikiAppContext`; backend runtime не собирает task-tracker services/entities/repositories.
 - API routes обращаются к постоянному хранилищу через `shared::wiki_contract::WikiBackendPort`; конкретные SQLx/PostgreSQL adapters не вызывать напрямую из handlers. Production composition создаётся в `server` через `infra`.
 - Все публичные API покрыты OpenAPI через `utoipa-axum`.
 - Rust-хендлеры и DTO — единственный источник правды для схемы; frontend DTO types генерируются из `openapi/openapi.json`, а thin endpoint wrappers остаются временным слоем до полного generated operation client.
-- Новую Wiki persistence-логику писать на SQLx по ADR-0001. Унаследованный SeaORM/task-tracker код можно трогать только для удаления, карантина или временной совместимости, не расширяя task-tracker модель. Default backend-сборка не должна зависеть от унаследованных task-tracker domain/app/infra services.
+- Новую Wiki persistence-логику писать на SQLx по ADR-0001. Не возвращать task-tracker domain/app/infra services, routes, DTO или ORM-модули в MVP.
 - Все endpoint тестируются интеграционно через testcontainers.
 - Frontend: компоненты на `shadcn/ui` + Tailwind.
 - Состояние: серверное — `@tanstack/react-query`, клиентское — `zustand`.

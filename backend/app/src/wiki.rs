@@ -3077,7 +3077,7 @@ mod tests {
     }
 
     #[test]
-    fn wiki_helpers_keep_role_compatibility_without_expanding_global_roles() {
+    fn wiki_helpers_keep_supported_global_roles_closed() {
         assert_eq!(global_role_from_request("admin").unwrap(), "admin");
         assert_eq!(global_role_from_request("user").unwrap(), "user");
         assert_eq!(global_role_from_request("editor").unwrap(), "user");

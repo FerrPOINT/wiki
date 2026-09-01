@@ -38,6 +38,6 @@ cli      -> HTTP client CLI
 - API layer converts validation and domain conflicts to the shared error envelope.
 - Tests cover at least one success path and one boundary violation.
 
-## Migration Rule
+## Vocabulary Rule
 
-Inherited task-tracker code can be used as scaffolding only. When a module is touched for Wiki behavior, its public names, errors, routes and tests must move to Wiki vocabulary unless it is explicitly modeling an external task tracker snapshot.
+Wiki-owned code uses Wiki vocabulary. External task/workflow systems are represented by keys, URLs and snapshots; they do not bring their internal modules, routes or persistence model into Wiki.

@@ -53,9 +53,9 @@
 | Prometheus/Grafana | Metrics and dashboards |
 | Nginx/Caddy | Static frontend, reverse proxy, TLS |
 
-## 5. Current Cleanup Note
+## 5. Dependency Rule
 
-The repository is copied from `task-tracker`, so dependency files may still contain libraries that are not needed for Wiki long-term. Remove task-tracker-only dependencies when replacing the backend/frontend domain modules.
+Dependencies must serve the Wiki MVP directly. New storage, cache, import/export, delivery or integration libraries require a concrete capability and an updated architecture note.
 
 ## 6. References
 

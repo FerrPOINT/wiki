@@ -44,8 +44,8 @@ use axum::extract::State;
 use sqlx::PgPool;
 
 // 3. internal crates
-use crate::app::AppContext;
-use wiki_domain::document::Document;
+use app::WikiAppContext;
+use domain::wiki::Document;
 ```
 
 ### 3.4 Error Handling

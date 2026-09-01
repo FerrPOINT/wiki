@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-Wiki is being created from a copied task-tracker codebase while following the CI/CD documentation model. During migration, names from tasks, boards, sprints and pipeline execution can conflict with Wiki terms. The project needs one canonical vocabulary and authority order.
+Wiki stores SDLC knowledge, but it does not own task execution, boards, sprints or pipeline execution. The project needs one canonical vocabulary and authority order so external terms do not become internal product scope.
 
 ## Decision
 
@@ -35,8 +35,8 @@ Source priority:
 
 ## Consequences
 
-- Task-tracker words may appear only as external source or migration notes.
-- Backend migration must rename owned concepts to Wiki nouns.
+- External tracker words may appear only as external source references, task keys or migration notes.
+- Backend code must keep owned concepts in Wiki nouns.
 - UI route names must follow `spaces`, `documents`, `tasks`, `phases`, `evidence`, `templates`, `audit-log`, `users`, `settings`, `search`, `admin`.
 - OpenAPI must be regenerated after Wiki API implementation.
 - Documentation reviews can reject stale vocabulary.

@@ -64,9 +64,9 @@ app -> pages -> widgets -> features -> entities -> shared
 5. Add focused backend and frontend tests.
 6. Update user/operations docs.
 
-## 4. Current Migration Note
+## 4. Vocabulary Rule
 
-The repository is copied from `task-tracker`. Replace inherited modules instead of extending task-tracker concepts. The target nouns are spaces, documents, revisions, task dossiers, phase dossiers, evidence and attachments.
+Use Wiki-owned nouns in code, routes and docs: spaces, documents, revisions, task dossiers, phase dossiers, evidence and attachments. External tracker/task/workflow systems are represented only by keys, URLs and snapshots.
 
 ## 5. Checks
 

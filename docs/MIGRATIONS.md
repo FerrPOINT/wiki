@@ -56,7 +56,7 @@ backend/migrations/
 - Не изменять существующие миграции после коммита — только новая миграция.
 - Не редактировать уже применённые migration-файлы.
 - Не удалять старые migration-файлы без fresh-schema решения и отдельного migration note.
-- Не добавлять SeaORM migrations или task-tracker DDL.
+- Не добавлять ORM-specific migrations или task-tracker DDL.
 
 ## 6. Applying Migrations
 

@@ -4,7 +4,7 @@
 
 Wiki хранит документы, связанные с задачами SDLC и фазами workflow. MVP-модель поддерживает базовый Wiki-опыт: пользователи, spaces, дерево страниц, версии, поиск, вложения, evidence и права.
 
-Текущая SQLx baseline-схема создаёт минимальную Wiki-модель без task-tracker таблиц. `backend/migration` является thin SQLx runner над canonical `backend/migrations`; унаследованный SeaORM migration layer удалён.
+Текущая SQLx baseline-схема создаёт минимальную Wiki-модель без task-tracker таблиц. `backend/migration` является thin SQLx runner над canonical `backend/migrations`; других источников DDL в MVP нет.
 
 ## 2. Общие правила
 

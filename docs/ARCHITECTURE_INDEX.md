@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This index is the entry point for Wiki architecture. It separates current scaffolding inherited from `task-tracker` from the target base Wiki architecture.
+This index is the entry point for Wiki architecture. It separates verified current MVP behavior from approved future architecture.
 
 ## Start Here
 
@@ -52,4 +52,4 @@ This index is the entry point for Wiki architecture. It separates current scaffo
 
 - **Current**: verified in this repository.
 - **Target**: approved architecture; implementation pending.
-- **Inherited**: copied from `task-tracker` and waiting for replacement.
+- **Deferred**: intentionally outside MVP and documented only as future/reference scope.

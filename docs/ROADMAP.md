@@ -4,17 +4,16 @@ Roadmap фиксирует только базовое приложение. Р�
 
 ## Phase 1 - Base Wiki
 
-- Завершить переименование проекта в `wiki` и env prefix `WIKI_`.
-- Заменить унаследованную task-tracker domain model на Wiki-сущности.
-- Реализовать auth: login/logout/current user.
-- Реализовать пользователей, роли `admin/editor/viewer` и доступ к spaces.
-- Реализовать spaces, members, archive.
-- Реализовать документы: create, view, draft edit, publish, archive.
-- Реализовать immutable revision history.
-- Реализовать page tree: parent/child, breadcrumbs, move within space.
-- Реализовать Markdown render и HTML sanitization.
-- Реализовать PostgreSQL migrations для базовых сущностей.
-- Поднять Docker Compose, `/api/v1/health` и target readiness endpoint.
+- Поддерживать идентичность проекта `wiki` и env prefix `WIKI_`.
+- Поддерживать auth: register/login/logout/refresh/current user.
+- Поддерживать пользователей, роли `admin/editor/viewer` и доступ к spaces.
+- Поддерживать spaces, members, archive.
+- Поддерживать документы: create, view, draft edit, publish, archive, move.
+- Поддерживать immutable revision history.
+- Поддерживать page tree: parent/child, breadcrumbs, move within space.
+- Поддерживать Markdown render и HTML sanitization.
+- Поддерживать PostgreSQL migrations для базовых сущностей.
+- Поддерживать Docker Compose, `/api/v1/health` и readiness endpoint.
 
 ## Phase 2 - SDLC Links
 
@@ -29,14 +28,14 @@ Roadmap фиксирует только базовое приложение. Р�
 - Добавить фильтры поиска: space, task key, phase key, document type.
 - Покрыть write-действия audit log.
 
-## Phase 3 - Clients Completion
+## Phase 3 - Clients Completion And Hardening
 
-- Довести UI до всех MVP-сценариев.
-- Довести CLI до тех же MVP-операций, что поддерживает API.
-- Обновить OpenAPI после реализации endpoints.
-- Подключить UI/CLI к публичному API без прямого доступа к backend internals.
-- Добавить contract tests для API.
-- Добавить smoke/e2e для основных UI-сценариев.
+- Поддерживать UI для всех MVP-сценариев.
+- Поддерживать CLI для тех же MVP-операций, что поддерживает API.
+- Обновлять OpenAPI после изменения endpoints.
+- Держать UI/CLI на публичном API без прямого доступа к backend internals.
+- Расширять contract tests для API.
+- Расширять smoke/e2e для основных UI-сценариев.
 
 ## Deferred
 

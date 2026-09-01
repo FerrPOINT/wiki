@@ -39,4 +39,4 @@
 
 ## 4. Rationale
 
-The stack stays close to `task-tracker` and `CI-CD` to reuse operational knowledge, while adding Wiki-specific libraries only where the base product needs them: Markdown, sanitization, local attachment storage, search and revision diffing.
+The stack stays close to the broader SDLC toolset to reuse operational knowledge, while adding Wiki-specific libraries only where the base product needs them: Markdown, sanitization, local attachment storage, search and revision diffing.

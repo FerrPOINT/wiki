@@ -23,7 +23,7 @@ The backend must provide predictable resource usage, explicit error handling, st
 
 Use Rust edition 2024, Axum, Tokio and SQLx for Wiki backend API and persistence. The long-term backend structure is `domain -> app -> infra -> api -> server`; domain code must not depend on HTTP, SQL or filesystem implementations.
 
-SQLx is the preferred low-level PostgreSQL access layer for migrations and explicit queries. If SeaORM is retained temporarily from the inherited codebase, it must stay inside `infra` and must not leak into domain or application contracts.
+SQLx is the PostgreSQL access layer for migrations and explicit queries. Wiki MVP runtime must not reintroduce a second ORM without a new ADR and a concrete product need.
 
 ## Consequences
 

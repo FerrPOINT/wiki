@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-Wiki will replace inherited task-tracker tables with a new schema. Runtime bootstrap logic is risky because it hides schema state and makes repeatable deployment harder. The project needs versioned migrations that can be reviewed, applied and tested.
+Wiki owns a fresh schema for knowledge-base data. Runtime bootstrap logic is risky because it hides schema state and makes repeatable deployment harder. The project needs versioned migrations that can be reviewed, applied and tested.
 
 ## Decision
 

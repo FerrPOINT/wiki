@@ -33,7 +33,7 @@
 
 **Wiki** — self-hosted SDLC knowledge base для FerrPOINT: spaces, documents, revisions, task dossiers, workflow phases, evidence, attachments, search and audit.
 
-The repository was split from `task-tracker`; remaining legacy app/infra code is quarantined behind `legacy-tracker`. The current baseline is Wiki API/OpenAPI, CLI surface, frontend shell and SQLx runtime persistence.
+The repository is now reduced to the Wiki MVP runtime: public API/OpenAPI, CLI surface, frontend shell and SQLx/PostgreSQL persistence. Copied task-tracker backend modules and old dependencies have been removed from the active workspace.
 
 ## 📌 Snapshot
 
@@ -69,7 +69,6 @@ The repository was split from `task-tracker`; remaining legacy app/infra code is
 | ----------------- | --------------------------------- | ----------------------------------------------------- |
 | API               | Rust + Axum                       | Wiki MVP routes and public API                        |
 | Persistence       | SQLx + PostgreSQL                 | runtime data and migrations                           |
-| Legacy quarantine | `legacy-tracker` feature          | remaining split-era code kept outside default runtime |
 | Support services  | Redis                             | cache/background support                              |
 | Frontend          | React + Vite + Tailwind           | Wiki shell and API-backed MVP pages                   |
 | Contract          | OpenAPI                           | generated frontend types                              |

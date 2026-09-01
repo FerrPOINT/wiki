@@ -2,13 +2,13 @@
 
 ## 1. Overview
 
-Кеширование ускоряет чтение документов, дерева space, прав и результатов поиска. Два backend-уровня: in-memory (`moka`) и distributed (`redis`). Frontend использует TanStack Query для server state.
+Кеширование ускоряет чтение документов, дерева space, прав и результатов поиска. В MVP обязательным является только frontend query cache; backend cache остаётся опциональной оптимизацией поверх PostgreSQL. Frontend использует TanStack Query для server state.
 
 ## 2. Cache Layers
 
 | Layer | Library | Use Case | TTL |
 |---|---|---|---|
-| L1 in-memory | `moka` | permissions, settings, templates | 1-10 min |
+| L1 process cache | optional Rust cache adapter | permissions, settings, templates | 1-10 min |
 | L2 distributed | `redis` | document metadata, search filters, permissions snapshots | 5-60 min |
 | Query cache | TanStack Query | Frontend server state | per route |
 | CDN/browser | Nginx/object storage | Static assets and immutable attachments | long-term |
@@ -37,8 +37,8 @@ Examples:
 | Document metadata | Redis | 5 min | document update/archive |
 | Current published revision | Redis | 5 min | publish/restore |
 | Space tree | Redis | 2 min | create/move/archive document |
-| Permissions matrix | moka | 5 min | member/role change |
-| Templates | moka + Redis | 15 min | template update |
+| Permissions matrix | process cache | 5 min | member/role change |
+| Templates | process cache + Redis | 15 min | template update |
 | Search results | Redis | 1 min | document/evidence index event |
 
 ## 5. What Not to Cache
@@ -99,7 +99,7 @@ async fn publish_document(&self, id: Uuid, draft: PublishDraft) -> Result<Docume
 
 - Hit/miss ratio by namespace.
 - Redis latency and memory usage.
-- Moka cache size and eviction count.
+- Process cache size and eviction count.
 - Alert when cache errors exceed threshold but keep reads functional from PostgreSQL.
 
 ## 11. References

@@ -2,13 +2,14 @@
 
 ## 1. Goal
 
-Replace inherited task-tracker schema with Wiki schema safely and repeatably.
+Create and evolve the Wiki schema safely and repeatably through reviewed SQLx migrations.
 
 ## 2. Required Tables
 
-Initial Wiki migration must create:
+Initial Wiki MVP migration must create:
 
 - `users`
+- `auth_sessions`
 - `spaces`
 - `space_members`
 - `documents`
@@ -16,14 +17,12 @@ Initial Wiki migration must create:
 - `document_revisions`
 - `task_dossiers`
 - `phase_dossiers`
-- `evidence_items`
+- `document_task_links`
+- `document_phase_links`
 - `attachments`
+- `evidence_items`
 - `document_templates`
-- `tags`
-- `document_tags`
-- `comments`
 - `audit_log`
-- `outbox_events`
 
 ## 3. Execution Rules
 

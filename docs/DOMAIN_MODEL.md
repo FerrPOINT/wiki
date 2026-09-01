@@ -13,7 +13,7 @@
 
 ## 2. Главные агрегаты
 
-Кодовый baseline домена находится в `backend/domain/src/wiki.rs`. Старые task-tracker сущности остаются compatibility scaffold до замены app/infra слоя и не должны расширяться новыми Wiki capability.
+Кодовый baseline домена находится в `backend/domain/src/wiki.rs`. Domain crate содержит Wiki-owned модель и не экспортирует сущности внешнего трекера задач.
 
 ### User
 

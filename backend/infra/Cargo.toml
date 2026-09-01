@@ -5,16 +5,6 @@ edition.workspace = true
 rust-version.workspace = true
 license-file.workspace = true
 
-[features]
-default = []
-legacy-tracker = [
-    "dep:lettre",
-    "dep:moka",
-    "dep:sea-orm",
-    "dep:serde_json",
-    "domain/legacy-tracker",
-]
-
 [dependencies]
 shared = { path = "../shared" }
 domain = { path = "../domain" }
@@ -22,10 +12,6 @@ app = { path = "../app" }
 async-trait.workspace = true
 tokio.workspace = true
 chrono.workspace = true
-lettre = { workspace = true, optional = true }
-moka = { workspace = true, optional = true }
-sea-orm = { workspace = true, optional = true }
-serde_json = { workspace = true, optional = true }
 sqlx.workspace = true
 tracing.workspace = true
 uuid.workspace = true

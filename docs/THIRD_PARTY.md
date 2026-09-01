@@ -18,7 +18,7 @@ Key Rust dependencies:
 - jsonwebtoken
 - argon2
 
-`sea-orm-migration` is removed from the Wiki backend. `sea-orm` may still exist only behind explicit `legacy-tracker` compatibility modules until those copied task-tracker internals are deleted.
+The backend persistence stack is SQLx-only for MVP runtime and migrations. Reintroducing an ORM or delivery/cache dependency requires a documented architecture decision and a concrete MVP need.
 
 ## 3. Frontend Dependencies
 

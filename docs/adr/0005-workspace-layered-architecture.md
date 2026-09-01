@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-The copied task-tracker codebase contains useful Rust/React infrastructure, but Wiki needs a cleaner domain boundary before feature work continues. Without explicit layering, task-tracker concepts can leak into Wiki behavior.
+Wiki needs a clean domain boundary so SDLC knowledge-base behavior does not drift into task execution, board management or pipeline execution.
 
 ## Decision
 
@@ -26,7 +26,7 @@ Domain/application contracts use Wiki nouns: `Space`, `Document`, `DocumentRevis
 
 ## Consequences
 
-- Old task-tracker modules can be replaced incrementally.
+- Backend crates keep Wiki-owned modules and ports as their public surface.
 - Domain tests can run without Axum, SQLx or filesystem.
 - API and CLI use the same application contracts.
 - Frontend pages can be built before backend completion with a thin API shell.
