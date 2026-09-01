@@ -1,24 +1,77 @@
 use super::{PostgresWikiBackend, mapping::template_response_from_row};
-use app::wiki::{normalize_document_type, normalize_required};
+use app::wiki::{
+    WikiCreateTemplateCommand, WikiTemplateRepository, WikiTemplateRepositoryFuture,
+    WikiTemplateUseCase,
+};
 use shared::wiki_contract::*;
 use uuid::Uuid;
 
+struct PostgresWikiTemplateRepository<'a> {
+    backend: &'a PostgresWikiBackend,
+}
+
+impl WikiTemplateRepository for PostgresWikiTemplateRepository<'_> {
+    fn list_active_templates<'a>(
+        &'a self,
+    ) -> WikiTemplateRepositoryFuture<'a, Vec<TemplateResponse>> {
+        Box::pin(async move {
+            let rows = sqlx::query(
+                r#"
+                SELECT id, name, document_type, content_markdown
+                FROM document_templates
+                WHERE is_active = true
+                ORDER BY lower(name)
+                "#,
+            )
+            .fetch_all(&self.backend.pool)
+            .await
+            .map_err(shared::AppError::database)?;
+            Ok(rows.iter().map(template_response_from_row).collect())
+        })
+    }
+
+    fn create_template<'a>(
+        &'a self,
+        actor_id: Uuid,
+        command: WikiCreateTemplateCommand,
+    ) -> WikiTemplateRepositoryFuture<'a, TemplateResponse> {
+        Box::pin(async move {
+            let mut tx = self
+                .backend
+                .pool
+                .begin()
+                .await
+                .map_err(shared::AppError::database)?;
+            let id = Uuid::now_v7();
+            let row = sqlx::query(
+                r#"
+                INSERT INTO document_templates (
+                    id, name, document_type, content_markdown, is_active, created_at, updated_at
+                )
+                VALUES ($1, $2, $3, $4, true, now(), now())
+                RETURNING id, name, document_type, content_markdown
+                "#,
+            )
+            .bind(id)
+            .bind(&command.name)
+            .bind(&command.document_type)
+            .bind(&command.body_markdown)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(shared::AppError::database)?;
+            self.backend
+                .insert_audit(&mut tx, Some(actor_id), "template.create", "template", id)
+                .await?;
+            tx.commit().await.map_err(shared::AppError::database)?;
+            Ok(template_response_from_row(&row))
+        })
+    }
+}
+
 impl PostgresWikiBackend {
     pub(super) async fn list_templates(&self) -> Result<TemplateListResponse, shared::AppError> {
-        let rows = sqlx::query(
-            r#"
-            SELECT id, name, document_type, content_markdown
-            FROM document_templates
-            WHERE is_active = true
-            ORDER BY lower(name)
-            "#,
-        )
-        .fetch_all(&self.pool)
-        .await
-        .map_err(shared::AppError::database)?;
-        Ok(TemplateListResponse {
-            templates: rows.iter().map(template_response_from_row).collect(),
-        })
+        let repository = PostgresWikiTemplateRepository { backend: self };
+        WikiTemplateUseCase::new(&repository).list().await
     }
 
     pub(super) async fn create_template(
@@ -27,28 +80,9 @@ impl PostgresWikiBackend {
         body: CreateTemplateRequest,
     ) -> Result<TemplateResponse, shared::AppError> {
         let actor_id = self.ensure_admin(claims).await?;
-        let name = normalize_required(&body.name, "template name")?;
-        let document_type = normalize_document_type(&body.document_type, false)?;
-        let body_markdown = normalize_required(&body.body_markdown, "template body_markdown")?;
-        let id = Uuid::now_v7();
-        let row = sqlx::query(
-            r#"
-            INSERT INTO document_templates (
-                id, name, document_type, content_markdown, is_active, created_at, updated_at
-            )
-            VALUES ($1, $2, $3, $4, true, now(), now())
-            RETURNING id, name, document_type, content_markdown
-            "#,
-        )
-        .bind(id)
-        .bind(name)
-        .bind(document_type)
-        .bind(body_markdown)
-        .fetch_one(&self.pool)
-        .await
-        .map_err(shared::AppError::database)?;
-        self.audit(Some(actor_id), "template.create", "template", id)
-            .await?;
-        Ok(template_response_from_row(&row))
+        let repository = PostgresWikiTemplateRepository { backend: self };
+        WikiTemplateUseCase::new(&repository)
+            .create(actor_id, body)
+            .await
     }
 }

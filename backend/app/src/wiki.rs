@@ -108,6 +108,57 @@ impl<'a, R: WikiSearchRepository + ?Sized> WikiSearchUseCase<'a, R> {
     }
 }
 
+pub type WikiTemplateRepositoryFuture<'a, T> =
+    Pin<Box<dyn Future<Output = Result<T, AppError>> + Send + 'a>>;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiCreateTemplateCommand {
+    pub name: String,
+    pub document_type: String,
+    pub body_markdown: String,
+}
+
+pub trait WikiTemplateRepository {
+    fn list_active_templates<'a>(
+        &'a self,
+    ) -> WikiTemplateRepositoryFuture<'a, Vec<shared::TemplateResponse>>;
+
+    fn create_template<'a>(
+        &'a self,
+        actor_id: Uuid,
+        command: WikiCreateTemplateCommand,
+    ) -> WikiTemplateRepositoryFuture<'a, shared::TemplateResponse>;
+}
+
+pub struct WikiTemplateUseCase<'a, R: WikiTemplateRepository + ?Sized> {
+    repository: &'a R,
+}
+
+impl<'a, R: WikiTemplateRepository + ?Sized> WikiTemplateUseCase<'a, R> {
+    pub fn new(repository: &'a R) -> Self {
+        Self { repository }
+    }
+
+    pub async fn list(&self) -> Result<shared::TemplateListResponse, AppError> {
+        Ok(shared::TemplateListResponse {
+            templates: self.repository.list_active_templates().await?,
+        })
+    }
+
+    pub async fn create(
+        &self,
+        actor_id: Uuid,
+        body: shared::CreateTemplateRequest,
+    ) -> Result<shared::TemplateResponse, AppError> {
+        let command = WikiCreateTemplateCommand {
+            name: normalize_required(&body.name, "template name")?,
+            document_type: normalize_document_type(&body.document_type, false)?.to_string(),
+            body_markdown: normalize_required(&body.body_markdown, "template body_markdown")?,
+        };
+        self.repository.create_template(actor_id, command).await
+    }
+}
+
 pub fn clamp_limit(limit: Option<usize>, max: i64) -> i64 {
     limit.unwrap_or(max as usize).clamp(1, max as usize) as i64
 }
@@ -423,6 +474,10 @@ mod tests {
         evidence: Vec<shared::SearchResultResponse>,
     }
 
+    struct RecordingTemplateRepository {
+        created: std::sync::Mutex<Vec<(Uuid, WikiCreateTemplateCommand)>>,
+    }
+
     impl WikiSearchRepository for StaticSearchRepository {
         fn search_documents<'a>(
             &'a self,
@@ -440,6 +495,40 @@ mod tests {
         ) -> WikiSearchRepositoryFuture<'a> {
             let evidence = self.evidence.clone();
             Box::pin(async move { Ok(evidence) })
+        }
+    }
+
+    impl WikiTemplateRepository for RecordingTemplateRepository {
+        fn list_active_templates<'a>(
+            &'a self,
+        ) -> WikiTemplateRepositoryFuture<'a, Vec<shared::TemplateResponse>> {
+            Box::pin(async move {
+                Ok(vec![shared::TemplateResponse {
+                    id: Uuid::nil().to_string(),
+                    name: "Requirements".to_string(),
+                    document_type: "requirements".to_string(),
+                    body_markdown: "# Requirements".to_string(),
+                }])
+            })
+        }
+
+        fn create_template<'a>(
+            &'a self,
+            actor_id: Uuid,
+            command: WikiCreateTemplateCommand,
+        ) -> WikiTemplateRepositoryFuture<'a, shared::TemplateResponse> {
+            Box::pin(async move {
+                self.created
+                    .lock()
+                    .expect("template commands should be lockable")
+                    .push((actor_id, command.clone()));
+                Ok(shared::TemplateResponse {
+                    id: Uuid::now_v7().to_string(),
+                    name: command.name,
+                    document_type: command.document_type,
+                    body_markdown: command.body_markdown,
+                })
+            })
         }
     }
 
@@ -630,6 +719,59 @@ mod tests {
                 .map(|result| result.id.as_str())
                 .collect::<Vec<_>>(),
             vec!["doc-new", "evidence-mid"]
+        );
+    }
+
+    #[tokio::test]
+    async fn wiki_template_use_case_validates_and_normalizes_create_command() {
+        let repository = RecordingTemplateRepository {
+            created: std::sync::Mutex::new(Vec::new()),
+        };
+        let actor_id = Uuid::now_v7();
+
+        let response = WikiTemplateUseCase::new(&repository)
+            .create(
+                actor_id,
+                shared::CreateTemplateRequest {
+                    name: "  Test plan  ".to_string(),
+                    document_type: "test_plan".to_string(),
+                    body_markdown: "\n# Test plan\n".to_string(),
+                },
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.name, "Test plan");
+        assert_eq!(response.document_type, "test_plan");
+        assert_eq!(response.body_markdown, "# Test plan");
+        assert_eq!(
+            repository
+                .created
+                .lock()
+                .expect("template commands should be lockable")
+                .as_slice(),
+            [(
+                actor_id,
+                WikiCreateTemplateCommand {
+                    name: "Test plan".to_string(),
+                    document_type: "test_plan".to_string(),
+                    body_markdown: "# Test plan".to_string(),
+                }
+            )]
+        );
+
+        assert!(
+            WikiTemplateUseCase::new(&repository)
+                .create(
+                    actor_id,
+                    shared::CreateTemplateRequest {
+                        name: "Page".to_string(),
+                        document_type: "page".to_string(),
+                        body_markdown: "# Page".to_string(),
+                    },
+                )
+                .await
+                .is_err()
         );
     }
 
