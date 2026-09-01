@@ -114,6 +114,21 @@ function setupEvidence(initialRoute = '/evidence') {
   )
 }
 
+function fillEvidenceForm() {
+  fireEvent.change(screen.getByLabelText('Документ'), {
+    target: { value: 'product-requirements' },
+  })
+  fireEvent.change(screen.getByLabelText('Название'), {
+    target: { value: 'Проверка сборки' },
+  })
+  fireEvent.change(screen.getByLabelText('Задача'), {
+    target: { value: 'SDLC-42' },
+  })
+  fireEvent.change(screen.getByLabelText('Фаза'), {
+    target: { value: 'implementation' },
+  })
+}
+
 describe('EvidencePage', () => {
   afterEach(() => {
     vi.clearAllMocks()
@@ -180,6 +195,10 @@ describe('EvidencePage', () => {
   it('submits URL evidence through the shared API hook', () => {
     setupEvidence()
 
+    fillEvidenceForm()
+    fireEvent.change(screen.getByLabelText('URL материала'), {
+      target: { value: 'https://ci.local/jobs/wiki-smoke' },
+    })
     fireEvent.submit(screen.getByRole('button', { name: 'Добавить материал' }).closest('form')!)
     expect(createLinkMutate).toHaveBeenCalledWith(
       {
@@ -200,6 +219,7 @@ describe('EvidencePage', () => {
     setupEvidence()
 
     await user.click(screen.getByRole('button', { name: 'Файл' }))
+    fillEvidenceForm()
     const fileInput = screen.getByLabelText('Файл материала')
     const file = new File(['build ok'], 'build.log', { type: 'text/plain' })
     await user.upload(fileInput, file)

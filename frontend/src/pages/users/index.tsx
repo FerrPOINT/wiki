@@ -95,9 +95,9 @@ export function UsersPage() {
   const usersQuery = useUsers()
   const createUser = useCreateUser()
   const users = usersQuery.data?.users ?? []
-  const [email, setEmail] = useState('editor@example.test')
-  const [username, setUsername] = useState('editor')
-  const [displayName, setDisplayName] = useState('Редактор')
+  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
+  const [displayName, setDisplayName] = useState('')
   const [password, setPassword] = useState('')
   const [role, setRole] = useState('user')
   const activeUsers = users.filter((user) => user.active !== false)
@@ -143,6 +143,7 @@ export function UsersPage() {
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
+              placeholder="Введите email"
               required
             />
           </div>
@@ -152,6 +153,7 @@ export function UsersPage() {
               id="user-username"
               value={username}
               onChange={(event) => setUsername(event.target.value)}
+              placeholder="Введите логин"
               required
             />
           </div>
@@ -161,6 +163,7 @@ export function UsersPage() {
               id="user-name"
               value={displayName}
               onChange={(event) => setDisplayName(event.target.value)}
+              placeholder="Введите имя"
               required
             />
           </div>

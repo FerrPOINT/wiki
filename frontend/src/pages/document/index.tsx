@@ -412,7 +412,12 @@ export function DocumentPage() {
                 <EmptyState message="Ревизий пока нет" />
               )}
               {revisions.map((revision) => (
-                <div key={revision.id} className="space-y-3 rounded-md border border-border p-3">
+                <div
+                  key={revision.id}
+                  role="group"
+                  aria-label={`Ревизия ${revision.version}`}
+                  className="space-y-3 rounded-md border border-border p-3"
+                >
                   <div className="flex items-center justify-between gap-3 text-sm font-medium">
                     <span className="inline-flex items-center gap-2">
                       <History className="h-4 w-4 text-accent" />

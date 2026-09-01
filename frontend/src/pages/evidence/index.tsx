@@ -141,12 +141,12 @@ export function EvidencePage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [query, setQuery] = useState('')
   const [mode, setMode] = useState<EvidenceMode>('external_url')
-  const [title, setTitle] = useState('Проверка сборки')
-  const [url, setUrl] = useState('https://ci.local/jobs/wiki-smoke')
+  const [title, setTitle] = useState('')
+  const [url, setUrl] = useState('')
   const [space, setSpace] = useState(defaultSpaceKey)
-  const [documentId, setDocumentId] = useState('product-requirements')
-  const [task, setTask] = useState('SDLC-42')
-  const [phase, setPhase] = useState('implementation')
+  const [documentId, setDocumentId] = useState('')
+  const [task, setTask] = useState('')
+  const [phase, setPhase] = useState('')
   const [filterSpace, setFilterSpace] = useState(defaultSpaceKey)
   const [filterDocument, setFilterDocument] = useState('')
   const [filterTask, setFilterTask] = useState('')
@@ -281,7 +281,7 @@ export function EvidencePage() {
               id="evidence-document"
               value={documentId}
               onChange={(event) => setDocumentId(event.target.value)}
-              placeholder="product-requirements"
+              placeholder="ID или slug документа"
             />
           </div>
           <div className="space-y-1.5">
@@ -290,6 +290,7 @@ export function EvidencePage() {
               id="evidence-title"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
+              placeholder="Название материала"
               required
             />
           </div>
@@ -299,7 +300,7 @@ export function EvidencePage() {
               id="evidence-task"
               value={task}
               onChange={(event) => setTask(event.target.value)}
-              placeholder="SDLC-42"
+              placeholder="Ключ задачи"
             />
           </div>
           <div className="space-y-1.5">
@@ -308,7 +309,7 @@ export function EvidencePage() {
               id="evidence-phase"
               value={phase}
               onChange={(event) => setPhase(event.target.value)}
-              placeholder="testing"
+              placeholder="Ключ фазы"
             />
           </div>
         </div>

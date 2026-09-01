@@ -218,6 +218,15 @@ describe('SpacesPage', () => {
   it('submits space create, update, archive and member mutations', () => {
     setupSpaces()
 
+    fireEvent.change(screen.getByLabelText('Ключ'), {
+      target: { value: 'TEAM' },
+    })
+    fireEvent.change(screen.getByLabelText('Название'), {
+      target: { value: 'Командная Wiki' },
+    })
+    fireEvent.change(screen.getAllByLabelText('Описание')[0]!, {
+      target: { value: 'Документы команды и решений по задачам' },
+    })
     fireEvent.submit(screen.getByLabelText('Ключ').closest('form')!)
     expect(createMutate).toHaveBeenCalledWith(
       {

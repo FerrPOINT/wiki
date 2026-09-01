@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -26,7 +26,10 @@ vi.mock('@/shared/api/hooks', () => ({
   useTemplates,
 }))
 
-function setupCompose(createOverrides: Record<string, unknown> = {}) {
+function setupCompose(
+  createOverrides: Record<string, unknown> = {},
+  initialRoute = '/documents/new?space=eng',
+) {
   useSpaces.mockReturnValue({
     data: {
       spaces: [
@@ -70,7 +73,7 @@ function setupCompose(createOverrides: Record<string, unknown> = {}) {
   })
 
   render(
-    <MemoryRouter initialEntries={['/documents/new?space=eng']}>
+    <MemoryRouter initialEntries={[initialRoute]}>
       <DocumentComposePage />
     </MemoryRouter>,
   )
@@ -100,11 +103,11 @@ describe('DocumentComposePage', () => {
         spaceKey: 'ENG',
         body: {
           content_markdown: '# Новый регламент',
-          document_type: 'requirements',
+          document_type: 'page',
           parent_id: null,
-          phase_key: 'implementation',
+          phase_key: null,
           slug: null,
-          task_key: 'SDLC-42',
+          task_key: null,
           title: 'Новый регламент',
         },
       },
@@ -113,6 +116,36 @@ describe('DocumentComposePage', () => {
 
     createDocumentMutate.mock.calls[0]?.[1]?.onSuccess({ slug: 'new-policy' })
     expect(navigate).toHaveBeenCalledWith('/documents/new-policy')
+  })
+
+  it('applies the requested template from URL without filling demo task links', async () => {
+    setupCompose({}, '/documents/new?space=eng&template=tpl-test-plan')
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Markdown документа')).toHaveValue('# Проверка\n\n- smoke')
+    })
+    expect(screen.getByLabelText('Тип')).toHaveValue('test_plan')
+
+    fireEvent.change(screen.getByLabelText('Название'), {
+      target: { value: 'План проверки релиза' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить черновик' }))
+
+    expect(createDocumentMutate).toHaveBeenCalledWith(
+      {
+        spaceKey: 'ENG',
+        body: {
+          content_markdown: '# Проверка\n\n- smoke',
+          document_type: 'test_plan',
+          parent_id: null,
+          phase_key: null,
+          slug: null,
+          task_key: null,
+          title: 'План проверки релиза',
+        },
+      },
+      { onSuccess: expect.any(Function) },
+    )
   })
 
   it('renders validation errors without leaking request identifiers', () => {

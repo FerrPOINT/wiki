@@ -104,6 +104,39 @@ describe('UsersPage', () => {
     expect(screen.queryByText(/requestId/)).not.toBeInTheDocument()
   })
 
+  it('submits new users only from explicit form input', () => {
+    setupUsers()
+
+    expect(screen.getByLabelText('Email')).toHaveValue('')
+    expect(screen.getByLabelText('Логин')).toHaveValue('')
+    expect(screen.getByLabelText('Имя')).toHaveValue('')
+
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'editor@example.test' },
+    })
+    fireEvent.change(screen.getByLabelText('Логин'), {
+      target: { value: 'editor' },
+    })
+    fireEvent.change(screen.getByLabelText('Имя'), {
+      target: { value: 'Редактор' },
+    })
+    fireEvent.change(screen.getByLabelText('Пароль нового пользователя'), {
+      target: { value: 'correct-horse-battery-staple' },
+    })
+    fireEvent.submit(screen.getByLabelText('Email').closest('form')!)
+
+    expect(createUserMutate).toHaveBeenCalledWith(
+      {
+        email: 'editor@example.test',
+        username: 'editor',
+        display_name: 'Редактор',
+        password: 'correct-horse-battery-staple',
+        role: 'user',
+      },
+      { onSuccess: expect.any(Function) },
+    )
+  })
+
   it('submits global role and status updates through the shared API hook', () => {
     setupUsers()
 

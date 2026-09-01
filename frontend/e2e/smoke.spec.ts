@@ -478,7 +478,9 @@ test.describe('wiki smoke', () => {
       )
       .toBe(true)
     await expect(page.getByText('Опубликована ревизия 2')).toBeVisible()
-    await page.getByRole('button', { name: 'Открыть' }).first().click()
+    const revisionTwo = page.getByRole('group', { name: 'Ревизия 2' })
+    await expect(revisionTwo).toBeVisible()
+    await revisionTwo.getByRole('button', { name: 'Открыть' }).click()
     await expect(page.getByRole('heading', { name: 'Снимок ревизии' })).toBeVisible()
     await expect(page.getByText('Ревизия 2: Требования к Wiki MVP')).toBeVisible()
 

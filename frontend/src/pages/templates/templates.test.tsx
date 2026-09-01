@@ -66,6 +66,8 @@ describe('TemplatesPage', () => {
       'href',
       '/documents/new?template=requirements',
     )
+    expect(screen.getByLabelText('Название шаблона')).toHaveValue('')
+    expect(screen.getByLabelText('Markdown шаблона')).toHaveValue('')
 
     fireEvent.change(screen.getByLabelText('Название шаблона'), {
       target: { value: '  План релиза  ' },

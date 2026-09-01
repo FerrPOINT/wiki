@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { FileText, GitBranch, Save, Tag } from 'lucide-react'
 import { defaultSpaceKey, useCreateDocument, useSpaces, useTemplates } from '@/shared/api/hooks'
@@ -11,19 +11,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import { Textarea } from '@/shared/ui/textarea'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDocumentType } from '@/shared/lib/wiki-format'
-
-const starterMarkdown = `# Краткое описание
-
-## Контекст
-Почему документ нужен и к какой задаче относится.
-
-## Решение
-Что принято или что требуется сделать.
-
-## Проверка
-- Сценарий проверки
-- Ссылка на материал
-`
 
 const typeOptions = [
   'page',
@@ -43,13 +30,15 @@ export function DocumentComposePage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const initialSpace = (searchParams.get('space') ?? defaultSpaceKey).toUpperCase()
-  const [title, setTitle] = useState('Требования к Wiki')
-  const [body, setBody] = useState(starterMarkdown)
+  const requestedTemplateId = searchParams.get('template')?.trim() ?? ''
+  const [title, setTitle] = useState('')
+  const [body, setBody] = useState('')
   const [spaceKey, setSpaceKey] = useState(initialSpace)
-  const [documentType, setDocumentType] = useState('requirements')
+  const [documentType, setDocumentType] = useState('page')
   const [slug, setSlug] = useState('')
-  const [taskKey, setTaskKey] = useState('SDLC-42')
-  const [phaseKey, setPhaseKey] = useState('implementation')
+  const [taskKey, setTaskKey] = useState('')
+  const [phaseKey, setPhaseKey] = useState('')
+  const [appliedTemplateId, setAppliedTemplateId] = useState('')
   const spacesQuery = useSpaces()
   const templatesQuery = useTemplates()
   const createDocument = useCreateDocument()
@@ -59,7 +48,17 @@ export function DocumentComposePage() {
     if (!template) return
     setDocumentType(template.document_type)
     setBody(template.body_markdown)
+    setAppliedTemplateId(template.id)
   }
+
+  useEffect(() => {
+    if (!requestedTemplateId || appliedTemplateId === requestedTemplateId) return
+    const template = templatesQuery.data?.templates.find((item) => item.id === requestedTemplateId)
+    if (!template) return
+    setDocumentType(template.document_type)
+    setBody(template.body_markdown)
+    setAppliedTemplateId(template.id)
+  }, [appliedTemplateId, requestedTemplateId, templatesQuery.data?.templates])
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -122,6 +121,7 @@ export function DocumentComposePage() {
                   id="document-title"
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}
+                  placeholder="Название документа"
                   required
                 />
               </div>
@@ -169,6 +169,7 @@ export function DocumentComposePage() {
                   aria-label="Markdown документа"
                   value={body}
                   onChange={(event) => setBody(event.target.value)}
+                  placeholder="Начните писать Markdown или примените шаблон выше"
                   required
                 />
               </TabsContent>
@@ -196,7 +197,7 @@ export function DocumentComposePage() {
                   id="document-task"
                   value={taskKey}
                   onChange={(event) => setTaskKey(event.target.value)}
-                  placeholder="SDLC-42"
+                  placeholder="Ключ задачи"
                 />
               </div>
               <div className="space-y-1.5">
@@ -205,7 +206,7 @@ export function DocumentComposePage() {
                   id="document-phase"
                   value={phaseKey}
                   onChange={(event) => setPhaseKey(event.target.value)}
-                  placeholder="implementation"
+                  placeholder="Ключ фазы"
                 />
               </div>
               {taskKey && (

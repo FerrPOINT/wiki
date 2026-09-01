@@ -107,9 +107,9 @@ function SpaceTreePreview({ spaceKey }: { spaceKey: string }) {
 
 function CreateSpaceForm({ canCreate }: { canCreate: boolean }) {
   const createSpace = useCreateSpace()
-  const [key, setKey] = useState('TEAM')
-  const [name, setName] = useState('Командная Wiki')
-  const [description, setDescription] = useState('Документы команды и решений по задачам')
+  const [key, setKey] = useState('')
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
 
   if (!canCreate) return null
 
@@ -136,7 +136,12 @@ function CreateSpaceForm({ canCreate }: { canCreate: boolean }) {
       <div className="grid gap-3 lg:grid-cols-[10rem_1fr_1.5fr_auto] lg:items-end">
         <div className="space-y-1.5">
           <Label htmlFor="space-key">Ключ</Label>
-          <Input id="space-key" value={key} onChange={(event) => setKey(event.target.value)} />
+          <Input
+            id="space-key"
+            value={key}
+            onChange={(event) => setKey(event.target.value)}
+            placeholder="KEY"
+          />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="space-name">Название</Label>
@@ -144,6 +149,7 @@ function CreateSpaceForm({ canCreate }: { canCreate: boolean }) {
             id="space-name"
             value={name}
             onChange={(event) => setName(event.target.value)}
+            placeholder="Название пространства"
             required
           />
         </div>
@@ -153,6 +159,7 @@ function CreateSpaceForm({ canCreate }: { canCreate: boolean }) {
             id="space-description"
             value={description}
             onChange={(event) => setDescription(event.target.value)}
+            placeholder="Описание пространства"
           />
         </div>
         <Button disabled={createSpace.isPending || !key.trim() || !name.trim()}>

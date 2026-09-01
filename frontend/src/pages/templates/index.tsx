@@ -33,9 +33,9 @@ export function TemplatesPage() {
   const templatesQuery = useTemplates()
   const createTemplate = useCreateTemplate()
   const templates = templatesQuery.data?.templates ?? []
-  const [name, setName] = useState('План проверки')
-  const [documentType, setDocumentType] = useState('test_plan')
-  const [body, setBody] = useState('# План проверки\n\n## Сценарии\n\n## Риски\n\n## Материалы\n')
+  const [name, setName] = useState('')
+  const [documentType, setDocumentType] = useState('requirements')
+  const [body, setBody] = useState('')
 
   function handleCreateTemplate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -83,6 +83,7 @@ export function TemplatesPage() {
               id="template-name"
               value={name}
               onChange={(event) => setName(event.target.value)}
+              placeholder="Название шаблона"
               required
             />
           </div>
@@ -109,6 +110,7 @@ export function TemplatesPage() {
             className="min-h-32 font-mono text-sm"
             value={body}
             onChange={(event) => setBody(event.target.value)}
+            placeholder="Markdown шаблона"
             required
           />
           <div className="flex justify-end">
