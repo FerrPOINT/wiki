@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TaskDossierPage } from './'
 
 const useLinkTaskDocument = vi.hoisted(() => vi.fn())
+const useSpaces = vi.hoisted(() => vi.fn())
 const useTask = vi.hoisted(() => vi.fn())
 const useTasks = vi.hoisted(() => vi.fn())
 const linkTaskMutate = vi.hoisted(() => vi.fn())
@@ -13,6 +14,7 @@ const taskRefetch = vi.hoisted(() => vi.fn())
 vi.mock('@/shared/api/hooks', () => ({
   defaultSpaceKey: 'SDLC',
   useLinkTaskDocument,
+  useSpaces,
   useTask,
   useTasks,
 }))
@@ -27,7 +29,7 @@ const taskPage = {
   evidence: [],
 }
 
-function renderTaskPage(linkState: Record<string, unknown> = {}) {
+function renderTaskPage(linkState: Record<string, unknown> = {}, initialEntry = '/tasks/SDLC-42') {
   useTask.mockReturnValue({
     data: taskPage,
     isLoading: false,
@@ -35,6 +37,15 @@ function renderTaskPage(linkState: Record<string, unknown> = {}) {
     refetch: taskRefetch,
   })
   useTasks.mockReturnValue({ data: { tasks: [] }, isLoading: false, isError: false })
+  useSpaces.mockReturnValue({
+    data: {
+      spaces: [
+        { key: 'SDLC', name: 'SDLC' },
+        { key: 'DOCS', name: 'Документы' },
+      ],
+    },
+    isLoading: false,
+  })
   useLinkTaskDocument.mockReturnValue({
     mutate: linkTaskMutate,
     isPending: false,
@@ -44,7 +55,7 @@ function renderTaskPage(linkState: Record<string, unknown> = {}) {
   })
 
   render(
-    <MemoryRouter initialEntries={['/tasks/SDLC-42']}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/tasks/:taskKey" element={<TaskDossierPage />} />
       </Routes>
@@ -85,5 +96,25 @@ describe('TaskDossierPage', () => {
     })
 
     expect(screen.getByRole('alert')).toHaveTextContent('Недостаточно прав для действия')
+  })
+
+  it('uses the selected space from the route query', () => {
+    renderTaskPage({}, '/tasks/SDLC-42?space=DOCS')
+
+    expect(useTask).toHaveBeenCalledWith('SDLC-42', 'DOCS')
+
+    fireEvent.change(screen.getByLabelText('Документ для задачи'), {
+      target: { value: 'docs-requirements' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Привязать' }))
+
+    expect(linkTaskMutate).toHaveBeenCalledWith(
+      {
+        spaceKey: 'DOCS',
+        taskKey: 'SDLC-42',
+        body: { document_id: 'docs-requirements' },
+      },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    )
   })
 })

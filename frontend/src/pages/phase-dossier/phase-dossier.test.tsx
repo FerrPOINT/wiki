@@ -7,6 +7,7 @@ import { PhaseDossierPage } from './'
 const useLinkPhaseDocument = vi.hoisted(() => vi.fn())
 const usePhase = vi.hoisted(() => vi.fn())
 const usePhases = vi.hoisted(() => vi.fn())
+const useSpaces = vi.hoisted(() => vi.fn())
 const linkPhaseMutate = vi.hoisted(() => vi.fn())
 const phaseRefetch = vi.hoisted(() => vi.fn())
 
@@ -15,6 +16,7 @@ vi.mock('@/shared/api/hooks', () => ({
   useLinkPhaseDocument,
   usePhase,
   usePhases,
+  useSpaces,
 }))
 
 const phasePage = {
@@ -27,7 +29,10 @@ const phasePage = {
   evidence: [],
 }
 
-function renderPhasePage(linkState: Record<string, unknown> = {}) {
+function renderPhasePage(
+  linkState: Record<string, unknown> = {},
+  initialEntry = '/phases/implementation',
+) {
   usePhase.mockReturnValue({
     data: phasePage,
     isLoading: false,
@@ -35,6 +40,15 @@ function renderPhasePage(linkState: Record<string, unknown> = {}) {
     refetch: phaseRefetch,
   })
   usePhases.mockReturnValue({ data: { phases: [] }, isLoading: false, isError: false })
+  useSpaces.mockReturnValue({
+    data: {
+      spaces: [
+        { key: 'SDLC', name: 'SDLC' },
+        { key: 'DOCS', name: 'Документы' },
+      ],
+    },
+    isLoading: false,
+  })
   useLinkPhaseDocument.mockReturnValue({
     mutate: linkPhaseMutate,
     isPending: false,
@@ -44,7 +58,7 @@ function renderPhasePage(linkState: Record<string, unknown> = {}) {
   })
 
   render(
-    <MemoryRouter initialEntries={['/phases/implementation']}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/phases/:phaseId" element={<PhaseDossierPage />} />
       </Routes>
@@ -85,5 +99,25 @@ describe('PhaseDossierPage', () => {
     })
 
     expect(screen.getByRole('alert')).toHaveTextContent('Недостаточно прав для действия')
+  })
+
+  it('uses the selected space from the route query', () => {
+    renderPhasePage({}, '/phases/implementation?space=DOCS')
+
+    expect(usePhase).toHaveBeenCalledWith('implementation', 'DOCS')
+
+    fireEvent.change(screen.getByLabelText('Документ для фазы'), {
+      target: { value: 'docs-test-plan' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Привязать' }))
+
+    expect(linkPhaseMutate).toHaveBeenCalledWith(
+      {
+        spaceKey: 'DOCS',
+        phaseKey: 'implementation',
+        body: { document_id: 'docs-test-plan' },
+      },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    )
   })
 })

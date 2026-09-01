@@ -1,7 +1,13 @@
 import { type FormEvent, useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useParams, useSearchParams } from 'react-router'
 import { CheckCircle2, CircleDashed, FileCheck2, FileText, GitBranch, Link2 } from 'lucide-react'
-import { defaultSpaceKey, useLinkPhaseDocument, usePhase, usePhases } from '@/shared/api/hooks'
+import {
+  defaultSpaceKey,
+  useLinkPhaseDocument,
+  usePhase,
+  usePhases,
+  useSpaces,
+} from '@/shared/api/hooks'
 import { EmptyState, ErrorState, LoadingState } from '@/shared/ui/async-states'
 import { Button } from '@/shared/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
@@ -17,22 +23,95 @@ import {
 } from '@/shared/lib/wiki-format'
 import type { PhasePage } from '@/api/wiki'
 
+const selectClassName =
+  'flex h-9 w-full rounded-md border border-border-strong bg-surface px-3 py-1 text-sm text-text-primary shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50'
+
+type SpaceOption = {
+  key: string
+  name: string
+}
+
 function readiness(phase: Pick<PhasePage, 'document_count' | 'evidence_count'>): number {
   const score = phase.document_count * 45 + phase.evidence_count * 35
   return Math.max(0, Math.min(100, score))
 }
 
+function normalizeSpaceParam(value: string | null): string {
+  const normalized = value?.trim().toUpperCase()
+  return normalized || defaultSpaceKey
+}
+
+function useSelectedSpaceKey() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const selectedSpaceKey = normalizeSpaceParam(searchParams.get('space'))
+
+  function setSelectedSpaceKey(spaceKey: string) {
+    const normalized = normalizeSpaceParam(spaceKey)
+    const nextParams = new URLSearchParams(searchParams)
+    if (normalized === defaultSpaceKey) nextParams.delete('space')
+    else nextParams.set('space', normalized)
+    setSearchParams(nextParams, { replace: true })
+  }
+
+  return [selectedSpaceKey, setSelectedSpaceKey] as const
+}
+
+function scopedPath(path: string, spaceKey: string): string {
+  return spaceKey === defaultSpaceKey ? path : `${path}?space=${encodeURIComponent(spaceKey)}`
+}
+
+function evidencePhasePath(spaceKey: string, phaseKey: string): string {
+  const params = new URLSearchParams({ space: spaceKey, phase_key: phaseKey })
+  return `/evidence?${params.toString()}`
+}
+
+function SpaceSelector({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (spaceKey: string) => void
+}) {
+  const spacesQuery = useSpaces()
+  const spaces: SpaceOption[] = spacesQuery.data?.spaces ?? []
+  const hasSelected = spaces.some((space) => space.key === value)
+  const options = hasSelected ? spaces : [{ key: value, name: value }, ...spaces]
+
+  return (
+    <div className="w-full space-y-1.5 sm:w-64">
+      <Label htmlFor="phase-space-selector">Пространство</Label>
+      <select
+        id="phase-space-selector"
+        className={selectClassName}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={spacesQuery.isLoading}
+      >
+        {options.map((space) => (
+          <option key={space.key} value={space.key}>
+            {space.name ? `${space.key} · ${space.name}` : space.key}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
 export function PhaseDossiersPage() {
-  const phasesQuery = usePhases(defaultSpaceKey)
+  const [selectedSpaceKey, setSelectedSpaceKey] = useSelectedSpaceKey()
+  const phasesQuery = usePhases(selectedSpaceKey)
   const phases = phasesQuery.data?.phases ?? []
 
   return (
     <div className="space-y-5">
-      <section>
-        <h1 className="text-2xl font-bold">Фазы процесса</h1>
-        <p className="mt-1 max-w-3xl text-sm text-text-muted">
-          Каждая завершённая фаза должна иметь документы и материалы, достаточные для аудита.
-        </p>
+      <section className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Фазы процесса</h1>
+          <p className="mt-1 max-w-3xl text-sm text-text-muted">
+            Каждая завершённая фаза должна иметь документы и материалы, достаточные для аудита.
+          </p>
+        </div>
+        <SpaceSelector value={selectedSpaceKey} onChange={setSelectedSpaceKey} />
       </section>
 
       {phasesQuery.isLoading && <LoadingState message="Загружаем фазы" />}
@@ -72,7 +151,10 @@ export function PhaseDossiersPage() {
                   <div className="text-xs text-text-muted">
                     Документы: {phase.document_count} · Материалы: {phase.evidence_count}
                   </div>
-                  <Link to={`/phases/${phase.phase_key}`} className="text-sm text-accent">
+                  <Link
+                    to={scopedPath(`/phases/${phase.phase_key}`, selectedSpaceKey)}
+                    className="text-sm text-accent"
+                  >
                     Открыть фазу
                   </Link>
                 </CardContent>
@@ -87,7 +169,8 @@ export function PhaseDossiersPage() {
 
 export function PhaseDossierPage() {
   const { phaseId = 'implementation' } = useParams()
-  const phaseQuery = usePhase(phaseId, defaultSpaceKey)
+  const [selectedSpaceKey, setSelectedSpaceKey] = useSelectedSpaceKey()
+  const phaseQuery = usePhase(phaseId, selectedSpaceKey)
   const linkDocument = useLinkPhaseDocument()
   const [documentId, setDocumentId] = useState('')
   const [linkMessage, setLinkMessage] = useState('')
@@ -101,7 +184,7 @@ export function PhaseDossierPage() {
     setLinkMessage('')
     linkDocument.mutate(
       {
-        spaceKey: defaultSpaceKey,
+        spaceKey: selectedSpaceKey,
         phaseKey: phaseId,
         body: { document_id: trimmedDocumentId },
       },
@@ -131,9 +214,10 @@ export function PhaseDossierPage() {
           <div className="text-sm text-text-muted">карточка фазы</div>
           <h1 className="mt-2 text-2xl font-bold">{phase.title ?? phase.phase_key}</h1>
           <p className="mt-1 max-w-3xl text-sm text-text-muted">
-            Документы и материалы, привязанные к фазе процесса.
+            Документы и материалы, привязанные к фазе процесса в пространстве {selectedSpaceKey}.
           </p>
         </div>
+        <SpaceSelector value={selectedSpaceKey} onChange={setSelectedSpaceKey} />
         <div className="min-w-72 rounded-md border border-border p-3">
           <div className="flex items-center justify-between text-sm">
             <span className="font-medium">Заполненность</span>
@@ -220,7 +304,7 @@ export function PhaseDossierPage() {
             {phase.evidence.map((item) => (
               <Link
                 key={item.id}
-                to="/evidence"
+                to={evidencePhasePath(selectedSpaceKey, phase.phase_key)}
                 className="flex items-center justify-between rounded-md border border-border p-3 hover:bg-surface-raised"
               >
                 <span className="inline-flex items-center gap-2">

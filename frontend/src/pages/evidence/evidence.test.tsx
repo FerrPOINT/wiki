@@ -192,6 +192,23 @@ describe('EvidencePage', () => {
     expect(screen.queryByRole('heading', { name: 'Выбранный материал' })).not.toBeInTheDocument()
   })
 
+  it('initializes owner filters and create form from URL query params', () => {
+    setupEvidence('/evidence?space=DOCS&task_key=DOCS-7&phase_key=testing')
+
+    expect(useEvidence).toHaveBeenCalledWith({
+      space: 'DOCS',
+      document_id: undefined,
+      task_key: 'DOCS-7',
+      phase_key: 'testing',
+    })
+    expect(screen.getByLabelText('Пространство')).toHaveValue('DOCS')
+    expect(screen.getByLabelText('Задача')).toHaveValue('DOCS-7')
+    expect(screen.getByLabelText('Фаза')).toHaveValue('testing')
+    expect(screen.getByLabelText('Фильтр пространства')).toHaveValue('DOCS')
+    expect(screen.getByLabelText('Фильтр задачи')).toHaveValue('DOCS-7')
+    expect(screen.getByLabelText('Фильтр фазы')).toHaveValue('testing')
+  })
+
   it('submits URL evidence through the shared API hook', () => {
     setupEvidence()
 

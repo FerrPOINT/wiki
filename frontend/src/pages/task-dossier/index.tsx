@@ -1,7 +1,13 @@
 import { type FormEvent, useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useParams, useSearchParams } from 'react-router'
 import { CircleDashed, FileCheck2, FileText, GitBranch, Link2 } from 'lucide-react'
-import { defaultSpaceKey, useLinkTaskDocument, useTask, useTasks } from '@/shared/api/hooks'
+import {
+  defaultSpaceKey,
+  useLinkTaskDocument,
+  useSpaces,
+  useTask,
+  useTasks,
+} from '@/shared/api/hooks'
 import { EmptyState, ErrorState, LoadingState } from '@/shared/ui/async-states'
 import { Button } from '@/shared/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
@@ -18,23 +24,96 @@ import {
 } from '@/shared/lib/wiki-format'
 import type { TaskPage } from '@/api/wiki'
 
+const selectClassName =
+  'flex h-9 w-full rounded-md border border-border-strong bg-surface px-3 py-1 text-sm text-text-primary shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50'
+
+type SpaceOption = {
+  key: string
+  name: string
+}
+
 function readiness(task: Pick<TaskPage, 'document_count' | 'evidence_count'>): number {
   const score = task.document_count * 45 + task.evidence_count * 35
   return Math.max(0, Math.min(100, score))
 }
 
+function normalizeSpaceParam(value: string | null): string {
+  const normalized = value?.trim().toUpperCase()
+  return normalized || defaultSpaceKey
+}
+
+function useSelectedSpaceKey() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const selectedSpaceKey = normalizeSpaceParam(searchParams.get('space'))
+
+  function setSelectedSpaceKey(spaceKey: string) {
+    const normalized = normalizeSpaceParam(spaceKey)
+    const nextParams = new URLSearchParams(searchParams)
+    if (normalized === defaultSpaceKey) nextParams.delete('space')
+    else nextParams.set('space', normalized)
+    setSearchParams(nextParams, { replace: true })
+  }
+
+  return [selectedSpaceKey, setSelectedSpaceKey] as const
+}
+
+function scopedPath(path: string, spaceKey: string): string {
+  return spaceKey === defaultSpaceKey ? path : `${path}?space=${encodeURIComponent(spaceKey)}`
+}
+
+function evidenceTaskPath(spaceKey: string, taskKey: string): string {
+  const params = new URLSearchParams({ space: spaceKey, task_key: taskKey })
+  return `/evidence?${params.toString()}`
+}
+
+function SpaceSelector({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (spaceKey: string) => void
+}) {
+  const spacesQuery = useSpaces()
+  const spaces: SpaceOption[] = spacesQuery.data?.spaces ?? []
+  const hasSelected = spaces.some((space) => space.key === value)
+  const options = hasSelected ? spaces : [{ key: value, name: value }, ...spaces]
+
+  return (
+    <div className="w-full space-y-1.5 sm:w-64">
+      <Label htmlFor="task-space-selector">Пространство</Label>
+      <select
+        id="task-space-selector"
+        className={selectClassName}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={spacesQuery.isLoading}
+      >
+        {options.map((space) => (
+          <option key={space.key} value={space.key}>
+            {space.name ? `${space.key} · ${space.name}` : space.key}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
 export function TaskDossiersPage() {
-  const tasksQuery = useTasks(defaultSpaceKey)
+  const [selectedSpaceKey, setSelectedSpaceKey] = useSelectedSpaceKey()
+  const tasksQuery = useTasks(selectedSpaceKey)
   const tasks = tasksQuery.data?.tasks ?? []
 
   return (
     <div className="space-y-5">
-      <section>
-        <h1 className="text-2xl font-bold">Задачи</h1>
-        <p className="mt-1 max-w-3xl text-sm text-text-muted">
-          Wiki собирает документы и материалы вокруг внешнего ключа задачи, но не владеет её
-          статусом в трекере.
-        </p>
+      <section className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Задачи</h1>
+          <p className="mt-1 max-w-3xl text-sm text-text-muted">
+            Wiki собирает документы и материалы вокруг внешнего ключа задачи, но не владеет её
+            статусом в трекере.
+          </p>
+        </div>
+        <SpaceSelector value={selectedSpaceKey} onChange={setSelectedSpaceKey} />
       </section>
 
       {tasksQuery.isLoading && <LoadingState message="Загружаем задачи" />}
@@ -75,7 +154,10 @@ export function TaskDossiersPage() {
                     </div>
                     <Progress value={value} />
                   </div>
-                  <Link to={`/tasks/${task.task_key}`} className="inline-flex text-sm text-accent">
+                  <Link
+                    to={scopedPath(`/tasks/${task.task_key}`, selectedSpaceKey)}
+                    className="inline-flex text-sm text-accent"
+                  >
                     Открыть задачу
                   </Link>
                 </CardContent>
@@ -90,7 +172,8 @@ export function TaskDossiersPage() {
 
 export function TaskDossierPage() {
   const { taskKey = 'SDLC-42' } = useParams()
-  const taskQuery = useTask(taskKey, defaultSpaceKey)
+  const [selectedSpaceKey, setSelectedSpaceKey] = useSelectedSpaceKey()
+  const taskQuery = useTask(taskKey, selectedSpaceKey)
   const linkDocument = useLinkTaskDocument()
   const [documentId, setDocumentId] = useState('')
   const [linkMessage, setLinkMessage] = useState('')
@@ -106,7 +189,7 @@ export function TaskDossierPage() {
     setLinkMessage('')
     linkDocument.mutate(
       {
-        spaceKey: defaultSpaceKey,
+        spaceKey: selectedSpaceKey,
         taskKey,
         body: { document_id: trimmedDocumentId },
       },
@@ -136,9 +219,10 @@ export function TaskDossierPage() {
           <div className="text-sm text-text-muted">карточка задачи</div>
           <h1 className="mt-2 text-2xl font-bold">{task.task_key}</h1>
           <p className="mt-1 max-w-3xl text-sm text-text-muted">
-            Документы, фазы и материалы, связанные с задачей.
+            Документы, фазы и материалы, связанные с задачей в пространстве {selectedSpaceKey}.
           </p>
         </div>
+        <SpaceSelector value={selectedSpaceKey} onChange={setSelectedSpaceKey} />
         <div className="grid grid-cols-3 gap-2 text-center text-xs text-text-muted sm:min-w-80">
           <div className="rounded-md border border-border p-2">
             <div className="text-lg font-semibold text-text-primary">{task.document_count}</div>
@@ -239,7 +323,7 @@ export function TaskDossierPage() {
             {phaseKeys.map((phaseKey) => (
               <Link
                 key={phaseKey}
-                to={`/phases/${phaseKey}`}
+                to={scopedPath(`/phases/${phaseKey}`, selectedSpaceKey)}
                 className="flex items-center justify-between rounded-md border border-border p-3 text-sm hover:bg-surface-raised"
               >
                 <span className="inline-flex items-center gap-2">
@@ -268,7 +352,7 @@ export function TaskDossierPage() {
           {task.evidence.map((item) => (
             <Link
               key={item.id}
-              to="/evidence"
+              to={evidenceTaskPath(selectedSpaceKey, task.task_key)}
               className="rounded-md border border-border p-3 hover:bg-surface-raised"
             >
               <div className="flex items-center gap-2 text-sm font-medium">

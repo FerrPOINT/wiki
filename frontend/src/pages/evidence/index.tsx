@@ -44,6 +44,10 @@ function browserDownload(download: AttachmentDownload, fallbackFileName: string)
   URL.revokeObjectURL(href)
 }
 
+function scopedDossierPath(path: string, spaceKey: string): string {
+  return spaceKey === defaultSpaceKey ? path : `${path}?space=${encodeURIComponent(spaceKey)}`
+}
+
 function AttachmentMetadata({ item }: { item: Evidence }) {
   const hasAttachment = item.evidence_type === 'uploaded_file' && Boolean(item.attachment_id)
   const attachmentQuery = useAttachment(hasAttachment ? item.attachment_id : null)
@@ -119,7 +123,7 @@ function EvidenceTargetLinks({ item }: { item: Evidence }) {
       )}
       {item.task_key && (
         <Link
-          to={`/tasks/${item.task_key}`}
+          to={scopedDossierPath(`/tasks/${item.task_key}`, item.space_key)}
           className="rounded bg-surface-raised px-2 py-1 text-accent"
         >
           задача {item.task_key}
@@ -127,7 +131,7 @@ function EvidenceTargetLinks({ item }: { item: Evidence }) {
       )}
       {item.phase_key && (
         <Link
-          to={`/phases/${item.phase_key}`}
+          to={scopedDossierPath(`/phases/${item.phase_key}`, item.space_key)}
           className="rounded bg-surface-raised px-2 py-1 text-accent"
         >
           фаза {item.phase_key}
@@ -143,14 +147,17 @@ export function EvidencePage() {
   const [mode, setMode] = useState<EvidenceMode>('external_url')
   const [title, setTitle] = useState('')
   const [url, setUrl] = useState('')
-  const [space, setSpace] = useState(defaultSpaceKey)
-  const [documentId, setDocumentId] = useState('')
-  const [task, setTask] = useState('')
-  const [phase, setPhase] = useState('')
-  const [filterSpace, setFilterSpace] = useState(defaultSpaceKey)
-  const [filterDocument, setFilterDocument] = useState('')
-  const [filterTask, setFilterTask] = useState('')
-  const [filterPhase, setFilterPhase] = useState('')
+  const initialSpace = (searchParams.get('space') ?? defaultSpaceKey).trim().toUpperCase()
+  const [space, setSpace] = useState(initialSpace || defaultSpaceKey)
+  const [documentId, setDocumentId] = useState(searchParams.get('document_id')?.trim() ?? '')
+  const [task, setTask] = useState(searchParams.get('task_key')?.trim() ?? '')
+  const [phase, setPhase] = useState(searchParams.get('phase_key')?.trim() ?? '')
+  const [filterSpace, setFilterSpace] = useState(initialSpace || defaultSpaceKey)
+  const [filterDocument, setFilterDocument] = useState(
+    searchParams.get('document_id')?.trim() ?? '',
+  )
+  const [filterTask, setFilterTask] = useState(searchParams.get('task_key')?.trim() ?? '')
+  const [filterPhase, setFilterPhase] = useState(searchParams.get('phase_key')?.trim() ?? '')
   const [file, setFile] = useState<File | null>(null)
   const selectedEvidenceId = searchParams.get('id')?.trim() ?? ''
   const evidenceParams = useMemo(
