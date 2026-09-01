@@ -16,7 +16,6 @@
     "email": "Email",
     "haveAccount": "Уже есть аккаунт",
     "login": "Войти",
-    "loginDemo": "Для локального демо: demo@example.com / demo.",
     "password": "Пароль",
     "passwordMismatch": "Пароли не совпадают",
     "register": "Зарегистрироваться",

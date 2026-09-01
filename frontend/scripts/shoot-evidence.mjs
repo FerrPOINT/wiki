@@ -16,9 +16,9 @@ const authState = {
   state: {
     token: 'screenshot-token',
     userId: '00000000-0000-0000-0000-000000000001',
-    email: 'demo@example.test',
-    username: 'demo',
-    displayName: 'Демо пользователь',
+    email: 'admin@example.test',
+    username: 'admin',
+    displayName: 'Администратор',
   },
   version: 0,
 }

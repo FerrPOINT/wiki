@@ -7,9 +7,9 @@ const baseURL =
 const now = '2026-08-31T10:00:00Z'
 const user = {
   id: '00000000-0000-0000-0000-000000000001',
-  email: 'demo@example.com',
-  username: 'demo',
-  display_name: 'Демо пользователь',
+  email: 'admin@example.com',
+  username: 'admin',
+  display_name: 'Администратор',
   role: 'admin',
   is_system_admin: true,
   active: true,
@@ -450,8 +450,8 @@ test.describe('wiki smoke', () => {
   test('login and navigate through wiki shell pages', async ({ page }) => {
     const apiMocks = await installWikiApiMocks(page)
     await page.goto(`${baseURL}/login`)
-    await page.getByRole('textbox').nth(0).fill('demo@example.com')
-    await page.getByRole('textbox').nth(1).fill('demo')
+    await page.getByRole('textbox').nth(0).fill('admin@example.com')
+    await page.getByRole('textbox').nth(1).fill('correct-horse-battery-staple')
     await page.getByRole('button', { name: /войти/i }).click()
 
     await expect(page).toHaveURL(`${baseURL}/`, { timeout: 10_000 })

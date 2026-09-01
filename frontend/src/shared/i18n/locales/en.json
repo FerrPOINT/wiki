@@ -16,7 +16,6 @@
     "email": "Email",
     "haveAccount": "Already have an account",
     "login": "Log in",
-    "loginDemo": "Use demo@example.com / demo for local demos.",
     "password": "Password",
     "passwordMismatch": "Passwords do not match",
     "register": "Sign up",

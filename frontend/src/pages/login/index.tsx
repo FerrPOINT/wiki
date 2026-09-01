@@ -13,8 +13,8 @@ export function LoginPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { mutate, isPending, error } = useLogin()
-  const [email, setEmail] = useState('demo@example.com')
-  const [password, setPassword] = useState('demo')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -44,6 +44,7 @@ export function LoginPage() {
             <Input
               id="login-email"
               type="email"
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -56,6 +57,7 @@ export function LoginPage() {
             <Input
               id="login-password"
               type="password"
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -69,7 +71,6 @@ export function LoginPage() {
             <a href="/register">{t('auth.createAccount')}</a>
           </Button>
         </form>
-        <p className="mt-4 text-center text-xs text-text-muted">{t('auth.loginDemo')}</p>
       </div>
     </div>
   )

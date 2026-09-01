@@ -46,22 +46,34 @@ describe('LoginPage', () => {
     login.mockResolvedValueOnce({
       access_token: 'tok',
       user_id: 'u1',
-      email: 'demo@example.com',
+      email: 'admin@example.com',
     })
 
     render(wrapper(<LoginPage />))
     expect(screen.getByText('Wiki')).toBeInTheDocument()
 
-    const email = screen.getByDisplayValue('demo@example.com') as HTMLInputElement
-    await userEvent.clear(email)
-    await userEvent.type(email, 'demo@example.com')
-    const password = screen.getByDisplayValue('demo') as HTMLInputElement
-    await userEvent.clear(password)
-    await userEvent.type(password, 'demo')
+    const email = screen.getByLabelText(/email/i) as HTMLInputElement
+    expect(email).toHaveValue('')
+    await userEvent.type(email, 'admin@example.com')
+    const password = screen.getByLabelText(/пароль|password/i) as HTMLInputElement
+    expect(password).toHaveValue('')
+    await userEvent.type(password, 'correct-horse-battery-staple')
 
     const submit = screen.getByRole('button', { name: /войти|Log in/i })
     await userEvent.click(submit)
 
-    await waitFor(() => expect(login).toHaveBeenCalled())
+    await waitFor(() =>
+      expect(login).toHaveBeenCalledWith(
+        {
+          email: 'admin@example.com',
+          password: 'correct-horse-battery-staple',
+        },
+        expect.anything(),
+      ),
+    )
+    expect(login.mock.calls[0]?.[0]).toEqual({
+      email: 'admin@example.com',
+      password: 'correct-horse-battery-staple',
+    })
   })
 })
