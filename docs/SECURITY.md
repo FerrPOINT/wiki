@@ -29,8 +29,8 @@ Wiki — self-hosted приложение с конфиденциальными 
 ## 5. Input Validation
 
 - Strict DTO validation на входе backend/frontend validators.
-- Whitelist mime-types для attachments.
-- Filename sanitization.
+- Для attachments проверяются размер, непустой `content_type` и безопасное имя файла; strict MIME allowlist остаётся deferred policy, если продукту потребуется ограничивать классы файлов.
+- Filename sanitization для download headers и storage keys.
 - SQL только через parameterized queries.
 - No `eval`, no dynamic SQL.
 

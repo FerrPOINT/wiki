@@ -33,7 +33,7 @@ pub trait WikiAttachmentStorage: Send + Sync {
 ## 5. Upload Flow
 
 1. Client uploads a file to `/api/v1/attachments`.
-2. Server validates size, MIME and filename.
+2. Server validates size, non-empty content type and filename.
 3. Server creates attachment UUIDv7 and staged storage key.
 4. File is written to object storage.
 5. Attachment metadata is saved in PostgreSQL without owner fields yet.
@@ -70,8 +70,8 @@ pub struct Attachment {
 ## 8. Security
 
 - Reject path traversal, null bytes and control characters in file names.
-- Do not trust client-provided MIME type; detect by magic bytes where possible.
-- Block executable/script uploads by default.
+- Do not trust client-provided MIME type for security decisions; MVP stores `content_type` as metadata and validates that it is present.
+- MIME allowlist, magic-byte detection and executable/script blocking are deferred policy hardening items when the product needs file-class restrictions.
 - Optionally scan with ClamAV before publishing downloads to other users.
 - Store private files behind authenticated download endpoints or signed URLs.
 - Never expose raw filesystem paths or bucket credentials.

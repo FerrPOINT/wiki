@@ -17,7 +17,7 @@
 | PostgreSQL persistence | Current | `infra::wiki_postgres` owns SQLx connection/bootstrap, SQL constants, row mapping and repository implementations for users, auth sessions, spaces, members, documents, drafts, revisions, task/phase links, evidence, attachments, templates, audit and search. |
 | Migrations | Current | `backend/migrations` contains the canonical SQLx migration files; `backend/migration` is a thin SQLx runner over that directory. The schema is a fresh Wiki MVP schema without task-tracker tables. |
 | PostgreSQL smoke | Current | Env-gated tests with the `wiki_postgres_` prefix cover disabled registration, membership revocation, persistence across backend/router rebuilds and FTS index-plan evidence. `scripts/postgres-smoke.ps1` runs them against disposable `backend/docker-compose.test.yml` Postgres. |
-| Attachments | Current | Attachment bytes are behind `domain::wiki::WikiAttachmentStorage`; server wires `infra::LocalWikiAttachmentStorage`, which rejects unsafe or platform-ambiguous storage keys. |
+| Attachments | Current | Attachment uploads reject empty files, unsafe names and runtime size-limit violations; bytes are behind `domain::wiki::WikiAttachmentStorage`, and server wires `infra::LocalWikiAttachmentStorage`, which rejects unsafe or platform-ambiguous storage keys. |
 | CLI | Current | `wiki` CLI covers the MVP public API groups for auth, users, spaces/member management, documents/revisions, task/phase dossiers, evidence, attachments, templates, audit, search and settings. |
 | Frontend API-backed pages | Current | Dashboard, spaces, documents, tasks, phases, evidence, templates, users, settings, admin overview, audit and search read from the public Wiki API; create/edit/publish/archive/move document, create user, URL evidence and file evidence forms call the same API. |
 | Screenshot evidence | Current | 17 desktop and 5 mobile screenshots exist for the MVP page set; README and `docs/assets/screens/manifest.md` reference the same files. |
@@ -38,10 +38,11 @@
 
 ## Verified Checks
 
-- Latest backend WSL regression after PostgreSQL smoke/FTS evidence changes: `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test --workspace -- --test-threads=1 --nocapture`, `cargo clippy --workspace --all-targets -- -D warnings`.
+- Latest backend WSL regression after attachment upload hardening: `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test --workspace -- --test-threads=1 --nocapture`, `cargo clippy --workspace --all-targets -- -D warnings`.
 - Focused PostgreSQL test group compiles and safely skips without DB: `cargo test -p api wiki_postgres_ -- --test-threads=1 --nocapture`.
 - Latest frontend regression after documentation/test changes: `npm run typecheck`, `npm run test`, `npm run lint`, `npm run build`.
 - PostgreSQL smoke runner syntax check passed; `pwsh -File scripts/postgres-smoke.ps1` currently stops with a clear Docker-daemon unavailable message on this host.
+- Screenshot script passed against `vite preview`: `npm run shoot:evidence` captured 17 desktop and 5 mobile MVP screenshots.
 - Static checks confirmed no active references to removed `/integrations`, `/reports` or `/notifications` routes, no unresolved placeholder markers, no short Markdown docs, screenshot refs with `missing=0`, OpenAPI `bad_paths=0` and CI/CD docs parity `missing_from_wiki=0`.
 
 ## Known Local Environment Limits
@@ -54,6 +55,6 @@
 
 - Run fresh PostgreSQL-backed API smoke in an environment where Docker Desktop or another disposable Postgres is available.
 - Capture and archive the successful PostgreSQL smoke output after Docker/Postgres is available on the host.
-- Expand repository/API coverage for less common permission and attachment edge cases.
+- Keep expanding repository/API coverage for less common permission edge cases after the DB smoke can run.
 - Replace handwritten frontend endpoint wrappers with a generated operation client after the API contract stabilizes.
 - Keep screenshots regenerated after any UI or route change.

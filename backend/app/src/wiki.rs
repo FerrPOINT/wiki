@@ -1835,7 +1835,7 @@ pub fn safe_download_filename(file_name: &str) -> String {
     }
 }
 
-fn normalize_attachment_file_name(file_name: &str) -> Result<String, AppError> {
+pub fn normalize_attachment_file_name(file_name: &str) -> Result<String, AppError> {
     let normalized = normalize_required(file_name, "attachment file name")?;
     if normalized != file_name
         || normalized

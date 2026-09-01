@@ -1916,6 +1916,37 @@ async fn wiki_memory_evidence_infers_document_space_and_claims_file_attachments(
 }
 
 #[tokio::test]
+async fn wiki_memory_attachment_upload_respects_runtime_size_limit() {
+    let mut config = (*test_config()).clone();
+    config.storage.max_upload_bytes = 4;
+    let app = test_app_with_config(Arc::new(config));
+    let token = login_memory_admin(&app).await;
+
+    let (status, error) = upload_test_file(&app, &token, "empty.txt", "text/plain", b"").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(error["error"]["code"], "VALIDATION_ERROR");
+    assert_eq!(error["error"]["message"], "file is required");
+
+    let (status, error) =
+        upload_test_file(&app, &token, "too-large.txt", "text/plain", b"12345").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(error["error"]["code"], "VALIDATION_ERROR");
+    assert_eq!(error["error"]["message"], "file is too large");
+
+    let (status, error) =
+        upload_test_file(&app, &token, "../escape.txt", "text/plain", b"1234").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(error["error"]["code"], "VALIDATION_ERROR");
+    assert_eq!(error["error"]["message"], "attachment file name is invalid");
+
+    let (status, attachment) =
+        upload_test_file(&app, &token, "limit.txt", "text/plain", b"1234").await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(attachment["file_name"], "limit.txt");
+    assert_eq!(attachment["size_bytes"], 4);
+}
+
+#[tokio::test]
 async fn wiki_postgres_register_respects_instance_registration_setting() {
     let Ok(database_url) = env::var("WIKI_TEST_DATABASE_URL") else {
         eprintln!("skipping postgres registration test: WIKI_TEST_DATABASE_URL is not set");

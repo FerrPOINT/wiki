@@ -14,7 +14,7 @@ The test plan covers document lifecycle, task/phase links, evidence ingestion, p
 | Task dossiers  | idempotent link creation, external task key lookup, permission filtering |
 | Phase dossiers | phase key grouping, linked documents/evidence, permission filtering      |
 | Evidence       | add file/url evidence, checksum, dedup                                   |
-| Attachments    | upload/download, MIME, quota                                             |
+| Attachments    | upload/download, filename/content-type validation, quota                  |
 | Search         | indexing, permission filtering, archived filters                         |
 | Settings       | admin-only safe runtime snapshot                                         |
 | Authz          | viewer/editor/admin boundaries                                           |

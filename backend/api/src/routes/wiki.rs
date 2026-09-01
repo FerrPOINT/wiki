@@ -1,7 +1,8 @@
 use app::wiki::{
-    WikiSpaceAccess, checksum, normalize_document_type, normalize_evidence_type,
-    normalize_phase_key, normalize_required, normalize_space_key, normalize_space_role,
-    normalize_task_key, safe_download_filename, slugify, snippet, space_role_allows,
+    WikiSpaceAccess, checksum, normalize_attachment_file_name, normalize_document_type,
+    normalize_evidence_type, normalize_phase_key, normalize_required, normalize_space_key,
+    normalize_space_role, normalize_task_key, safe_download_filename, slugify, snippet,
+    space_role_allows,
 };
 use axum::{
     Extension, Json,
@@ -2085,6 +2086,11 @@ pub async fn upload_attachment(
     if bytes.is_empty() {
         return Err(shared::AppError::invalid_input("file is required"));
     }
+    if bytes.len() > backend.settings.max_upload_bytes {
+        return Err(shared::AppError::invalid_input("file is too large"));
+    }
+    let file_name = normalize_attachment_file_name(&file_name)?;
+    let content_type = normalize_required(&content_type, "attachment content type")?;
 
     if let Some(persistent) = backend.persistent_backend() {
         let response = persistent
