@@ -1886,6 +1886,264 @@ async fn wiki_postgres_register_respects_instance_registration_setting() {
 }
 
 #[tokio::test]
+async fn wiki_postgres_space_member_delete_revokes_access_when_database_available() {
+    let Ok(database_url) = env::var("WIKI_TEST_DATABASE_URL") else {
+        eprintln!("skipping postgres space member access test: WIKI_TEST_DATABASE_URL is not set");
+        return;
+    };
+    reset_postgres(&database_url).await;
+    let storage_dir = env::temp_dir().join(format!("wiki-api-test-{}", Uuid::now_v7()));
+    let (app, _) = postgres_test_app(database_url.clone(), storage_dir.clone()).await;
+    let admin_token = login_admin(&app).await;
+    let suffix = Uuid::now_v7().simple().to_string();
+    let short = &suffix[..12];
+    let requested_space_key = format!("PGACL-{short}");
+    let search_token = format!("pgaclsearchtoken{short}");
+
+    let (status, member_user) = call(
+        &app,
+        Method::POST,
+        "/api/v1/auth/register",
+        None,
+        Some(json!({
+            "email": format!("postgres-space-member-{short}@example.com"),
+            "username": format!("postgres-space-member-{short}"),
+            "password": "space-member-password",
+            "name": "Postgres Space Member"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let member_token = member_user["access_token"].as_str().unwrap().to_string();
+    let member_id = member_user["user_id"].as_str().unwrap().to_string();
+
+    let (status, space) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces",
+        Some(&admin_token),
+        Some(json!({
+            "key": requested_space_key,
+            "name": format!("Postgres ACL space {short}")
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let space_key = space["key"].as_str().unwrap().to_string();
+
+    let (status, document) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/spaces/{space_key}/documents"),
+        Some(&admin_token),
+        Some(json!({
+            "title": format!("Postgres ACL document {short}"),
+            "slug": format!("postgres-acl-document-{short}"),
+            "document_type": "page",
+            "content_markdown": format!("# Postgres ACL document {short}\n\nPublished {search_token}.")
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let document_id = document["id"].as_str().unwrap().to_string();
+
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/documents/{document_id}/publish"),
+        Some(&admin_token),
+        Some(json!({ "summary": "Postgres ACL publish" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, _) = call(
+        &app,
+        Method::DELETE,
+        &format!("/api/v1/spaces/{space_key}/members/{member_id}"),
+        Some(&admin_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    let (status, _) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}"),
+        Some(&member_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, member) = call(
+        &app,
+        Method::PUT,
+        &format!("/api/v1/spaces/{space_key}/members/{member_id}"),
+        Some(&admin_token),
+        Some(json!({ "role": "viewer" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(member["role"], "viewer");
+
+    let (status, visible_space) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}"),
+        Some(&member_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(visible_space["key"], space_key);
+
+    let (status, tree) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}/tree"),
+        Some(&member_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        tree["documents"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["id"] == document_id)
+    );
+
+    let (status, search) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/search?q={search_token}"),
+        Some(&member_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        search["results"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["id"] == document_id)
+    );
+
+    let (status, _) = call(
+        &app,
+        Method::DELETE,
+        &format!("/api/v1/spaces/{space_key}/members/{member_id}"),
+        Some(&admin_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let (status, updated_space) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}"),
+        Some(&admin_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(updated_space["member_count"], 1);
+
+    let (status, _) = call(
+        &app,
+        Method::DELETE,
+        &format!("/api/v1/spaces/{space_key}/members/{member_id}"),
+        Some(&admin_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    let (status, _) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}"),
+        Some(&member_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, _) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}/tree"),
+        Some(&member_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, broad_search) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/search?q={search_token}"),
+        Some(&member_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        !broad_search["results"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["id"] == document_id)
+    );
+
+    let (status, _) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/search?q={search_token}&space={space_key}"),
+        Some(&member_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    drop(app);
+    let (app, _) = postgres_test_app(database_url, storage_dir).await;
+
+    let (status, _) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}"),
+        Some(&member_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let admin_token = login_admin(&app).await;
+    let (status, members) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}/members"),
+        Some(&admin_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        !members["members"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|member| member["user_id"] == member_id)
+    );
+}
+
+#[tokio::test]
 async fn wiki_mvp_routes_cover_public_contract() {
     let app = test_app();
 

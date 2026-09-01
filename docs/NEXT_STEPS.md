@@ -22,7 +22,7 @@ The documentation, screenshots, API-backed frontend MVP pages and SQLx-backed MV
 - public registration is guarded by `WIKI_AUTH__REGISTRATION_ENABLED` in both explicit memory test/dev backend and PostgreSQL runtime;
 - PostgreSQL runtime enforces global-admin, space-role, archived-space write and attachment-download boundaries for core read/write paths; the explicit memory test/dev backend mirrors the same MVP boundaries for smoke coverage;
 - archived documents are read-only for draft/publish/move write commands in both memory and SQLx-backed runtime paths;
-- focused API regressions cover space membership delete/revocation semantics, latest-first immutable document revision history, search filters by document type/task/phase/archive state, search permission boundaries, published-revision search behavior, task/phase document link space boundaries, evidence document-space inference, document/space mismatch rejection, staged file evidence claim/download and reused attachment rejection;
+- focused API regressions cover space membership delete/revocation semantics, latest-first immutable document revision history, search filters by document type/task/phase/archive state, search permission boundaries, published-revision search behavior, task/phase document link space boundaries, evidence document-space inference, document/space mismatch rejection, staged file evidence claim/download and reused attachment rejection; the space membership delete/revocation path also has an env-gated PostgreSQL API regression that must be run when `WIKI_TEST_DATABASE_URL` is available;
 - attachment bytes are behind `domain::wiki::WikiAttachmentStorage`, with `infra::LocalWikiAttachmentStorage` wired by `server`;
 - shared Wiki normalization, access predicates, content helpers, storage-name helpers, password hashing, Wiki JWT/session token helpers and access/refresh token-pair TTL assembly are in `app::wiki`; safe runtime settings snapshot is in `shared::wiki_contract`;
 - auth/session flow validation, spaces/members/tree command validation, document create/draft/publish/archive/move command validation, task/phase dossier normalization/link command assembly, evidence/list/upload payload validation, user create/update validation and password hashing are in `app::wiki`; search q/filter/limit normalization and merge/sort/limit behavior are in `app::wiki`; template create validation/normalization and pool-backed audit command/list boundaries are in `app::wiki`; the PostgreSQL adapter owns SQL/storage details behind repository ports;
@@ -86,8 +86,8 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 ## 7. Tests And Release Readiness
 
 - Continue expanding backend unit tests for less common domain invariant combinations.
-- Add repository/API tests beyond the current persistence, permission, audit, archived-document, space membership, revision/search, task/phase boundary and file-evidence smoke for PostgreSQL-backed permission edge-case combinations.
-- Rerun PostgreSQL-backed API smoke with `WIKI_TEST_DATABASE_URL` set, including production backend construction, persistence across router rebuilds and disabled public registration.
+- Rerun PostgreSQL-backed API smoke with `WIKI_TEST_DATABASE_URL` set, including production backend construction, persistence across router rebuilds, disabled public registration and the env-gated space membership delete/revocation regression.
+- Add repository/API tests beyond the current persistence, permission, audit, archived-document, space membership, revision/search, task/phase boundary and file-evidence smoke for the remaining PostgreSQL-backed permission edge-case combinations.
 - Add frontend component tests for editor/tree/revision/evidence states.
 - Keep screenshot evidence regenerated after route or UI changes.
 - Fix local Rust toolchain by installing MSVC Build Tools so `cargo check/test` can run on this host.
@@ -103,8 +103,8 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 
 ## 9. Recommended Implementation Order
 
-1. Continue focused repository/API hardening for PostgreSQL-backed permission edge cases.
-2. Rerun fresh PostgreSQL smoke with `WIKI_TEST_DATABASE_URL`, including router rebuild persistence and disabled-registration coverage.
+1. Rerun fresh PostgreSQL smoke with `WIKI_TEST_DATABASE_URL`, including router rebuild persistence, disabled-registration coverage and the space membership delete/revocation regression.
+2. Continue focused repository/API hardening for the remaining PostgreSQL-backed permission edge cases.
 3. Tune PostgreSQL FTS ranking/search filters and capture query-plan evidence for the expected MVP dataset size.
 4. Bring CLI smoke tests to parity with the public API where command-specific edge cases are still thin.
 5. Remove remaining inherited tracker compatibility modules and the SeaORM migration compatibility layer.
