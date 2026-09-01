@@ -824,6 +824,245 @@ impl<'a, R: WikiDocumentRepository + ?Sized> WikiDocumentUseCase<'a, R> {
     }
 }
 
+pub type WikiDossierRepositoryFuture<'a, T> =
+    Pin<Box<dyn Future<Output = Result<T, AppError>> + Send + 'a>>;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiLinkTaskDocumentCommand {
+    pub space_id: Uuid,
+    pub space_key: String,
+    pub task_key: String,
+    pub document_id: Uuid,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiLinkPhaseDocumentCommand {
+    pub space_id: Uuid,
+    pub space_key: String,
+    pub phase_key: String,
+    pub document_id: Uuid,
+}
+
+pub trait WikiDossierRepository {
+    fn list_tasks<'a>(
+        &'a self,
+        space_id: Uuid,
+        space_key: &'a str,
+    ) -> WikiDossierRepositoryFuture<'a, Vec<shared::TaskPageResponse>>;
+
+    fn get_task<'a>(
+        &'a self,
+        space_id: Uuid,
+        space_key: &'a str,
+        task_key: &'a str,
+    ) -> WikiDossierRepositoryFuture<'a, shared::TaskPageResponse>;
+
+    fn link_task_document<'a>(
+        &'a self,
+        actor_id: Uuid,
+        command: WikiLinkTaskDocumentCommand,
+    ) -> WikiDossierRepositoryFuture<'a, shared::TaskPageResponse>;
+
+    fn list_task_documents<'a>(
+        &'a self,
+        space_id: Uuid,
+        space_key: &'a str,
+        task_key: &'a str,
+    ) -> WikiDossierRepositoryFuture<'a, Vec<shared::DocumentResponse>>;
+
+    fn list_task_evidence<'a>(
+        &'a self,
+        space_id: Uuid,
+        space_key: &'a str,
+        task_key: &'a str,
+    ) -> WikiDossierRepositoryFuture<'a, Vec<shared::EvidenceResponse>>;
+
+    fn list_phases<'a>(
+        &'a self,
+        space_id: Uuid,
+        space_key: &'a str,
+    ) -> WikiDossierRepositoryFuture<'a, Vec<shared::PhasePageResponse>>;
+
+    fn get_phase<'a>(
+        &'a self,
+        space_id: Uuid,
+        space_key: &'a str,
+        phase_key: &'a str,
+    ) -> WikiDossierRepositoryFuture<'a, shared::PhasePageResponse>;
+
+    fn link_phase_document<'a>(
+        &'a self,
+        actor_id: Uuid,
+        command: WikiLinkPhaseDocumentCommand,
+    ) -> WikiDossierRepositoryFuture<'a, shared::PhasePageResponse>;
+
+    fn list_phase_documents<'a>(
+        &'a self,
+        space_id: Uuid,
+        space_key: &'a str,
+        phase_key: &'a str,
+    ) -> WikiDossierRepositoryFuture<'a, Vec<shared::DocumentResponse>>;
+
+    fn list_phase_evidence<'a>(
+        &'a self,
+        space_id: Uuid,
+        space_key: &'a str,
+        phase_key: &'a str,
+    ) -> WikiDossierRepositoryFuture<'a, Vec<shared::EvidenceResponse>>;
+}
+
+pub struct WikiDossierUseCase<'a, R: WikiDossierRepository + ?Sized> {
+    repository: &'a R,
+}
+
+impl<'a, R: WikiDossierRepository + ?Sized> WikiDossierUseCase<'a, R> {
+    pub fn new(repository: &'a R) -> Self {
+        Self { repository }
+    }
+
+    pub async fn list_tasks(
+        &self,
+        space_id: Uuid,
+        space_key: &str,
+    ) -> Result<shared::TaskPageListResponse, AppError> {
+        let key = normalize_space_key(space_key)?;
+        Ok(shared::TaskPageListResponse {
+            tasks: self.repository.list_tasks(space_id, &key).await?,
+        })
+    }
+
+    pub async fn get_task(
+        &self,
+        space_id: Uuid,
+        space_key: &str,
+        task_key: &str,
+    ) -> Result<shared::TaskPageResponse, AppError> {
+        let key = normalize_space_key(space_key)?;
+        let task_key = normalize_task_key(task_key)?;
+        self.repository.get_task(space_id, &key, &task_key).await
+    }
+
+    pub async fn link_task_document(
+        &self,
+        actor_id: Uuid,
+        space_id: Uuid,
+        space_key: &str,
+        task_key: &str,
+        document_id: Uuid,
+    ) -> Result<shared::TaskPageResponse, AppError> {
+        let command = WikiLinkTaskDocumentCommand {
+            space_id,
+            space_key: normalize_space_key(space_key)?,
+            task_key: normalize_task_key(task_key)?,
+            document_id,
+        };
+        self.repository.link_task_document(actor_id, command).await
+    }
+
+    pub async fn list_task_documents(
+        &self,
+        space_id: Uuid,
+        space_key: &str,
+        task_key: &str,
+    ) -> Result<shared::DocumentListResponse, AppError> {
+        let key = normalize_space_key(space_key)?;
+        let task_key = normalize_task_key(task_key)?;
+        Ok(shared::DocumentListResponse {
+            documents: self
+                .repository
+                .list_task_documents(space_id, &key, &task_key)
+                .await?,
+        })
+    }
+
+    pub async fn list_task_evidence(
+        &self,
+        space_id: Uuid,
+        space_key: &str,
+        task_key: &str,
+    ) -> Result<shared::EvidenceListResponse, AppError> {
+        let key = normalize_space_key(space_key)?;
+        let task_key = normalize_task_key(task_key)?;
+        Ok(shared::EvidenceListResponse {
+            evidence: self
+                .repository
+                .list_task_evidence(space_id, &key, &task_key)
+                .await?,
+        })
+    }
+
+    pub async fn list_phases(
+        &self,
+        space_id: Uuid,
+        space_key: &str,
+    ) -> Result<shared::PhasePageListResponse, AppError> {
+        let key = normalize_space_key(space_key)?;
+        Ok(shared::PhasePageListResponse {
+            phases: self.repository.list_phases(space_id, &key).await?,
+        })
+    }
+
+    pub async fn get_phase(
+        &self,
+        space_id: Uuid,
+        space_key: &str,
+        phase_key: &str,
+    ) -> Result<shared::PhasePageResponse, AppError> {
+        let key = normalize_space_key(space_key)?;
+        let phase_key = normalize_phase_key(phase_key)?;
+        self.repository.get_phase(space_id, &key, &phase_key).await
+    }
+
+    pub async fn link_phase_document(
+        &self,
+        actor_id: Uuid,
+        space_id: Uuid,
+        space_key: &str,
+        phase_key: &str,
+        document_id: Uuid,
+    ) -> Result<shared::PhasePageResponse, AppError> {
+        let command = WikiLinkPhaseDocumentCommand {
+            space_id,
+            space_key: normalize_space_key(space_key)?,
+            phase_key: normalize_phase_key(phase_key)?,
+            document_id,
+        };
+        self.repository.link_phase_document(actor_id, command).await
+    }
+
+    pub async fn list_phase_documents(
+        &self,
+        space_id: Uuid,
+        space_key: &str,
+        phase_key: &str,
+    ) -> Result<shared::DocumentListResponse, AppError> {
+        let key = normalize_space_key(space_key)?;
+        let phase_key = normalize_phase_key(phase_key)?;
+        Ok(shared::DocumentListResponse {
+            documents: self
+                .repository
+                .list_phase_documents(space_id, &key, &phase_key)
+                .await?,
+        })
+    }
+
+    pub async fn list_phase_evidence(
+        &self,
+        space_id: Uuid,
+        space_key: &str,
+        phase_key: &str,
+    ) -> Result<shared::EvidenceListResponse, AppError> {
+        let key = normalize_space_key(space_key)?;
+        let phase_key = normalize_phase_key(phase_key)?;
+        Ok(shared::EvidenceListResponse {
+            evidence: self
+                .repository
+                .list_phase_evidence(space_id, &key, &phase_key)
+                .await?,
+        })
+    }
+}
+
 pub type WikiSettingsRepositoryFuture<'a> =
     Pin<Box<dyn Future<Output = Result<WikiSettingsSnapshot, AppError>> + Send + 'a>>;
 
@@ -1404,6 +1643,23 @@ mod tests {
         requested_revisions: std::sync::Mutex<Vec<(Uuid, Uuid)>>,
     }
 
+    struct RecordingDossierRepository {
+        task: shared::TaskPageResponse,
+        phase: shared::PhasePageResponse,
+        document: shared::DocumentResponse,
+        evidence: shared::EvidenceResponse,
+        listed_tasks: std::sync::Mutex<Vec<(Uuid, String)>>,
+        requested_tasks: std::sync::Mutex<Vec<(Uuid, String, String)>>,
+        linked_tasks: std::sync::Mutex<Vec<(Uuid, WikiLinkTaskDocumentCommand)>>,
+        listed_task_documents: std::sync::Mutex<Vec<(Uuid, String, String)>>,
+        listed_task_evidence: std::sync::Mutex<Vec<(Uuid, String, String)>>,
+        listed_phases: std::sync::Mutex<Vec<(Uuid, String)>>,
+        requested_phases: std::sync::Mutex<Vec<(Uuid, String, String)>>,
+        linked_phases: std::sync::Mutex<Vec<(Uuid, WikiLinkPhaseDocumentCommand)>>,
+        listed_phase_documents: std::sync::Mutex<Vec<(Uuid, String, String)>>,
+        listed_phase_evidence: std::sync::Mutex<Vec<(Uuid, String, String)>>,
+    }
+
     struct StaticSettingsRepository {
         snapshot: WikiSettingsSnapshot,
     }
@@ -1777,6 +2033,154 @@ mod tests {
         }
     }
 
+    impl WikiDossierRepository for RecordingDossierRepository {
+        fn list_tasks<'a>(
+            &'a self,
+            space_id: Uuid,
+            space_key: &'a str,
+        ) -> WikiDossierRepositoryFuture<'a, Vec<shared::TaskPageResponse>> {
+            Box::pin(async move {
+                self.listed_tasks
+                    .lock()
+                    .expect("listed tasks should be lockable")
+                    .push((space_id, space_key.to_string()));
+                Ok(vec![self.task.clone()])
+            })
+        }
+
+        fn get_task<'a>(
+            &'a self,
+            space_id: Uuid,
+            space_key: &'a str,
+            task_key: &'a str,
+        ) -> WikiDossierRepositoryFuture<'a, shared::TaskPageResponse> {
+            Box::pin(async move {
+                self.requested_tasks
+                    .lock()
+                    .expect("task requests should be lockable")
+                    .push((space_id, space_key.to_string(), task_key.to_string()));
+                Ok(self.task.clone())
+            })
+        }
+
+        fn link_task_document<'a>(
+            &'a self,
+            actor_id: Uuid,
+            command: WikiLinkTaskDocumentCommand,
+        ) -> WikiDossierRepositoryFuture<'a, shared::TaskPageResponse> {
+            Box::pin(async move {
+                self.linked_tasks
+                    .lock()
+                    .expect("task link commands should be lockable")
+                    .push((actor_id, command));
+                Ok(self.task.clone())
+            })
+        }
+
+        fn list_task_documents<'a>(
+            &'a self,
+            space_id: Uuid,
+            space_key: &'a str,
+            task_key: &'a str,
+        ) -> WikiDossierRepositoryFuture<'a, Vec<shared::DocumentResponse>> {
+            Box::pin(async move {
+                self.listed_task_documents
+                    .lock()
+                    .expect("listed task documents should be lockable")
+                    .push((space_id, space_key.to_string(), task_key.to_string()));
+                Ok(vec![self.document.clone()])
+            })
+        }
+
+        fn list_task_evidence<'a>(
+            &'a self,
+            space_id: Uuid,
+            space_key: &'a str,
+            task_key: &'a str,
+        ) -> WikiDossierRepositoryFuture<'a, Vec<shared::EvidenceResponse>> {
+            Box::pin(async move {
+                self.listed_task_evidence
+                    .lock()
+                    .expect("listed task evidence should be lockable")
+                    .push((space_id, space_key.to_string(), task_key.to_string()));
+                Ok(vec![self.evidence.clone()])
+            })
+        }
+
+        fn list_phases<'a>(
+            &'a self,
+            space_id: Uuid,
+            space_key: &'a str,
+        ) -> WikiDossierRepositoryFuture<'a, Vec<shared::PhasePageResponse>> {
+            Box::pin(async move {
+                self.listed_phases
+                    .lock()
+                    .expect("listed phases should be lockable")
+                    .push((space_id, space_key.to_string()));
+                Ok(vec![self.phase.clone()])
+            })
+        }
+
+        fn get_phase<'a>(
+            &'a self,
+            space_id: Uuid,
+            space_key: &'a str,
+            phase_key: &'a str,
+        ) -> WikiDossierRepositoryFuture<'a, shared::PhasePageResponse> {
+            Box::pin(async move {
+                self.requested_phases
+                    .lock()
+                    .expect("phase requests should be lockable")
+                    .push((space_id, space_key.to_string(), phase_key.to_string()));
+                Ok(self.phase.clone())
+            })
+        }
+
+        fn link_phase_document<'a>(
+            &'a self,
+            actor_id: Uuid,
+            command: WikiLinkPhaseDocumentCommand,
+        ) -> WikiDossierRepositoryFuture<'a, shared::PhasePageResponse> {
+            Box::pin(async move {
+                self.linked_phases
+                    .lock()
+                    .expect("phase link commands should be lockable")
+                    .push((actor_id, command));
+                Ok(self.phase.clone())
+            })
+        }
+
+        fn list_phase_documents<'a>(
+            &'a self,
+            space_id: Uuid,
+            space_key: &'a str,
+            phase_key: &'a str,
+        ) -> WikiDossierRepositoryFuture<'a, Vec<shared::DocumentResponse>> {
+            Box::pin(async move {
+                self.listed_phase_documents
+                    .lock()
+                    .expect("listed phase documents should be lockable")
+                    .push((space_id, space_key.to_string(), phase_key.to_string()));
+                Ok(vec![self.document.clone()])
+            })
+        }
+
+        fn list_phase_evidence<'a>(
+            &'a self,
+            space_id: Uuid,
+            space_key: &'a str,
+            phase_key: &'a str,
+        ) -> WikiDossierRepositoryFuture<'a, Vec<shared::EvidenceResponse>> {
+            Box::pin(async move {
+                self.listed_phase_evidence
+                    .lock()
+                    .expect("listed phase evidence should be lockable")
+                    .push((space_id, space_key.to_string(), phase_key.to_string()));
+                Ok(vec![self.evidence.clone()])
+            })
+        }
+    }
+
     impl WikiSettingsRepository for StaticSettingsRepository {
         fn get_settings<'a>(&'a self) -> WikiSettingsRepositoryFuture<'a> {
             Box::pin(async move { Ok(self.snapshot.clone()) })
@@ -2066,6 +2470,74 @@ mod tests {
         }
     }
 
+    fn document_summary(
+        document_id: Uuid,
+        slug: &str,
+        title: &str,
+    ) -> shared::DocumentSummaryResponse {
+        shared::DocumentSummaryResponse {
+            id: document_id.to_string(),
+            slug: slug.to_string(),
+            title: title.to_string(),
+            document_type: "requirements".to_string(),
+            status: "published".to_string(),
+            updated_at: "2026-09-01T10:00:00Z".to_string(),
+        }
+    }
+
+    fn evidence_response(title: &str) -> shared::EvidenceResponse {
+        shared::EvidenceResponse {
+            id: Uuid::now_v7().to_string(),
+            space_key: "SDLC".to_string(),
+            document_id: None,
+            task_key: Some("SDLC-42".to_string()),
+            phase_key: Some("implementation".to_string()),
+            title: title.to_string(),
+            evidence_type: "external_url".to_string(),
+            url: Some("https://ci.local/jobs/42".to_string()),
+            attachment_id: None,
+            checksum: None,
+            created_by: Uuid::now_v7().to_string(),
+            created_at: "2026-09-01T10:00:00Z".to_string(),
+        }
+    }
+
+    fn task_page_response(document_id: Uuid) -> shared::TaskPageResponse {
+        let evidence = vec![evidence_response("Task evidence")];
+        let documents = vec![document_summary(
+            document_id,
+            "requirements",
+            "Requirements",
+        )];
+        shared::TaskPageResponse {
+            space_key: "SDLC".to_string(),
+            task_key: "SDLC-42".to_string(),
+            title: Some("Requirements".to_string()),
+            document_count: documents.len(),
+            evidence_count: evidence.len(),
+            documents,
+            evidence,
+        }
+    }
+
+    fn phase_page_response(document_id: Uuid) -> shared::PhasePageResponse {
+        let evidence = vec![evidence_response("Phase evidence")];
+        let documents = vec![document_summary(
+            document_id,
+            "implementation",
+            "Implementation",
+        )];
+        shared::PhasePageResponse {
+            space_key: "SDLC".to_string(),
+            phase_key: "implementation".to_string(),
+            title: Some("implementation".to_string()),
+            document_count: documents.len(),
+            evidence_count: evidence.len(),
+            documents,
+            evidence,
+        }
+    }
+
     fn recording_document_repository() -> RecordingDocumentRepository {
         let document_id = Uuid::now_v7();
         let revision_id = Uuid::now_v7();
@@ -2087,6 +2559,26 @@ mod tests {
             moved: std::sync::Mutex::new(Vec::new()),
             listed_revisions: std::sync::Mutex::new(Vec::new()),
             requested_revisions: std::sync::Mutex::new(Vec::new()),
+        }
+    }
+
+    fn recording_dossier_repository() -> RecordingDossierRepository {
+        let document_id = Uuid::now_v7();
+        RecordingDossierRepository {
+            task: task_page_response(document_id),
+            phase: phase_page_response(document_id),
+            document: document_response(document_id, "requirements", "Requirements", None),
+            evidence: evidence_response("Evidence"),
+            listed_tasks: std::sync::Mutex::new(Vec::new()),
+            requested_tasks: std::sync::Mutex::new(Vec::new()),
+            linked_tasks: std::sync::Mutex::new(Vec::new()),
+            listed_task_documents: std::sync::Mutex::new(Vec::new()),
+            listed_task_evidence: std::sync::Mutex::new(Vec::new()),
+            listed_phases: std::sync::Mutex::new(Vec::new()),
+            requested_phases: std::sync::Mutex::new(Vec::new()),
+            linked_phases: std::sync::Mutex::new(Vec::new()),
+            listed_phase_documents: std::sync::Mutex::new(Vec::new()),
+            listed_phase_evidence: std::sync::Mutex::new(Vec::new()),
         }
     }
 
@@ -2752,6 +3244,198 @@ mod tests {
                         phase_key: None,
                     },
                 )
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn wiki_dossier_use_case_normalizes_task_reads_and_links() {
+        let repository = recording_dossier_repository();
+        let use_case = WikiDossierUseCase::new(&repository);
+        let actor_id = Uuid::now_v7();
+        let space_id = Uuid::now_v7();
+        let document_id = Uuid::now_v7();
+
+        let tasks = use_case.list_tasks(space_id, " sdlc ").await.unwrap();
+        assert_eq!(tasks.tasks.len(), 1);
+        assert_eq!(
+            repository
+                .listed_tasks
+                .lock()
+                .expect("listed tasks should be lockable")
+                .as_slice(),
+            [(space_id, "SDLC".to_string())]
+        );
+
+        let task = use_case
+            .get_task(space_id, "sdlc", " SDLC-42 ")
+            .await
+            .unwrap();
+        assert_eq!(task.task_key, "SDLC-42");
+        assert_eq!(
+            repository
+                .requested_tasks
+                .lock()
+                .expect("task requests should be lockable")
+                .as_slice(),
+            [(space_id, "SDLC".to_string(), "SDLC-42".to_string())]
+        );
+
+        let documents = use_case
+            .list_task_documents(space_id, "sdlc", "SDLC-42")
+            .await
+            .unwrap();
+        assert_eq!(documents.documents.len(), 1);
+        assert_eq!(
+            repository
+                .listed_task_documents
+                .lock()
+                .expect("listed task documents should be lockable")
+                .as_slice(),
+            [(space_id, "SDLC".to_string(), "SDLC-42".to_string())]
+        );
+
+        let evidence = use_case
+            .list_task_evidence(space_id, "sdlc", "SDLC-42")
+            .await
+            .unwrap();
+        assert_eq!(evidence.evidence.len(), 1);
+        assert_eq!(
+            repository
+                .listed_task_evidence
+                .lock()
+                .expect("listed task evidence should be lockable")
+                .as_slice(),
+            [(space_id, "SDLC".to_string(), "SDLC-42".to_string())]
+        );
+
+        use_case
+            .link_task_document(actor_id, space_id, "sdlc", " SDLC-42 ", document_id)
+            .await
+            .unwrap();
+        assert_eq!(
+            repository
+                .linked_tasks
+                .lock()
+                .expect("task link commands should be lockable")
+                .as_slice(),
+            [(
+                actor_id,
+                WikiLinkTaskDocumentCommand {
+                    space_id,
+                    space_key: "SDLC".to_string(),
+                    task_key: "SDLC-42".to_string(),
+                    document_id,
+                }
+            )]
+        );
+
+        assert!(
+            use_case
+                .get_task(space_id, "bad space", "SDLC-42")
+                .await
+                .is_err()
+        );
+        assert!(
+            use_case
+                .get_task(space_id, "SDLC", "SDLC 42")
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn wiki_dossier_use_case_normalizes_phase_reads_and_links() {
+        let repository = recording_dossier_repository();
+        let use_case = WikiDossierUseCase::new(&repository);
+        let actor_id = Uuid::now_v7();
+        let space_id = Uuid::now_v7();
+        let document_id = Uuid::now_v7();
+
+        let phases = use_case.list_phases(space_id, " sdlc ").await.unwrap();
+        assert_eq!(phases.phases.len(), 1);
+        assert_eq!(
+            repository
+                .listed_phases
+                .lock()
+                .expect("listed phases should be lockable")
+                .as_slice(),
+            [(space_id, "SDLC".to_string())]
+        );
+
+        let phase = use_case
+            .get_phase(space_id, "sdlc", " Implementation ")
+            .await
+            .unwrap();
+        assert_eq!(phase.phase_key, "implementation");
+        assert_eq!(
+            repository
+                .requested_phases
+                .lock()
+                .expect("phase requests should be lockable")
+                .as_slice(),
+            [(space_id, "SDLC".to_string(), "implementation".to_string())]
+        );
+
+        let documents = use_case
+            .list_phase_documents(space_id, "sdlc", "Implementation")
+            .await
+            .unwrap();
+        assert_eq!(documents.documents.len(), 1);
+        assert_eq!(
+            repository
+                .listed_phase_documents
+                .lock()
+                .expect("listed phase documents should be lockable")
+                .as_slice(),
+            [(space_id, "SDLC".to_string(), "implementation".to_string())]
+        );
+
+        let evidence = use_case
+            .list_phase_evidence(space_id, "sdlc", "Implementation")
+            .await
+            .unwrap();
+        assert_eq!(evidence.evidence.len(), 1);
+        assert_eq!(
+            repository
+                .listed_phase_evidence
+                .lock()
+                .expect("listed phase evidence should be lockable")
+                .as_slice(),
+            [(space_id, "SDLC".to_string(), "implementation".to_string())]
+        );
+
+        use_case
+            .link_phase_document(actor_id, space_id, "sdlc", " Implementation ", document_id)
+            .await
+            .unwrap();
+        assert_eq!(
+            repository
+                .linked_phases
+                .lock()
+                .expect("phase link commands should be lockable")
+                .as_slice(),
+            [(
+                actor_id,
+                WikiLinkPhaseDocumentCommand {
+                    space_id,
+                    space_key: "SDLC".to_string(),
+                    phase_key: "implementation".to_string(),
+                    document_id,
+                }
+            )]
+        );
+
+        assert!(
+            use_case
+                .get_phase(space_id, "bad space", "implementation")
+                .await
+                .is_err()
+        );
+        assert!(
+            use_case
+                .get_phase(space_id, "SDLC", "_implementation")
                 .await
                 .is_err()
         );

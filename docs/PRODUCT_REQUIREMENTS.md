@@ -26,7 +26,7 @@ MVP включает только базовую Wiki-функционально
 - документы и дерево страниц;
 - Markdown draft/publish;
 - история версий;
-- связь документов с task key;
+- связь документов и evidence с task key;
 - связь документов и evidence с phase key;
 - файлы и ссылки как evidence;
 - поиск;
@@ -248,7 +248,7 @@ CLI requirements:
 2. Editor создаёт страницу из шаблона, редактирует Markdown и публикует ревизию.
 3. Viewer открывает опубликованную страницу, но не может изменить её.
 4. Editor строит parent/child дерево и перемещает страницу внутри space.
-5. Документ связывается с task key; task page показывает связанные документы.
+5. Документ/evidence связывается с task key; task page показывает связанные материалы.
 6. Документ и evidence связываются с phase key; phase page показывает связанные материалы.
 7. Editor добавляет URL evidence и file evidence, checksum виден в metadata.
 8. Поиск находит документ по title/body и уважает права пользователя.
