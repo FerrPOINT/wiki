@@ -38,11 +38,11 @@
 
 ## Verified Checks
 
-- Latest backend WSL compile check after removing copied tracker modules: `cargo check --workspace`.
-- PostgreSQL smoke runner added: `pwsh -File scripts/postgres-smoke.ps1`, which starts `backend/docker-compose.test.yml` and runs `cargo test -p api wiki_postgres_ -- --test-threads=1 --nocapture`.
-- Previous full backend regression passed before this cleanup: `cargo fmt --all -- --check`, `cargo test --workspace -- --test-threads=1 --nocapture`, `cargo clippy --workspace --all-targets -- -D warnings`.
-- Previous frontend regression passed before this cleanup: `npm run typecheck`, `npm run test`, `npm run lint`, `npm run format:check`, `npm run build`, `npm run test:e2e -- --project=chromium`, `npm run shoot:evidence`.
-- Static checks previously confirmed no active references to removed `/integrations`, `/reports` or `/notifications` routes, no unresolved placeholder markers, no short Markdown docs and screenshot refs with `missing=0`.
+- Latest backend WSL regression after PostgreSQL smoke/FTS evidence changes: `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test --workspace -- --test-threads=1 --nocapture`, `cargo clippy --workspace --all-targets -- -D warnings`.
+- Focused PostgreSQL test group compiles and safely skips without DB: `cargo test -p api wiki_postgres_ -- --test-threads=1 --nocapture`.
+- Latest frontend regression after documentation/test changes: `npm run typecheck`, `npm run test`, `npm run lint`, `npm run build`.
+- PostgreSQL smoke runner syntax check passed; `pwsh -File scripts/postgres-smoke.ps1` currently stops with a clear Docker-daemon unavailable message on this host.
+- Static checks confirmed no active references to removed `/integrations`, `/reports` or `/notifications` routes, no unresolved placeholder markers, no short Markdown docs, screenshot refs with `missing=0`, OpenAPI `bad_paths=0` and CI/CD docs parity `missing_from_wiki=0`.
 
 ## Known Local Environment Limits
 
