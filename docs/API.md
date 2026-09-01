@@ -162,7 +162,7 @@ The pre-development API contract is frozen when these checks pass:
 
 | Area | Required behavior |
 | ---- | ----------------- |
-| Auth | Bad credentials return an auth error; disabled registration returns `403`; missing/invalid bearer tokens return the standard error envelope; logout invalidates both access and refresh token paths for the current session. |
+| Auth | Bad credentials return an auth error; disabled registration returns `403`; missing/invalid bearer tokens return the standard error envelope; refresh rotates access and refresh token paths; logout invalidates both token paths for the current session. |
 | Access | No role or removed membership blocks document, tree, evidence, attachment and search reads for that space. |
 | Spaces | Archived spaces reject document, evidence and task/phase link write commands while keeping read/admin visibility. |
 | Documents | Archived documents reject `draft`, `publish`, `move`, `archive` and task/phase link writes; duplicate slugs return conflict; cyclic moves return validation error. |

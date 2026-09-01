@@ -520,6 +520,10 @@ pub async fn refresh(
         .filter(|user| user.active)
         .cloned()
         .ok_or(shared::AppError::Unauthorized)?;
+    store
+        .tokens
+        .retain(|_, token_user_id| token_user_id != &user_id);
+    store.refresh_tokens.remove(&body.refresh_token);
     Ok(Json(auth_response(&mut store, &user)))
 }
 

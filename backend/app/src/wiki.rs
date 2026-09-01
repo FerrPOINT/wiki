@@ -38,6 +38,8 @@ pub struct WikiTokenClaims {
     pub exp: usize,
     pub jti: String,
     pub typ: String,
+    #[serde(default)]
+    pub token_id: String,
 }
 
 #[derive(Debug, Clone)]
@@ -1756,6 +1758,7 @@ pub fn create_token(
         exp: exp.timestamp() as usize,
         jti: session_id.to_string(),
         typ: token_type.to_string(),
+        token_id: Uuid::now_v7().to_string(),
     };
     jsonwebtoken::encode(
         &Header::default(),
@@ -4566,6 +4569,7 @@ mod tests {
         assert_eq!(claims.sub, user_id.to_string());
         assert_eq!(claims.jti, session_id.to_string());
         assert_eq!(claims.typ, "access");
+        assert!(!claims.token_id.is_empty());
         assert!(matches!(
             decode_token(&config, &token, "refresh"),
             Err(AppError::Unauthorized)
@@ -4592,6 +4596,32 @@ mod tests {
         assert_eq!(refresh.sub, user_id.to_string());
         assert_eq!(access.jti, session_id.to_string());
         assert_eq!(refresh.jti, session_id.to_string());
+        assert_ne!(access.token_id, refresh.token_id);
+        assert!(!access.token_id.is_empty());
+        assert!(!refresh.token_id.is_empty());
+    }
+
+    #[test]
+    fn wiki_auth_token_pair_rotates_refresh_token_for_same_session() {
+        let config = test_auth_config();
+        let user_id = Uuid::now_v7();
+        let session_id = Uuid::now_v7();
+
+        let first = create_wiki_token_pair(&config, user_id, session_id)
+            .expect("first token pair should be created");
+        let second = create_wiki_token_pair(&config, user_id, session_id)
+            .expect("second token pair should be created");
+
+        assert_eq!(first.session_id, second.session_id);
+        assert_ne!(first.access_token, second.access_token);
+        assert_ne!(first.refresh_token, second.refresh_token);
+
+        let first_refresh = decode_token(&config, &first.refresh_token, "refresh")
+            .expect("first refresh token should decode");
+        let second_refresh = decode_token(&config, &second.refresh_token, "refresh")
+            .expect("second refresh token should decode");
+        assert_eq!(first_refresh.jti, second_refresh.jti);
+        assert_ne!(first_refresh.token_id, second_refresh.token_id);
     }
 
     #[test]

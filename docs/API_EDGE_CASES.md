@@ -12,6 +12,7 @@
 | -------------------------------------- | ----------------------------------------- |
 | Missing/invalid access token           | `401 UNAUTHORIZED` with standard error envelope |
 | Invalid refresh token                  | `401 UNAUTHORIZED`, требуется новый login |
+| Refresh with valid refresh token       | Access and refresh tokens are rotated; previously issued tokens for that session stop authenticating |
 | Logout with current access token       | Current session access and refresh token paths are invalidated |
 | Registration disabled                  | `403 FORBIDDEN`                           |
 | User removed from space during session | Следующий запрос к space возвращает `403` |
