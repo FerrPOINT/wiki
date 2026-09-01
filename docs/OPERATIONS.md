@@ -32,7 +32,20 @@
 - CORS and public URL match deployment host.
 - Backups enabled before first production traffic.
 
-## 5. Common Incidents
+## 5. Readiness Gates
+
+| Gate | Required before main development | Required before production |
+| ---- | -------------------------------- | -------------------------- |
+| API health/readiness documented | yes | yes |
+| Docker compose config renders | yes | yes |
+| WSL PostgreSQL smoke on this host | yes, accepted fallback | no, Docker or target env smoke preferred |
+| Docker PostgreSQL smoke | only where Docker is available | yes |
+| Backup/restore procedure documented | yes | yes |
+| Backup restore drill executed | no | yes |
+| TLS/CORS/secrets reviewed for target host | no | yes |
+| Security scanner and dependency audit | no | yes |
+
+## 6. Common Incidents
 
 | Incident | First Action |
 |---|---|
@@ -42,9 +55,10 @@
 | Duplicate evidence | Check idempotency keys and source refs |
 | Permission leak suspicion | Disable affected user/session, inspect audit |
 
-## 6. References
+## 7. References
 
 - `docs/TROUBLESHOOTING.md`
 - `docs/DISASTER_RECOVERY.md`
 - `docs/INCIDENT_RESPONSE.md`
 - `docs/METRICS.md`
+- `docs/MVP_READINESS.md`

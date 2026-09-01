@@ -8,11 +8,12 @@ This index is the entry point for Wiki architecture. It separates verified curre
 
 1. `docs/PRODUCT_REQUIREMENTS.md` - requirements and REQ-ID catalog.
 2. `docs/CURRENT_STATE.md` - current vs target capability snapshot.
-3. `docs/FUNCTIONAL_ARCHITECTURE.md` - capability map and bounded contexts.
-4. `docs/ARCHITECTURE.md` - runtime and workspace layout.
-5. `docs/DOMAIN_MODEL.md` - aggregates and invariants.
-6. `docs/DATA_MODEL.md` - target database model.
-7. `docs/IMPLEMENTATION_CONTRACTS.md` - implementation rules and contract index.
+3. `docs/MVP_READINESS.md` - 100% gate before main development.
+4. `docs/FUNCTIONAL_ARCHITECTURE.md` - capability map and bounded contexts.
+5. `docs/ARCHITECTURE.md` - runtime and workspace layout.
+6. `docs/DOMAIN_MODEL.md` - aggregates and invariants.
+7. `docs/DATA_MODEL.md` - target database model.
+8. `docs/IMPLEMENTATION_CONTRACTS.md` - implementation rules and contract index.
 
 ## Bounded Contexts
 
@@ -28,6 +29,7 @@ This index is the entry point for Wiki architecture. It separates verified curre
 ## SDLC Quality Set
 
 - `docs/TRACEABILITY.md` - requirements traceability matrix.
+- `docs/MVP_READINESS.md` - pre-development go/no-go checklist.
 - `docs/TEST_PLAN.md` - verification strategy.
 - `docs/THREAT_MODEL.md` - trust boundaries and abuse cases.
 - `docs/RISK_REGISTER.md` - product and delivery risks.

@@ -84,9 +84,19 @@
 | Unmapped database error     | `500 INTERNAL_ERROR`; infrastructure details stay in logs |
 | Serialization conflict      | `500 INTERNAL_ERROR` until retryable conflicts are mapped |
 
-## 9. References
+## 9. Settings And Operations
+
+| Scenario | Behavior |
+| -------- | -------- |
+| Non-admin requests settings | `403 FORBIDDEN` |
+| Settings response would include secret-like value | Field is omitted from response and logs |
+| API process is live but dependencies are not ready | `/api/v1/health` succeeds, `/api/v1/health/ready` returns not ready |
+| Metrics endpoint is unavailable behind edge proxy | API contract remains valid; operator checks deployment routing |
+
+## 10. References
 
 - `docs/API.md`
 - `docs/ERROR_HANDLING.md`
+- `docs/MVP_READINESS.md`
 - `docs/TESTING.md`
 - `docs/RESILIENCE.md`

@@ -11,6 +11,7 @@
 
 | Group | Paths |
 |---|---|
+| Health | `/health`, `/health/ready` |
 | Auth | `/auth/*`, `/users/me` |
 | Spaces | `/spaces`, `/spaces/{space_key}` |
 | Documents | `/documents/*`, `/spaces/{space_key}/documents` |
@@ -21,6 +22,8 @@
 | Search | `/search` |
 | Admin | `/users`, `/settings`, `/audit-log` |
 
+`/metrics` is an operational Prometheus endpoint outside versioned `/api/v1` and outside OpenAPI v1.
+
 ## 3. Rules
 
 - Create endpoints return `201 Created`.
@@ -28,3 +31,4 @@
 - `Idempotency-Key` is required for mutating commands that need deduplication.
 - OpenAPI is generated from code and committed.
 - Generated frontend client must match OpenAPI.
+- CLI command groups map to this public API or explicitly document an API-only exception.

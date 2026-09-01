@@ -22,6 +22,7 @@
 | Frontend API-backed pages | Current | Dashboard, spaces, documents, tasks, phases, evidence, templates, users, settings, admin overview, audit and search read from the public Wiki API; create/edit/publish/archive/move document, create user, URL evidence and file evidence forms call the same API. |
 | Screenshot evidence | Current | 17 desktop and 5 mobile screenshots exist for the MVP page set; README renders the gallery inline and `docs/assets/screens/manifest.md` references the same files. |
 | Documentation set | Current | CI/CD-style documentation filename parity is preserved. User guide, test plan and threat model now explicitly cover the MVP page map, API/CLI parity, screenshot evidence and security controls without adding deferred task-tracker scope. |
+| Pre-development readiness | Current | `docs/MVP_READINESS.md` defines the 100% gate for starting main development, with capability coverage, design freeze, API/CLI freeze, negative cases, developer handoff and go/no-go checklist. |
 
 ## Functional Coverage
 
@@ -54,7 +55,12 @@
 
 ## Remaining Gaps
 
+No known blockers remain for starting main Wiki development.
+
+Production/release gates still remain:
+
 - Run the Docker-backed PostgreSQL smoke on a host where Docker Desktop is available, in addition to the already passing WSL PostgreSQL smoke.
 - Keep expanding repository/API coverage for less common permission edge cases after the DB smoke can run.
+- Execute a backup/restore drill and target-host TLS/CORS/secrets review.
 - Replace handwritten frontend endpoint wrappers with a generated operation client after the API contract stabilizes.
 - Keep screenshots regenerated after any UI or route change.

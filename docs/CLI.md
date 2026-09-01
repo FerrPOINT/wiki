@@ -10,6 +10,45 @@
 --output    json|table|compact (env: WIKI_OUTPUT, default: json)
 ```
 
+## Output, Input And Exit Contract
+
+`json` is canonical for automation and tests. `table` and `compact` are human presentation modes over the same response data.
+
+Successful JSON output is the API response, pretty-printed without adding hidden fields. Empty `204` responses are normalized to:
+
+```json
+{
+  "status": "ok"
+}
+```
+
+API errors are parsed from the same envelope used by HTTP clients:
+
+```json
+{
+  "error": {
+    "code": "FORBIDDEN",
+    "message": "space role is required"
+  }
+}
+```
+
+CLI stderr keeps the HTTP status, API code, message, optional request id and validation details, for example:
+
+```text
+API returned 400 Bad Request: VALIDATION_ERROR: Request validation failed; requestId=req-binary; details=q: too short
+```
+
+CLI exit codes for MVP:
+
+| Code | Meaning |
+| ---- | ------- |
+| `0` | Command completed successfully, or help/version was printed |
+| `1` | Runtime failure: API error, network failure, non-JSON API response, file read/write failure |
+| `2` | CLI usage error emitted by `clap` before command execution |
+
+Markdown input for `--from-file` accepts a filesystem path or `-` for stdin. Attachment download writes only to the path passed in `--out`.
+
 ## Команды MVP
 
 ### Auth
@@ -107,6 +146,40 @@ wiki search query "archived decision" --space SDLC --include-archived
 wiki audit list
 wiki settings get
 ```
+
+## Contract Freeze
+
+CLI is ready for main development when:
+
+- every command group maps to the public `/api/v1` API documented in `docs/API.md`;
+- JSON is the default output for every command and table/compact modes are presentation-only;
+- non-2xx API responses produce a non-zero exit code and render the API error code/message;
+- write commands preserve `Idempotency-Key` behavior for safe retries;
+- Markdown input works from a path or stdin through `--from-file -`;
+- attachment download writes only to the requested local path and does not expose server storage keys.
+
+## API Coverage Notes
+
+| API area | CLI coverage |
+| -------- | ------------ |
+| Auth and current user | `wiki auth login/logout/whoami`; registration and token refresh are documented exceptions below |
+| Users and roles | `wiki user`, `wiki space members/member-set/member-remove` |
+| Spaces and tree | `wiki space list/create/update/archive/get/tree` |
+| Documents and revisions | `wiki doc create/get/draft/publish/archive/move/history/revision` |
+| Task dossiers | `wiki task list/get/docs/evidence/link-doc` |
+| Phase dossiers | `wiki phase list/get/docs/evidence/link-doc` |
+| Evidence and attachments | `wiki evidence`, `wiki attachment` |
+| Templates/search/audit/settings | `wiki template`, `wiki search`, `wiki audit`, `wiki settings` |
+
+Documented API-only or non-CLI MVP surfaces:
+
+| Surface | Reason |
+| ------- | ------ |
+| `/api/v1/auth/register` | Public self-registration is a UI/API flow; admins can create users through `wiki user create`. |
+| `/api/v1/auth/refresh` | CLI MVP accepts a bearer token through `--token`/`WIKI_TOKEN`; automated refresh can be added after token storage policy is approved. |
+| `/api/v1/health`, `/api/v1/health/ready` | Operator probes are checked with HTTP tooling and deployment monitors. |
+| `/metrics` | Prometheus scrape endpoint outside versioned `/api/v1` and outside OpenAPI v1. |
+| `openapi/openapi.json` | Contract artifact consumed by generators/tests, not a runtime command. |
 
 ## Требования
 

@@ -138,7 +138,33 @@ Canonical `evidence_type` values for MVP are `external_url` and `uploaded_file`.
 ## 13. Deferred API Areas
 
 - Comments.
-- Advanced reports.
+- Reports.
+- Notifications.
+- Integrations and source-specific tokens.
 - Approval chains.
 - Import/export bundles.
-- Webhook delivery.
+- Webhook ingestion or delivery.
+- Runner/worker control protocols.
+
+## 14. Contract Freeze For Main Development
+
+The pre-development API contract is frozen when these checks pass:
+
+- every runtime `/api/v1` route appears in `openapi/openapi.json`;
+- every OpenAPI path appears in this document and in `docs/PRODUCT_REQUIREMENTS.md`;
+- frontend generated DTOs compile against the committed OpenAPI artifact;
+- UI and CLI call only public API endpoints, never PostgreSQL or storage internals;
+- The Prometheus metrics endpoint is documented in operations but is not part of the versioned `/api/v1` OpenAPI contract.
+
+## 15. Required Negative Cases
+
+| Area | Required behavior |
+| ---- | ----------------- |
+| Auth | Bad credentials return an auth error; disabled registration returns `403`; logout invalidates the session token path. |
+| Access | No role or removed membership blocks document, tree, evidence, attachment and search reads for that space. |
+| Documents | Archived documents reject `draft`, `publish` and `move`; duplicate slugs return conflict; cyclic moves return validation error. |
+| Evidence | Evidence must target at least one document/task/phase; explicit `space` cannot conflict with document space. |
+| Attachments | Empty upload, unsafe filename, oversized body and unauthorized download are rejected. |
+| Search | Results are bounded, permission-filtered and do not expose unpublished draft text. |
+| Settings | Secrets, connection strings, storage paths and bootstrap credentials are never returned. |
+| Health | `/health/ready` fails until runtime dependencies are initialized. |

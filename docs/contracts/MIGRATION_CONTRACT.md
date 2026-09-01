@@ -14,6 +14,7 @@
 - Existing DB migration test when changing released schema.
 - Downgrade story or explicit irreversible note.
 - Data model docs updated.
+- `docs/MVP_READINESS.md` and `docs/CURRENT_STATE.md` updated when migration readiness changes.
 
 ## 3. Migration Classes
 
@@ -37,3 +38,4 @@
 - Migration applies to previous released database fixture.
 - Rollback/restore instruction exists for destructive or irreversible changes.
 - `DATA_MODEL.md`, `DATABASE_INDEXES.md` and `CURRENT_STATE.md` are updated.
+- Table/index/constraint categories remain reflected in the data-model migration parity gate.

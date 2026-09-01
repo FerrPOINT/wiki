@@ -5,6 +5,7 @@
 ## С чего начать
 
 - [CURRENT_STATE](CURRENT_STATE.md) - что реально готово сейчас и где границы MVP.
+- [MVP_READINESS](MVP_READINESS.md) - 100% gate перед началом основной разработки.
 - [PRODUCT_REQUIREMENTS](PRODUCT_REQUIREMENTS.md) - основной документ требований Wiki.
 - [ARCHITECTURE_INDEX](ARCHITECTURE_INDEX.md) - вход в архитектуру, ADR и bounded contexts.
 - [USER_GUIDE](USER_GUIDE.md) - пользовательские сценарии базовой Wiki.
@@ -17,6 +18,7 @@
 - [CLI](CLI.md) - консольный клиент к тому же API.
 - [ROUTING](ROUTING.md), [PAGE_DESIGN](PAGE_DESIGN.md), [UI_UX](UI_UX.md) - утвержденные frontend routes и страницы.
 - [TRACEABILITY](TRACEABILITY.md) - связь требований, API, UI, тестов и visual evidence.
+- [MVP_READINESS](MVP_READINESS.md) - итоговый go/no-go checklist и readiness coverage.
 - [assets/screens/manifest.md](assets/screens/manifest.md) - manifest скриншотов; PNG лежат в [screenshots/](screenshots/).
 
 ## Архитектура И Данные

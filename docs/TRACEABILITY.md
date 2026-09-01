@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-Traceability links requirements to API, data model, UI, tests and evidence.
+Traceability links requirements to API, data model, UI, CLI, tests and evidence. The 100% pre-development readiness gate is defined in `docs/MVP_READINESS.md`.
 
 ## 2. Matrix
 
@@ -39,11 +39,24 @@ Traceability links requirements to API, data model, UI, tests and evidence.
 | REQ-CLI-001   | CLI              | Same `/api/v1` endpoints                                              | none direct                                                | `wiki` binary                                                 | CLI command tests               |
 | REQ-UI-001    | UI               | Same `/api/v1` endpoints                                              | none direct                                                | MVP route set in `docs/ROUTING.md`                            | Vitest, Playwright, screenshots |
 
-## 3. Evidence Rule
+## 3. Readiness Coverage Rule
+
+For pre-development readiness, every MVP capability must have all of these fields accounted for in `docs/MVP_READINESS.md`:
+
+| Field | Meaning |
+| ----- | ------- |
+| User scenario | What a person or operator does with the capability |
+| API | Public endpoint group or explicit API-only artifact |
+| CLI | Matching CLI group or explicit API-only exception |
+| UI | Frontend route, page area or explicit no-route note |
+| Data | Primary table/entity or runtime state |
+| Evidence | Test class, screenshot, manifest or operational check |
+
+## 4. Evidence Rule
 
 A REQ is complete only when docs, API/schema, tests and user-facing route are all updated or explicitly marked not applicable.
 
-## 4. Status Labels
+## 5. Status Labels
 
 | Status               | Meaning                                             |
 | -------------------- | --------------------------------------------------- |
@@ -52,7 +65,7 @@ A REQ is complete only when docs, API/schema, tests and user-facing route are al
 | `Configuration only` | UI/config exists but runtime behavior is incomplete |
 | `Blocked`            | Cannot progress without dependency or decision      |
 
-## 5. Evidence Types
+## 6. Evidence Types
 
 | Evidence | Examples                                          |
 | -------- | ------------------------------------------------- |
@@ -62,9 +75,11 @@ A REQ is complete only when docs, API/schema, tests and user-facing route are al
 | Screens  | screenshot manifest and README gallery            |
 | Ops      | runbook, metrics, alert, backup/restore drill     |
 
-## 6. Review Checklist
+## 7. Review Checklist
 
 - Every P0/P1 row has a user-facing route or explicit API-only note.
 - Every implemented route has at least one linked requirement.
 - Every screenshot in README is listed in `assets/screens/manifest.md`.
+- Every row in `docs/MVP_READINESS.md` has a matching requirement, API or explicit API-only rationale.
+- API-only probes, metrics and OpenAPI are not required to have UI routes or screenshots.
 - Target rows do not claim current behavior without tests or manual verification.

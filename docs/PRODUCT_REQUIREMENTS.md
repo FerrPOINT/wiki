@@ -290,7 +290,11 @@ CLI requirements:
 ### Deferred
 
 - Comments and mentions.
-- Reports beyond basic lists.
+- Reports.
+- Notifications.
+- Integrations and source-specific tokens.
+- Webhooks.
+- Runner/worker control protocols.
 - Object storage beyond local adapter.
 - Advanced approvals.
 - Import/export bundles.
@@ -317,5 +321,6 @@ CLI requirements:
 - `docs/CLI.md`
 - `docs/DATA_MODEL.md`
 - `docs/DOMAIN_MODEL.md`
+- `docs/MVP_READINESS.md`
 - `docs/ROADMAP.md`
 - `docs/TZ.md`

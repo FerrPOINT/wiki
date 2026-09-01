@@ -244,6 +244,7 @@ wiki/
 ## 📚 Документы
 
 - [docs/USER_GUIDE.md](docs/USER_GUIDE.md) — user workflows.
+- [docs/MVP_READINESS.md](docs/MVP_READINESS.md) — 100% readiness gate before main development.
 - [docs/DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md) — development.
 - [docs/OPERATIONS.md](docs/OPERATIONS.md), [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — operations.
 - [docs/SECURITY.md](docs/SECURITY.md), [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) — security.

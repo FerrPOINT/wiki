@@ -244,7 +244,39 @@ Constraint: минимум одно из `document_id`, `task_dossier_id`, `phas
 | `request_id`  | text           | Корреляция                         |
 | `created_at`  | timestamptz    | Время                              |
 
-## 4. Search
+## 4. Migration Parity Gate
+
+`docs/DATA_MODEL.md` is ready for main development only when it matches the canonical SQLx migrations in `backend/migrations`.
+
+| Required migration object | Documented entity |
+| ------------------------- | ----------------- |
+| `users` | users |
+| `auth_sessions` | auth_sessions |
+| `spaces` | spaces |
+| `space_members` | space_members |
+| `documents` | documents |
+| `document_drafts` | document_drafts |
+| `document_revisions` | document_revisions |
+| `task_dossiers` | task_dossiers |
+| `phase_dossiers` | phase_dossiers |
+| `document_task_links` | document_task_links |
+| `document_phase_links` | document_phase_links |
+| `attachments` | attachments |
+| `evidence_items` | evidence_items |
+| `document_templates` | document_templates |
+| `audit_log` | audit_log |
+
+Required constraint categories:
+
+- unique identity for users, spaces, document slugs, task keys, phase keys, template names and attachment storage keys;
+- role/status/type `CHECK` constraints for users, members, documents, templates and evidence;
+- same-space foreign keys for document/task/phase/evidence/attachment relations;
+- soft-delete/archive fields on spaces and documents;
+- immutable revision version uniqueness per document;
+- FTS index for published revision search;
+- audit indexes by entity, actor and time.
+
+## 5. Search
 
 MVP search строится на PostgreSQL full-text search.
 
@@ -265,7 +297,7 @@ CREATE INDEX document_revisions_search_idx
   ON document_revisions USING GIN (search_vector);
 ```
 
-## 5. Mermaid
+## 6. Mermaid
 
 ```mermaid
 erDiagram
@@ -287,7 +319,7 @@ erDiagram
     EVIDENCE_ITEMS ||--o| ATTACHMENTS : file
 ```
 
-## 6. Seed Data
+## 7. Seed Data
 
 При первом запуске создаются:
 
@@ -295,8 +327,9 @@ erDiagram
 2. Space `SDLC` для базовой SDLC Wiki.
 3. Базовые шаблоны: `requirements`, `research_note`, `implementation_note`, `test_plan`, `release_note`.
 
-## 7. References
+## 8. References
 
 - `docs/DOMAIN_MODEL.md`
 - `docs/API.md`
 - `docs/DATABASE_INDEXES.md`
+- `docs/MVP_READINESS.md`
