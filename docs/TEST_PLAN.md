@@ -27,6 +27,7 @@ The test plan covers document lifecycle, task/phase links, evidence ingestion, p
 - API error responses must keep the standard `{ error: { code, message } }` envelope.
 - List endpoints must keep bounded `limit` behavior and stable ordering.
 - Upload endpoints must reject empty files, unsafe filenames and payloads over the configured size limit.
+- File evidence tests must reject staged attachments uploaded by another user even when the caller has edit rights in the target space.
 - Search endpoints must verify permission filtering before returning document, task, phase or evidence results.
 
 ## 4. CLI Tests

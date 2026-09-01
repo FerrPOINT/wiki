@@ -2172,6 +2172,94 @@ async fn wiki_memory_evidence_infers_document_space_and_claims_file_attachments(
 }
 
 #[tokio::test]
+async fn wiki_memory_file_evidence_rejects_attachment_uploaded_by_another_user() {
+    let app = test_app();
+    let admin_token = login_memory_admin(&app).await;
+    let suffix = Uuid::now_v7().simple().to_string();
+    let short = &suffix[..12];
+
+    let (editor_token, editor_id) = register_test_user(
+        &app,
+        format!("memory-attachment-editor-{short}@example.com"),
+        format!("memory-attachment-editor-{short}"),
+        "editor-password",
+        "Memory Attachment Editor",
+    )
+    .await;
+
+    let (status, _) = call(
+        &app,
+        Method::PUT,
+        &format!("/api/v1/spaces/SDLC/members/{editor_id}"),
+        Some(&admin_token),
+        Some(json!({ "role": "editor" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, document) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces/SDLC/documents",
+        Some(&admin_token),
+        Some(json!({
+            "title": format!("Memory attachment owner document {short}"),
+            "slug": format!("memory-attachment-owner-{short}"),
+            "document_type": "test_plan",
+            "content_markdown": "# Attachment owner boundary"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let document_id = document["id"].as_str().unwrap();
+
+    let (status, attachment) = upload_test_file(
+        &app,
+        &admin_token,
+        &format!("memory-owner-{short}.txt"),
+        "text/plain",
+        b"memory attachment owner bytes",
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let attachment_id = attachment["id"].as_str().unwrap();
+
+    let (status, error) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(&editor_token),
+        Some(json!({
+            "space": "SDLC",
+            "document_id": document_id,
+            "title": "Editor must not claim another staged file",
+            "evidence_type": "uploaded_file",
+            "attachment_id": attachment_id
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(error["error"]["code"], "NOT_FOUND");
+
+    let (status, evidence) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(&admin_token),
+        Some(json!({
+            "space": "SDLC",
+            "document_id": document_id,
+            "title": "Owner can claim staged file",
+            "evidence_type": "uploaded_file",
+            "attachment_id": attachment_id
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(evidence["attachment_id"], attachment_id);
+}
+
+#[tokio::test]
 async fn wiki_memory_attachment_upload_respects_runtime_size_limit() {
     let mut config = (*test_config()).clone();
     config.storage.max_upload_bytes = 4;
@@ -2367,6 +2455,101 @@ async fn wiki_postgres_refresh_rotates_refresh_token() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(me["email"], "admin@example.com");
+}
+
+#[tokio::test]
+async fn wiki_postgres_file_evidence_rejects_attachment_uploaded_by_another_user() {
+    let Ok(database_url) = env::var("WIKI_TEST_DATABASE_URL") else {
+        eprintln!("skipping postgres attachment owner test: WIKI_TEST_DATABASE_URL is not set");
+        return;
+    };
+    reset_postgres(&database_url).await;
+    let storage_dir = env::temp_dir().join(format!("wiki-api-test-{}", Uuid::now_v7()));
+    let (app, _) = postgres_test_app(database_url, storage_dir).await;
+    let admin_token = login_admin(&app).await;
+    let suffix = Uuid::now_v7().simple().to_string();
+    let short = &suffix[..12];
+
+    let (editor_token, editor_id) = register_test_user(
+        &app,
+        format!("postgres-attachment-editor-{short}@example.com"),
+        format!("postgres-attachment-editor-{short}"),
+        "editor-password",
+        "Postgres Attachment Editor",
+    )
+    .await;
+
+    let (status, _) = call(
+        &app,
+        Method::PUT,
+        &format!("/api/v1/spaces/SDLC/members/{editor_id}"),
+        Some(&admin_token),
+        Some(json!({ "role": "editor" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, document) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces/SDLC/documents",
+        Some(&admin_token),
+        Some(json!({
+            "title": format!("Postgres attachment owner document {short}"),
+            "slug": format!("postgres-attachment-owner-{short}"),
+            "document_type": "test_plan",
+            "content_markdown": "# Attachment owner boundary"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let document_id = document["id"].as_str().unwrap();
+
+    let (status, attachment) = upload_test_file(
+        &app,
+        &admin_token,
+        &format!("postgres-owner-{short}.txt"),
+        "text/plain",
+        b"postgres attachment owner bytes",
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let attachment_id = attachment["id"].as_str().unwrap();
+
+    let (status, error) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(&editor_token),
+        Some(json!({
+            "space": "SDLC",
+            "document_id": document_id,
+            "title": "Editor must not claim another staged file",
+            "evidence_type": "uploaded_file",
+            "attachment_id": attachment_id
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(error["error"]["code"], "NOT_FOUND");
+
+    let (status, evidence) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(&admin_token),
+        Some(json!({
+            "space": "SDLC",
+            "document_id": document_id,
+            "title": "Owner can claim staged file",
+            "evidence_type": "uploaded_file",
+            "attachment_id": attachment_id
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(evidence["attachment_id"], attachment_id);
+    assert_eq!(evidence["checksum"], attachment["checksum"]);
 }
 
 #[tokio::test]

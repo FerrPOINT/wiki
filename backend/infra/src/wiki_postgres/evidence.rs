@@ -64,29 +64,27 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
             let mut stored_checksum = None;
             if let Some(attachment_id) = command.attachment_id {
                 let attachment_row = sqlx::query(
-                    "SELECT checksum FROM attachments WHERE id = $1 AND owner_entity_id IS NULL AND uploaded_by = $2",
+                    r#"
+                    UPDATE attachments
+                    SET space_id = $2,
+                        owner_entity_type = 'evidence',
+                        owner_entity_id = $3
+                    WHERE id = $1
+                      AND space_id IS NULL
+                      AND owner_entity_id IS NULL
+                      AND uploaded_by = $4
+                    RETURNING checksum
+                    "#,
                 )
                 .bind(attachment_id)
+                .bind(command.space_id)
+                .bind(command.evidence_id)
                 .bind(actor_id)
                 .fetch_optional(&mut *tx)
                 .await
                 .map_err(shared::AppError::database)?
                 .ok_or_else(|| shared::AppError::not_found("attachment", attachment_id))?;
                 stored_checksum = Some(attachment_row.get::<String, _>("checksum"));
-
-                sqlx::query(
-                    r#"
-                    UPDATE attachments
-                    SET space_id = $2, owner_entity_type = 'evidence', owner_entity_id = $3
-                    WHERE id = $1
-                    "#,
-                )
-                .bind(attachment_id)
-                .bind(command.space_id)
-                .bind(command.evidence_id)
-                .execute(&mut *tx)
-                .await
-                .map_err(shared::AppError::database)?;
             }
 
             let row = sqlx::query(

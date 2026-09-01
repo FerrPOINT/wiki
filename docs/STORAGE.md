@@ -37,7 +37,7 @@ pub trait WikiAttachmentStorage: Send + Sync {
 3. Server creates attachment UUIDv7 and staged storage key.
 4. File is written to object storage.
 5. Attachment metadata is saved in PostgreSQL without owner fields yet.
-6. When `uploaded_file` evidence is created, backend claims the attachment in the same transaction by setting `space_id`, `owner_entity_type = evidence` and `owner_entity_id`.
+6. When `uploaded_file` evidence is created, backend atomically claims only the caller's staged attachment in the same transaction by setting `space_id`, `owner_entity_type = evidence` and `owner_entity_id`.
 7. Optional maintenance jobs may clean expired staged files after the base storage flow is stable.
 
 ## 6. Storage Path Schema
