@@ -97,10 +97,13 @@ pub(super) const SEARCH_DOCUMENTS_SQL: &str = r#"
     )
     SELECT d.id,
            'document' AS result_type,
-           d.title,
+           COALESCE(cr.title, d.title) AS title,
            s.key AS space_key,
            '/documents/' || d.slug AS url,
-           COALESCE(NULLIF(cr.content_text, ''), NULLIF(dd.content_markdown, ''), d.title) AS snippet,
+           CASE
+               WHEN cr.id IS NOT NULL THEN COALESCE(NULLIF(cr.content_text, ''), cr.title)
+               ELSE COALESCE(NULLIF(dd.content_markdown, ''), d.title)
+           END AS snippet,
            d.updated_at
     FROM search_query sq
     CROSS JOIN documents d

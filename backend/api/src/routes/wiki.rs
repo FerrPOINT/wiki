@@ -1417,9 +1417,9 @@ pub async fn list_document_revisions(
     let store = store().lock().expect("wiki store lock");
     let id = resolve_document_id(&store, &document_id)?;
     ensure_document_access(&store, &id, &claims.user_id, WikiSpaceAccess::View)?;
-    Ok(Json(DocumentRevisionListResponse {
-        revisions: store.revisions.get(&id).cloned().unwrap_or_default(),
-    }))
+    let mut revisions = store.revisions.get(&id).cloned().unwrap_or_default();
+    revisions.sort_by_key(|revision| std::cmp::Reverse(revision.version));
+    Ok(Json(DocumentRevisionListResponse { revisions }))
 }
 
 #[utoipa::path(
@@ -2348,15 +2348,30 @@ pub async fn search(
         {
             continue;
         }
-        let haystack = format!("{} {}", document.title, document.draft_markdown).to_lowercase();
+        let current_revision = document
+            .current_revision_id
+            .as_ref()
+            .and_then(|revision_id| {
+                store
+                    .revisions
+                    .get(&document.id)
+                    .and_then(|items| items.iter().find(|revision| &revision.id == revision_id))
+            });
+        let indexed_title =
+            current_revision.map_or(document.title.as_str(), |revision| revision.title.as_str());
+        let indexed_markdown = current_revision
+            .map_or(document.draft_markdown.as_str(), |revision| {
+                revision.body_markdown.as_str()
+            });
+        let haystack = format!("{indexed_title} {indexed_markdown}").to_lowercase();
         if needle.is_empty() || haystack.contains(&needle) {
             results.push(SearchResultResponse {
                 id: document.id.clone(),
                 result_type: "document".to_string(),
-                title: document.title.clone(),
+                title: indexed_title.to_string(),
                 space_key: document.space_key.clone(),
                 url: format!("/documents/{}", document.slug),
-                snippet: snippet(&document.draft_markdown),
+                snippet: snippet(indexed_markdown),
                 updated_at: document.updated_at.clone(),
             });
         }

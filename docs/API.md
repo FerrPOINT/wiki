@@ -64,6 +64,8 @@ REST API Wiki предоставляет базовые операции про�
 
 Архивированный документ остаётся доступен на чтение пользователям с правом доступа к space, но write-команды `draft`, `publish` и `move` возвращают `400 VALIDATION_ERROR`.
 
+`GET /documents/{document_id}/revisions` возвращает историю в порядке от последней опубликованной ревизии к первой. Опубликованные ревизии immutable: новый draft или повторная публикация не меняют тело, заголовок и summary уже созданных ревизий.
+
 ## 7. Task Links
 
 Task dossier в MVP - это представление документов/evidence, связанных одним внешним `task_key`. Wiki не владеет статусом задачи.
@@ -108,6 +110,8 @@ Canonical `evidence_type` values for MVP are `external_url` and `uploaded_file`.
 | `GET`  | `/search` | Поиск документов |
 
 Фильтры MVP: `space`, `task_key`, `phase_key`, `document_type`, `include_archived`.
+
+Для опубликованных документов поиск использует текущую опубликованную ревизию. Если у опубликованного документа есть новый непубликованный draft, его текст не попадает в общий search response до следующей публикации.
 
 ## 11. Templates, Settings and Audit
 

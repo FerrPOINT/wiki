@@ -933,6 +933,356 @@ async fn wiki_memory_archived_document_rejects_write_commands() {
 }
 
 #[tokio::test]
+async fn wiki_memory_document_revision_history_is_latest_first_and_immutable() {
+    let app = test_app();
+    let token = login_memory_admin(&app).await;
+    let suffix = Uuid::now_v7().simple().to_string();
+    let short = &suffix[..12];
+    let initial_title = format!("Revision history {short}");
+    let updated_title = format!("Revision history updated {short}");
+
+    let (status, document) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces/SDLC/documents",
+        Some(&token),
+        Some(json!({
+            "title": initial_title,
+            "slug": format!("revision-history-{short}"),
+            "document_type": "requirements",
+            "content_markdown": format!("# Revision history {short}\n\nFirst published body {short}.")
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let document_id = document["id"].as_str().unwrap().to_string();
+
+    let (status, first_revision) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/documents/{document_id}/publish"),
+        Some(&token),
+        Some(json!({ "summary": "Initial publish" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(first_revision["version"], 1);
+    assert_eq!(first_revision["summary"], "Initial publish");
+    let first_revision_id = first_revision["id"].as_str().unwrap().to_string();
+
+    let (status, draft) = call(
+        &app,
+        Method::PUT,
+        &format!("/api/v1/documents/{document_id}/draft"),
+        Some(&token),
+        Some(json!({
+            "title": updated_title,
+            "content_markdown": format!("# Revision history updated {short}\n\nSecond published body {short}.")
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(draft["status"], "draft");
+
+    let (status, second_revision) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/documents/{document_id}/publish"),
+        Some(&token),
+        Some(json!({ "summary": "Second publish" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(second_revision["version"], 2);
+    assert_eq!(second_revision["summary"], "Second publish");
+    let second_revision_id = second_revision["id"].as_str().unwrap().to_string();
+
+    let (status, history) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/documents/{document_id}/revisions"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let revisions = history["revisions"].as_array().unwrap();
+    assert_eq!(revisions.len(), 2);
+    assert_eq!(revisions[0]["id"], second_revision_id);
+    assert_eq!(revisions[0]["version"], 2);
+    assert_eq!(revisions[1]["id"], first_revision_id);
+    assert_eq!(revisions[1]["version"], 1);
+
+    let (status, old_revision) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/documents/{document_id}/revisions/{first_revision_id}"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(old_revision["version"], 1);
+    assert_eq!(old_revision["summary"], "Initial publish");
+    assert!(
+        old_revision["body_markdown"]
+            .as_str()
+            .unwrap()
+            .contains("First published body")
+    );
+    assert!(
+        !old_revision["body_markdown"]
+            .as_str()
+            .unwrap()
+            .contains("Second published body")
+    );
+
+    let (status, new_revision) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/documents/{document_id}/revisions/{second_revision_id}"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(new_revision["version"], 2);
+    assert_eq!(new_revision["summary"], "Second publish");
+    assert!(
+        new_revision["body_markdown"]
+            .as_str()
+            .unwrap()
+            .contains("Second published body")
+    );
+}
+
+#[tokio::test]
+async fn wiki_memory_search_filters_document_type_task_phase_archived_and_permissions() {
+    let app = test_app();
+    let token = login_memory_admin(&app).await;
+    let suffix = Uuid::now_v7().simple().to_string();
+    let short = &suffix[..12];
+    let search_token = format!("searchtoken{short}");
+    let draft_token = format!("drafttoken{short}");
+    let task_key = format!("SRCH-{short}");
+    let other_task_key = format!("OTHER-{short}");
+    let phase_key = format!("validation-{short}");
+    let other_phase_key = format!("handoff-{short}");
+
+    let (status, requirements) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces/SDLC/documents",
+        Some(&token),
+        Some(json!({
+            "title": format!("Search requirements {short}"),
+            "slug": format!("search-requirements-{short}"),
+            "document_type": "requirements",
+            "task_key": task_key,
+            "phase_key": phase_key,
+            "content_markdown": format!("# Search requirements {short}\n\nPublished {search_token}.")
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let requirements_id = requirements["id"].as_str().unwrap().to_string();
+
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/documents/{requirements_id}/publish"),
+        Some(&token),
+        Some(json!({ "summary": "Search baseline" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, test_plan) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces/SDLC/documents",
+        Some(&token),
+        Some(json!({
+            "title": format!("Search test plan {short}"),
+            "slug": format!("search-test-plan-{short}"),
+            "document_type": "test_plan",
+            "task_key": other_task_key,
+            "phase_key": other_phase_key,
+            "content_markdown": format!("# Search test plan {short}\n\nPublished {search_token}.")
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let test_plan_id = test_plan["id"].as_str().unwrap().to_string();
+
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/documents/{test_plan_id}/publish"),
+        Some(&token),
+        Some(json!({ "summary": "Search contrast" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let ids = |body: &Value| -> Vec<String> {
+        body["results"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|item| item["id"].as_str().map(str::to_string))
+            .collect()
+    };
+
+    let (status, by_type) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/search?q={search_token}&space=SDLC&document_type=requirements"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let by_type_ids = ids(&by_type);
+    assert!(by_type_ids.contains(&requirements_id));
+    assert!(!by_type_ids.contains(&test_plan_id));
+
+    let (status, by_task) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/search?q={search_token}&space=SDLC&task_key={task_key}"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let by_task_ids = ids(&by_task);
+    assert!(by_task_ids.contains(&requirements_id));
+    assert!(!by_task_ids.contains(&test_plan_id));
+
+    let (status, by_phase) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/search?q={search_token}&space=SDLC&phase_key={phase_key}"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let by_phase_ids = ids(&by_phase);
+    assert!(by_phase_ids.contains(&requirements_id));
+    assert!(!by_phase_ids.contains(&test_plan_id));
+
+    let (status, _) = call(
+        &app,
+        Method::PUT,
+        &format!("/api/v1/documents/{requirements_id}/draft"),
+        Some(&token),
+        Some(json!({
+            "title": format!("Draft-only requirements {short}"),
+            "content_markdown": format!("# Draft-only requirements {short}\n\nUnpublished {draft_token}.")
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, published_search) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/search?q={search_token}&space=SDLC&document_type=requirements"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(ids(&published_search).contains(&requirements_id));
+
+    let (status, draft_search) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/search?q={draft_token}&space=SDLC&document_type=requirements"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(!ids(&draft_search).contains(&requirements_id));
+
+    let (status, stranger) = call(
+        &app,
+        Method::POST,
+        "/api/v1/auth/register",
+        None,
+        Some(json!({
+            "email": format!("stranger-{short}@example.com"),
+            "username": format!("stranger-{short}"),
+            "password": "stranger-password",
+            "name": "Search Stranger"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let stranger_token = stranger["access_token"].as_str().unwrap();
+
+    let (status, stranger_broad_search) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/search?q={search_token}"),
+        Some(stranger_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(!ids(&stranger_broad_search).contains(&requirements_id));
+    assert!(!ids(&stranger_broad_search).contains(&test_plan_id));
+
+    let (status, _) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/search?q={search_token}&space=SDLC"),
+        Some(stranger_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, archived) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/documents/{requirements_id}/archive"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(archived["status"], "archived");
+
+    let (status, default_search) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/search?q={search_token}&space=SDLC&document_type=requirements"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(!ids(&default_search).contains(&requirements_id));
+
+    let (status, archived_search) = call(
+        &app,
+        Method::GET,
+        &format!(
+            "/api/v1/search?q={search_token}&space=SDLC&document_type=requirements&include_archived=true"
+        ),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(ids(&archived_search).contains(&requirements_id));
+}
+
+#[tokio::test]
 async fn wiki_memory_task_phase_document_links_enforce_space_boundary() {
     let app = test_app();
     let token = login_memory_admin(&app).await;
