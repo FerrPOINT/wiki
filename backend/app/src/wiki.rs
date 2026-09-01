@@ -603,6 +603,227 @@ impl<'a, R: WikiSpaceRepository + ?Sized> WikiSpaceUseCase<'a, R> {
     }
 }
 
+pub type WikiDocumentRepositoryFuture<'a, T> =
+    Pin<Box<dyn Future<Output = Result<T, AppError>> + Send + 'a>>;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiCreateDocumentCommand {
+    pub document_id: Uuid,
+    pub space_id: Uuid,
+    pub parent_id: Option<Uuid>,
+    pub slug: String,
+    pub title: String,
+    pub document_type: String,
+    pub content_markdown: String,
+    pub task_key: Option<String>,
+    pub phase_key: Option<String>,
+    pub owner_id: Uuid,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiUpdateDocumentDraftCommand {
+    pub document_id: Uuid,
+    pub title: Option<String>,
+    pub content_markdown: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiPublishDocumentCommand {
+    pub document_id: Uuid,
+    pub revision_id: Uuid,
+    pub summary: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiArchiveDocumentCommand {
+    pub document_id: Uuid,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiMoveDocumentCommand {
+    pub document_id: Uuid,
+    pub parent_id: Option<Uuid>,
+}
+
+pub trait WikiDocumentRepository {
+    fn create_document<'a>(
+        &'a self,
+        actor_id: Uuid,
+        command: WikiCreateDocumentCommand,
+    ) -> WikiDocumentRepositoryFuture<'a, shared::DocumentResponse>;
+
+    fn get_document<'a>(
+        &'a self,
+        document_id: Uuid,
+    ) -> WikiDocumentRepositoryFuture<'a, shared::DocumentResponse>;
+
+    fn update_document_draft<'a>(
+        &'a self,
+        actor_id: Uuid,
+        command: WikiUpdateDocumentDraftCommand,
+    ) -> WikiDocumentRepositoryFuture<'a, shared::DocumentResponse>;
+
+    fn publish_document<'a>(
+        &'a self,
+        actor_id: Uuid,
+        command: WikiPublishDocumentCommand,
+    ) -> WikiDocumentRepositoryFuture<'a, shared::DocumentRevisionResponse>;
+
+    fn archive_document<'a>(
+        &'a self,
+        actor_id: Uuid,
+        command: WikiArchiveDocumentCommand,
+    ) -> WikiDocumentRepositoryFuture<'a, shared::DocumentResponse>;
+
+    fn move_document<'a>(
+        &'a self,
+        actor_id: Uuid,
+        command: WikiMoveDocumentCommand,
+    ) -> WikiDocumentRepositoryFuture<'a, shared::DocumentResponse>;
+
+    fn list_revisions<'a>(
+        &'a self,
+        document_id: Uuid,
+    ) -> WikiDocumentRepositoryFuture<'a, Vec<shared::DocumentRevisionResponse>>;
+
+    fn get_revision<'a>(
+        &'a self,
+        document_id: Uuid,
+        revision_id: Uuid,
+    ) -> WikiDocumentRepositoryFuture<'a, shared::DocumentRevisionResponse>;
+}
+
+pub struct WikiDocumentUseCase<'a, R: WikiDocumentRepository + ?Sized> {
+    repository: &'a R,
+}
+
+impl<'a, R: WikiDocumentRepository + ?Sized> WikiDocumentUseCase<'a, R> {
+    pub fn new(repository: &'a R) -> Self {
+        Self { repository }
+    }
+
+    pub async fn create(
+        &self,
+        actor_id: Uuid,
+        space_id: Uuid,
+        parent_id: Option<Uuid>,
+        body: shared::CreateDocumentRequest,
+    ) -> Result<shared::DocumentResponse, AppError> {
+        let document_id = Uuid::now_v7();
+        let title = normalize_required(&body.title, "document title")?;
+        let document_type = normalize_document_type(&body.document_type, true)?.to_string();
+        let mut slug = body.slug.unwrap_or_else(|| slugify(&title));
+        slug = slugify(&slug);
+        if slug.is_empty() {
+            slug = format!("document-{}", document_id.simple());
+            slug.truncate(17);
+        }
+
+        let command = WikiCreateDocumentCommand {
+            document_id,
+            space_id,
+            parent_id,
+            slug: normalize_slug(&slug)?,
+            title,
+            document_type,
+            content_markdown: body.content_markdown,
+            task_key: body
+                .task_key
+                .map(|value| normalize_task_key(&value))
+                .transpose()?,
+            phase_key: body
+                .phase_key
+                .map(|value| normalize_phase_key(&value))
+                .transpose()?,
+            owner_id: actor_id,
+        };
+        self.repository.create_document(actor_id, command).await
+    }
+
+    pub async fn get(&self, document_id: Uuid) -> Result<shared::DocumentResponse, AppError> {
+        self.repository.get_document(document_id).await
+    }
+
+    pub async fn update_draft(
+        &self,
+        actor_id: Uuid,
+        document_id: Uuid,
+        body: shared::UpdateDocumentDraftRequest,
+    ) -> Result<shared::DocumentResponse, AppError> {
+        let command = WikiUpdateDocumentDraftCommand {
+            document_id,
+            title: normalize_optional_update_value(body.title.as_deref()),
+            content_markdown: body.content_markdown,
+        };
+        self.repository
+            .update_document_draft(actor_id, command)
+            .await
+    }
+
+    pub async fn publish(
+        &self,
+        actor_id: Uuid,
+        document_id: Uuid,
+        body: shared::PublishDocumentRequest,
+    ) -> Result<shared::DocumentRevisionResponse, AppError> {
+        let command = WikiPublishDocumentCommand {
+            document_id,
+            revision_id: Uuid::now_v7(),
+            summary: body.summary,
+        };
+        self.repository.publish_document(actor_id, command).await
+    }
+
+    pub async fn archive(
+        &self,
+        actor_id: Uuid,
+        document_id: Uuid,
+    ) -> Result<shared::DocumentResponse, AppError> {
+        self.repository
+            .archive_document(actor_id, WikiArchiveDocumentCommand { document_id })
+            .await
+    }
+
+    pub async fn move_document(
+        &self,
+        actor_id: Uuid,
+        document_id: Uuid,
+        parent_id: Option<Uuid>,
+    ) -> Result<shared::DocumentResponse, AppError> {
+        if parent_id == Some(document_id) {
+            return Err(AppError::invalid_input(
+                "document cannot be moved under itself",
+            ));
+        }
+        self.repository
+            .move_document(
+                actor_id,
+                WikiMoveDocumentCommand {
+                    document_id,
+                    parent_id,
+                },
+            )
+            .await
+    }
+
+    pub async fn list_revisions(
+        &self,
+        document_id: Uuid,
+    ) -> Result<shared::DocumentRevisionListResponse, AppError> {
+        Ok(shared::DocumentRevisionListResponse {
+            revisions: self.repository.list_revisions(document_id).await?,
+        })
+    }
+
+    pub async fn get_revision(
+        &self,
+        document_id: Uuid,
+        revision_id: Uuid,
+    ) -> Result<shared::DocumentRevisionResponse, AppError> {
+        self.repository.get_revision(document_id, revision_id).await
+    }
+}
+
 pub type WikiSettingsRepositoryFuture<'a> =
     Pin<Box<dyn Future<Output = Result<WikiSettingsSnapshot, AppError>> + Send + 'a>>;
 
@@ -1169,6 +1390,20 @@ mod tests {
         tree_requests: std::sync::Mutex<Vec<Uuid>>,
     }
 
+    struct RecordingDocumentRepository {
+        document: shared::DocumentResponse,
+        revision: shared::DocumentRevisionResponse,
+        revisions: Vec<shared::DocumentRevisionResponse>,
+        created: std::sync::Mutex<Vec<(Uuid, WikiCreateDocumentCommand)>>,
+        requested_documents: std::sync::Mutex<Vec<Uuid>>,
+        updated_drafts: std::sync::Mutex<Vec<(Uuid, WikiUpdateDocumentDraftCommand)>>,
+        published: std::sync::Mutex<Vec<(Uuid, WikiPublishDocumentCommand)>>,
+        archived: std::sync::Mutex<Vec<(Uuid, WikiArchiveDocumentCommand)>>,
+        moved: std::sync::Mutex<Vec<(Uuid, WikiMoveDocumentCommand)>>,
+        listed_revisions: std::sync::Mutex<Vec<Uuid>>,
+        requested_revisions: std::sync::Mutex<Vec<(Uuid, Uuid)>>,
+    }
+
     struct StaticSettingsRepository {
         snapshot: WikiSettingsSnapshot,
     }
@@ -1410,6 +1645,138 @@ mod tests {
         }
     }
 
+    impl WikiDocumentRepository for RecordingDocumentRepository {
+        fn create_document<'a>(
+            &'a self,
+            actor_id: Uuid,
+            command: WikiCreateDocumentCommand,
+        ) -> WikiDocumentRepositoryFuture<'a, shared::DocumentResponse> {
+            Box::pin(async move {
+                self.created
+                    .lock()
+                    .expect("document create commands should be lockable")
+                    .push((actor_id, command.clone()));
+                Ok(document_response(
+                    command.document_id,
+                    &command.slug,
+                    &command.title,
+                    None,
+                ))
+            })
+        }
+
+        fn get_document<'a>(
+            &'a self,
+            document_id: Uuid,
+        ) -> WikiDocumentRepositoryFuture<'a, shared::DocumentResponse> {
+            Box::pin(async move {
+                self.requested_documents
+                    .lock()
+                    .expect("document requests should be lockable")
+                    .push(document_id);
+                Ok(self.document.clone())
+            })
+        }
+
+        fn update_document_draft<'a>(
+            &'a self,
+            actor_id: Uuid,
+            command: WikiUpdateDocumentDraftCommand,
+        ) -> WikiDocumentRepositoryFuture<'a, shared::DocumentResponse> {
+            Box::pin(async move {
+                self.updated_drafts
+                    .lock()
+                    .expect("document draft commands should be lockable")
+                    .push((actor_id, command.clone()));
+                Ok(document_response(
+                    command.document_id,
+                    "updated",
+                    command.title.as_deref().unwrap_or("Updated"),
+                    None,
+                ))
+            })
+        }
+
+        fn publish_document<'a>(
+            &'a self,
+            actor_id: Uuid,
+            command: WikiPublishDocumentCommand,
+        ) -> WikiDocumentRepositoryFuture<'a, shared::DocumentRevisionResponse> {
+            Box::pin(async move {
+                self.published
+                    .lock()
+                    .expect("document publish commands should be lockable")
+                    .push((actor_id, command.clone()));
+                Ok(document_revision_response(
+                    command.document_id,
+                    command.revision_id,
+                    1,
+                    "Published",
+                ))
+            })
+        }
+
+        fn archive_document<'a>(
+            &'a self,
+            actor_id: Uuid,
+            command: WikiArchiveDocumentCommand,
+        ) -> WikiDocumentRepositoryFuture<'a, shared::DocumentResponse> {
+            Box::pin(async move {
+                self.archived
+                    .lock()
+                    .expect("document archive commands should be lockable")
+                    .push((actor_id, command.clone()));
+                let mut response =
+                    document_response(command.document_id, "archived", "Archived", None);
+                response.status = "archived".to_string();
+                Ok(response)
+            })
+        }
+
+        fn move_document<'a>(
+            &'a self,
+            actor_id: Uuid,
+            command: WikiMoveDocumentCommand,
+        ) -> WikiDocumentRepositoryFuture<'a, shared::DocumentResponse> {
+            Box::pin(async move {
+                self.moved
+                    .lock()
+                    .expect("document move commands should be lockable")
+                    .push((actor_id, command.clone()));
+                let mut response = document_response(command.document_id, "moved", "Moved", None);
+                response.parent_id = command.parent_id.map(|id| id.to_string());
+                Ok(response)
+            })
+        }
+
+        fn list_revisions<'a>(
+            &'a self,
+            document_id: Uuid,
+        ) -> WikiDocumentRepositoryFuture<'a, Vec<shared::DocumentRevisionResponse>> {
+            Box::pin(async move {
+                self.listed_revisions
+                    .lock()
+                    .expect("listed revision documents should be lockable")
+                    .push(document_id);
+                Ok(self.revisions.clone())
+            })
+        }
+
+        fn get_revision<'a>(
+            &'a self,
+            document_id: Uuid,
+            revision_id: Uuid,
+        ) -> WikiDocumentRepositoryFuture<'a, shared::DocumentRevisionResponse> {
+            Box::pin(async move {
+                self.requested_revisions
+                    .lock()
+                    .expect("requested revisions should be lockable")
+                    .push((document_id, revision_id));
+                Ok(self.revision.clone())
+            })
+        }
+    }
+
     impl WikiSettingsRepository for StaticSettingsRepository {
         fn get_settings<'a>(&'a self) -> WikiSettingsRepositoryFuture<'a> {
             Box::pin(async move { Ok(self.snapshot.clone()) })
@@ -1644,6 +2011,82 @@ mod tests {
             document_type: "page".to_string(),
             status: "published".to_string(),
             children: Vec::new(),
+        }
+    }
+
+    fn document_revision_response(
+        document_id: Uuid,
+        revision_id: Uuid,
+        version: u32,
+        title: &str,
+    ) -> shared::DocumentRevisionResponse {
+        shared::DocumentRevisionResponse {
+            id: revision_id.to_string(),
+            document_id: document_id.to_string(),
+            version,
+            title: title.to_string(),
+            body_markdown: "# Published".to_string(),
+            summary: Some("Initial publish".to_string()),
+            author_id: Uuid::now_v7().to_string(),
+            published_at: "2026-09-01T10:00:00Z".to_string(),
+        }
+    }
+
+    fn document_response(
+        document_id: Uuid,
+        slug: &str,
+        title: &str,
+        current_revision: Option<shared::DocumentRevisionResponse>,
+    ) -> shared::DocumentResponse {
+        shared::DocumentResponse {
+            id: document_id.to_string(),
+            space_key: "SDLC".to_string(),
+            parent_id: None,
+            slug: slug.to_string(),
+            title: title.to_string(),
+            document_type: "requirements".to_string(),
+            status: if current_revision.is_some() {
+                "published".to_string()
+            } else {
+                "draft".to_string()
+            },
+            body_markdown: current_revision
+                .as_ref()
+                .map(|revision| revision.body_markdown.clone())
+                .unwrap_or_default(),
+            draft_markdown: "# Draft".to_string(),
+            current_revision,
+            task_keys: vec!["SDLC-42".to_string()],
+            phase_keys: vec!["implementation".to_string()],
+            evidence: Vec::new(),
+            created_by: Uuid::now_v7().to_string(),
+            updated_by: Uuid::now_v7().to_string(),
+            created_at: "2026-09-01T10:00:00Z".to_string(),
+            updated_at: "2026-09-01T10:00:00Z".to_string(),
+        }
+    }
+
+    fn recording_document_repository() -> RecordingDocumentRepository {
+        let document_id = Uuid::now_v7();
+        let revision_id = Uuid::now_v7();
+        let revision = document_revision_response(document_id, revision_id, 1, "Requirements");
+        RecordingDocumentRepository {
+            document: document_response(
+                document_id,
+                "requirements",
+                "Requirements",
+                Some(revision.clone()),
+            ),
+            revision: revision.clone(),
+            revisions: vec![revision],
+            created: std::sync::Mutex::new(Vec::new()),
+            requested_documents: std::sync::Mutex::new(Vec::new()),
+            updated_drafts: std::sync::Mutex::new(Vec::new()),
+            published: std::sync::Mutex::new(Vec::new()),
+            archived: std::sync::Mutex::new(Vec::new()),
+            moved: std::sync::Mutex::new(Vec::new()),
+            listed_revisions: std::sync::Mutex::new(Vec::new()),
+            requested_revisions: std::sync::Mutex::new(Vec::new()),
         }
     }
 
@@ -2087,6 +2530,226 @@ mod tests {
                         key: "bad key".to_string(),
                         name: "Space".to_string(),
                         description: None,
+                    },
+                )
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn wiki_document_use_case_reads_document_and_revisions() {
+        let repository = recording_document_repository();
+        let use_case = WikiDocumentUseCase::new(&repository);
+        let document_id = Uuid::now_v7();
+        let revision_id = Uuid::now_v7();
+
+        let document = use_case.get(document_id).await.unwrap();
+        assert_eq!(document.title, "Requirements");
+        assert_eq!(
+            repository
+                .requested_documents
+                .lock()
+                .expect("document requests should be lockable")
+                .as_slice(),
+            [document_id]
+        );
+
+        let revisions = use_case.list_revisions(document_id).await.unwrap();
+        assert_eq!(revisions.revisions.len(), 1);
+        assert_eq!(revisions.revisions[0].version, 1);
+        assert_eq!(
+            repository
+                .listed_revisions
+                .lock()
+                .expect("listed revision documents should be lockable")
+                .as_slice(),
+            [document_id]
+        );
+
+        let revision = use_case
+            .get_revision(document_id, revision_id)
+            .await
+            .unwrap();
+        assert_eq!(revision.title, "Requirements");
+        assert_eq!(
+            repository
+                .requested_revisions
+                .lock()
+                .expect("requested revisions should be lockable")
+                .as_slice(),
+            [(document_id, revision_id)]
+        );
+    }
+
+    #[tokio::test]
+    async fn wiki_document_use_case_normalizes_write_commands() {
+        let repository = recording_document_repository();
+        let use_case = WikiDocumentUseCase::new(&repository);
+        let actor_id = Uuid::now_v7();
+        let space_id = Uuid::now_v7();
+        let parent_id = Uuid::now_v7();
+        let document_id = Uuid::now_v7();
+        let next_parent_id = Uuid::now_v7();
+
+        let created = use_case
+            .create(
+                actor_id,
+                space_id,
+                Some(parent_id),
+                shared::CreateDocumentRequest {
+                    title: " Product Requirements ".to_string(),
+                    slug: Some(" Product Requirements! ".to_string()),
+                    document_type: "requirements".to_string(),
+                    parent_id: None,
+                    content_markdown: "# Draft".to_string(),
+                    task_key: Some("SDLC-42".to_string()),
+                    phase_key: Some("Implementation".to_string()),
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(created.slug, "product-requirements");
+        assert_eq!(created.title, "Product Requirements");
+        {
+            let created_commands = repository
+                .created
+                .lock()
+                .expect("document create commands should be lockable");
+            assert_eq!(created_commands.len(), 1);
+            let command = &created_commands[0].1;
+            assert_eq!(created_commands[0].0, actor_id);
+            assert_eq!(command.space_id, space_id);
+            assert_eq!(command.parent_id, Some(parent_id));
+            assert_eq!(command.slug, "product-requirements");
+            assert_eq!(command.title, "Product Requirements");
+            assert_eq!(command.document_type, "requirements");
+            assert_eq!(command.content_markdown, "# Draft");
+            assert_eq!(command.task_key.as_deref(), Some("SDLC-42"));
+            assert_eq!(command.phase_key.as_deref(), Some("implementation"));
+            assert_eq!(command.owner_id, actor_id);
+        }
+
+        let fallback = use_case
+            .create(
+                actor_id,
+                space_id,
+                None,
+                shared::CreateDocumentRequest {
+                    title: "!!!".to_string(),
+                    slug: None,
+                    document_type: "page".to_string(),
+                    parent_id: None,
+                    content_markdown: String::new(),
+                    task_key: None,
+                    phase_key: None,
+                },
+            )
+            .await
+            .unwrap();
+        assert!(fallback.slug.starts_with("document-"));
+        assert_eq!(fallback.slug.len(), 17);
+
+        use_case
+            .update_draft(
+                actor_id,
+                document_id,
+                shared::UpdateDocumentDraftRequest {
+                    title: Some("   ".to_string()),
+                    content_markdown: "# Updated".to_string(),
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            repository
+                .updated_drafts
+                .lock()
+                .expect("document draft commands should be lockable")
+                .as_slice(),
+            [(
+                actor_id,
+                WikiUpdateDocumentDraftCommand {
+                    document_id,
+                    title: None,
+                    content_markdown: "# Updated".to_string(),
+                }
+            )]
+        );
+
+        let revision = use_case
+            .publish(
+                actor_id,
+                document_id,
+                shared::PublishDocumentRequest {
+                    summary: Some(" Publish summary ".to_string()),
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(revision.document_id, document_id.to_string());
+        {
+            let published = repository
+                .published
+                .lock()
+                .expect("document publish commands should be lockable");
+            assert_eq!(published.len(), 1);
+            let command = &published[0].1;
+            assert_eq!(published[0].0, actor_id);
+            assert_eq!(command.document_id, document_id);
+            assert_ne!(command.revision_id, Uuid::nil());
+            assert_eq!(command.summary.as_deref(), Some(" Publish summary "));
+        }
+
+        use_case.archive(actor_id, document_id).await.unwrap();
+        assert_eq!(
+            repository
+                .archived
+                .lock()
+                .expect("document archive commands should be lockable")
+                .as_slice(),
+            [(actor_id, WikiArchiveDocumentCommand { document_id })]
+        );
+
+        use_case
+            .move_document(actor_id, document_id, Some(next_parent_id))
+            .await
+            .unwrap();
+        assert_eq!(
+            repository
+                .moved
+                .lock()
+                .expect("document move commands should be lockable")
+                .as_slice(),
+            [(
+                actor_id,
+                WikiMoveDocumentCommand {
+                    document_id,
+                    parent_id: Some(next_parent_id),
+                }
+            )]
+        );
+
+        assert!(
+            use_case
+                .move_document(actor_id, document_id, Some(document_id))
+                .await
+                .is_err()
+        );
+        assert!(
+            use_case
+                .create(
+                    actor_id,
+                    space_id,
+                    None,
+                    shared::CreateDocumentRequest {
+                        title: "Doc".to_string(),
+                        slug: None,
+                        document_type: "unsupported".to_string(),
+                        parent_id: None,
+                        content_markdown: String::new(),
+                        task_key: None,
+                        phase_key: None,
                     },
                 )
                 .await

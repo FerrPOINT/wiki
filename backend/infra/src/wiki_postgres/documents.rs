@@ -3,14 +3,432 @@ use super::{
     mapping::{parse_uuid, revision_response_from_row, to_iso},
 };
 use app::wiki::{
-    WikiSpaceAccess as SpaceAccess, checksum, markdown_to_text, normalize_document_type,
-    normalize_phase_key, normalize_required, normalize_slug, normalize_space_key,
-    normalize_task_key, slugify,
+    WikiArchiveDocumentCommand, WikiCreateDocumentCommand, WikiDocumentRepository,
+    WikiDocumentRepositoryFuture, WikiDocumentUseCase, WikiMoveDocumentCommand,
+    WikiPublishDocumentCommand, WikiSpaceAccess as SpaceAccess, WikiUpdateDocumentDraftCommand,
+    checksum, markdown_to_text, normalize_space_key,
 };
 use shared::wiki_contract::*;
 use sqlx::Row;
 use std::collections::BTreeSet;
 use uuid::Uuid;
+
+struct PostgresWikiDocumentRepository<'a> {
+    backend: &'a PostgresWikiBackend,
+}
+
+impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
+    fn create_document<'a>(
+        &'a self,
+        actor_id: Uuid,
+        command: WikiCreateDocumentCommand,
+    ) -> WikiDocumentRepositoryFuture<'a, DocumentResponse> {
+        Box::pin(async move {
+            let mut tx = self
+                .backend
+                .pool
+                .begin()
+                .await
+                .map_err(shared::AppError::database)?;
+            let position: i64 = sqlx::query_scalar(
+                r#"
+                SELECT COUNT(*)::bigint
+                FROM documents
+                WHERE space_id = $1
+                  AND (($2::uuid IS NULL AND parent_id IS NULL) OR parent_id = $2)
+                "#,
+            )
+            .bind(command.space_id)
+            .bind(command.parent_id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(shared::AppError::database)?;
+
+            sqlx::query(
+                r#"
+                INSERT INTO documents (
+                    id, space_id, parent_id, slug, title, document_type, status,
+                    owner_id, position, created_at, updated_at
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, 'draft', $7, $8, now(), now())
+                "#,
+            )
+            .bind(command.document_id)
+            .bind(command.space_id)
+            .bind(command.parent_id)
+            .bind(&command.slug)
+            .bind(&command.title)
+            .bind(&command.document_type)
+            .bind(command.owner_id)
+            .bind(position as i32)
+            .execute(&mut *tx)
+            .await
+            .map_err(shared::AppError::database)?;
+
+            sqlx::query(
+                r#"
+                INSERT INTO document_drafts (document_id, author_id, content_markdown, updated_at)
+                VALUES ($1, $2, $3, now())
+                "#,
+            )
+            .bind(command.document_id)
+            .bind(command.owner_id)
+            .bind(&command.content_markdown)
+            .execute(&mut *tx)
+            .await
+            .map_err(shared::AppError::database)?;
+
+            if let Some(task_key) = &command.task_key {
+                let task_id = self
+                    .backend
+                    .upsert_task_dossier_tx(&mut tx, command.space_id, task_key)
+                    .await?;
+                sqlx::query(
+                    r#"
+                    INSERT INTO document_task_links (space_id, document_id, task_dossier_id, created_by, created_at)
+                    VALUES ($1, $2, $3, $4, now())
+                    ON CONFLICT DO NOTHING
+                    "#,
+                )
+                .bind(command.space_id)
+                .bind(command.document_id)
+                .bind(task_id)
+                .bind(actor_id)
+                .execute(&mut *tx)
+                .await
+                .map_err(shared::AppError::database)?;
+            }
+            if let Some(phase_key) = &command.phase_key {
+                let phase_id = self
+                    .backend
+                    .upsert_phase_dossier_tx(&mut tx, command.space_id, phase_key)
+                    .await?;
+                sqlx::query(
+                    r#"
+                    INSERT INTO document_phase_links (space_id, document_id, phase_dossier_id, created_by, created_at)
+                    VALUES ($1, $2, $3, $4, now())
+                    ON CONFLICT DO NOTHING
+                    "#,
+                )
+                .bind(command.space_id)
+                .bind(command.document_id)
+                .bind(phase_id)
+                .bind(actor_id)
+                .execute(&mut *tx)
+                .await
+                .map_err(shared::AppError::database)?;
+            }
+
+            self.backend
+                .insert_audit(
+                    &mut tx,
+                    Some(actor_id),
+                    "document.create",
+                    "document",
+                    command.document_id,
+                )
+                .await?;
+            tx.commit().await.map_err(shared::AppError::database)?;
+            self.backend.document_response(command.document_id).await
+        })
+    }
+
+    fn get_document<'a>(
+        &'a self,
+        document_id: Uuid,
+    ) -> WikiDocumentRepositoryFuture<'a, DocumentResponse> {
+        Box::pin(async move { self.backend.document_response(document_id).await })
+    }
+
+    fn update_document_draft<'a>(
+        &'a self,
+        actor_id: Uuid,
+        command: WikiUpdateDocumentDraftCommand,
+    ) -> WikiDocumentRepositoryFuture<'a, DocumentResponse> {
+        Box::pin(async move {
+            let mut tx = self
+                .backend
+                .pool
+                .begin()
+                .await
+                .map_err(shared::AppError::database)?;
+            let exists: Option<Uuid> = sqlx::query_scalar("SELECT id FROM documents WHERE id = $1")
+                .bind(command.document_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(shared::AppError::database)?;
+            if exists.is_none() {
+                return Err(shared::AppError::not_found("document", command.document_id));
+            }
+            sqlx::query(
+                r#"
+                UPDATE documents
+                SET title = COALESCE($2, title),
+                    status = 'draft',
+                    archived_at = NULL,
+                    updated_at = now()
+                WHERE id = $1
+                "#,
+            )
+            .bind(command.document_id)
+            .bind(command.title.as_deref())
+            .execute(&mut *tx)
+            .await
+            .map_err(shared::AppError::database)?;
+            sqlx::query(
+                r#"
+                INSERT INTO document_drafts (document_id, author_id, content_markdown, updated_at)
+                VALUES ($1, $2, $3, now())
+                ON CONFLICT (document_id)
+                DO UPDATE SET author_id = EXCLUDED.author_id,
+                              content_markdown = EXCLUDED.content_markdown,
+                              updated_at = now()
+                "#,
+            )
+            .bind(command.document_id)
+            .bind(actor_id)
+            .bind(&command.content_markdown)
+            .execute(&mut *tx)
+            .await
+            .map_err(shared::AppError::database)?;
+            self.backend
+                .insert_audit(
+                    &mut tx,
+                    Some(actor_id),
+                    "document.draft_update",
+                    "document",
+                    command.document_id,
+                )
+                .await?;
+            tx.commit().await.map_err(shared::AppError::database)?;
+            self.backend.document_response(command.document_id).await
+        })
+    }
+
+    fn publish_document<'a>(
+        &'a self,
+        actor_id: Uuid,
+        command: WikiPublishDocumentCommand,
+    ) -> WikiDocumentRepositoryFuture<'a, DocumentRevisionResponse> {
+        Box::pin(async move {
+            let mut tx = self
+                .backend
+                .pool
+                .begin()
+                .await
+                .map_err(shared::AppError::database)?;
+            let row = sqlx::query(
+                r#"
+                SELECT d.title, COALESCE(dd.content_markdown, '') AS content_markdown
+                FROM documents d
+                LEFT JOIN document_drafts dd ON dd.document_id = d.id
+                WHERE d.id = $1
+                "#,
+            )
+            .bind(command.document_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(shared::AppError::database)?
+            .ok_or_else(|| shared::AppError::not_found("document", command.document_id))?;
+            let title: String = row.get("title");
+            let content_markdown: String = row.get("content_markdown");
+            if content_markdown.trim().is_empty() {
+                return Err(shared::AppError::invalid_input(
+                    "published content is required",
+                ));
+            }
+            let version: i32 = sqlx::query_scalar(
+                "SELECT COALESCE(MAX(version), 0) + 1 FROM document_revisions WHERE document_id = $1",
+            )
+            .bind(command.document_id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(shared::AppError::database)?;
+            let content_text = markdown_to_text(&content_markdown);
+            let content_checksum = checksum(content_markdown.as_bytes());
+
+            let revision_row = sqlx::query(
+                r#"
+                INSERT INTO document_revisions (
+                    id, document_id, version, title, content_markdown, content_html,
+                    content_text, content_checksum, summary, author_id, published_at
+                )
+                VALUES ($1, $2, $3, $4, $5, $5, $6, $7, $8, $9, now())
+                RETURNING id, document_id, version, title, content_markdown, summary, author_id, published_at
+                "#,
+            )
+            .bind(command.revision_id)
+            .bind(command.document_id)
+            .bind(version)
+            .bind(title)
+            .bind(&content_markdown)
+            .bind(content_text)
+            .bind(content_checksum)
+            .bind(command.summary.as_deref())
+            .bind(actor_id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(shared::AppError::database)?;
+
+            sqlx::query(
+                r#"
+                UPDATE documents
+                SET current_revision_id = $2, status = 'published', archived_at = NULL, updated_at = now()
+                WHERE id = $1
+                "#,
+            )
+            .bind(command.document_id)
+            .bind(command.revision_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(shared::AppError::database)?;
+            sqlx::query(
+                "UPDATE document_drafts SET base_revision_id = $2, updated_at = now() WHERE document_id = $1",
+            )
+            .bind(command.document_id)
+            .bind(command.revision_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(shared::AppError::database)?;
+            self.backend
+                .insert_audit(
+                    &mut tx,
+                    Some(actor_id),
+                    "document.publish",
+                    "document",
+                    command.document_id,
+                )
+                .await?;
+            tx.commit().await.map_err(shared::AppError::database)?;
+            Ok(revision_response_from_row(&revision_row))
+        })
+    }
+
+    fn archive_document<'a>(
+        &'a self,
+        actor_id: Uuid,
+        command: WikiArchiveDocumentCommand,
+    ) -> WikiDocumentRepositoryFuture<'a, DocumentResponse> {
+        Box::pin(async move {
+            let mut tx = self
+                .backend
+                .pool
+                .begin()
+                .await
+                .map_err(shared::AppError::database)?;
+            let row = sqlx::query(
+                r#"
+                UPDATE documents
+                SET status = 'archived', archived_at = now(), updated_at = now()
+                WHERE id = $1
+                RETURNING id
+                "#,
+            )
+            .bind(command.document_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(shared::AppError::database)?
+            .ok_or_else(|| shared::AppError::not_found("document", command.document_id))?;
+            let document_id: Uuid = row.get("id");
+            self.backend
+                .insert_audit(
+                    &mut tx,
+                    Some(actor_id),
+                    "document.archive",
+                    "document",
+                    document_id,
+                )
+                .await?;
+            tx.commit().await.map_err(shared::AppError::database)?;
+            self.backend.document_response(document_id).await
+        })
+    }
+
+    fn move_document<'a>(
+        &'a self,
+        actor_id: Uuid,
+        command: WikiMoveDocumentCommand,
+    ) -> WikiDocumentRepositoryFuture<'a, DocumentResponse> {
+        Box::pin(async move {
+            let mut tx = self
+                .backend
+                .pool
+                .begin()
+                .await
+                .map_err(shared::AppError::database)?;
+            let row = sqlx::query(
+                r#"
+                UPDATE documents
+                SET parent_id = $2, updated_at = now()
+                WHERE id = $1
+                RETURNING id
+                "#,
+            )
+            .bind(command.document_id)
+            .bind(command.parent_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(shared::AppError::database)?
+            .ok_or_else(|| shared::AppError::not_found("document", command.document_id))?;
+            let document_id: Uuid = row.get("id");
+            self.backend
+                .insert_audit(
+                    &mut tx,
+                    Some(actor_id),
+                    "document.move",
+                    "document",
+                    document_id,
+                )
+                .await?;
+            tx.commit().await.map_err(shared::AppError::database)?;
+            self.backend.document_response(document_id).await
+        })
+    }
+
+    fn list_revisions<'a>(
+        &'a self,
+        document_id: Uuid,
+    ) -> WikiDocumentRepositoryFuture<'a, Vec<DocumentRevisionResponse>> {
+        Box::pin(async move {
+            let rows = sqlx::query(
+                r#"
+                SELECT id, document_id, version, title, content_markdown, summary, author_id, published_at
+                FROM document_revisions
+                WHERE document_id = $1
+                ORDER BY version DESC
+                "#,
+            )
+            .bind(document_id)
+            .fetch_all(&self.backend.pool)
+            .await
+            .map_err(shared::AppError::database)?;
+            Ok(rows.iter().map(revision_response_from_row).collect())
+        })
+    }
+
+    fn get_revision<'a>(
+        &'a self,
+        document_id: Uuid,
+        revision_id: Uuid,
+    ) -> WikiDocumentRepositoryFuture<'a, DocumentRevisionResponse> {
+        Box::pin(async move {
+            let row = sqlx::query(
+                r#"
+                SELECT id, document_id, version, title, content_markdown, summary, author_id, published_at
+                FROM document_revisions
+                WHERE document_id = $1 AND id = $2
+                "#,
+            )
+            .bind(document_id)
+            .bind(revision_id)
+            .fetch_optional(&self.backend.pool)
+            .await
+            .map_err(shared::AppError::database)?
+            .ok_or_else(|| shared::AppError::not_found("revision", revision_id))?;
+            Ok(revision_response_from_row(&row))
+        })
+    }
+}
 
 impl PostgresWikiBackend {
     pub(super) async fn create_document(
@@ -25,20 +443,10 @@ impl PostgresWikiBackend {
             .await?;
         self.ensure_space_accepts_writes(space_id).await?;
         let actor_id = parse_uuid(&claims.user_id, "user")?;
-        let title = normalize_required(&body.title, "document title")?;
-        let document_type = normalize_document_type(&body.document_type, true)?;
-        let document_id = Uuid::now_v7();
-        let mut slug = body.slug.unwrap_or_else(|| slugify(&title));
-        slug = slugify(&slug);
-        if slug.is_empty() {
-            slug = format!("document-{}", document_id.simple());
-            slug.truncate(17);
-        }
-        let slug = normalize_slug(&slug)?;
 
-        let parent_id = match body.parent_id {
+        let parent_id = match body.parent_id.as_deref() {
             Some(parent_id) => {
-                let resolved = self.resolve_document_id(&parent_id).await?;
+                let resolved = self.resolve_document_id(parent_id).await?;
                 let parent_space_id = self.document_space_id(resolved).await?;
                 if parent_space_id != space_id {
                     return Err(shared::AppError::invalid_input(
@@ -50,117 +458,10 @@ impl PostgresWikiBackend {
             None => None,
         };
 
-        let task_key = match body.task_key {
-            Some(value) => Some(normalize_task_key(&value)?),
-            None => None,
-        };
-        let phase_key = match body.phase_key {
-            Some(value) => Some(normalize_phase_key(&value)?),
-            None => None,
-        };
-
-        let mut tx = self
-            .pool
-            .begin()
+        let repository = PostgresWikiDocumentRepository { backend: self };
+        WikiDocumentUseCase::new(&repository)
+            .create(actor_id, space_id, parent_id, body)
             .await
-            .map_err(shared::AppError::database)?;
-        let position: i64 = sqlx::query_scalar(
-            r#"
-            SELECT COUNT(*)::bigint
-            FROM documents
-            WHERE space_id = $1
-              AND (($2::uuid IS NULL AND parent_id IS NULL) OR parent_id = $2)
-            "#,
-        )
-        .bind(space_id)
-        .bind(parent_id)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(shared::AppError::database)?;
-
-        sqlx::query(
-            r#"
-            INSERT INTO documents (
-                id, space_id, parent_id, slug, title, document_type, status,
-                owner_id, position, created_at, updated_at
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, 'draft', $7, $8, now(), now())
-            "#,
-        )
-        .bind(document_id)
-        .bind(space_id)
-        .bind(parent_id)
-        .bind(&slug)
-        .bind(title)
-        .bind(document_type)
-        .bind(actor_id)
-        .bind(position as i32)
-        .execute(&mut *tx)
-        .await
-        .map_err(shared::AppError::database)?;
-
-        sqlx::query(
-            r#"
-            INSERT INTO document_drafts (document_id, author_id, content_markdown, updated_at)
-            VALUES ($1, $2, $3, now())
-            "#,
-        )
-        .bind(document_id)
-        .bind(actor_id)
-        .bind(body.content_markdown)
-        .execute(&mut *tx)
-        .await
-        .map_err(shared::AppError::database)?;
-
-        if let Some(task_key) = &task_key {
-            let task_id = self
-                .upsert_task_dossier_tx(&mut tx, space_id, task_key)
-                .await?;
-            sqlx::query(
-                r#"
-                INSERT INTO document_task_links (space_id, document_id, task_dossier_id, created_by, created_at)
-                VALUES ($1, $2, $3, $4, now())
-                ON CONFLICT DO NOTHING
-                "#,
-            )
-            .bind(space_id)
-            .bind(document_id)
-            .bind(task_id)
-            .bind(actor_id)
-            .execute(&mut *tx)
-            .await
-            .map_err(shared::AppError::database)?;
-        }
-        if let Some(phase_key) = &phase_key {
-            let phase_id = self
-                .upsert_phase_dossier_tx(&mut tx, space_id, phase_key)
-                .await?;
-            sqlx::query(
-                r#"
-                INSERT INTO document_phase_links (space_id, document_id, phase_dossier_id, created_by, created_at)
-                VALUES ($1, $2, $3, $4, now())
-                ON CONFLICT DO NOTHING
-                "#,
-            )
-            .bind(space_id)
-            .bind(document_id)
-            .bind(phase_id)
-            .bind(actor_id)
-            .execute(&mut *tx)
-            .await
-            .map_err(shared::AppError::database)?;
-        }
-
-        self.insert_audit(
-            &mut tx,
-            Some(actor_id),
-            "document.create",
-            "document",
-            document_id,
-        )
-        .await?;
-        tx.commit().await.map_err(shared::AppError::database)?;
-        self.document_response(document_id).await
     }
 
     pub(super) async fn get_document(
@@ -171,7 +472,8 @@ impl PostgresWikiBackend {
         let document_id = self.resolve_document_id(document_id).await?;
         self.ensure_document_access(claims, document_id, SpaceAccess::View)
             .await?;
-        self.document_response(document_id).await
+        let repository = PostgresWikiDocumentRepository { backend: self };
+        WikiDocumentUseCase::new(&repository).get(document_id).await
     }
 
     pub(super) async fn update_document_draft(
@@ -184,66 +486,10 @@ impl PostgresWikiBackend {
         self.ensure_document_access(claims, document_id, SpaceAccess::Edit)
             .await?;
         let actor_id = parse_uuid(&claims.user_id, "user")?;
-        let title = body
-            .title
-            .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty());
-
-        let mut tx = self
-            .pool
-            .begin()
+        let repository = PostgresWikiDocumentRepository { backend: self };
+        WikiDocumentUseCase::new(&repository)
+            .update_draft(actor_id, document_id, body)
             .await
-            .map_err(shared::AppError::database)?;
-        let exists: Option<Uuid> = sqlx::query_scalar("SELECT id FROM documents WHERE id = $1")
-            .bind(document_id)
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(shared::AppError::database)?;
-        if exists.is_none() {
-            return Err(shared::AppError::not_found("document", document_id));
-        }
-        sqlx::query(
-            r#"
-            UPDATE documents
-            SET title = COALESCE($2, title),
-                status = 'draft',
-                archived_at = NULL,
-                updated_at = now()
-            WHERE id = $1
-            "#,
-        )
-        .bind(document_id)
-        .bind(title)
-        .execute(&mut *tx)
-        .await
-        .map_err(shared::AppError::database)?;
-        sqlx::query(
-            r#"
-            INSERT INTO document_drafts (document_id, author_id, content_markdown, updated_at)
-            VALUES ($1, $2, $3, now())
-            ON CONFLICT (document_id)
-            DO UPDATE SET author_id = EXCLUDED.author_id,
-                          content_markdown = EXCLUDED.content_markdown,
-                          updated_at = now()
-            "#,
-        )
-        .bind(document_id)
-        .bind(actor_id)
-        .bind(body.content_markdown)
-        .execute(&mut *tx)
-        .await
-        .map_err(shared::AppError::database)?;
-        self.insert_audit(
-            &mut tx,
-            Some(actor_id),
-            "document.draft_update",
-            "document",
-            document_id,
-        )
-        .await?;
-        tx.commit().await.map_err(shared::AppError::database)?;
-        self.document_response(document_id).await
     }
 
     pub(super) async fn publish_document(
@@ -256,95 +502,10 @@ impl PostgresWikiBackend {
         self.ensure_document_access(claims, document_id, SpaceAccess::Edit)
             .await?;
         let actor_id = parse_uuid(&claims.user_id, "user")?;
-        let mut tx = self
-            .pool
-            .begin()
+        let repository = PostgresWikiDocumentRepository { backend: self };
+        WikiDocumentUseCase::new(&repository)
+            .publish(actor_id, document_id, body)
             .await
-            .map_err(shared::AppError::database)?;
-        let row = sqlx::query(
-            r#"
-            SELECT d.title, COALESCE(dd.content_markdown, '') AS content_markdown
-            FROM documents d
-            LEFT JOIN document_drafts dd ON dd.document_id = d.id
-            WHERE d.id = $1
-            "#,
-        )
-        .bind(document_id)
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(shared::AppError::database)?
-        .ok_or_else(|| shared::AppError::not_found("document", document_id))?;
-        let title: String = row.get("title");
-        let content_markdown: String = row.get("content_markdown");
-        if content_markdown.trim().is_empty() {
-            return Err(shared::AppError::invalid_input(
-                "published content is required",
-            ));
-        }
-        let version: i32 = sqlx::query_scalar(
-            "SELECT COALESCE(MAX(version), 0) + 1 FROM document_revisions WHERE document_id = $1",
-        )
-        .bind(document_id)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(shared::AppError::database)?;
-        let revision_id = Uuid::now_v7();
-        let content_text = markdown_to_text(&content_markdown);
-        let content_checksum = checksum(content_markdown.as_bytes());
-
-        let revision_row = sqlx::query(
-            r#"
-            INSERT INTO document_revisions (
-                id, document_id, version, title, content_markdown, content_html,
-                content_text, content_checksum, summary, author_id, published_at
-            )
-            VALUES ($1, $2, $3, $4, $5, $5, $6, $7, $8, $9, now())
-            RETURNING id, document_id, version, title, content_markdown, summary, author_id, published_at
-            "#,
-        )
-        .bind(revision_id)
-        .bind(document_id)
-        .bind(version)
-        .bind(title)
-        .bind(&content_markdown)
-        .bind(content_text)
-        .bind(content_checksum)
-        .bind(body.summary)
-        .bind(actor_id)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(shared::AppError::database)?;
-
-        sqlx::query(
-            r#"
-            UPDATE documents
-            SET current_revision_id = $2, status = 'published', archived_at = NULL, updated_at = now()
-            WHERE id = $1
-            "#,
-        )
-        .bind(document_id)
-        .bind(revision_id)
-        .execute(&mut *tx)
-        .await
-        .map_err(shared::AppError::database)?;
-        sqlx::query(
-            "UPDATE document_drafts SET base_revision_id = $2, updated_at = now() WHERE document_id = $1",
-        )
-        .bind(document_id)
-        .bind(revision_id)
-        .execute(&mut *tx)
-        .await
-        .map_err(shared::AppError::database)?;
-        self.insert_audit(
-            &mut tx,
-            Some(actor_id),
-            "document.publish",
-            "document",
-            document_id,
-        )
-        .await?;
-        tx.commit().await.map_err(shared::AppError::database)?;
-        Ok(revision_response_from_row(&revision_row))
     }
 
     pub(super) async fn archive_document(
@@ -356,23 +517,10 @@ impl PostgresWikiBackend {
         self.ensure_document_access(claims, document_id, SpaceAccess::Edit)
             .await?;
         let actor_id = parse_uuid(&claims.user_id, "user")?;
-        let row = sqlx::query(
-            r#"
-            UPDATE documents
-            SET status = 'archived', archived_at = now(), updated_at = now()
-            WHERE id = $1
-            RETURNING id
-            "#,
-        )
-        .bind(document_id)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(shared::AppError::database)?
-        .ok_or_else(|| shared::AppError::not_found("document", document_id))?;
-        let document_id: Uuid = row.get("id");
-        self.audit(Some(actor_id), "document.archive", "document", document_id)
-            .await?;
-        self.document_response(document_id).await
+        let repository = PostgresWikiDocumentRepository { backend: self };
+        WikiDocumentUseCase::new(&repository)
+            .archive(actor_id, document_id)
+            .await
     }
 
     pub(super) async fn move_document(
@@ -412,15 +560,10 @@ impl PostgresWikiBackend {
             }
             None => None,
         };
-        sqlx::query("UPDATE documents SET parent_id = $2, updated_at = now() WHERE id = $1")
-            .bind(document_id)
-            .bind(parent_id)
-            .execute(&self.pool)
+        let repository = PostgresWikiDocumentRepository { backend: self };
+        WikiDocumentUseCase::new(&repository)
+            .move_document(actor_id, document_id, parent_id)
             .await
-            .map_err(shared::AppError::database)?;
-        self.audit(Some(actor_id), "document.move", "document", document_id)
-            .await?;
-        self.document_response(document_id).await
     }
 
     pub(super) async fn list_document_revisions(
@@ -431,21 +574,10 @@ impl PostgresWikiBackend {
         let document_id = self.resolve_document_id(document_id).await?;
         self.ensure_document_access(claims, document_id, SpaceAccess::View)
             .await?;
-        let rows = sqlx::query(
-            r#"
-            SELECT id, document_id, version, title, content_markdown, summary, author_id, published_at
-            FROM document_revisions
-            WHERE document_id = $1
-            ORDER BY version DESC
-            "#,
-        )
-        .bind(document_id)
-        .fetch_all(&self.pool)
-        .await
-        .map_err(shared::AppError::database)?;
-        Ok(DocumentRevisionListResponse {
-            revisions: rows.iter().map(revision_response_from_row).collect(),
-        })
+        let repository = PostgresWikiDocumentRepository { backend: self };
+        WikiDocumentUseCase::new(&repository)
+            .list_revisions(document_id)
+            .await
     }
 
     pub(super) async fn get_document_revision(
@@ -458,20 +590,10 @@ impl PostgresWikiBackend {
         self.ensure_document_access(claims, document_id, SpaceAccess::View)
             .await?;
         let revision_id = parse_uuid(revision_id, "revision")?;
-        let row = sqlx::query(
-            r#"
-            SELECT id, document_id, version, title, content_markdown, summary, author_id, published_at
-            FROM document_revisions
-            WHERE document_id = $1 AND id = $2
-            "#,
-        )
-        .bind(document_id)
-        .bind(revision_id)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(shared::AppError::database)?
-        .ok_or_else(|| shared::AppError::not_found("revision", revision_id))?;
-        Ok(revision_response_from_row(&row))
+        let repository = PostgresWikiDocumentRepository { backend: self };
+        WikiDocumentUseCase::new(&repository)
+            .get_revision(document_id, revision_id)
+            .await
     }
 
     pub(super) async fn document_space_id(
