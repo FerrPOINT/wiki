@@ -1,5 +1,4 @@
 use domain::Repositories;
-use migration::MigratorTrait;
 use sea_orm::{ConnectOptions, Database};
 use shared::{AppError, DatabaseConfig};
 
@@ -39,14 +38,4 @@ pub async fn build_repositories(config: DatabaseConfig) -> Result<Repositories, 
         versions: repos.versions,
         custom_fields: repos.custom_fields,
     })
-}
-
-pub async fn run_migrations(config: DatabaseConfig) -> Result<(), AppError> {
-    let mut opt = ConnectOptions::new(config.url);
-    opt.max_connections(1);
-    let db = Database::connect(opt).await.map_err(AppError::database)?;
-    migration::Migrator::up(&db, None)
-        .await
-        .map_err(AppError::database)?;
-    Ok(())
 }

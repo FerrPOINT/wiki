@@ -2,21 +2,22 @@
 
 ## 1. Overview
 
-Миграции управляют схемой PostgreSQL. Wiki-подход - **SQLx migrations**: plain SQL-файлы, применяемые через `sqlx migrate` или thin migration runner в backend startup.
+Миграции управляют схемой PostgreSQL. Wiki-подход - **SQLx migrations**: plain SQL-файлы, применяемые через `sqlx migrate`, startup runner или thin `cargo run -p migration` runner.
 
-Clean Wiki baseline lives in `backend/migrations/202608310001_create_wiki_mvp.*.sql` and creates a fresh MVP schema without task-tracker tables. `202608310002_add_auth_runtime.*.sql` adds usernames and auth session storage used by the SQLx runtime adapter. Текущий `backend/migration` на SeaORM унаследован из `task-tracker` и остаётся только compatibility/quarantine layer до удаления старых infra-модулей; его нельзя расширять новыми Wiki capability.
+Clean Wiki baseline lives in `backend/migrations/202608310001_create_wiki_mvp.*.sql` and creates a fresh MVP schema without task-tracker tables. `202608310002_add_auth_runtime.*.sql` adds usernames and auth session storage used by the SQLx runtime adapter. `backend/migration` is a thin SQLx command wrapper over this directory, not a separate schema source.
 
 ## 2. Tooling
 
 | Tool | Purpose |
 |------|---------|
 | `sqlx migrate` | Создание, применение и проверка SQL migrations |
+| `cargo run -p migration -- up/status/down/fresh` | Local/CI runner над теми же SQLx migrations |
 | `cargo build --bin openapi-gen` | Генерация OpenAPI spec |
 | `psql` | Ручная диагностика схемы и индексов |
 
 ## 3. Folder Structure
 
-Target Wiki migration set:
+Canonical Wiki migration set:
 
 ```
 backend/migrations/
@@ -27,7 +28,7 @@ backend/migrations/
 └── seeds/
 ```
 
-The current repository still contains inherited task-tracker migration files under `backend/migration`. They are not the target Wiki schema and must be removed or isolated after SQLx repositories replace the old infra layer.
+`backend/migration` contains only the SQLx runner source. It must not define DDL or carry task-tracker migrations.
 
 ## 4. Naming Convention
 
@@ -55,7 +56,7 @@ The current repository still contains inherited task-tracker migration files und
 - Не изменять существующие миграции после коммита — только новая миграция.
 - Не редактировать уже применённые migration-файлы.
 - Не удалять старые migration-файлы без fresh-schema решения и отдельного migration note.
-- Не добавлять новые SeaORM migrations для Wiki-сущностей.
+- Не добавлять SeaORM migrations или task-tracker DDL.
 
 ## 6. Applying Migrations
 
@@ -65,7 +66,15 @@ The current repository still contains inherited task-tracker migration files und
 sqlx::migrate!("../migrations").run(&pool).await?;
 ```
 
-Вручную:
+Вручную через runner:
+
+```bash
+cd backend
+DATABASE_URL=postgres://... cargo run -p migration -- up
+DATABASE_URL=postgres://... cargo run -p migration -- status
+```
+
+Вручную через `sqlx-cli`:
 
 ```bash
 # Применить все миграции
@@ -102,5 +111,5 @@ sqlx migrate add -r -s backend/migrations document_revision_restore
 | Environment | When |
 |-------------|------|
 | local | `sqlx migrate run` при старте dev-сервера |
-| CI | `sqlx migrate run` на testcontainers PostgreSQL |
+| CI | `cargo run -p migration -- up/status` на clean PostgreSQL |
 | production | startup migration runner или отдельный release step |

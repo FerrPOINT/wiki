@@ -9,7 +9,7 @@
 ## 2. Миграции
 
 - Целевой инструмент - `sqlx migrate` и plain SQL migrations по ADR-0001.
-- Унаследованный `backend/migration` на SeaORM относится к task-tracker scaffold и должен быть заменён или изолирован до реализации Wiki persistence.
+- `backend/migration` - thin SQLx runner над canonical `backend/migrations`; он нужен для CI/local команд `up/status/down/fresh` и не содержит task-tracker DDL.
 - Имя файла: `YYYYMMDDHHMMSS_description.up.sql` и `YYYYMMDDHHMMSS_description.down.sql`.
 - Каждая миграция:
   - выполняется транзакционно через SQLx, если явно не указан no-transaction case

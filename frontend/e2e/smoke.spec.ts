@@ -356,7 +356,7 @@ test.describe('wiki smoke', () => {
 
     await page.goto(`${baseURL}/admin`)
     await expect(page.getByRole('heading', { name: 'Администрирование' })).toBeVisible()
-    await expect(page.getByText('Состояние инстанса')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Состояние инстанса' })).toBeVisible()
     await expect(page.getByText('Файлы до 25 МБ')).toBeVisible()
   })
 })

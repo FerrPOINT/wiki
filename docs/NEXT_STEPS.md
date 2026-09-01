@@ -9,7 +9,7 @@ The documentation, screenshots, API-backed frontend MVP pages and SQLx-backed MV
 - README screenshot gallery points to 22 existing screenshots;
 - CI/CD-style documentation filename parity is preserved;
 - env/local setup/deployment docs use current `WIKI_*__*` variables and service names;
-- migration docs direct new Wiki persistence work toward SQLx and quarantine inherited SeaORM task-tracker migrations;
+- migration docs and CI use canonical SQLx migrations through `backend/migrations` and the thin `backend/migration` SQLx runner;
 - Wiki-owned domain value objects/invariants exist in `domain::wiki`;
 - a fresh SQLx MVP schema baseline exists in `backend/migrations/202608310001_create_wiki_mvp.*.sql`;
 - frontend MVP pages read from the public Wiki API; create document, edit/publish/archive/move document, create user, evidence, settings/admin overview and search flows call the same API;
@@ -51,7 +51,7 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 ## 2. Database And Migrations
 
 - Extend the clean SQLx baseline only through new SQLx migrations.
-- Treat Wiki as a fresh schema; inherited tracker migrations are compatibility/quarantine only.
+- Treat Wiki as a fresh schema; do not reintroduce inherited tracker migrations.
 - Review indexes with `EXPLAIN` when repositories are implemented.
 - Keep audit writes transactional with the command that caused them.
 - Update `docs/MIGRATIONS.md` after the schema decision.
@@ -111,7 +111,7 @@ Current status: the CLI now exposes the MVP public API command groups for humans
 1. Rerun fresh PostgreSQL smoke with `WIKI_TEST_DATABASE_URL`, including router rebuild persistence, disabled-registration coverage and the space membership delete/revocation regression.
 2. Continue focused repository/API hardening for the remaining PostgreSQL-backed permission edge cases.
 3. Tune PostgreSQL FTS ranking/search filters and capture query-plan evidence for the expected MVP dataset size.
-4. Remove remaining inherited tracker compatibility modules and the SeaORM migration compatibility layer.
+4. Remove remaining inherited tracker compatibility modules.
 5. Replace handwritten frontend endpoint wrappers with a generated operation client after the PostgreSQL-backed contract stabilizes.
 
 ## 10. Done Criteria For Backend Start

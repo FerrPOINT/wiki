@@ -8,6 +8,7 @@ COPY backend/shared ./shared
 COPY backend/domain ./domain
 COPY backend/infra ./infra
 COPY backend/migration ./migration
+COPY backend/migrations ./migrations
 COPY backend/app ./app
 COPY backend/api ./api
 COPY backend/server ./server

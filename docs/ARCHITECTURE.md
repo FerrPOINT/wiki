@@ -54,7 +54,8 @@ wiki/
 │   ├── api/         # axum routes, DTO, OpenAPI
 │   ├── server/      # composition root
 │   ├── cli/         # wiki CLI
-│   ├── migration/   # versioned migrations
+│   ├── migrations/  # SQLx migration SQL files
+│   ├── migration/   # thin SQLx migration runner
 │   └── shared/      # config, errors, ids, public Wiki API contract
 ├── frontend/
 │   └── src/{api,app,pages,features,entities,shared,widgets}
@@ -131,7 +132,7 @@ Use cases MVP:
 - Search projection: PostgreSQL full-text search.
 - Audit repository.
 
-Default `infra` crate export surface contains the Wiki local attachment storage adapter and the transitional SQLx/PostgreSQL Wiki backend adapter. Inherited task-tracker `cache`, `db`, `email`, `entities`, `event_bus`, `jql`, `repos` and issue attachment `storage` modules are compatibility code behind feature `legacy-tracker`.
+Default `infra` crate export surface contains the Wiki local attachment storage adapter and the transitional SQLx/PostgreSQL Wiki backend adapter. Inherited task-tracker `cache`, `db`, `email`, `entities`, `event_bus`, `jql`, `repos` and issue attachment `storage` modules are compatibility code behind feature `legacy-tracker`; the old SeaORM migration crate was replaced by the SQLx runner over `backend/migrations`.
 
 ## 9. API Layer
 

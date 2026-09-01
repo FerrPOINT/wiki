@@ -29,7 +29,6 @@ docker compose up -d --build
 ```bash
 cd backend
 DATABASE_URL=postgres://wiki:[CHANGE_ME]@localhost:3457/wiki cargo run -p migration -- status
-# target after SQLx migration replacement:
 sqlx migrate info --source backend/migrations
 ```
 

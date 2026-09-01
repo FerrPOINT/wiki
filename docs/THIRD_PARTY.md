@@ -18,7 +18,7 @@ Key Rust dependencies:
 - jsonwebtoken
 - argon2
 
-Inherited `sea-orm` / `sea-orm-migration` dependencies may exist until backend migration is complete. They are not the target for new Wiki persistence work.
+`sea-orm-migration` is removed from the Wiki backend. `sea-orm` may still exist only behind explicit `legacy-tracker` compatibility modules until those copied task-tracker internals are deleted.
 
 ## 3. Frontend Dependencies
 
