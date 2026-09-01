@@ -20,6 +20,7 @@ vi.mock('@/api/wiki', () => ({
   createSpace: vi.fn(),
   createDocument: vi.fn(),
   createEvidence,
+  createTemplate: vi.fn(),
   createUser: vi.fn(),
   deleteSpaceMember: vi.fn(),
   getDocument: vi.fn(),
@@ -42,6 +43,7 @@ vi.mock('@/api/wiki', () => ({
   searchWiki: vi.fn(),
   updateDocumentDraft: vi.fn(),
   updateSpace: vi.fn(),
+  updateUser: vi.fn(),
   uploadAttachment,
   upsertSpaceMember: vi.fn(),
 }))

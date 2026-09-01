@@ -7,6 +7,7 @@ import {
   createDocument,
   createEvidence,
   createSpace,
+  createTemplate,
   createUser,
   deleteSpaceMember,
   getDocument,
@@ -37,10 +38,13 @@ import {
   type SearchParams,
   updateDocumentDraft,
   updateSpace,
+  updateUser,
   type UpdateDocumentDraftRequest,
   type UpdateSpaceRequest,
+  type UpdateUserRequest,
   uploadAttachment,
   upsertSpaceMember,
+  type CreateTemplateRequest,
   type CreateUserRequest,
   type UpsertSpaceMemberRequest,
 } from '@/api/wiki'
@@ -315,6 +319,18 @@ export function useTemplates() {
   })
 }
 
+export function useCreateTemplate() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (body: CreateTemplateRequest) => createTemplate(body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: wikiKeys.templates })
+      queryClient.invalidateQueries({ queryKey: wikiKeys.auditLog })
+    },
+  })
+}
+
 export function useAuditLog() {
   return useQuery({
     queryKey: wikiKeys.auditLog,
@@ -467,6 +483,20 @@ export function useCreateUser() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: wikiKeys.users })
       queryClient.invalidateQueries({ queryKey: wikiKeys.auditLog })
+    },
+  })
+}
+
+export function useUpdateUser() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ userId, body }: { userId: string; body: UpdateUserRequest }) =>
+      updateUser(userId, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: wikiKeys.users })
+      queryClient.invalidateQueries({ queryKey: wikiKeys.auditLog })
+      queryClient.invalidateQueries({ queryKey: authKeys.me })
     },
   })
 }

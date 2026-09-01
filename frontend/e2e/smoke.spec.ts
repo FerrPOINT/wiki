@@ -14,6 +14,15 @@ const user = {
   is_system_admin: true,
   active: true,
 }
+const editorUser = {
+  id: '00000000-0000-0000-0000-000000000002',
+  email: 'editor@example.com',
+  username: 'editor',
+  display_name: 'Редактор',
+  role: 'user',
+  is_system_admin: false,
+  active: true,
+}
 const spaceMember = {
   user_id: user.id,
   email: user.email,
@@ -106,6 +115,12 @@ const settings = {
   markdown_renderer: 'comrak',
   html_sanitizer: 'ammonia',
 }
+const template = {
+  id: 'requirements',
+  name: 'Требования',
+  document_type: 'requirements',
+  body_markdown: '# Требования\n\n## Контекст\n\n## Решения\n\n## Проверки\n',
+}
 
 function routeJson(route: Route, body: unknown, status = 200) {
   return route.fulfill({
@@ -118,8 +133,16 @@ function routeJson(route: Route, body: unknown, status = 200) {
 async function installWikiApiMocks(page: Page) {
   let currentDocument = { ...document }
   let currentRevisions = [document.current_revision]
+  let currentTemplates = [template]
+  let currentUsers = [user, editorUser]
   const documentDraftRequests: Array<{ title?: string; content_markdown: string }> = []
   const documentPublishRequests: Array<{ summary?: string | null }> = []
+  const templateCreateRequests: Array<{
+    name: string
+    document_type: string
+    body_markdown: string
+  }> = []
+  const userUpdateRequests: Array<{ userId: string; role?: string; active?: boolean }> = []
   const searchRequests: string[] = []
   const evidenceRequests: string[] = []
 
@@ -145,7 +168,26 @@ async function installWikiApiMocks(page: Page) {
     }
     if (method === 'POST' && path === '/auth/logout') return route.fulfill({ status: 204 })
     if (method === 'GET' && path === '/users/me') return routeJson(route, user)
-    if (method === 'GET' && path === '/users') return routeJson(route, { users: [user] })
+    if (method === 'GET' && path === '/users') return routeJson(route, { users: currentUsers })
+    if (method === 'PUT' && path.startsWith('/users/')) {
+      const userId = decodeURIComponent(path.split('/').pop() ?? '')
+      const body = request.postDataJSON() as { role?: string; active?: boolean }
+      userUpdateRequests.push({ userId, role: body.role, active: body.active })
+      currentUsers = currentUsers.map((item) =>
+        item.id === userId
+          ? {
+              ...item,
+              role: body.role ?? item.role,
+              is_system_admin: body.role === 'admin',
+              active: body.active ?? item.active,
+            }
+          : item,
+      )
+      return routeJson(
+        route,
+        currentUsers.find((item) => item.id === userId),
+      )
+    }
     if (method === 'GET' && path === '/settings') return routeJson(route, settings)
     if (method === 'GET' && path === '/spaces') {
       return routeJson(route, {
@@ -254,15 +296,24 @@ async function installWikiApiMocks(page: Page) {
     }
     if (method === 'GET' && path === '/templates') {
       return routeJson(route, {
-        templates: [
-          {
-            id: 'requirements',
-            name: 'Требования',
-            document_type: 'requirements',
-            body_markdown: '# Требования\n\n## Контекст\n\n## Решения\n\n## Проверки\n',
-          },
-        ],
+        templates: currentTemplates,
       })
+    }
+    if (method === 'POST' && path === '/templates') {
+      const body = request.postDataJSON() as {
+        name: string
+        document_type: string
+        body_markdown: string
+      }
+      templateCreateRequests.push(body)
+      const created = {
+        id: body.name.toLowerCase().replace(/\s+/g, '-'),
+        name: body.name,
+        document_type: body.document_type,
+        body_markdown: body.body_markdown,
+      }
+      currentTemplates = [created, ...currentTemplates]
+      return routeJson(route, created, 201)
     }
     if (method === 'GET' && path === '/audit-log') {
       return routeJson(route, {
@@ -307,7 +358,14 @@ async function installWikiApiMocks(page: Page) {
     return routeJson(route, { error: `Unhandled mock route ${method} ${path}` }, 404)
   })
 
-  return { documentDraftRequests, documentPublishRequests, evidenceRequests, searchRequests }
+  return {
+    documentDraftRequests,
+    documentPublishRequests,
+    evidenceRequests,
+    searchRequests,
+    templateCreateRequests,
+    userUpdateRequests,
+  }
 }
 
 test.describe('wiki smoke', () => {
@@ -369,6 +427,39 @@ test.describe('wiki smoke', () => {
     await expect
       .poll(() =>
         apiMocks.searchRequests.some((query) => query.includes('document_type=requirements')),
+      )
+      .toBe(true)
+
+    await page.goto(`${baseURL}/templates`)
+    await expect(page.getByRole('heading', { name: 'Шаблоны' })).toBeVisible()
+    await page.getByLabel('Название шаблона').fill('Шаблон релиза')
+    await page.getByLabel('Тип документа').selectOption('release_note')
+    await page.getByLabel('Markdown шаблона').fill('# Релиз\n\n## Проверки\n')
+    await page.getByRole('button', { name: 'Создать шаблон' }).click()
+    await expect
+      .poll(() =>
+        apiMocks.templateCreateRequests.some((request) => request.name === 'Шаблон релиза'),
+      )
+      .toBe(true)
+    await expect(page.getByText('Шаблон релиза')).toBeVisible()
+
+    await page.goto(`${baseURL}/users`)
+    await expect(page.getByRole('heading', { name: 'Пользователи', exact: true })).toBeVisible()
+    const editorRole = page.getByLabel('Роль пользователя editor@example.com')
+    await editorRole.selectOption('admin')
+    await page.getByLabel('Статус пользователя editor@example.com').selectOption('disabled')
+    await editorRole
+      .locator('xpath=ancestor::form')
+      .getByRole('button', { name: 'Сохранить' })
+      .click()
+    await expect
+      .poll(() =>
+        apiMocks.userUpdateRequests.some(
+          (request) =>
+            request.userId === editorUser.id &&
+            request.role === 'admin' &&
+            request.active === false,
+        ),
       )
       .toBe(true)
 

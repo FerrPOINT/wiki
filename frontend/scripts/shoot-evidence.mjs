@@ -32,6 +32,15 @@ const user = {
   is_system_admin: true,
   active: true,
 }
+const editorUser = {
+  id: '00000000-0000-0000-0000-000000000002',
+  email: 'editor@example.test',
+  username: 'editor',
+  display_name: 'Редактор',
+  role: 'user',
+  is_system_admin: false,
+  active: true,
+}
 const spaceMember = {
   user_id: user.id,
   email: user.email,
@@ -130,6 +139,20 @@ const settings = {
   markdown_renderer: 'comrak',
   html_sanitizer: 'ammonia',
 }
+const templates = [
+  {
+    id: 'requirements',
+    name: 'Требования',
+    document_type: 'requirements',
+    body_markdown: '# Требования\n\n## Контекст\n\n## Решения\n\n## Проверки\n',
+  },
+  {
+    id: 'research-note',
+    name: 'Исследование',
+    document_type: 'research_note',
+    body_markdown: '# Исследование\n\n## Контекст\n\n## Варианты\n\n## Решение\n',
+  },
+]
 
 const shots = [
   { name: '01-login.png', path: '/login', title: 'Login' },
@@ -220,7 +243,18 @@ async function installApiMocks(page) {
     }
     if (method === 'POST' && path === '/auth/logout') return route.fulfill({ status: 204 })
     if (method === 'GET' && path === '/users/me') return routeJson(route, user)
-    if (method === 'GET' && path === '/users') return routeJson(route, { users: [user] })
+    if (method === 'GET' && path === '/users')
+      return routeJson(route, { users: [user, editorUser] })
+    if (method === 'PUT' && path.startsWith('/users/')) {
+      const userId = decodeURIComponent(path.split('/').pop() ?? '')
+      const body = request.postDataJSON()
+      return routeJson(route, {
+        ...(userId === editorUser.id ? editorUser : user),
+        role: body.role ?? 'user',
+        is_system_admin: body.role === 'admin',
+        active: body.active ?? true,
+      })
+    }
     if (method === 'GET' && path === '/settings') return routeJson(route, settings)
     if (method === 'GET' && path === '/spaces') {
       return routeJson(route, {
@@ -285,21 +319,21 @@ async function installApiMocks(page) {
     if (method === 'GET' && path === '/evidence') return routeJson(route, { evidence: [evidence] })
     if (method === 'GET' && path === '/templates') {
       return routeJson(route, {
-        templates: [
-          {
-            id: 'requirements',
-            name: 'Требования',
-            document_type: 'requirements',
-            body_markdown: '# Требования\n\n## Контекст\n\n## Решения\n\n## Проверки\n',
-          },
-          {
-            id: 'research-note',
-            name: 'Исследование',
-            document_type: 'research_note',
-            body_markdown: '# Исследование\n\n## Контекст\n\n## Варианты\n\n## Решение\n',
-          },
-        ],
+        templates,
       })
+    }
+    if (method === 'POST' && path === '/templates') {
+      const body = request.postDataJSON()
+      return routeJson(
+        route,
+        {
+          id: body.name.toLowerCase().replace(/\s+/g, '-'),
+          name: body.name,
+          document_type: body.document_type,
+          body_markdown: body.body_markdown,
+        },
+        201,
+      )
     }
     if (method === 'GET' && path === '/audit-log') {
       return routeJson(route, {

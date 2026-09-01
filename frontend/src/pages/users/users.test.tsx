@@ -4,13 +4,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { UsersPage } from './'
 
 const useCreateUser = vi.hoisted(() => vi.fn())
+const useUpdateUser = vi.hoisted(() => vi.fn())
 const useUsers = vi.hoisted(() => vi.fn())
 
 const createUserMutate = vi.hoisted(() => vi.fn())
+const updateUserMutate = vi.hoisted(() => vi.fn())
 const usersRefetch = vi.hoisted(() => vi.fn())
 
 vi.mock('@/shared/api/hooks', () => ({
   useCreateUser,
+  useUpdateUser,
   useUsers,
 }))
 
@@ -33,6 +36,15 @@ function setupUsers({
           role: 'admin',
           username: 'admin',
         },
+        {
+          active: true,
+          display_name: 'Редактор',
+          email: 'editor@example.test',
+          id: 'user-editor',
+          is_system_admin: false,
+          role: 'user',
+          username: 'editor',
+        },
       ],
     },
     isLoading: false,
@@ -46,6 +58,12 @@ function setupUsers({
     isError: false,
     error: null,
     ...createOverrides,
+  })
+  useUpdateUser.mockReturnValue({
+    mutate: updateUserMutate,
+    isPending: false,
+    isError: false,
+    error: null,
   })
 
   render(<UsersPage />)
@@ -84,5 +102,26 @@ describe('UsersPage', () => {
 
     expect(screen.getByText('Проверьте заполнение полей: Пароль: required')).toBeInTheDocument()
     expect(screen.queryByText(/requestId/)).not.toBeInTheDocument()
+  })
+
+  it('submits global role and status updates through the shared API hook', () => {
+    setupUsers()
+
+    fireEvent.change(screen.getByLabelText('Роль пользователя editor@example.test'), {
+      target: { value: 'admin' },
+    })
+    fireEvent.change(screen.getByLabelText('Статус пользователя editor@example.test'), {
+      target: { value: 'disabled' },
+    })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Сохранить' })[1]!)
+
+    expect(updateUserMutate).toHaveBeenCalledWith({
+      userId: 'user-editor',
+      body: {
+        role: 'admin',
+        is_system_admin: true,
+        active: false,
+      },
+    })
   })
 })

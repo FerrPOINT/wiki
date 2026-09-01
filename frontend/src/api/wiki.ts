@@ -3,6 +3,7 @@ import type {
   AttachmentResponse,
   AuditEntryResponse,
   AuditLogResponse,
+  CreateTemplateRequest as GeneratedCreateTemplateRequest,
   CreateDocumentRequest as GeneratedCreateDocumentRequest,
   CreateEvidenceRequest as GeneratedCreateEvidenceRequest,
   CreateSpaceRequest as GeneratedCreateSpaceRequest,
@@ -33,6 +34,7 @@ import type {
   UpsertSpaceMemberRequest as GeneratedUpsertSpaceMemberRequest,
   WikiCreateUserRequest,
   WikiSettingsResponse,
+  WikiUpdateUserRequest,
   WikiUserListResponse,
   WikiUserResponse,
 } from './generated'
@@ -55,9 +57,11 @@ export type MoveDocumentRequest = GeneratedMoveDocumentRequest
 export type TaskPage = TaskPageResponse
 export type PhasePage = PhasePageResponse
 export type Template = TemplateResponse
+export type CreateTemplateRequest = GeneratedCreateTemplateRequest
 export type AuditEntry = AuditEntryResponse
 export type User = WikiUserResponse
 export type CreateUserRequest = WikiCreateUserRequest
+export type UpdateUserRequest = WikiUpdateUserRequest
 export type WikiSettings = WikiSettingsResponse
 export type SearchResult = SearchResultResponse
 export type CreateEvidenceRequest = GeneratedCreateEvidenceRequest
@@ -247,6 +251,10 @@ export function listTemplates(): Promise<TemplateListResponse> {
   return apiRequest<TemplateListResponse>('/api/v1/templates')
 }
 
+export function createTemplate(body: CreateTemplateRequest): Promise<Template> {
+  return apiRequest<Template>('/api/v1/templates', { method: 'POST', body })
+}
+
 export function listAuditLog(): Promise<AuditLogResponse> {
   return apiRequest<AuditLogResponse>('/api/v1/audit-log')
 }
@@ -257,6 +265,13 @@ export function listUsers(): Promise<WikiUserListResponse> {
 
 export function createUser(body: CreateUserRequest): Promise<User> {
   return apiRequest<User>('/api/v1/users', { method: 'POST', body })
+}
+
+export function updateUser(userId: string, body: UpdateUserRequest): Promise<User> {
+  return apiRequest<User>(`/api/v1/users/${encodeURIComponent(userId)}`, {
+    method: 'PUT',
+    body,
+  })
 }
 
 export function getWikiSettings(): Promise<WikiSettingsResponse> {
