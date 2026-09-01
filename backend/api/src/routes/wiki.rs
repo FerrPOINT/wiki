@@ -80,7 +80,7 @@ pub async fn require_wiki_auth(
     State(backend): State<WikiBackend>,
     mut req: Request<Body>,
     next: Next,
-) -> Result<Response, StatusCode> {
+) -> Result<Response, shared::AppError> {
     let token = req
         .headers()
         .get(header::AUTHORIZATION)
@@ -90,11 +90,11 @@ pub async fn require_wiki_auth(
                 .strip_prefix("Bearer ")
                 .or_else(|| value.strip_prefix("bearer "))
         })
-        .ok_or(StatusCode::UNAUTHORIZED)?;
+        .ok_or(shared::AppError::Unauthorized)?;
 
     let claims = match backend.authenticate_access_token(token).await {
         Ok(claims) => claims,
-        Err(_) => return Err(StatusCode::UNAUTHORIZED),
+        Err(_) => return Err(shared::AppError::Unauthorized),
     };
 
     req.extensions_mut().insert(claims);
@@ -541,6 +541,9 @@ pub async fn logout(
 
     let mut store = store().lock().expect("wiki store lock");
     store.tokens.retain(|_, user_id| user_id != &claims.user_id);
+    store
+        .refresh_tokens
+        .retain(|_, user_id| user_id != &claims.user_id);
     store.audit(&claims.user_id, "auth.logout", "user", &claims.user_id);
     Ok(StatusCode::NO_CONTENT)
 }

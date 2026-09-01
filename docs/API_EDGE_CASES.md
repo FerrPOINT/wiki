@@ -10,8 +10,9 @@
 
 | Scenario                               | Behavior                                  |
 | -------------------------------------- | ----------------------------------------- |
-| Missing/invalid access token           | `401 UNAUTHORIZED`                        |
+| Missing/invalid access token           | `401 UNAUTHORIZED` with standard error envelope |
 | Invalid refresh token                  | `401 UNAUTHORIZED`, требуется новый login |
+| Logout with current access token       | Current session access and refresh token paths are invalidated |
 | Registration disabled                  | `403 FORBIDDEN`                           |
 | User removed from space during session | Следующий запрос к space возвращает `403` |
 | Viewer tries write action              | `403 FORBIDDEN`                           |

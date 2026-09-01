@@ -406,6 +406,66 @@ async fn wiki_settings_are_admin_only_and_config_backed() {
 }
 
 #[tokio::test]
+async fn wiki_memory_logout_invalidates_access_and_refresh_tokens() {
+    let app = test_app();
+
+    let (status, login) = call(
+        &app,
+        Method::POST,
+        "/api/v1/auth/login",
+        None,
+        Some(json!({ "email": "demo@example.com", "password": "demo" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let access_token = login["access_token"].as_str().unwrap();
+    let refresh_token = login["refresh_token"].as_str().unwrap();
+
+    let (status, me) = call(
+        &app,
+        Method::GET,
+        "/api/v1/users/me",
+        Some(access_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(me["email"], "demo@example.com");
+
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        "/api/v1/auth/logout",
+        Some(access_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let (status, body) = call(
+        &app,
+        Method::GET,
+        "/api/v1/users/me",
+        Some(access_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert_eq!(body["error"]["code"], "UNAUTHORIZED");
+
+    let (status, body) = call(
+        &app,
+        Method::POST,
+        "/api/v1/auth/refresh",
+        None,
+        Some(json!({ "refresh_token": refresh_token })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert_eq!(body["error"]["code"], "UNAUTHORIZED");
+}
+
+#[tokio::test]
 async fn wiki_memory_authz_and_audit_align_with_mvp_contract() {
     let app = test_app();
     let (status, login) = call(
@@ -2080,6 +2140,72 @@ async fn wiki_postgres_register_respects_instance_registration_setting() {
 
     let token = login_admin(&app).await;
     assert!(!token.is_empty());
+}
+
+#[tokio::test]
+async fn wiki_postgres_logout_invalidates_access_and_refresh_tokens() {
+    let Ok(database_url) = env::var("WIKI_TEST_DATABASE_URL") else {
+        eprintln!("skipping postgres logout session test: WIKI_TEST_DATABASE_URL is not set");
+        return;
+    };
+    reset_postgres(&database_url).await;
+    let storage_dir = env::temp_dir().join(format!("wiki-api-test-{}", Uuid::now_v7()));
+    let (app, _) = postgres_test_app(database_url, storage_dir).await;
+
+    let (status, login) = call(
+        &app,
+        Method::POST,
+        "/api/v1/auth/login",
+        None,
+        Some(json!({ "email": "admin@example.com", "password": "admin-password" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let access_token = login["access_token"].as_str().unwrap();
+    let refresh_token = login["refresh_token"].as_str().unwrap();
+
+    let (status, me) = call(
+        &app,
+        Method::GET,
+        "/api/v1/users/me",
+        Some(access_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(me["email"], "admin@example.com");
+
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        "/api/v1/auth/logout",
+        Some(access_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let (status, body) = call(
+        &app,
+        Method::GET,
+        "/api/v1/users/me",
+        Some(access_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert_eq!(body["error"]["code"], "UNAUTHORIZED");
+
+    let (status, body) = call(
+        &app,
+        Method::POST,
+        "/api/v1/auth/refresh",
+        None,
+        Some(json!({ "refresh_token": refresh_token })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert_eq!(body["error"]["code"], "UNAUTHORIZED");
 }
 
 #[tokio::test]
