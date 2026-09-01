@@ -2,15 +2,19 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
 import { getCurrentUser, login, logout, register } from '@/api/auth'
 import {
+  archiveSpace,
   archiveDocument,
   createDocument,
   createEvidence,
+  createSpace,
   createUser,
+  deleteSpaceMember,
   getDocument,
   getWikiSettings,
   getPhase,
   getSpaceTree,
   getTask,
+  listSpaceMembers,
   listAuditLog,
   listDocumentRevisions,
   listEvidence,
@@ -22,6 +26,7 @@ import {
   moveDocument,
   publishDocument,
   searchWiki,
+  type CreateSpaceRequest,
   type CreateDocumentRequest,
   type CreateEvidenceRequest,
   type Document,
@@ -30,9 +35,13 @@ import {
   type PublishDocumentRequest,
   type SearchParams,
   updateDocumentDraft,
+  updateSpace,
   type UpdateDocumentDraftRequest,
+  type UpdateSpaceRequest,
   uploadAttachment,
+  upsertSpaceMember,
   type CreateUserRequest,
+  type UpsertSpaceMemberRequest,
 } from '@/api/wiki'
 import { storeRefreshToken, useAuthStore } from '@/shared/auth/store'
 
@@ -45,6 +54,7 @@ export const defaultSpaceKey = 'SDLC'
 export const wikiKeys = {
   spaces: ['wiki', 'spaces'] as const,
   settings: ['wiki', 'settings'] as const,
+  spaceMembers: (spaceKey: string) => ['wiki', 'spaces', spaceKey, 'members'] as const,
   spaceTree: (spaceKey: string) => ['wiki', 'spaces', spaceKey, 'tree'] as const,
   document: (documentId: string) => ['wiki', 'documents', documentId] as const,
   documentRevisions: (documentId: string) =>
@@ -134,10 +144,95 @@ export function useSpaces() {
   })
 }
 
+export function useCreateSpace() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (body: CreateSpaceRequest) => createSpace(body),
+    onSuccess: (space) => {
+      queryClient.invalidateQueries({ queryKey: wikiKeys.spaces })
+      queryClient.invalidateQueries({ queryKey: wikiKeys.spaceTree(space.key) })
+      queryClient.invalidateQueries({ queryKey: wikiKeys.auditLog })
+    },
+  })
+}
+
+export function useUpdateSpace() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ spaceKey, body }: { spaceKey: string; body: UpdateSpaceRequest }) =>
+      updateSpace(spaceKey, body),
+    onSuccess: (space, variables) => {
+      queryClient.invalidateQueries({ queryKey: wikiKeys.spaces })
+      queryClient.invalidateQueries({ queryKey: wikiKeys.spaceTree(space.key) })
+      queryClient.invalidateQueries({ queryKey: wikiKeys.spaceTree(variables.spaceKey) })
+      queryClient.invalidateQueries({ queryKey: wikiKeys.auditLog })
+    },
+  })
+}
+
+export function useArchiveSpace() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: archiveSpace,
+    onSuccess: (space, requestedSpaceKey) => {
+      queryClient.invalidateQueries({ queryKey: wikiKeys.spaces })
+      queryClient.invalidateQueries({ queryKey: wikiKeys.spaceTree(space.key) })
+      queryClient.invalidateQueries({ queryKey: wikiKeys.spaceTree(requestedSpaceKey) })
+      queryClient.invalidateQueries({ queryKey: wikiKeys.auditLog })
+    },
+  })
+}
+
 export function useWikiSettings() {
   return useQuery({
     queryKey: wikiKeys.settings,
     queryFn: getWikiSettings,
+  })
+}
+
+export function useSpaceMembers(spaceKey: string, enabled = true) {
+  return useQuery({
+    queryKey: wikiKeys.spaceMembers(spaceKey),
+    queryFn: () => listSpaceMembers(spaceKey),
+    enabled: enabled && Boolean(spaceKey),
+  })
+}
+
+export function useUpsertSpaceMember() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      spaceKey,
+      userId,
+      body,
+    }: {
+      spaceKey: string
+      userId: string
+      body: UpsertSpaceMemberRequest
+    }) => upsertSpaceMember(spaceKey, userId, body),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: wikiKeys.spaceMembers(variables.spaceKey) })
+      queryClient.invalidateQueries({ queryKey: wikiKeys.spaces })
+      queryClient.invalidateQueries({ queryKey: wikiKeys.auditLog })
+    },
+  })
+}
+
+export function useDeleteSpaceMember() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ spaceKey, userId }: { spaceKey: string; userId: string }) =>
+      deleteSpaceMember(spaceKey, userId),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: wikiKeys.spaceMembers(variables.spaceKey) })
+      queryClient.invalidateQueries({ queryKey: wikiKeys.spaces })
+      queryClient.invalidateQueries({ queryKey: wikiKeys.auditLog })
+    },
   })
 }
 
@@ -216,10 +311,11 @@ export function useAuditLog() {
   })
 }
 
-export function useUsers() {
+export function useUsers(enabled = true) {
   return useQuery({
     queryKey: wikiKeys.users,
     queryFn: listUsers,
+    enabled,
   })
 }
 

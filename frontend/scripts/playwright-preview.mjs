@@ -6,8 +6,9 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const viteBin = join(root, 'node_modules', 'vite', 'bin', 'vite.js')
 
 process.env.VITE_API_BASE_URL ??= 'http://127.0.0.1:3456/api/v1'
+const port = process.env.PLAYWRIGHT_PREVIEW_PORT ?? '4174'
 
-const child = spawn(process.execPath, [viteBin, 'preview', '--port', '4173'], {
+const child = spawn(process.execPath, [viteBin, 'preview', '--port', port, '--strictPort'], {
   cwd: root,
   env: process.env,
   stdio: 'inherit',

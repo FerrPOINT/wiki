@@ -5,6 +5,7 @@ import type {
   AuditLogResponse,
   CreateDocumentRequest as GeneratedCreateDocumentRequest,
   CreateEvidenceRequest as GeneratedCreateEvidenceRequest,
+  CreateSpaceRequest as GeneratedCreateSpaceRequest,
   DocumentResponse,
   DocumentRevisionListResponse,
   DocumentRevisionResponse,
@@ -18,6 +19,8 @@ import type {
   SearchResponse,
   SearchResultResponse,
   SpaceListResponse,
+  SpaceMemberListResponse,
+  SpaceMemberResponse,
   SpaceResponse,
   SpaceTreeNodeResponse,
   SpaceTreeResponse,
@@ -26,6 +29,8 @@ import type {
   TemplateListResponse,
   TemplateResponse,
   UpdateDocumentDraftRequest as GeneratedUpdateDocumentDraftRequest,
+  UpdateSpaceRequest as GeneratedUpdateSpaceRequest,
+  UpsertSpaceMemberRequest as GeneratedUpsertSpaceMemberRequest,
   WikiCreateUserRequest,
   WikiSettingsResponse,
   WikiUserListResponse,
@@ -39,6 +44,10 @@ export type Evidence = EvidenceResponse
 export type Attachment = AttachmentResponse
 export type DocumentSummary = DocumentSummaryResponse
 export type Document = DocumentResponse
+export type CreateSpaceRequest = GeneratedCreateSpaceRequest
+export type UpdateSpaceRequest = GeneratedUpdateSpaceRequest
+export type SpaceMember = SpaceMemberResponse
+export type UpsertSpaceMemberRequest = GeneratedUpsertSpaceMemberRequest
 export type CreateDocumentRequest = GeneratedCreateDocumentRequest
 export type UpdateDocumentDraftRequest = GeneratedUpdateDocumentDraftRequest
 export type PublishDocumentRequest = GeneratedPublishDocumentRequest
@@ -84,8 +93,58 @@ export function listSpaces(): Promise<SpaceListResponse> {
   return apiRequest<SpaceListResponse>('/api/v1/spaces')
 }
 
+export function getSpace(spaceKey: string): Promise<SpaceResponse> {
+  return apiRequest<SpaceResponse>(`/api/v1/spaces/${encodeURIComponent(spaceKey)}`)
+}
+
+export function createSpace(body: CreateSpaceRequest): Promise<SpaceResponse> {
+  return apiRequest<SpaceResponse>('/api/v1/spaces', { method: 'POST', body })
+}
+
+export function updateSpace(spaceKey: string, body: UpdateSpaceRequest): Promise<SpaceResponse> {
+  return apiRequest<SpaceResponse>(`/api/v1/spaces/${encodeURIComponent(spaceKey)}`, {
+    method: 'PUT',
+    body,
+  })
+}
+
+export function archiveSpace(spaceKey: string): Promise<SpaceResponse> {
+  return apiRequest<SpaceResponse>(`/api/v1/spaces/${encodeURIComponent(spaceKey)}/archive`, {
+    method: 'POST',
+  })
+}
+
 export function getSpaceTree(spaceKey: string): Promise<SpaceTreeResponse> {
   return apiRequest<SpaceTreeResponse>(`/api/v1/spaces/${encodeURIComponent(spaceKey)}/tree`)
+}
+
+export function listSpaceMembers(spaceKey: string): Promise<SpaceMemberListResponse> {
+  return apiRequest<SpaceMemberListResponse>(
+    `/api/v1/spaces/${encodeURIComponent(spaceKey)}/members`,
+  )
+}
+
+export function upsertSpaceMember(
+  spaceKey: string,
+  userId: string,
+  body: UpsertSpaceMemberRequest,
+): Promise<SpaceMemberResponse> {
+  return apiRequest<SpaceMemberResponse>(
+    `/api/v1/spaces/${encodeURIComponent(spaceKey)}/members/${encodeURIComponent(userId)}`,
+    {
+      method: 'PUT',
+      body,
+    },
+  )
+}
+
+export function deleteSpaceMember(spaceKey: string, userId: string): Promise<void> {
+  return apiRequest<void>(
+    `/api/v1/spaces/${encodeURIComponent(spaceKey)}/members/${encodeURIComponent(userId)}`,
+    {
+      method: 'DELETE',
+    },
+  )
 }
 
 export function createDocument(spaceKey: string, body: CreateDocumentRequest): Promise<Document> {

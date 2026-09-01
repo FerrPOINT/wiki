@@ -32,6 +32,13 @@ const user = {
   is_system_admin: true,
   active: true,
 }
+const spaceMember = {
+  user_id: user.id,
+  email: user.email,
+  display_name: user.display_name,
+  role: 'admin',
+  joined_at: now,
+}
 
 const evidence = {
   id: 'evidence-smoke',
@@ -227,6 +234,9 @@ async function installApiMocks(page) {
           },
         ],
       })
+    }
+    if (method === 'GET' && path === '/spaces/SDLC/members') {
+      return routeJson(route, { members: [spaceMember] })
     }
     if (method === 'GET' && path === '/spaces/SDLC/tree') {
       return routeJson(route, {

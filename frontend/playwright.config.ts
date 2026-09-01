@@ -1,7 +1,9 @@
 import { defineConfig, devices } from '@playwright/test'
 
-const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:4173'
 const useExternalServer = Boolean(process.env.PLAYWRIGHT_BASE_URL)
+const previewPort = process.env.PLAYWRIGHT_PREVIEW_PORT ?? '4174'
+const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${previewPort}`
+const reuseExistingServer = process.env.PLAYWRIGHT_REUSE_SERVER === '1'
 
 export default defineConfig({
   testDir: 'e2e',
@@ -32,7 +34,7 @@ export default defineConfig({
     ? undefined
     : {
         command: 'node scripts/playwright-preview.mjs',
-        url: 'http://localhost:4173',
-        reuseExistingServer: true,
+        url: baseURL,
+        reuseExistingServer,
       },
 })

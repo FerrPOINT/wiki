@@ -21,7 +21,7 @@
 | [01-login.png](../../screenshots/01-login.png)                               | `/login`                          | Вход пользователя                                | 1920x1080 |
 | [02-register.png](../../screenshots/02-register.png)                         | `/register`                       | Регистрация пользователя                         | 1920x1080 |
 | [03-dashboard.png](../../screenshots/03-dashboard.png)                       | `/`                               | Dashboard Wiki, последние документы и task-связи | 1920x1080 |
-| [04-spaces.png](../../screenshots/04-spaces.png)                             | `/spaces`                         | Пространства и дерево документов                 | 1920x1080 |
+| [04-spaces.png](../../screenshots/04-spaces.png)                             | `/spaces`                         | Пространства, дерево документов и доступы        | 1920x1080 |
 | [05-document-compose.png](../../screenshots/05-document-compose.png)         | `/documents/new`                  | Создание документа                               | 1920x1080 |
 | [06-document-view.png](../../screenshots/06-document-view.png)               | `/documents/product-requirements` | Просмотр, редактирование и публикация документа  | 1920x1084 |
 | [07-task-dossiers.png](../../screenshots/07-task-dossiers.png)               | `/tasks`                          | Карточки задач                                   | 1920x1080 |
@@ -41,7 +41,7 @@
 | Файл                                                         | Route                             | Назначение                  | Размер   |
 | ------------------------------------------------------------ | --------------------------------- | --------------------------- | -------- |
 | [m-dashboard.png](../../screenshots/m-dashboard.png)         | `/`                               | Dashboard mobile layout     | 375x1000 |
-| [m-spaces.png](../../screenshots/m-spaces.png)               | `/spaces`                         | Spaces mobile layout        | 375x812  |
+| [m-spaces.png](../../screenshots/m-spaces.png)               | `/spaces`                         | Spaces mobile layout        | 375x1404 |
 | [m-document-view.png](../../screenshots/m-document-view.png) | `/documents/product-requirements` | Document view mobile layout | 375x1892 |
 | [m-task-dossier.png](../../screenshots/m-task-dossier.png)   | `/tasks/SDLC-42`                  | Task page mobile layout     | 375x812  |
 | [m-search.png](../../screenshots/m-search.png)               | `/search`                         | Search mobile layout        | 375x850  |

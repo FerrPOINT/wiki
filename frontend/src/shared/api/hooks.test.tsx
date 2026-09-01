@@ -15,15 +15,19 @@ vi.mock('@/api/auth', () => ({
 }))
 
 vi.mock('@/api/wiki', () => ({
+  archiveSpace: vi.fn(),
   archiveDocument: vi.fn(),
+  createSpace: vi.fn(),
   createDocument: vi.fn(),
   createEvidence,
   createUser: vi.fn(),
+  deleteSpaceMember: vi.fn(),
   getDocument: vi.fn(),
   getPhase: vi.fn(),
   getSpaceTree: vi.fn(),
   getTask: vi.fn(),
   getWikiSettings: vi.fn(),
+  listSpaceMembers: vi.fn(),
   listAuditLog: vi.fn(),
   listDocumentRevisions: vi.fn(),
   listEvidence: vi.fn(),
@@ -36,7 +40,9 @@ vi.mock('@/api/wiki', () => ({
   publishDocument: vi.fn(),
   searchWiki: vi.fn(),
   updateDocumentDraft: vi.fn(),
+  updateSpace: vi.fn(),
   uploadAttachment,
+  upsertSpaceMember: vi.fn(),
 }))
 
 function wrapper({ children }: { children: React.ReactNode }) {

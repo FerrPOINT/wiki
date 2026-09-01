@@ -1,6 +1,8 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
 
-const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:4173'
+const baseURL =
+  process.env.PLAYWRIGHT_BASE_URL ??
+  `http://localhost:${process.env.PLAYWRIGHT_PREVIEW_PORT ?? '4174'}`
 
 const now = '2026-08-31T10:00:00Z'
 const user = {
@@ -11,6 +13,13 @@ const user = {
   role: 'admin',
   is_system_admin: true,
   active: true,
+}
+const spaceMember = {
+  user_id: user.id,
+  email: user.email,
+  display_name: user.display_name,
+  role: 'admin',
+  joined_at: now,
 }
 const evidence = {
   id: 'evidence-smoke',
@@ -155,6 +164,9 @@ async function installWikiApiMocks(page: Page) {
           },
         ],
       })
+    }
+    if (method === 'GET' && path === '/spaces/SDLC/members') {
+      return routeJson(route, { members: [spaceMember] })
     }
     if (method === 'GET' && path === '/spaces/SDLC/tree') {
       return routeJson(route, {
