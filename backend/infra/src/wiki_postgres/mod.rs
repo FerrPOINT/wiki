@@ -12,7 +12,7 @@ mod templates;
 pub use connection::connect_postgres_wiki_backend;
 
 use app::wiki::{WikiSpaceAccess as SpaceAccess, normalize_space_key, space_role_allows};
-use mapping::{parse_uuid, user_response_from_row};
+use mapping::parse_uuid;
 use shared::wiki_contract::*;
 use sqlx::{PgPool, Row};
 use std::sync::Arc;
@@ -130,22 +130,6 @@ impl PostgresWikiBackend {
         self.ensure_space_id_access(claims, space_id, required)
             .await?;
         Ok(space_id)
-    }
-
-    async fn user_response(&self, user_id: Uuid) -> Result<WikiUserResponse, shared::AppError> {
-        let row = sqlx::query(
-            r#"
-            SELECT id, email, username, display_name, global_role, is_active
-            FROM users
-            WHERE id = $1
-            "#,
-        )
-        .bind(user_id)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(shared::AppError::database)?
-        .ok_or_else(|| shared::AppError::not_found("user", user_id))?;
-        Ok(user_response_from_row(&row))
     }
 
     async fn space_id(&self, space_key: &str) -> Result<Uuid, shared::AppError> {

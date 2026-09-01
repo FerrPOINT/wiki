@@ -400,6 +400,209 @@ impl<'a, R: WikiUserRepository + ?Sized> WikiUserUseCase<'a, R> {
     }
 }
 
+pub type WikiSpaceRepositoryFuture<'a, T> =
+    Pin<Box<dyn Future<Output = Result<T, AppError>> + Send + 'a>>;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiCreateSpaceCommand {
+    pub space_id: Uuid,
+    pub key: String,
+    pub name: String,
+    pub description: String,
+    pub owner_id: Uuid,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiUpdateSpaceCommand {
+    pub space_id: Uuid,
+    pub key: String,
+    pub name: Option<String>,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiArchiveSpaceCommand {
+    pub space_id: Uuid,
+    pub key: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiUpsertSpaceMemberCommand {
+    pub space_id: Uuid,
+    pub user_id: Uuid,
+    pub role: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiDeleteSpaceMemberCommand {
+    pub space_id: Uuid,
+    pub user_id: Uuid,
+}
+
+pub trait WikiSpaceRepository {
+    fn list_spaces<'a>(
+        &'a self,
+        user_id: Uuid,
+    ) -> WikiSpaceRepositoryFuture<'a, Vec<shared::SpaceResponse>>;
+
+    fn create_space<'a>(
+        &'a self,
+        actor_id: Uuid,
+        command: WikiCreateSpaceCommand,
+    ) -> WikiSpaceRepositoryFuture<'a, shared::SpaceResponse>;
+
+    fn get_space<'a>(
+        &'a self,
+        key: &'a str,
+    ) -> WikiSpaceRepositoryFuture<'a, shared::SpaceResponse>;
+
+    fn update_space<'a>(
+        &'a self,
+        actor_id: Uuid,
+        command: WikiUpdateSpaceCommand,
+    ) -> WikiSpaceRepositoryFuture<'a, shared::SpaceResponse>;
+
+    fn archive_space<'a>(
+        &'a self,
+        actor_id: Uuid,
+        command: WikiArchiveSpaceCommand,
+    ) -> WikiSpaceRepositoryFuture<'a, shared::SpaceResponse>;
+
+    fn list_members<'a>(
+        &'a self,
+        space_id: Uuid,
+    ) -> WikiSpaceRepositoryFuture<'a, Vec<shared::SpaceMemberResponse>>;
+
+    fn upsert_member<'a>(
+        &'a self,
+        actor_id: Uuid,
+        command: WikiUpsertSpaceMemberCommand,
+    ) -> WikiSpaceRepositoryFuture<'a, shared::SpaceMemberResponse>;
+
+    fn delete_member<'a>(
+        &'a self,
+        actor_id: Uuid,
+        command: WikiDeleteSpaceMemberCommand,
+    ) -> WikiSpaceRepositoryFuture<'a, ()>;
+
+    fn get_tree<'a>(
+        &'a self,
+        space_id: Uuid,
+    ) -> WikiSpaceRepositoryFuture<'a, Vec<shared::SpaceTreeNodeResponse>>;
+}
+
+pub struct WikiSpaceUseCase<'a, R: WikiSpaceRepository + ?Sized> {
+    repository: &'a R,
+}
+
+impl<'a, R: WikiSpaceRepository + ?Sized> WikiSpaceUseCase<'a, R> {
+    pub fn new(repository: &'a R) -> Self {
+        Self { repository }
+    }
+
+    pub async fn list(&self, user_id: Uuid) -> Result<shared::SpaceListResponse, AppError> {
+        Ok(shared::SpaceListResponse {
+            spaces: self.repository.list_spaces(user_id).await?,
+        })
+    }
+
+    pub async fn create(
+        &self,
+        actor_id: Uuid,
+        body: shared::CreateSpaceRequest,
+    ) -> Result<shared::SpaceResponse, AppError> {
+        let command = WikiCreateSpaceCommand {
+            space_id: Uuid::now_v7(),
+            key: normalize_space_key(&body.key)?,
+            name: normalize_required(&body.name, "space name")?,
+            description: normalize_space_description(body.description),
+            owner_id: actor_id,
+        };
+        self.repository.create_space(actor_id, command).await
+    }
+
+    pub async fn get(&self, space_key: &str) -> Result<shared::SpaceResponse, AppError> {
+        let key = normalize_space_key(space_key)?;
+        self.repository.get_space(&key).await
+    }
+
+    pub async fn update(
+        &self,
+        actor_id: Uuid,
+        space_id: Uuid,
+        space_key: &str,
+        body: shared::UpdateSpaceRequest,
+    ) -> Result<shared::SpaceResponse, AppError> {
+        let command = WikiUpdateSpaceCommand {
+            space_id,
+            key: normalize_space_key(space_key)?,
+            name: normalize_optional_update_value(body.name.as_deref()),
+            description: body.description.map(|value| value.trim().to_string()),
+        };
+        self.repository.update_space(actor_id, command).await
+    }
+
+    pub async fn archive(
+        &self,
+        actor_id: Uuid,
+        space_id: Uuid,
+        space_key: &str,
+    ) -> Result<shared::SpaceResponse, AppError> {
+        let command = WikiArchiveSpaceCommand {
+            space_id,
+            key: normalize_space_key(space_key)?,
+        };
+        self.repository.archive_space(actor_id, command).await
+    }
+
+    pub async fn list_members(
+        &self,
+        space_id: Uuid,
+    ) -> Result<shared::SpaceMemberListResponse, AppError> {
+        Ok(shared::SpaceMemberListResponse {
+            members: self.repository.list_members(space_id).await?,
+        })
+    }
+
+    pub async fn upsert_member(
+        &self,
+        actor_id: Uuid,
+        space_id: Uuid,
+        user_id: Uuid,
+        body: shared::UpsertSpaceMemberRequest,
+    ) -> Result<shared::SpaceMemberResponse, AppError> {
+        let command = WikiUpsertSpaceMemberCommand {
+            space_id,
+            user_id,
+            role: normalize_space_role(&body.role)?.to_string(),
+        };
+        self.repository.upsert_member(actor_id, command).await
+    }
+
+    pub async fn delete_member(
+        &self,
+        actor_id: Uuid,
+        space_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<(), AppError> {
+        self.repository
+            .delete_member(actor_id, WikiDeleteSpaceMemberCommand { space_id, user_id })
+            .await
+    }
+
+    pub async fn tree(
+        &self,
+        space_id: Uuid,
+        space_key: &str,
+    ) -> Result<shared::SpaceTreeResponse, AppError> {
+        let key = normalize_space_key(space_key)?;
+        Ok(shared::SpaceTreeResponse {
+            space_key: key,
+            documents: self.repository.get_tree(space_id).await?,
+        })
+    }
+}
+
 pub type WikiSettingsRepositoryFuture<'a> =
     Pin<Box<dyn Future<Output = Result<WikiSettingsSnapshot, AppError>> + Send + 'a>>;
 
@@ -599,6 +802,14 @@ fn normalize_optional_update_value(value: Option<&str>) -> Option<String> {
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(str::to_string)
+}
+
+fn normalize_space_description(value: Option<String>) -> String {
+    value
+        .as_deref()
+        .map(str::trim)
+        .unwrap_or_default()
+        .to_string()
 }
 
 fn parse_token_uuid(value: &str) -> Result<Uuid, AppError> {
@@ -942,6 +1153,22 @@ mod tests {
         updated: std::sync::Mutex<Vec<(Uuid, WikiUpdateUserCommand)>>,
     }
 
+    struct RecordingSpaceRepository {
+        spaces: Vec<shared::SpaceResponse>,
+        space: shared::SpaceResponse,
+        members: Vec<shared::SpaceMemberResponse>,
+        tree: Vec<shared::SpaceTreeNodeResponse>,
+        listed_users: std::sync::Mutex<Vec<Uuid>>,
+        requested_spaces: std::sync::Mutex<Vec<String>>,
+        created: std::sync::Mutex<Vec<(Uuid, WikiCreateSpaceCommand)>>,
+        updated: std::sync::Mutex<Vec<(Uuid, WikiUpdateSpaceCommand)>>,
+        archived: std::sync::Mutex<Vec<(Uuid, WikiArchiveSpaceCommand)>>,
+        listed_members: std::sync::Mutex<Vec<Uuid>>,
+        upserted_members: std::sync::Mutex<Vec<(Uuid, WikiUpsertSpaceMemberCommand)>>,
+        deleted_members: std::sync::Mutex<Vec<(Uuid, WikiDeleteSpaceMemberCommand)>>,
+        tree_requests: std::sync::Mutex<Vec<Uuid>>,
+    }
+
     struct StaticSettingsRepository {
         snapshot: WikiSettingsSnapshot,
     }
@@ -1049,6 +1276,136 @@ mod tests {
                     is_system_admin: role == GlobalRole::Admin.as_str(),
                     active: command.active.unwrap_or(true),
                 })
+            })
+        }
+    }
+
+    impl WikiSpaceRepository for RecordingSpaceRepository {
+        fn list_spaces<'a>(
+            &'a self,
+            user_id: Uuid,
+        ) -> WikiSpaceRepositoryFuture<'a, Vec<shared::SpaceResponse>> {
+            Box::pin(async move {
+                self.listed_users
+                    .lock()
+                    .expect("listed users should be lockable")
+                    .push(user_id);
+                Ok(self.spaces.clone())
+            })
+        }
+
+        fn create_space<'a>(
+            &'a self,
+            actor_id: Uuid,
+            command: WikiCreateSpaceCommand,
+        ) -> WikiSpaceRepositoryFuture<'a, shared::SpaceResponse> {
+            Box::pin(async move {
+                self.created
+                    .lock()
+                    .expect("space create commands should be lockable")
+                    .push((actor_id, command.clone()));
+                Ok(space_response(&command.key, &command.name, Some(actor_id)))
+            })
+        }
+
+        fn get_space<'a>(
+            &'a self,
+            key: &'a str,
+        ) -> WikiSpaceRepositoryFuture<'a, shared::SpaceResponse> {
+            Box::pin(async move {
+                self.requested_spaces
+                    .lock()
+                    .expect("space requests should be lockable")
+                    .push(key.to_string());
+                Ok(self.space.clone())
+            })
+        }
+
+        fn update_space<'a>(
+            &'a self,
+            actor_id: Uuid,
+            command: WikiUpdateSpaceCommand,
+        ) -> WikiSpaceRepositoryFuture<'a, shared::SpaceResponse> {
+            Box::pin(async move {
+                self.updated
+                    .lock()
+                    .expect("space update commands should be lockable")
+                    .push((actor_id, command.clone()));
+                Ok(space_response(
+                    &command.key,
+                    command.name.as_deref().unwrap_or("Space"),
+                    Some(actor_id),
+                ))
+            })
+        }
+
+        fn archive_space<'a>(
+            &'a self,
+            actor_id: Uuid,
+            command: WikiArchiveSpaceCommand,
+        ) -> WikiSpaceRepositoryFuture<'a, shared::SpaceResponse> {
+            Box::pin(async move {
+                self.archived
+                    .lock()
+                    .expect("space archive commands should be lockable")
+                    .push((actor_id, command.clone()));
+                let mut response = space_response(&command.key, "Space", Some(actor_id));
+                response.status = "archived".to_string();
+                Ok(response)
+            })
+        }
+
+        fn list_members<'a>(
+            &'a self,
+            space_id: Uuid,
+        ) -> WikiSpaceRepositoryFuture<'a, Vec<shared::SpaceMemberResponse>> {
+            Box::pin(async move {
+                self.listed_members
+                    .lock()
+                    .expect("listed member spaces should be lockable")
+                    .push(space_id);
+                Ok(self.members.clone())
+            })
+        }
+
+        fn upsert_member<'a>(
+            &'a self,
+            actor_id: Uuid,
+            command: WikiUpsertSpaceMemberCommand,
+        ) -> WikiSpaceRepositoryFuture<'a, shared::SpaceMemberResponse> {
+            Box::pin(async move {
+                self.upserted_members
+                    .lock()
+                    .expect("space member upserts should be lockable")
+                    .push((actor_id, command.clone()));
+                Ok(space_member_response(command.user_id, &command.role))
+            })
+        }
+
+        fn delete_member<'a>(
+            &'a self,
+            actor_id: Uuid,
+            command: WikiDeleteSpaceMemberCommand,
+        ) -> WikiSpaceRepositoryFuture<'a, ()> {
+            Box::pin(async move {
+                self.deleted_members
+                    .lock()
+                    .expect("space member deletes should be lockable")
+                    .push((actor_id, command));
+                Ok(())
+            })
+        }
+
+        fn get_tree<'a>(
+            &'a self,
+            space_id: Uuid,
+        ) -> WikiSpaceRepositoryFuture<'a, Vec<shared::SpaceTreeNodeResponse>> {
+            Box::pin(async move {
+                self.tree_requests
+                    .lock()
+                    .expect("tree requests should be lockable")
+                    .push(space_id);
+                Ok(self.tree.clone())
             })
         }
     }
@@ -1251,6 +1608,61 @@ mod tests {
             role: role.to_string(),
             is_system_admin: role == GlobalRole::Admin.as_str(),
             active: true,
+        }
+    }
+
+    fn space_response(key: &str, name: &str, owner_id: Option<Uuid>) -> shared::SpaceResponse {
+        shared::SpaceResponse {
+            id: Uuid::now_v7().to_string(),
+            key: key.to_string(),
+            name: name.to_string(),
+            description: Some("Base space".to_string()),
+            owner_id: owner_id.unwrap_or_else(Uuid::now_v7).to_string(),
+            status: "active".to_string(),
+            document_count: 2,
+            member_count: 3,
+            created_at: "2026-09-01T10:00:00Z".to_string(),
+            updated_at: "2026-09-01T10:00:00Z".to_string(),
+        }
+    }
+
+    fn space_member_response(user_id: Uuid, role: &str) -> shared::SpaceMemberResponse {
+        shared::SpaceMemberResponse {
+            user_id: user_id.to_string(),
+            email: "member@example.test".to_string(),
+            display_name: "Member".to_string(),
+            role: role.to_string(),
+            joined_at: "2026-09-01T10:00:00Z".to_string(),
+        }
+    }
+
+    fn space_tree_node(title: &str) -> shared::SpaceTreeNodeResponse {
+        shared::SpaceTreeNodeResponse {
+            id: Uuid::now_v7().to_string(),
+            slug: slugify(title),
+            title: title.to_string(),
+            document_type: "page".to_string(),
+            status: "published".to_string(),
+            children: Vec::new(),
+        }
+    }
+
+    fn recording_space_repository() -> RecordingSpaceRepository {
+        let member_id = Uuid::now_v7();
+        RecordingSpaceRepository {
+            spaces: vec![space_response("SDLC", "SDLC Wiki", None)],
+            space: space_response("SDLC", "SDLC Wiki", None),
+            members: vec![space_member_response(member_id, "editor")],
+            tree: vec![space_tree_node("Requirements")],
+            listed_users: std::sync::Mutex::new(Vec::new()),
+            requested_spaces: std::sync::Mutex::new(Vec::new()),
+            created: std::sync::Mutex::new(Vec::new()),
+            updated: std::sync::Mutex::new(Vec::new()),
+            archived: std::sync::Mutex::new(Vec::new()),
+            listed_members: std::sync::Mutex::new(Vec::new()),
+            upserted_members: std::sync::Mutex::new(Vec::new()),
+            deleted_members: std::sync::Mutex::new(Vec::new()),
+            tree_requests: std::sync::Mutex::new(Vec::new()),
         }
     }
 
@@ -1473,6 +1885,212 @@ mod tests {
                     active: Some(false),
                 }
             )]
+        );
+    }
+
+    #[tokio::test]
+    async fn wiki_space_use_case_lists_gets_members_and_tree() {
+        let repository = recording_space_repository();
+        let use_case = WikiSpaceUseCase::new(&repository);
+        let user_id = Uuid::now_v7();
+        let space_id = Uuid::now_v7();
+
+        let list = use_case.list(user_id).await.unwrap();
+        assert_eq!(list.spaces.len(), 1);
+        assert_eq!(list.spaces[0].key, "SDLC");
+        assert_eq!(
+            repository
+                .listed_users
+                .lock()
+                .expect("listed users should be lockable")
+                .as_slice(),
+            [user_id]
+        );
+
+        let space = use_case.get(" sdlc ").await.unwrap();
+        assert_eq!(space.key, "SDLC");
+        assert_eq!(
+            repository
+                .requested_spaces
+                .lock()
+                .expect("space requests should be lockable")
+                .as_slice(),
+            ["SDLC"]
+        );
+
+        let members = use_case.list_members(space_id).await.unwrap();
+        assert_eq!(members.members.len(), 1);
+        assert_eq!(members.members[0].role, "editor");
+        assert_eq!(
+            repository
+                .listed_members
+                .lock()
+                .expect("listed member spaces should be lockable")
+                .as_slice(),
+            [space_id]
+        );
+
+        let tree = use_case.tree(space_id, " sdlc ").await.unwrap();
+        assert_eq!(tree.space_key, "SDLC");
+        assert_eq!(tree.documents.len(), 1);
+        assert_eq!(tree.documents[0].title, "Requirements");
+        assert_eq!(
+            repository
+                .tree_requests
+                .lock()
+                .expect("tree requests should be lockable")
+                .as_slice(),
+            [space_id]
+        );
+    }
+
+    #[tokio::test]
+    async fn wiki_space_use_case_normalizes_write_commands() {
+        let repository = recording_space_repository();
+        let use_case = WikiSpaceUseCase::new(&repository);
+        let actor_id = Uuid::now_v7();
+        let space_id = Uuid::now_v7();
+        let user_id = Uuid::now_v7();
+
+        let created = use_case
+            .create(
+                actor_id,
+                shared::CreateSpaceRequest {
+                    key: " sdlc ".to_string(),
+                    name: " SDLC Wiki ".to_string(),
+                    description: Some(" Base docs ".to_string()),
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(created.key, "SDLC");
+        assert_eq!(created.name, "SDLC Wiki");
+        {
+            let created_commands = repository
+                .created
+                .lock()
+                .expect("space create commands should be lockable");
+            assert_eq!(created_commands.len(), 1);
+            let create_command = &created_commands[0].1;
+            assert_eq!(created_commands[0].0, actor_id);
+            assert_eq!(create_command.key, "SDLC");
+            assert_eq!(create_command.name, "SDLC Wiki");
+            assert_eq!(create_command.description, "Base docs");
+            assert_eq!(create_command.owner_id, actor_id);
+        }
+
+        use_case
+            .update(
+                actor_id,
+                space_id,
+                " sdlc ",
+                shared::UpdateSpaceRequest {
+                    name: Some("   ".to_string()),
+                    description: Some("  cleared  ".to_string()),
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            repository
+                .updated
+                .lock()
+                .expect("space update commands should be lockable")
+                .as_slice(),
+            [(
+                actor_id,
+                WikiUpdateSpaceCommand {
+                    space_id,
+                    key: "SDLC".to_string(),
+                    name: None,
+                    description: Some("cleared".to_string()),
+                }
+            )]
+        );
+
+        use_case.archive(actor_id, space_id, "sdlc").await.unwrap();
+        assert_eq!(
+            repository
+                .archived
+                .lock()
+                .expect("space archive commands should be lockable")
+                .as_slice(),
+            [(
+                actor_id,
+                WikiArchiveSpaceCommand {
+                    space_id,
+                    key: "SDLC".to_string(),
+                }
+            )]
+        );
+
+        let member = use_case
+            .upsert_member(
+                actor_id,
+                space_id,
+                user_id,
+                shared::UpsertSpaceMemberRequest {
+                    role: " editor ".to_string(),
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(member.role, "editor");
+        assert_eq!(
+            repository
+                .upserted_members
+                .lock()
+                .expect("space member upserts should be lockable")
+                .as_slice(),
+            [(
+                actor_id,
+                WikiUpsertSpaceMemberCommand {
+                    space_id,
+                    user_id,
+                    role: "editor".to_string(),
+                }
+            )]
+        );
+
+        assert!(
+            use_case
+                .upsert_member(
+                    actor_id,
+                    space_id,
+                    user_id,
+                    shared::UpsertSpaceMemberRequest {
+                        role: "owner".to_string(),
+                    },
+                )
+                .await
+                .is_err()
+        );
+
+        use_case
+            .delete_member(actor_id, space_id, user_id)
+            .await
+            .unwrap();
+        assert_eq!(
+            repository
+                .deleted_members
+                .lock()
+                .expect("space member deletes should be lockable")
+                .as_slice(),
+            [(actor_id, WikiDeleteSpaceMemberCommand { space_id, user_id })]
+        );
+
+        assert!(
+            use_case
+                .create(
+                    actor_id,
+                    shared::CreateSpaceRequest {
+                        key: "bad key".to_string(),
+                        name: "Space".to_string(),
+                        description: None,
+                    },
+                )
+                .await
+                .is_err()
         );
     }
 
