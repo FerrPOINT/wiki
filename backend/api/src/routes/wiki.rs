@@ -996,7 +996,9 @@ pub async fn delete_space_member(
         .members
         .get_mut(&key)
         .ok_or_else(|| shared::AppError::not_found("space", &space_key))?;
-    members.remove(&user_id);
+    if members.remove(&user_id).is_none() {
+        return Err(shared::AppError::not_found("space member", &user_id));
+    }
     let member_count = members.len();
     if let Some(space) = store.spaces.get_mut(&key) {
         space.member_count = member_count;

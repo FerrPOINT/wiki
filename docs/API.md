@@ -38,6 +38,8 @@ REST API Wiki предоставляет базовые операции про�
 | `PUT`    | `/spaces/{space_key}/members/{user_id}` | Назначить роль в space            |
 | `DELETE` | `/spaces/{space_key}/members/{user_id}` | Удалить участника из space        |
 
+`DELETE /spaces/{space_key}/members/{user_id}` возвращает `404 NOT_FOUND`, если такой membership уже отсутствует. Успешный `204` означает, что membership реально был удалён; обычный пользователь без другой роли больше не проходит проверки чтения/поиска для этого space.
+
 ## 5. Spaces
 
 | Method | Path                          | Назначение              |

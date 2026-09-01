@@ -293,12 +293,16 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
                 .await
                 .map_err(shared::AppError::database)?;
 
-            sqlx::query("DELETE FROM space_members WHERE space_id = $1 AND user_id = $2")
-                .bind(command.space_id)
-                .bind(command.user_id)
-                .execute(&mut *tx)
-                .await
-                .map_err(shared::AppError::database)?;
+            let result =
+                sqlx::query("DELETE FROM space_members WHERE space_id = $1 AND user_id = $2")
+                    .bind(command.space_id)
+                    .bind(command.user_id)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(shared::AppError::database)?;
+            if result.rows_affected() == 0 {
+                return Err(shared::AppError::not_found("space member", command.user_id));
+            }
 
             self.backend
                 .insert_audit(

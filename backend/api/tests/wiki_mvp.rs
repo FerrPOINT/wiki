@@ -761,6 +761,227 @@ async fn wiki_memory_authz_and_audit_align_with_mvp_contract() {
 }
 
 #[tokio::test]
+async fn wiki_memory_space_member_delete_requires_membership_and_revokes_access() {
+    let app = test_app();
+    let admin_token = login_memory_admin(&app).await;
+    let suffix = Uuid::now_v7().simple().to_string();
+    let short = &suffix[..12];
+    let space_key = format!("ACL-{short}");
+    let search_token = format!("aclsearchtoken{short}");
+
+    let (status, member_user) = call(
+        &app,
+        Method::POST,
+        "/api/v1/auth/register",
+        None,
+        Some(json!({
+            "email": format!("space-member-{short}@example.com"),
+            "username": format!("space-member-{short}"),
+            "password": "space-member-password",
+            "name": "Space Member"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let member_token = member_user["access_token"].as_str().unwrap();
+    let member_id = member_user["user_id"].as_str().unwrap();
+
+    let (status, space) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces",
+        Some(&admin_token),
+        Some(json!({
+            "key": space_key,
+            "name": format!("ACL space {short}")
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let space_key = space["key"].as_str().unwrap();
+
+    let (status, document) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/spaces/{space_key}/documents"),
+        Some(&admin_token),
+        Some(json!({
+            "title": format!("ACL document {short}"),
+            "slug": format!("acl-document-{short}"),
+            "document_type": "page",
+            "content_markdown": format!("# ACL document {short}\n\nPublished {search_token}.")
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let document_id = document["id"].as_str().unwrap();
+
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/documents/{document_id}/publish"),
+        Some(&admin_token),
+        Some(json!({ "summary": "ACL publish" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, _) = call(
+        &app,
+        Method::DELETE,
+        &format!("/api/v1/spaces/{space_key}/members/{member_id}"),
+        Some(&admin_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    let (status, _) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}"),
+        Some(member_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, member) = call(
+        &app,
+        Method::PUT,
+        &format!("/api/v1/spaces/{space_key}/members/{member_id}"),
+        Some(&admin_token),
+        Some(json!({ "role": "viewer" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(member["role"], "viewer");
+
+    let (status, visible_space) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}"),
+        Some(member_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(visible_space["key"], space_key);
+
+    let (status, tree) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}/tree"),
+        Some(member_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        tree["documents"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["id"] == document_id)
+    );
+
+    let (status, search) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/search?q={search_token}"),
+        Some(member_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        search["results"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["id"] == document_id)
+    );
+
+    let (status, _) = call(
+        &app,
+        Method::DELETE,
+        &format!("/api/v1/spaces/{space_key}/members/{member_id}"),
+        Some(&admin_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let (status, updated_space) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}"),
+        Some(&admin_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(updated_space["member_count"], 1);
+
+    let (status, _) = call(
+        &app,
+        Method::DELETE,
+        &format!("/api/v1/spaces/{space_key}/members/{member_id}"),
+        Some(&admin_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    let (status, _) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}"),
+        Some(member_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, _) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}/tree"),
+        Some(member_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, broad_search) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/search?q={search_token}"),
+        Some(member_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        !broad_search["results"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["id"] == document_id)
+    );
+
+    let (status, _) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/search?q={search_token}&space={space_key}"),
+        Some(member_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
 async fn wiki_document_move_rejects_descendant_parent() {
     let app = test_app();
     let (status, login) = call(
