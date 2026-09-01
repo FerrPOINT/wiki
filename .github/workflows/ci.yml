@@ -137,6 +137,8 @@ jobs:
       - run: pnpm generate:api
       - run: pnpm typecheck
       - run: pnpm test -- --run
+      - run: pnpm lint
+      - run: pnpm format:check
       - run: pnpm build
 
   e2e:

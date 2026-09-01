@@ -23,6 +23,8 @@ Self-hosted Wiki для SDLC knowledge base. MVP поставляется как
 | `postgres` | `postgres:17.6-alpine` | `5432` | PostgreSQL |
 | `frontend` | build from `frontend/Dockerfile` | `19877` | Static Wiki UI |
 
+The backend container runs as the dedicated non-root `wiki` user (`10001:10001`). The image prepares `/var/lib/wiki/uploads` with writable ownership so the named `uploads` volume can store attachment files without running the API as root. Bind-mounted upload directories must also be writable by UID/GID `10001`.
+
 ## 4. Quick Start
 
 ```bash

@@ -24,7 +24,7 @@ The active workflow is `.github/workflows/ci.yml` and runs on pushes and pull re
 | `migrations` | Apply SQLx migrations to a clean PostgreSQL database and print status | Yes |
 | `coverage` | Run backend tests through `cargo llvm-cov` and enforce 60% summary coverage | Yes |
 | `audit` | Run `cargo audit` with the documented SQLx optional MySQL/RSA ignore | Yes |
-| `frontend` | Generate API DTOs, typecheck, run Vitest and build Vite app | Yes |
+| `frontend` | Generate API DTOs, typecheck, run Vitest, lint, format-check and build Vite app | Yes |
 | `e2e` | Build frontend, start Docker PostgreSQL + backend, then run Chromium Playwright smoke | Yes |
 
 ## 4. Backend Gate
@@ -93,6 +93,8 @@ pnpm install
 pnpm generate:api
 pnpm typecheck
 pnpm test -- --run
+pnpm lint
+pnpm format:check
 pnpm build
 ```
 

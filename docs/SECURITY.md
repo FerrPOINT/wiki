@@ -115,7 +115,8 @@ Wiki — self-hosted приложение с конфиденциальными 
 
 - MVP images contain only runtime artifacts and must not bake secrets into image layers.
 - Backend image copies SQLx migrations to `/app/migrations` and uses `WIKI_MIGRATIONS_DIR`.
-- Non-root runtime users, read-only filesystem, distroless backend image and Trivy scan are release-hardening items.
+- Backend image runs the API process as a dedicated non-root `wiki` user (`10001:10001`) and owns `/var/lib/wiki/uploads` for attachment storage.
+- Read-only filesystem, distroless backend image and Trivy scan are release-hardening items.
 
 ## 15. Network
 
