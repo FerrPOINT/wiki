@@ -37,7 +37,7 @@ Wiki — self-hosted приложение с конфиденциальными 
 
 ## 6. XSS / CSP
 
-- CSP policy:
+- CSP target policy:
   ```
   default-src 'self';
   script-src 'self';
@@ -50,6 +50,7 @@ Wiki — self-hosted приложение с конфиденциальными 
   base-uri 'self';
   form-action 'self';
   ```
+- API runtime sets the MVP self-hosted CSP with `img-src 'self' data: blob:`, `object-src 'none'`, `frame-ancestors 'none'`, `base-uri 'self'` and `form-action 'self'`. Dedicated external storage origins must be added only when a non-local storage adapter is introduced.
 - User-generated content escaped при render.
 - Markdown рендерится через controlled renderer, HTML проходит sanitizer.
 
@@ -132,6 +133,8 @@ Wiki — self-hosted приложение с конфиденциальными 
 - Export audit log.
 
 ## 17. Security Headers
+
+API responses set and test the baseline browser/security headers:
 
 ```
 X-Content-Type-Options: nosniff

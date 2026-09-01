@@ -3793,6 +3793,64 @@ async fn wiki_api_propagates_request_id_header() {
 }
 
 #[tokio::test]
+async fn wiki_api_sets_security_headers_on_responses() {
+    let app = test_app();
+
+    let (status, headers, _) =
+        call_with_headers(&app, Method::GET, "/api/v1/health", None, None, &[]).await;
+    assert_eq!(status, StatusCode::OK);
+
+    assert_eq!(
+        headers
+            .get("x-content-type-options")
+            .and_then(|value| value.to_str().ok()),
+        Some("nosniff")
+    );
+    assert_eq!(
+        headers
+            .get("x-frame-options")
+            .and_then(|value| value.to_str().ok()),
+        Some("DENY")
+    );
+    assert_eq!(
+        headers
+            .get("referrer-policy")
+            .and_then(|value| value.to_str().ok()),
+        Some("strict-origin-when-cross-origin")
+    );
+    assert_eq!(
+        headers
+            .get("permissions-policy")
+            .and_then(|value| value.to_str().ok()),
+        Some("geolocation=(), microphone=(), camera=()")
+    );
+    assert_eq!(
+        headers
+            .get("strict-transport-security")
+            .and_then(|value| value.to_str().ok()),
+        Some("max-age=31536000; includeSubDomains")
+    );
+
+    let csp = headers
+        .get("content-security-policy")
+        .and_then(|value| value.to_str().ok())
+        .expect("CSP header should be present");
+    for directive in [
+        "default-src 'self'",
+        "script-src 'self'",
+        "object-src 'none'",
+        "frame-ancestors 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+    ] {
+        assert!(
+            csp.contains(directive),
+            "CSP should contain directive {directive}: {csp}"
+        );
+    }
+}
+
+#[tokio::test]
 async fn wiki_metrics_endpoint_exposes_prometheus_http_metrics() {
     let app = test_app();
 

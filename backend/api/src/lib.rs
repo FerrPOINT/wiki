@@ -469,13 +469,17 @@ where
             ))
             .layer(SetResponseHeaderLayer::overriding(
                 HeaderName::from_static("referrer-policy"),
-                HeaderValue::from_static("no-referrer"),
+                HeaderValue::from_static("strict-origin-when-cross-origin"),
             ))
             .layer(SetResponseHeaderLayer::overriding(
                 HeaderName::from_static("content-security-policy"),
                 HeaderValue::from_static(
-                    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'",
+                    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
                 ),
+            ))
+            .layer(SetResponseHeaderLayer::overriding(
+                HeaderName::from_static("permissions-policy"),
+                HeaderValue::from_static("geolocation=(), microphone=(), camera=()"),
             ))
             .layer(SetResponseHeaderLayer::overriding(
                 HeaderName::from_static("strict-transport-security"),
