@@ -13,7 +13,7 @@
 
 - Спецификация генерируется из Rust handlers и DTO через `utoipa-axum`.
 - Swagger UI доступен по `/swagger-ui/` в dev-режиме.
-- Каждый endpoint должен иметь summary, схемы request/response, статус-коды и ошибки `400`, `401`, `403`, `404`, `409`, `422`, если они применимы.
+- Каждый endpoint должен иметь summary, схемы request/response, статус-коды и применимые ошибки `400`, `401`, `403`, `404`, `409`, `500`.
 - `openapi/openapi.json` коммитится для hermetic frontend build, но не редактируется вручную.
 - После изменения API выполнить `cargo run -p api --bin openapi-gen -- ../openapi/openapi.json`, затем `npm run generate:api` в `frontend`.
 
@@ -40,9 +40,9 @@
 
 ## 5. Пагинация
 
-- Для списков - cursor-based pagination.
-- Параметры: `cursor`, `limit` (max 100, default 20).
-- Справочники могут использовать offset pagination.
+- Для MVP списков обязателен bounded `limit`.
+- Cursor pagination является будущим hardening, если списки начнут расти за пределы MVP-нагрузки.
+- Справочники могут возвращать полный bounded список, если объём контролируется продуктом.
 - Подробнее: `docs/PAGINATION.md`.
 
 ## 6. Сортировка и фильтрация
@@ -60,7 +60,7 @@
     "code": "VALIDATION_ERROR",
     "message": "Request validation failed",
     "details": [{ "field": "title", "message": "required" }],
-    "request_id": "req_01J..."
+    "requestId": "req_01J..."
   }
 }
 ```
@@ -73,8 +73,9 @@
 
 ## 9. Idempotency
 
-- `POST /documents`, `POST /documents/{id}/publish`, `POST /evidence`, `POST /attachments` поддерживают `Idempotency-Key`.
-- Ключ - UUIDv4/UUIDv7, хранится в Redis 24 часа.
+- CLI может передавать `Idempotency-Key` для повторяемых write-команд.
+- Серверная дедупликация `Idempotency-Key` не является частью текущего MVP runtime и вынесена в hardening после стабилизации базового API.
+- Redis не должен быть обязательной зависимостью для базовых Wiki операций.
 
 ## 10. Security
 

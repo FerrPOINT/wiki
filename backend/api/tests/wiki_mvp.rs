@@ -216,6 +216,19 @@ async fn login_admin(app: &axum::Router) -> String {
     login["access_token"].as_str().unwrap().to_string()
 }
 
+async fn login_memory_admin(app: &axum::Router) -> String {
+    let (status, login) = call(
+        app,
+        Method::POST,
+        "/api/v1/auth/login",
+        None,
+        Some(json!({ "email": "demo@example.com", "password": "demo" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    login["access_token"].as_str().unwrap().to_string()
+}
+
 #[tokio::test]
 async fn wiki_persistent_backend_requires_database_url() {
     let config = test_config();
@@ -822,6 +835,452 @@ async fn wiki_document_move_rejects_descendant_parent() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert!(root_after["parent_id"].is_null());
+}
+
+#[tokio::test]
+async fn wiki_memory_archived_document_rejects_write_commands() {
+    let app = test_app();
+    let token = login_memory_admin(&app).await;
+    let suffix = Uuid::now_v7().simple().to_string();
+    let short = &suffix[..12];
+
+    let (status, document) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces/SDLC/documents",
+        Some(&token),
+        Some(json!({
+            "title": format!("Archived document {short}"),
+            "slug": format!("archived-document-{short}"),
+            "document_type": "page",
+            "content_markdown": "# Archived document\n\nThis page will be archived."
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let document_id = document["id"].as_str().unwrap();
+
+    let (status, archived) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/documents/{document_id}/archive"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(archived["status"], "archived");
+
+    let (status, error) = call(
+        &app,
+        Method::PUT,
+        &format!("/api/v1/documents/{document_id}/draft"),
+        Some(&token),
+        Some(json!({
+            "title": "Archived document edited",
+            "content_markdown": "# Should not save"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(error["error"]["code"], "VALIDATION_ERROR");
+    assert_eq!(
+        error["error"]["message"],
+        "archived document does not accept writes"
+    );
+
+    let (status, error) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/documents/{document_id}/publish"),
+        Some(&token),
+        Some(json!({ "summary": "Should not publish" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(error["error"]["code"], "VALIDATION_ERROR");
+    assert_eq!(
+        error["error"]["message"],
+        "archived document does not accept writes"
+    );
+
+    let (status, error) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/documents/{document_id}/move"),
+        Some(&token),
+        Some(json!({ "parent_id": Value::Null })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(error["error"]["code"], "VALIDATION_ERROR");
+    assert_eq!(
+        error["error"]["message"],
+        "archived document does not accept writes"
+    );
+
+    let (status, after) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/documents/{document_id}"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(after["status"], "archived");
+    assert_ne!(after["title"], "Archived document edited");
+}
+
+#[tokio::test]
+async fn wiki_memory_task_phase_document_links_enforce_space_boundary() {
+    let app = test_app();
+    let token = login_memory_admin(&app).await;
+    let suffix = Uuid::now_v7().simple().to_string();
+    let short = &suffix[..12];
+    let other_space_key = format!("DOCS-{short}").to_ascii_uppercase();
+    let task_key = format!("SDLC-{short}");
+    let phase_key = format!("review-{short}");
+
+    let (status, other_space) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces",
+        Some(&token),
+        Some(json!({
+            "key": other_space_key,
+            "name": format!("Docs boundary {short}"),
+            "description": "Cross-space link checks"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let other_space_key = other_space["key"].as_str().unwrap();
+
+    let (status, sdlc_document) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces/SDLC/documents",
+        Some(&token),
+        Some(json!({
+            "title": format!("SDLC dossier document {short}"),
+            "slug": format!("sdlc-dossier-document-{short}"),
+            "document_type": "requirements",
+            "content_markdown": "# SDLC dossier document\n\nTask and phase link boundary check."
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let sdlc_document_id = sdlc_document["id"].as_str().unwrap();
+
+    let (status, other_document) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/spaces/{other_space_key}/documents"),
+        Some(&token),
+        Some(json!({
+            "title": format!("Other dossier document {short}"),
+            "slug": format!("other-dossier-document-{short}"),
+            "document_type": "requirements",
+            "content_markdown": "# Other dossier document\n\nMust not be linked into SDLC."
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let other_document_id = other_document["id"].as_str().unwrap();
+
+    let (status, task) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/spaces/SDLC/tasks/{task_key}/links/documents"),
+        Some(&token),
+        Some(json!({ "document_id": sdlc_document_id })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(task["document_count"], 1);
+    assert!(
+        task["documents"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|document| document["id"] == sdlc_document_id)
+    );
+
+    let (status, task_documents) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/SDLC/tasks/{task_key}/documents"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        task_documents["documents"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|document| document["id"] == sdlc_document_id)
+    );
+
+    let (status, phase) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/spaces/SDLC/phases/{phase_key}/links/documents"),
+        Some(&token),
+        Some(json!({ "document_id": sdlc_document_id })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(phase["document_count"], 1);
+    assert!(
+        phase["documents"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|document| document["id"] == sdlc_document_id)
+    );
+
+    let (status, phase_documents) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/SDLC/phases/{phase_key}/documents"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        phase_documents["documents"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|document| document["id"] == sdlc_document_id)
+    );
+
+    let (status, error) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/spaces/SDLC/tasks/{task_key}/links/documents"),
+        Some(&token),
+        Some(json!({ "document_id": other_document_id })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(error["error"]["code"], "VALIDATION_ERROR");
+    assert_eq!(
+        error["error"]["message"],
+        "document belongs to another space"
+    );
+
+    let (status, error) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/spaces/SDLC/phases/{phase_key}/links/documents"),
+        Some(&token),
+        Some(json!({ "document_id": other_document_id })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(error["error"]["code"], "VALIDATION_ERROR");
+    assert_eq!(
+        error["error"]["message"],
+        "document belongs to another space"
+    );
+}
+
+#[tokio::test]
+async fn wiki_memory_evidence_infers_document_space_and_claims_file_attachments() {
+    let app = test_app();
+    let token = login_memory_admin(&app).await;
+    let suffix = Uuid::now_v7().simple().to_string();
+    let short = &suffix[..12];
+    let other_space_key = format!("DOCS-{short}").to_ascii_uppercase();
+    let task_key = format!("DOCS-{short}");
+    let phase_key = format!("validation-{short}");
+
+    let (status, other_space) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces",
+        Some(&token),
+        Some(json!({
+            "key": other_space_key,
+            "name": format!("Docs evidence {short}"),
+            "description": "Evidence boundary checks"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let other_space_key = other_space["key"].as_str().unwrap();
+
+    let (status, document) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/spaces/{other_space_key}/documents"),
+        Some(&token),
+        Some(json!({
+            "title": format!("Evidence document {short}"),
+            "slug": format!("evidence-document-{short}"),
+            "document_type": "test_plan",
+            "content_markdown": "# Evidence document\n\nEvidence should inherit this space."
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let document_id = document["id"].as_str().unwrap();
+
+    let (status, evidence) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(&token),
+        Some(json!({
+            "document_id": document_id,
+            "task_key": task_key,
+            "phase_key": phase_key,
+            "title": "Inferred space evidence",
+            "evidence_type": "external_url",
+            "url": "https://ci.local/jobs/inferred-space"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(evidence["space_key"], other_space_key);
+    assert_eq!(evidence["document_id"], document_id);
+    let evidence_id = evidence["id"].as_str().unwrap();
+
+    let (status, filtered) = call(
+        &app,
+        Method::GET,
+        &format!(
+            "/api/v1/evidence?space={other_space_key}&document_id={document_id}&task_key={task_key}&phase_key={phase_key}"
+        ),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        filtered["evidence"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["id"] == evidence_id)
+    );
+
+    let (status, task) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{other_space_key}/tasks/{task_key}"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(task["evidence_count"], 1);
+
+    let (status, phase) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{other_space_key}/phases/{phase_key}"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(phase["evidence_count"], 1);
+
+    let (status, error) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(&token),
+        Some(json!({
+            "space": "SDLC",
+            "document_id": document_id,
+            "task_key": format!("SDLC-{short}"),
+            "title": "Wrong space evidence",
+            "evidence_type": "external_url",
+            "url": "https://ci.local/jobs/wrong-space"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(error["error"]["code"], "VALIDATION_ERROR");
+    assert_eq!(
+        error["error"]["message"],
+        "document belongs to another space"
+    );
+
+    let attachment_bytes = b"file evidence attachment boundary bytes";
+    let (status, attachment) = upload_test_file(
+        &app,
+        &token,
+        &format!("evidence-boundary-{short}.txt"),
+        "text/plain",
+        attachment_bytes,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let attachment_id = attachment["id"].as_str().unwrap();
+
+    let (status, file_evidence) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(&token),
+        Some(json!({
+            "document_id": document_id,
+            "title": "Inferred space file evidence",
+            "evidence_type": "uploaded_file",
+            "attachment_id": attachment_id
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(file_evidence["space_key"], other_space_key);
+    assert_eq!(file_evidence["document_id"], document_id);
+    assert_eq!(file_evidence["attachment_id"], attachment_id);
+    assert_eq!(file_evidence["checksum"], attachment["checksum"]);
+
+    let (status, metadata) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/attachments/{attachment_id}"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(metadata["checksum"], attachment["checksum"]);
+
+    let (status, _, downloaded) = call_binary(
+        &app,
+        Method::GET,
+        &format!("/api/v1/attachments/{attachment_id}/download"),
+        Some(&token),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(downloaded, attachment_bytes);
+
+    let (status, error) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(&token),
+        Some(json!({
+            "document_id": document_id,
+            "title": "Reused attachment evidence",
+            "evidence_type": "uploaded_file",
+            "attachment_id": attachment_id
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(error["error"]["code"], "NOT_FOUND");
 }
 
 #[tokio::test]

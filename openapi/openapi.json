@@ -36,6 +36,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Validation error"
           }
         },
         "security": [
@@ -375,6 +378,9 @@
               }
             }
           },
+          "400": {
+            "description": "Validation error"
+          },
           "404": {
             "description": ""
           }
@@ -423,6 +429,9 @@
               }
             }
           },
+          "400": {
+            "description": "Validation error"
+          },
           "404": {
             "description": ""
           }
@@ -470,6 +479,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Validation error"
           },
           "404": {
             "description": ""
@@ -673,6 +685,12 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "404": {
+            "description": ""
           }
         },
         "security": [
@@ -1444,6 +1462,9 @@
               }
             }
           },
+          "400": {
+            "description": "Validation error"
+          },
           "404": {
             "description": ""
           }
@@ -1669,6 +1690,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Validation error"
           },
           "404": {
             "description": ""

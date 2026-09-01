@@ -70,7 +70,7 @@ MVP не включает:
 | REQ-DOC-003   | Draft edit       | Editor редактирует черновик страницы                                                                                                      |
 | REQ-DOC-004   | Publish          | Публикация создаёт неизменяемую ревизию                                                                                                   |
 | REQ-DOC-005   | Revision history | Пользователь видит список ревизий и открывает конкретную ревизию                                                                          |
-| REQ-DOC-006   | Archive          | Editor архивирует документ; archived pages скрыты из обычного дерева                                                                      |
+| REQ-DOC-006   | Archive          | Editor архивирует документ; archived pages скрыты из обычного дерева и не принимают draft/publish/move write-команды                      |
 | REQ-TREE-001  | Page tree        | Документы имеют parent/child структуру внутри space                                                                                       |
 | REQ-TREE-002  | Move page        | Editor перемещает страницу внутри одного space                                                                                            |
 | REQ-TASK-001  | Task link        | Документ можно связать с внешним task key, например `SDLC-42`                                                                             |

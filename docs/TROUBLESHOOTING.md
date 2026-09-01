@@ -81,10 +81,11 @@ Current Wiki API shell should not require Redis for normal reads/writes. Target 
 
 ## 5. API
 
-### 422 Validation Error
+### 400 Validation Error
 
-- Тело ответа содержит список полей и ошибок.
-- Проверить required поля и формат UUID.
+- Тело ответа содержит `error.code=VALIDATION_ERROR` и человекочитаемый `error.message`.
+- Проверить required поля, формат UUID, `space_key`, `task_key`, `phase_key`, `document_type` и границы space.
+- `details` с полями могут появиться позже; текущий MVP contract не требует их в каждом ответе.
 
 ### 409 Conflict
 

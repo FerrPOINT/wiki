@@ -9,7 +9,7 @@ use app::wiki::{
     checksum, markdown_to_text, normalize_space_key,
 };
 use shared::wiki_contract::*;
-use sqlx::Row;
+use sqlx::{Postgres, Row, Transaction};
 use std::collections::BTreeSet;
 use uuid::Uuid;
 
@@ -152,20 +152,12 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
                 .begin()
                 .await
                 .map_err(shared::AppError::database)?;
-            let exists: Option<Uuid> = sqlx::query_scalar("SELECT id FROM documents WHERE id = $1")
-                .bind(command.document_id)
-                .fetch_optional(&mut *tx)
-                .await
-                .map_err(shared::AppError::database)?;
-            if exists.is_none() {
-                return Err(shared::AppError::not_found("document", command.document_id));
-            }
+            ensure_document_accepts_writes_tx(&mut tx, command.document_id).await?;
             sqlx::query(
                 r#"
                 UPDATE documents
                 SET title = COALESCE($2, title),
                     status = 'draft',
-                    archived_at = NULL,
                     updated_at = now()
                 WHERE id = $1
                 "#,
@@ -219,10 +211,12 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
                 .map_err(shared::AppError::database)?;
             let row = sqlx::query(
                 r#"
-                SELECT d.title, COALESCE(dd.content_markdown, '') AS content_markdown
+                SELECT d.title, COALESCE(dd.content_markdown, '') AS content_markdown,
+                       (d.status = 'archived' OR d.archived_at IS NOT NULL) AS archived
                 FROM documents d
                 LEFT JOIN document_drafts dd ON dd.document_id = d.id
                 WHERE d.id = $1
+                FOR UPDATE OF d
                 "#,
             )
             .bind(command.document_id)
@@ -232,6 +226,12 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
             .ok_or_else(|| shared::AppError::not_found("document", command.document_id))?;
             let title: String = row.get("title");
             let content_markdown: String = row.get("content_markdown");
+            let archived: bool = row.get("archived");
+            if archived {
+                return Err(shared::AppError::invalid_input(
+                    "archived document does not accept writes",
+                ));
+            }
             if content_markdown.trim().is_empty() {
                 return Err(shared::AppError::invalid_input(
                     "published content is required",
@@ -273,7 +273,7 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
             sqlx::query(
                 r#"
                 UPDATE documents
-                SET current_revision_id = $2, status = 'published', archived_at = NULL, updated_at = now()
+                SET current_revision_id = $2, status = 'published', updated_at = now()
                 WHERE id = $1
                 "#,
             )
@@ -316,6 +316,7 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
                 .begin()
                 .await
                 .map_err(shared::AppError::database)?;
+            ensure_document_accepts_writes_tx(&mut tx, command.document_id).await?;
             let row = sqlx::query(
                 r#"
                 UPDATE documents
@@ -428,6 +429,32 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
             Ok(revision_response_from_row(&row))
         })
     }
+}
+
+async fn ensure_document_accepts_writes_tx(
+    tx: &mut Transaction<'_, Postgres>,
+    document_id: Uuid,
+) -> Result<(), shared::AppError> {
+    let row = sqlx::query(
+        r#"
+        SELECT (status = 'archived' OR archived_at IS NOT NULL) AS archived
+        FROM documents
+        WHERE id = $1
+        FOR UPDATE
+        "#,
+    )
+    .bind(document_id)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(shared::AppError::database)?
+    .ok_or_else(|| shared::AppError::not_found("document", document_id))?;
+    let archived: bool = row.get("archived");
+    if archived {
+        return Err(shared::AppError::invalid_input(
+            "archived document does not accept writes",
+        ));
+    }
+    Ok(())
 }
 
 impl PostgresWikiBackend {

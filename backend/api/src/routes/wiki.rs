@@ -1161,7 +1161,11 @@ pub async fn get_document(
     tag = "documents",
     params(("document_id" = String, Path)),
     request_body = UpdateDocumentDraftRequest,
-    responses((status = 200, body = DocumentResponse), (status = 404)),
+    responses(
+        (status = 200, body = DocumentResponse),
+        (status = 400, description = "Validation error"),
+        (status = 404)
+    ),
     security(("bearer" = []))
 )]
 pub async fn update_document_draft(
@@ -1185,6 +1189,11 @@ pub async fn update_document_draft(
         .documents
         .get_mut(&id)
         .ok_or_else(|| shared::AppError::not_found("document", &document_id))?;
+    if document.status == "archived" {
+        return Err(shared::AppError::invalid_input(
+            "archived document does not accept writes",
+        ));
+    }
     if let Some(title) = body.title {
         let title = title.trim().to_string();
         if title.is_empty() {
@@ -1208,7 +1217,11 @@ pub async fn update_document_draft(
     tag = "documents",
     params(("document_id" = String, Path)),
     request_body = PublishDocumentRequest,
-    responses((status = 200, body = DocumentRevisionResponse), (status = 404)),
+    responses(
+        (status = 200, body = DocumentRevisionResponse),
+        (status = 400, description = "Validation error"),
+        (status = 404)
+    ),
     security(("bearer" = []))
 )]
 pub async fn publish_document(
@@ -1237,6 +1250,11 @@ pub async fn publish_document(
         .documents
         .get_mut(&id)
         .ok_or_else(|| shared::AppError::not_found("document", &document_id))?;
+    if document.status == "archived" {
+        return Err(shared::AppError::invalid_input(
+            "archived document does not accept writes",
+        ));
+    }
     if document.draft_markdown.trim().is_empty() {
         return Err(shared::AppError::invalid_input(
             "published content is required",
@@ -1304,7 +1322,11 @@ pub async fn archive_document(
     tag = "documents",
     params(("document_id" = String, Path)),
     request_body = MoveDocumentRequest,
-    responses((status = 200, body = DocumentResponse), (status = 404)),
+    responses(
+        (status = 200, body = DocumentResponse),
+        (status = 400, description = "Validation error"),
+        (status = 404)
+    ),
     security(("bearer" = []))
 )]
 pub async fn move_document(
@@ -1325,6 +1347,15 @@ pub async fn move_document(
     let id = resolve_document_id(&store, &document_id)?;
     let document_space =
         ensure_document_access(&store, &id, &claims.user_id, WikiSpaceAccess::Edit)?;
+    let document = store
+        .documents
+        .get(&id)
+        .ok_or_else(|| shared::AppError::not_found("document", &document_id))?;
+    if document.status == "archived" {
+        return Err(shared::AppError::invalid_input(
+            "archived document does not accept writes",
+        ));
+    }
     let parent_id = match body.parent_id {
         Some(parent_id) => {
             let resolved_parent_id = resolve_document_id(&store, &parent_id)?;
@@ -1496,7 +1527,11 @@ pub async fn get_task(
     tag = "tasks",
     params(("space_key" = String, Path), ("task_key" = String, Path)),
     request_body = LinkDocumentRequest,
-    responses((status = 200, body = TaskPageResponse), (status = 404)),
+    responses(
+        (status = 200, body = TaskPageResponse),
+        (status = 400, description = "Validation error"),
+        (status = 404)
+    ),
     security(("bearer" = []))
 )]
 pub async fn link_task_document(
@@ -1670,7 +1705,11 @@ pub async fn get_phase(
     tag = "phases",
     params(("space_key" = String, Path), ("phase_key" = String, Path)),
     request_body = LinkDocumentRequest,
-    responses((status = 200, body = PhasePageResponse), (status = 404)),
+    responses(
+        (status = 200, body = PhasePageResponse),
+        (status = 400, description = "Validation error"),
+        (status = 404)
+    ),
     security(("bearer" = []))
 )]
 pub async fn link_phase_document(
@@ -1775,7 +1814,11 @@ pub async fn list_phase_evidence(
     path = "/api/v1/evidence",
     tag = "evidence",
     request_body = CreateEvidenceRequest,
-    responses((status = 201, body = EvidenceResponse)),
+    responses(
+        (status = 201, body = EvidenceResponse),
+        (status = 400, description = "Validation error"),
+        (status = 404)
+    ),
     security(("bearer" = []))
 )]
 pub async fn create_evidence(
@@ -2004,7 +2047,10 @@ pub async fn get_evidence(
     path = "/api/v1/attachments",
     tag = "attachments",
     request_body(content = String, content_type = "multipart/form-data"),
-    responses((status = 201, body = AttachmentResponse)),
+    responses(
+        (status = 201, body = AttachmentResponse),
+        (status = 400, description = "Validation error")
+    ),
     security(("bearer" = []))
 )]
 pub async fn upload_attachment(

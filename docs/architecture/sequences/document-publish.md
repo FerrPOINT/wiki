@@ -25,12 +25,12 @@ sequenceDiagram
 
 ## Failure Modes
 
-| Failure | Handling |
-|---|---|
-| Missing permission | `403 permission_denied` |
-| Stale draft | `409 revision_conflict` |
-| Invalid Markdown metadata | `422 validation_failed` |
-| Search index update failed | publish rolls back or returns explicit retryable error |
+| Failure                       | Handling                                                           |
+| ----------------------------- | ------------------------------------------------------------------ |
+| Missing permission            | `403 FORBIDDEN`                                                    |
+| Stale draft                   | `409 CONFLICT` after base-revision conflict handling is introduced |
+| Invalid/empty publish content | `400 VALIDATION_ERROR`                                             |
+| Search index update failed    | publish rolls back or returns explicit retryable error             |
 
 ## Acceptance Criteria
 

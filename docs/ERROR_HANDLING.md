@@ -6,47 +6,32 @@
 
 ## 2. Backend Error Hierarchy
 
-### 2.1 Error Types
+### 2.1 Current MVP Error Types
 
 ```rust
-pub enum DomainError {
-    NotFound { entity: &'static str, id: String },
-    AlreadyExists { entity: &'static str, key: String },
-    Validation { field: String, message: String },
-    PermissionDenied { action: String },
-    InvalidTransition { from: String, to: String },
-    Conflict { message: String },
-}
-
 pub enum AppError {
-    Domain(DomainError),
-    Infra(InfraError),
+    NotFound(String),
+    InvalidInput(String),
     Unauthorized,
     Forbidden,
-}
-
-pub enum InfraError {
-    Database(sqlx::Error),
-    Redis(redis::RedisError),
-    External(String),
-    Config(String),
+    Conflict(String),
+    Database(String),
     Internal(String),
 }
 ```
 
+Более детальные domain-specific ошибки (`REVISION_CONFLICT`, `INVALID_TRANSITION`, field-level details) являются future hardening. Текущий MVP contract намеренно проще и стабилен для UI/CLI.
+
 ### 2.2 HTTP Mapping
 
-| AppError                         | HTTP Status | User-facing code     |
-| -------------------------------- | ----------- | -------------------- |
-| `Validation`                     | 400         | `VALIDATION_ERROR`   |
-| `Unauthorized`                   | 401         | `UNAUTHORIZED`       |
-| `Forbidden` / `PermissionDenied` | 403         | `FORBIDDEN`          |
-| `NotFound`                       | 404         | `NOT_FOUND`          |
-| `AlreadyExists` / `Conflict`     | 409         | `CONFLICT`           |
-| `InvalidTransition`              | 422         | `INVALID_TRANSITION` |
-| `Infra::External`                | 502         | `EXTERNAL_ERROR`     |
-| `Infra::Internal`                | 500         | `INTERNAL_ERROR`     |
-| other                            | 500         | `INTERNAL_ERROR`     |
+| AppError              | HTTP Status | User-facing code   |
+| --------------------- | ----------- | ------------------ |
+| `InvalidInput`        | 400         | `VALIDATION_ERROR` |
+| `Unauthorized`        | 401         | `UNAUTHORIZED`     |
+| `Forbidden`           | 403         | `FORBIDDEN`        |
+| `NotFound`            | 404         | `NOT_FOUND`        |
+| `Conflict`            | 409         | `CONFLICT`         |
+| `Database`/`Internal` | 500         | `INTERNAL_ERROR`   |
 
 ### 2.3 Response Format
 
@@ -198,15 +183,14 @@ onError: (error) => {
 
 ## 7. Known Error Scenarios
 
-| Scenario                     | Backend                 | Frontend              |
-| ---------------------------- | ----------------------- | --------------------- |
-| Invalid login                | 401 `UNAUTHORIZED`      | toast + форма         |
-| Duplicate space/document key | 409 `CONFLICT`          | inline field error    |
-| Document not found           | 404 `NOT_FOUND`         | 404 page              |
-| Publish conflict             | 409 `REVISION_CONFLICT` | inline conflict state |
-| DB unavailable               | 500 `INTERNAL_ERROR`    | retry + fallback page |
-| Network error                | —                       | toast + offline badge |
-| WS disconnect                | —                       | reconnect spinner     |
+| Scenario                     | Backend              | Frontend              |
+| ---------------------------- | -------------------- | --------------------- |
+| Invalid login                | 401 `UNAUTHORIZED`   | toast + форма         |
+| Duplicate space/document key | 409 `CONFLICT`       | inline field error    |
+| Document not found           | 404 `NOT_FOUND`      | 404 page              |
+| Publish conflict             | 409 `CONFLICT`       | inline conflict state |
+| DB unavailable               | 500 `INTERNAL_ERROR` | retry + fallback page |
+| Network error                | —                    | toast + offline badge |
 
 ## 8. Logging
 
@@ -222,17 +206,14 @@ onError: (error) => {
 
 ## 10. User-Facing Messages
 
-| Code                 | Russian                             | English                                |
-| -------------------- | ----------------------------------- | -------------------------------------- |
-| `VALIDATION_ERROR`   | Проверьте введённые данные          | Please check your input                |
-| `UNAUTHORIZED`       | Требуется вход в систему            | Please sign in                         |
-| `FORBIDDEN`          | Недостаточно прав                   | Permission denied                      |
-| `NOT_FOUND`          | Объект не найден                    | Not found                              |
-| `CONFLICT`           | Конфликт данных                     | Data conflict                          |
-| `INVALID_TRANSITION` | Невозможный переход                 | Invalid transition                     |
-| `INTERNAL_ERROR`     | Внутренняя ошибка. Попробуйте позже | Internal error. Please try again later |
-| `EXTERNAL_ERROR`     | Внешняя служба недоступна           | External service unavailable           |
-| `RATE_LIMITED`       | Слишком много запросов              | Too many requests                      |
+| Code               | Russian                             | English                                |
+| ------------------ | ----------------------------------- | -------------------------------------- |
+| `VALIDATION_ERROR` | Проверьте введённые данные          | Please check your input                |
+| `UNAUTHORIZED`     | Требуется вход в систему            | Please sign in                         |
+| `FORBIDDEN`        | Недостаточно прав                   | Permission denied                      |
+| `NOT_FOUND`        | Объект не найден                    | Not found                              |
+| `CONFLICT`         | Конфликт данных                     | Data conflict                          |
+| `INTERNAL_ERROR`   | Внутренняя ошибка. Попробуйте позже | Internal error. Please try again later |
 
 ## References
 

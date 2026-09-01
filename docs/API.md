@@ -62,6 +62,8 @@ REST API Wiki предоставляет базовые операции про�
 | `GET`  | `/documents/{document_id}/revisions`               | История ревизий            |
 | `GET`  | `/documents/{document_id}/revisions/{revision_id}` | Конкретная ревизия         |
 
+Архивированный документ остаётся доступен на чтение пользователям с правом доступа к space, но write-команды `draft`, `publish` и `move` возвращают `400 VALIDATION_ERROR`.
+
 ## 7. Task Links
 
 Task dossier в MVP - это представление документов/evidence, связанных одним внешним `task_key`. Wiki не владеет статусом задачи.
@@ -97,7 +99,7 @@ Phase dossier в MVP - это представление документов/ev
 | `GET`  | `/attachments/{attachment_id}`          | Metadata файла              |
 | `GET`  | `/attachments/{attachment_id}/download` | Скачать файл                |
 
-Canonical `evidence_type` values for MVP are `external_url` and `uploaded_file`. `external_url` accepts a non-empty `url` and must not include `attachment_id` or `checksum`; `uploaded_file` accepts `attachment_id` without `url` and stores checksum from the staged attachment. Evidence can be linked to `document_id`, `task_key`, `phase_key` or their combination inside one space. `GET /evidence` supports `space`, `document_id`, `task_key` and `phase_key` filters and returns only spaces visible to the caller. Specific source categories such as CI job, pull request, deployment or test artifact are metadata, not separate evidence types.
+Canonical `evidence_type` values for MVP are `external_url` and `uploaded_file`. `external_url` accepts a non-empty `url` and must not include `attachment_id` or `checksum`; `uploaded_file` accepts `attachment_id` without `url` and stores checksum from the staged attachment. Evidence can be linked to `document_id`, `task_key`, `phase_key` or their combination inside one space. If `document_id` is present and `space` is omitted, API uses the document's space; if explicit `space` conflicts with the document's space, API returns `400 VALIDATION_ERROR`. `GET /evidence` supports `space`, `document_id`, `task_key` and `phase_key` filters and returns only spaces visible to the caller. Specific source categories such as CI job, pull request, deployment or test artifact are metadata, not separate evidence types.
 
 ## 10. Search
 

@@ -21,6 +21,8 @@ The documentation, screenshots, API-backed frontend MVP pages and SQLx-backed MV
 - inherited task-tracker infra modules are excluded from the default `infra` crate build and quarantined behind feature `legacy-tracker`;
 - public registration is guarded by `WIKI_AUTH__REGISTRATION_ENABLED` in both explicit memory test/dev backend and PostgreSQL runtime;
 - PostgreSQL runtime enforces global-admin, space-role, archived-space write and attachment-download boundaries for core read/write paths; the explicit memory test/dev backend mirrors the same MVP boundaries for smoke coverage;
+- archived documents are read-only for draft/publish/move write commands in both memory and SQLx-backed runtime paths;
+- focused API regressions cover task/phase document link space boundaries, evidence document-space inference, document/space mismatch rejection, staged file evidence claim/download and reused attachment rejection;
 - attachment bytes are behind `domain::wiki::WikiAttachmentStorage`, with `infra::LocalWikiAttachmentStorage` wired by `server`;
 - shared Wiki normalization, access predicates, content helpers, storage-name helpers, password hashing, Wiki JWT/session token helpers and access/refresh token-pair TTL assembly are in `app::wiki`; safe runtime settings snapshot is in `shared::wiki_contract`;
 - auth/session flow validation, spaces/members/tree command validation, document create/draft/publish/archive/move command validation, task/phase dossier normalization/link command assembly, evidence/list/upload payload validation, user create/update validation and password hashing are in `app::wiki`; search q/filter/limit normalization and merge/sort/limit behavior are in `app::wiki`; template create validation/normalization and pool-backed audit command/list boundaries are in `app::wiki`; the PostgreSQL adapter owns SQL/storage details behind repository ports;
@@ -77,14 +79,14 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 
 - Tune current PostgreSQL FTS with ranking, query plans and language decisions; q/filter/limit normalization and response merge/limit already live in `app::wiki`, so the remaining work is SQL/repository behavior.
 - Expand current local filesystem storage coverage behind the dedicated Wiki storage port; add S3/MinIO later behind the same abstraction.
-- Expand attachment tests beyond the current staged upload, claim, download and missing-file smoke for less common storage edge cases.
+- Expand attachment tests beyond the current staged upload, claim, download, reuse rejection and missing-file smoke for less common storage edge cases.
 - Keep audit writes inside the same transaction as the command that caused them.
 - Continue expanding audit tests beyond the current memory smoke for document archive, user updates and PostgreSQL-backed permission changes.
 
 ## 7. Tests And Release Readiness
 
 - Continue expanding backend unit tests for less common domain invariant combinations.
-- Add repository/API tests beyond the current persistence, permission, audit and file-evidence smoke for spaces, documents, revisions, task/phase links, evidence, attachments and search.
+- Add repository/API tests beyond the current persistence, permission, audit, archived-document, task/phase boundary and file-evidence smoke for spaces, document revision history and search.
 - Rerun PostgreSQL-backed API smoke with `WIKI_TEST_DATABASE_URL` set, including production backend construction, persistence across router rebuilds and disabled public registration.
 - Add frontend component tests for editor/tree/revision/evidence states.
 - Keep screenshot evidence regenerated after route or UI changes.
@@ -101,7 +103,7 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 
 ## 9. Recommended Implementation Order
 
-1. Add focused repository/API tests for document draft/publish/history, task/phase links, evidence and attachments.
+1. Continue focused repository/API hardening for document revision history, search filters and PostgreSQL-backed permission edge cases.
 2. Rerun fresh PostgreSQL smoke with `WIKI_TEST_DATABASE_URL`, including router rebuild persistence and disabled-registration coverage.
 3. Tune PostgreSQL FTS ranking/search filters and capture query-plan evidence for the expected MVP dataset size.
 4. Bring CLI smoke tests to parity with the public API where command-specific edge cases are still thin.

@@ -4,76 +4,85 @@
 
 Нестандартные сценарии API и ожидаемое поведение для Wiki: документы, версии, task/phase links, evidence, attachments, search и access control.
 
+Этот документ описывает текущий MVP-контракт. Богатые domain-specific коды можно добавить позже, но текущий runtime возвращает единый envelope `{ "error": { "code", "message" } }` с кодами `VALIDATION_ERROR`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT` и `INTERNAL_ERROR`.
+
 ## 2. Auth
 
-| Scenario                               | Behavior                                       |
-| -------------------------------------- | ---------------------------------------------- |
-| Expired access token                   | `401`, клиент делает refresh                   |
-| Invalid refresh token                  | `401`, требуется повторный login               |
-| Refresh token reused                   | Инвалидируем token family и пишем audit event  |
-| User removed from space during session | Следующий запрос к space возвращает `403`      |
-| Password changed elsewhere             | Все refresh tokens пользователя инвалидируются |
+| Scenario                               | Behavior                                  |
+| -------------------------------------- | ----------------------------------------- |
+| Missing/invalid access token           | `401 UNAUTHORIZED`                        |
+| Invalid refresh token                  | `401 UNAUTHORIZED`, требуется новый login |
+| Registration disabled                  | `403 FORBIDDEN`                           |
+| User removed from space during session | Следующий запрос к space возвращает `403` |
+| Viewer tries write action              | `403 FORBIDDEN`                           |
 
 ## 3. Document Edits
 
-| Scenario                                  | Behavior                                                    |
-| ----------------------------------------- | ----------------------------------------------------------- |
-| Two users publish from same base revision | `409 REVISION_CONFLICT` with current revision metadata      |
-| User edits archived document              | `409 DOCUMENT_ARCHIVED`                                     |
-| Slug already exists under same parent     | `409 SLUG_EXISTS`                                           |
-| Parent document belongs to another space  | `422 INVALID_PARENT`                                        |
-| Move parent under its own descendant      | `400 VALIDATION_ERROR`; existing parent stays unchanged     |
-| Markdown contains unsafe HTML             | HTML sanitized; blocked fragments listed in warning details |
-| Empty title after trim                    | `422 VALIDATION_ERROR`                                      |
+| Scenario                                 | Behavior                                                |
+| ---------------------------------------- | ------------------------------------------------------- |
+| Empty title after trim                   | `400 VALIDATION_ERROR`                                  |
+| Empty publish content                    | `400 VALIDATION_ERROR`                                  |
+| Document not found                       | `404 NOT_FOUND`                                         |
+| Slug already exists under same space     | `409 CONFLICT`                                          |
+| Archived document write                  | `400 VALIDATION_ERROR`; draft/publish/move are rejected |
+| Parent document belongs to another space | `400 VALIDATION_ERROR`                                  |
+| Move parent under itself/descendant      | `400 VALIDATION_ERROR`; existing parent stays unchanged |
+| Markdown contains unsafe HTML            | HTML is sanitized before render/search projection       |
 
 ## 4. Dossiers
 
 | Scenario                                     | Behavior                                         |
 | -------------------------------------------- | ------------------------------------------------ |
 | Same task key linked twice                   | Existing task page/link is returned idempotently |
-| Task key has invalid format for the space    | `422 INVALID_TASK_KEY`                           |
+| Task key has invalid format                  | `400 VALIDATION_ERROR`                           |
 | Same document linked to the same phase twice | Existing phase link is returned idempotently     |
-| Phase key has invalid format for the space   | `422 INVALID_PHASE_KEY`                          |
-| Link crosses space boundary                  | `422 SPACE_BOUNDARY_VIOLATION`                   |
+| Phase key has invalid format                 | `400 VALIDATION_ERROR`                           |
+| Link crosses space boundary                  | `400 VALIDATION_ERROR`                           |
 
 ## 5. Evidence
 
-| Scenario                             | Behavior                                                             |
-| ------------------------------------ | -------------------------------------------------------------------- |
-| Evidence references missing artifact | `422 ARTIFACT_NOT_FOUND` for local storage, warning for external URL |
-| Duplicate CI artifact sent twice     | Idempotency key or checksum dedup prevents duplicate                 |
-| Checksum mismatch on upload          | `409 CHECKSUM_MISMATCH`                                              |
-| External URL is private/unreachable  | Save URL, mark verification state as `unverified`                    |
-| Evidence delete requested            | Soft archive plus audit; hard delete only by retention policy        |
+| Scenario                                      | Behavior                                                       |
+| --------------------------------------------- | -------------------------------------------------------------- |
+| Evidence has no document/task/phase target    | `400 VALIDATION_ERROR`                                         |
+| `external_url` has no URL                     | `400 VALIDATION_ERROR`                                         |
+| `external_url` includes attachment/checksum   | `400 VALIDATION_ERROR`                                         |
+| `uploaded_file` has no attachment             | `400 VALIDATION_ERROR`                                         |
+| `uploaded_file` includes URL/client checksum  | `400 VALIDATION_ERROR`                                         |
+| Missing, already claimed or чужой attachment  | `404 NOT_FOUND`                                                |
+| Evidence document and explicit space mismatch | `400 VALIDATION_ERROR`                                         |
+| Evidence has document but no explicit space   | API uses the document's space                                  |
+| External URL is private/unreachable           | URL is stored as user-supplied evidence; verification deferred |
+| Evidence delete requested                     | Deferred; MVP creates/lists evidence only                      |
 
 ## 6. Files
 
-| Scenario                   | Behavior                         |
-| -------------------------- | -------------------------------- |
-| File exceeds limit         | `413 PAYLOAD_TOO_LARGE`          |
-| MIME type mismatch         | `400 MIME_MISMATCH`              |
-| Unsafe filename            | Sanitized or rejected with `422` |
-| Storage quota exceeded     | `507 INSUFFICIENT_STORAGE`       |
-| Object storage unavailable | `503 STORAGE_UNAVAILABLE`        |
+| Scenario                                             | Behavior                                      |
+| ---------------------------------------------------- | --------------------------------------------- |
+| Empty multipart upload                               | `400 VALIDATION_ERROR`                        |
+| File exceeds configured limit                        | `400 VALIDATION_ERROR`                        |
+| Unsafe filename                                      | Sanitized for download name or rejected `400` |
+| Staged file downloaded by non-owner                  | `403 FORBIDDEN` before it is claimed          |
+| Claimed file downloaded by user without space access | `403 FORBIDDEN`                               |
+| Object storage unavailable                           | `500 INTERNAL_ERROR`; operator checks storage |
 
 ## 7. Search
 
-| Scenario                               | Behavior                                     |
-| -------------------------------------- | -------------------------------------------- |
-| Empty query                            | Return recent documents visible to user      |
-| Query too broad                        | Cursor pagination, max limit enforced        |
-| Archived document match                | Hidden unless `include_archived=true`        |
-| User lacks access to matching document | Result is filtered out                       |
-| Index lag                              | API may include `index_lag_seconds` metadata |
+| Scenario                               | Behavior                                  |
+| -------------------------------------- | ----------------------------------------- |
+| Empty query                            | Return recent visible documents/evidence  |
+| Query too broad                        | Bounded `limit` is enforced               |
+| Archived document match                | Hidden unless `include_archived=true`     |
+| User lacks access to matching document | Result is filtered out                    |
+| Invalid space filter                   | `400 VALIDATION_ERROR` or `403 FORBIDDEN` |
 
 ## 8. Database
 
-| Scenario                    | Behavior                                   |
-| --------------------------- | ------------------------------------------ |
-| Unique constraint violation | `409` with stable code                     |
-| Foreign key violation       | `422` with dependency hint                 |
-| Connection pool exhausted   | `503`, retry recommended                   |
-| Serialization conflict      | `409`, client may retry idempotent request |
+| Scenario                    | Behavior                                                  |
+| --------------------------- | --------------------------------------------------------- |
+| Unique constraint violation | `409 CONFLICT`                                            |
+| Missing dependency          | `404 NOT_FOUND` when mapped before write                  |
+| Unmapped database error     | `500 INTERNAL_ERROR`; infrastructure details stay in logs |
+| Serialization conflict      | `500 INTERNAL_ERROR` until retryable conflicts are mapped |
 
 ## 9. References
 
