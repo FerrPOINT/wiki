@@ -643,6 +643,7 @@ pub struct WikiUpdateDocumentDraftCommand {
 pub struct WikiPublishDocumentCommand {
     pub document_id: Uuid,
     pub revision_id: Uuid,
+    pub base_revision_id: Option<Uuid>,
     pub summary: Option<String>,
 }
 
@@ -782,6 +783,11 @@ impl<'a, R: WikiDocumentRepository + ?Sized> WikiDocumentUseCase<'a, R> {
         let command = WikiPublishDocumentCommand {
             document_id,
             revision_id: Uuid::now_v7(),
+            base_revision_id: body
+                .base_revision_id
+                .as_deref()
+                .map(|value| parse_request_uuid(value, "revision"))
+                .transpose()?,
             summary: body.summary,
         };
         self.repository.publish_document(actor_id, command).await
@@ -3508,6 +3514,7 @@ mod tests {
         let parent_id = Uuid::now_v7();
         let document_id = Uuid::now_v7();
         let next_parent_id = Uuid::now_v7();
+        let base_revision_id = Uuid::now_v7();
 
         let created = use_case
             .create(
@@ -3599,6 +3606,7 @@ mod tests {
                 actor_id,
                 document_id,
                 shared::PublishDocumentRequest {
+                    base_revision_id: Some(base_revision_id.to_string()),
                     summary: Some(" Publish summary ".to_string()),
                 },
             )
@@ -3615,6 +3623,7 @@ mod tests {
             assert_eq!(published[0].0, actor_id);
             assert_eq!(command.document_id, document_id);
             assert_ne!(command.revision_id, Uuid::nil());
+            assert_eq!(command.base_revision_id, Some(base_revision_id));
             assert_eq!(command.summary.as_deref(), Some(" Publish summary "));
         }
 

@@ -89,7 +89,7 @@ wiki user update <user-id> --name "Editor Renamed" --role admin --active true
 wiki doc create --space SDLC --title "Requirements" --type requirements --from-file requirements.md
 wiki doc get <document-id>
 wiki doc draft <document-id> --title "Updated title" --from-file updated.md
-wiki doc publish <document-id> --summary "Clarified scope"
+wiki doc publish <document-id> --base-revision <revision-id> --summary "Clarified scope"
 wiki doc archive <document-id>
 wiki doc move <document-id> --parent <parent-document-id>
 wiki doc history <document-id> --limit 20

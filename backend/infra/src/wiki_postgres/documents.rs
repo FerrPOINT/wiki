@@ -215,7 +215,10 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
             ensure_document_accepts_writes_tx(&mut tx, command.document_id).await?;
             let row = sqlx::query(
                 r#"
-                SELECT d.title, COALESCE(dd.content_markdown, '') AS content_markdown
+                SELECT
+                    d.title,
+                    d.current_revision_id,
+                    COALESCE(dd.content_markdown, '') AS content_markdown
                 FROM documents d
                 LEFT JOIN document_drafts dd ON dd.document_id = d.id
                 WHERE d.id = $1
@@ -227,6 +230,13 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
             .await
             .map_err(shared::AppError::database)?
             .ok_or_else(|| shared::AppError::not_found("document", command.document_id))?;
+            let current_revision_id: Option<Uuid> = row.get("current_revision_id");
+            if command.base_revision_id.is_some() && command.base_revision_id != current_revision_id
+            {
+                return Err(shared::AppError::conflict(
+                    "document draft is based on a stale revision",
+                ));
+            }
             let title: String = row.get("title");
             let content_markdown: String = row.get("content_markdown");
             if content_markdown.trim().is_empty() {

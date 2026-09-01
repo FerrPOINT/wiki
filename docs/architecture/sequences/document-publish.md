@@ -28,7 +28,7 @@ sequenceDiagram
 | Failure                       | Handling                                                           |
 | ----------------------------- | ------------------------------------------------------------------ |
 | Missing permission            | `403 FORBIDDEN`                                                    |
-| Stale draft                   | `409 CONFLICT` after base-revision conflict handling is introduced |
+| Stale draft                   | `409 CONFLICT`                                                     |
 | Invalid/empty publish content | `400 VALIDATION_ERROR`                                             |
 | Search index update failed    | publish rolls back or returns explicit retryable error             |
 

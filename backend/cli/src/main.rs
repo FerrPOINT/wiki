@@ -189,6 +189,8 @@ enum DocCommands {
     Draft(DocContentArgs),
     Publish {
         document_id: String,
+        #[arg(long = "base-revision")]
+        base_revision: Option<String>,
         #[arg(long)]
         summary: Option<String>,
     },
@@ -746,11 +748,12 @@ async fn execute_doc(api: &ApiClient, command: DocCommands) -> Result<Value> {
         }
         DocCommands::Publish {
             document_id,
+            base_revision,
             summary,
         } => {
             api.post_json(
                 &format!("/documents/{}/publish", enc(&document_id)),
-                json!({ "summary": summary }),
+                json!({ "base_revision_id": base_revision, "summary": summary }),
             )
             .await
         }
@@ -1794,6 +1797,7 @@ mod tests {
             Commands::Doc {
                 command: DocCommands::Publish {
                     document_id: "product requirements".to_string(),
+                    base_revision: Some("revision-1".to_string()),
                     summary: Some("Clarified scope".to_string()),
                 },
             },
@@ -1879,6 +1883,7 @@ mod tests {
                 .is_some_and(|value| value.starts_with("wiki-cli-write-"))
         );
         let body: Value = serde_json::from_slice(&publish.body).unwrap();
+        assert_eq!(body["base_revision_id"], "revision-1");
         assert_eq!(body["summary"], "Clarified scope");
 
         let archive = &requests[2];

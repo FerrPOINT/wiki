@@ -1360,6 +1360,7 @@ pub async fn update_document_draft(
     responses(
         (status = 200, body = DocumentRevisionResponse),
         (status = 400, description = "Validation error"),
+        (status = 409, description = "Stale base revision"),
         (status = 404)
     ),
     security(("bearer" = []))
@@ -1391,6 +1392,15 @@ pub async fn publish_document(
         .get(&id)
         .ok_or_else(|| shared::AppError::not_found("document", &document_id))?;
     ensure_document_accepts_writes(&store, document)?;
+    if let Some(base_revision_id) = body.base_revision_id.as_deref() {
+        Uuid::parse_str(base_revision_id)
+            .map_err(|_| shared::AppError::not_found("revision", base_revision_id))?;
+        if document.current_revision_id.as_deref() != Some(base_revision_id) {
+            return Err(shared::AppError::conflict(
+                "document draft is based on a stale revision",
+            ));
+        }
+    }
     let document = store
         .documents
         .get_mut(&id)

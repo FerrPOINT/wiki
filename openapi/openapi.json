@@ -500,6 +500,9 @@
           },
           "404": {
             "description": ""
+          },
+          "409": {
+            "description": "Stale base revision"
           }
         },
         "security": [
@@ -2596,6 +2599,12 @@
       "PublishDocumentRequest": {
         "type": "object",
         "properties": {
+          "base_revision_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "summary": {
             "type": [
               "string",

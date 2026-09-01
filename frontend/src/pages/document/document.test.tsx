@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -199,6 +199,48 @@ describe('DocumentPage', () => {
       },
       { onSuccess: expect.any(Function) },
     )
+  })
+
+  it('publishes the draft with the current base revision id', async () => {
+    updateDraftMutateAsync.mockResolvedValueOnce({
+      ...baseDocument,
+      draft_markdown: '# Draft v2',
+      title: 'Требования Wiki v2',
+    })
+    publishMutateAsync.mockResolvedValueOnce({
+      ...baseRevision,
+      id: 'revision-3',
+      version: 3,
+    })
+    setupDocument()
+
+    fireEvent.change(screen.getByLabelText('Название'), {
+      target: { value: 'Требования Wiki v2' },
+    })
+    fireEvent.change(screen.getByLabelText('Markdown черновика'), {
+      target: { value: '# Draft v2' },
+    })
+    fireEvent.change(screen.getByLabelText('Комментарий к публикации'), {
+      target: { value: 'Clarified scope' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Опубликовать' }))
+
+    await waitFor(() => {
+      expect(updateDraftMutateAsync).toHaveBeenCalledWith({
+        documentId: 'product-requirements',
+        body: {
+          title: 'Требования Wiki v2',
+          content_markdown: '# Draft v2',
+        },
+      })
+    })
+    expect(publishMutateAsync).toHaveBeenCalledWith({
+      documentId: 'product-requirements',
+      body: {
+        base_revision_id: 'revision-2',
+        summary: 'Clarified scope',
+      },
+    })
   })
 
   it('keeps archived documents read-only in the editor and tree controls', () => {

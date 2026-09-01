@@ -136,6 +136,7 @@ export type components = {
       title?: string | null
     }
     PublishDocumentRequest: {
+      base_revision_id?: string | null
       summary?: string | null
     }
     SearchResponse: {

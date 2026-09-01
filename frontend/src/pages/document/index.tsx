@@ -144,6 +144,8 @@ export function DocumentPage() {
   }
 
   async function handlePublish() {
+    if (!document) return
+    const baseRevisionId = document.current_revision?.id
     setStatusMessage('')
     setIsPublishingFlow(true)
     try {
@@ -160,6 +162,7 @@ export function DocumentPage() {
       const revision = await publishDocument.mutateAsync({
         documentId,
         body: {
+          base_revision_id: baseRevisionId,
           summary: optional(publishSummary),
         },
       })

@@ -1583,12 +1583,34 @@ async fn wiki_memory_document_revision_history_is_latest_first_and_immutable() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(draft["status"], "draft");
 
+    let stale_revision_id = Uuid::now_v7().to_string();
+    let (status, stale_error) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/documents/{document_id}/publish"),
+        Some(&token),
+        Some(json!({
+            "base_revision_id": stale_revision_id,
+            "summary": "Stale publish"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(stale_error["error"]["code"], "CONFLICT");
+    assert_eq!(
+        stale_error["error"]["message"],
+        "document draft is based on a stale revision"
+    );
+
     let (status, second_revision) = call(
         &app,
         Method::POST,
         &format!("/api/v1/documents/{document_id}/publish"),
         Some(&token),
-        Some(json!({ "summary": "Second publish" })),
+        Some(json!({
+            "base_revision_id": first_revision_id.clone(),
+            "summary": "Second publish"
+        })),
     )
     .await;
     assert_eq!(status, StatusCode::OK);
@@ -4188,12 +4210,33 @@ async fn wiki_postgres_routes_persist_across_router_rebuilds() {
     .await;
     assert_eq!(status, StatusCode::OK);
 
+    let (status, stale_error) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/documents/{document_id}/publish"),
+        Some(&token),
+        Some(json!({
+            "base_revision_id": Uuid::now_v7().to_string(),
+            "summary": "Postgres stale publish"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(stale_error["error"]["code"], "CONFLICT");
+    assert_eq!(
+        stale_error["error"]["message"],
+        "document draft is based on a stale revision"
+    );
+
     let (status, second_revision) = call(
         &app,
         Method::POST,
         &format!("/api/v1/documents/{document_id}/publish"),
         Some(&token),
-        Some(json!({ "summary": "Postgres bounded history" })),
+        Some(json!({
+            "base_revision_id": first_revision_id.to_string(),
+            "summary": "Postgres bounded history"
+        })),
     )
     .await;
     assert_eq!(status, StatusCode::OK);

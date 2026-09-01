@@ -525,6 +525,7 @@ pub struct UpdateDocumentDraftRequest {
 
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct PublishDocumentRequest {
+    pub base_revision_id: Option<String>,
     pub summary: Option<String>,
 }
 
