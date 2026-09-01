@@ -209,10 +209,10 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
                 .begin()
                 .await
                 .map_err(shared::AppError::database)?;
+            ensure_document_accepts_writes_tx(&mut tx, command.document_id).await?;
             let row = sqlx::query(
                 r#"
-                SELECT d.title, COALESCE(dd.content_markdown, '') AS content_markdown,
-                       (d.status = 'archived' OR d.archived_at IS NOT NULL) AS archived
+                SELECT d.title, COALESCE(dd.content_markdown, '') AS content_markdown
                 FROM documents d
                 LEFT JOIN document_drafts dd ON dd.document_id = d.id
                 WHERE d.id = $1
@@ -226,12 +226,6 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
             .ok_or_else(|| shared::AppError::not_found("document", command.document_id))?;
             let title: String = row.get("title");
             let content_markdown: String = row.get("content_markdown");
-            let archived: bool = row.get("archived");
-            if archived {
-                return Err(shared::AppError::invalid_input(
-                    "archived document does not accept writes",
-                ));
-            }
             if content_markdown.trim().is_empty() {
                 return Err(shared::AppError::invalid_input(
                     "published content is required",

@@ -64,14 +64,14 @@ MVP не включает:
 | REQ-AUTH-002  | Roles            | Admin управляет пользователями и назначает роли в space                                                                                   |
 | REQ-AUTH-003  | Registration     | Пользователь может создать учётную запись через public register flow, если регистрация включена настройкой инстанса                       |
 | REQ-SPC-001   | Spaces           | Пользователь видит список доступных spaces                                                                                                |
-| REQ-SPC-002   | Space management | Admin создаёт, редактирует и архивирует space                                                                                             |
+| REQ-SPC-002   | Space management | Admin создаёт, редактирует и архивирует space; archived space freezes document/evidence/dossier-link write-команды                         |
 | REQ-SPC-003   | Space members    | Admin управляет участниками space                                                                                                         |
 | REQ-DOC-001   | Documents        | Editor создаёт страницу с title, slug, type и Markdown body                                                                               |
 | REQ-DOC-002   | Document view    | Viewer открывает опубликованную страницу                                                                                                  |
 | REQ-DOC-003   | Draft edit       | Editor редактирует черновик страницы                                                                                                      |
 | REQ-DOC-004   | Publish          | Публикация создаёт неизменяемую ревизию                                                                                                   |
 | REQ-DOC-005   | Revision history | Пользователь видит список ревизий и открывает конкретную ревизию                                                                          |
-| REQ-DOC-006   | Archive          | Editor архивирует документ; archived pages скрыты из обычного дерева и не принимают draft/publish/move write-команды                      |
+| REQ-DOC-006   | Archive          | Editor архивирует документ; archived pages скрыты из обычного дерева и не принимают draft/publish/move/archive/link write-команды         |
 | REQ-TREE-001  | Page tree        | Документы имеют parent/child структуру внутри space                                                                                       |
 | REQ-TREE-002  | Move page        | Editor перемещает страницу внутри одного space                                                                                            |
 | REQ-TASK-001  | Task link        | Документ можно связать с внешним task key, например `SDLC-42`                                                                             |
@@ -244,6 +244,7 @@ CLI requirements:
 - Page tree remains acyclic; документ нельзя переместить под собственного потомка.
 - Документы, evidence и файлы не могут пересекать границы space.
 - Удаление в MVP является archive/soft-delete.
+- Archived space keeps read/admin visibility but rejects content write commands for documents, evidence and task/phase document links.
 - Файл сохраняется атомарно: metadata без bytes или bytes без metadata не остаются как валидный attachment.
 
 ### Performance

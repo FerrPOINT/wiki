@@ -29,7 +29,7 @@ The remaining work is hardening and release readiness, not expansion of product 
 ## 2. Repository And API Hardening
 
 - Add focused PostgreSQL-backed tests for viewer/editor/admin boundary combinations.
-- Add negative tests for archived spaces/documents across all write commands.
+- Keep negative tests for archived spaces/documents across document, evidence and task/phase link write commands.
 - Keep attachment tests covering missing bytes, runtime size limits, unsafe names, unsafe storage keys, reused staged uploads and owner-space mismatch.
 - Keep audit writes in the same transaction as the command that caused them.
 - Keep route handlers behind app use cases/repository ports; handlers should not know concrete SQL/storage details.

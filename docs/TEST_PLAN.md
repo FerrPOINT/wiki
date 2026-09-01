@@ -9,7 +9,7 @@ The test plan covers document lifecycle, task/phase links, evidence ingestion, p
 | Area           | Scenarios                                                                |
 | -------------- | ------------------------------------------------------------------------ |
 | Spaces         | create/update/archive, membership, duplicate key                         |
-| Documents      | draft, publish, conflict, archive, move cycle rejection                  |
+| Documents      | draft, publish, conflict, archive, move cycle rejection, archived document/space write rejection |
 | Revisions      | immutable content, diff, history                                         |
 | Task dossiers  | idempotent link creation, external task key lookup, permission filtering |
 | Phase dossiers | phase key grouping, linked documents/evidence, permission filtering      |
@@ -58,7 +58,7 @@ Every permission test must check API behavior first. Frontend role states are su
 - Empty PostgreSQL database applies every migration from `backend/migrations`.
 - Migration schema contains every table listed in `docs/DATA_MODEL.md`.
 - Same-space constraints reject cross-space document/task/phase/evidence/attachment relations.
-- Soft-delete/archive behavior is consistent for spaces and documents.
+- Soft-delete/archive behavior is consistent for spaces and documents, including rejected content writes inside archived spaces.
 - Published revisions remain immutable after draft updates and later publishes.
 - Search plan uses `document_revisions_search_idx` for the MVP filtered query shape.
 - Audit writes are committed with the write command or rolled back with it.

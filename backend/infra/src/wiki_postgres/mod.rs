@@ -33,10 +33,12 @@ async fn ensure_document_accepts_writes_tx(
 ) -> Result<(), shared::AppError> {
     let row = sqlx::query(
         r#"
-        SELECT (status = 'archived' OR archived_at IS NOT NULL) AS archived
-        FROM documents
-        WHERE id = $1
-        FOR UPDATE
+        SELECT (d.status = 'archived' OR d.archived_at IS NOT NULL) AS document_archived,
+               (s.archived_at IS NOT NULL) AS space_archived
+        FROM documents d
+        JOIN spaces s ON s.id = d.space_id
+        WHERE d.id = $1
+        FOR UPDATE OF d, s
         "#,
     )
     .bind(document_id)
@@ -44,8 +46,14 @@ async fn ensure_document_accepts_writes_tx(
     .await
     .map_err(shared::AppError::database)?
     .ok_or_else(|| shared::AppError::not_found("document", document_id))?;
-    let archived: bool = row.get("archived");
-    if archived {
+    let space_archived: bool = row.get("space_archived");
+    if space_archived {
+        return Err(shared::AppError::invalid_input(
+            "archived space does not accept write commands",
+        ));
+    }
+    let document_archived: bool = row.get("document_archived");
+    if document_archived {
         return Err(shared::AppError::invalid_input(
             "archived document does not accept writes",
         ));
@@ -141,7 +149,7 @@ impl PostgresWikiBackend {
             Ok(())
         } else {
             Err(shared::AppError::invalid_input(
-                "archived space does not accept new documents or evidence",
+                "archived space does not accept write commands",
             ))
         }
     }

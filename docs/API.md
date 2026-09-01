@@ -60,6 +60,8 @@ Operational endpoints are part of the public API surface but do not create Wiki 
 | `POST` | `/spaces/{space_key}/archive` | Архивировать space      |
 | `GET`  | `/spaces/{space_key}/tree`    | Page tree               |
 
+Архивированный space остаётся доступен на чтение и администрирование пользователям с правами, но content write-команды внутри него возвращают `400 VALIDATION_ERROR`: создание/изменение/публикация/перемещение/архивирование документов, создание evidence и task/phase document links.
+
 ## 7. Documents
 
 | Method | Path                                               | Назначение                 |
@@ -73,7 +75,7 @@ Operational endpoints are part of the public API surface but do not create Wiki 
 | `GET`  | `/documents/{document_id}/revisions`               | История ревизий            |
 | `GET`  | `/documents/{document_id}/revisions/{revision_id}` | Конкретная ревизия         |
 
-Архивированный документ остаётся доступен на чтение пользователям с правом доступа к space, но write-команды `draft`, `publish` и `move` возвращают `400 VALIDATION_ERROR`.
+Архивированный документ остаётся доступен на чтение пользователям с правом доступа к space, но write-команды `draft`, `publish`, `move`, `archive` и task/phase document links возвращают `400 VALIDATION_ERROR`.
 
 `GET /documents/{document_id}/revisions` возвращает историю в порядке от последней опубликованной ревизии к первой. Опубликованные ревизии immutable: новый draft или повторная публикация не меняют тело, заголовок и summary уже созданных ревизий.
 
@@ -162,7 +164,8 @@ The pre-development API contract is frozen when these checks pass:
 | ---- | ----------------- |
 | Auth | Bad credentials return an auth error; disabled registration returns `403`; logout invalidates the session token path. |
 | Access | No role or removed membership blocks document, tree, evidence, attachment and search reads for that space. |
-| Documents | Archived documents reject `draft`, `publish` and `move`; duplicate slugs return conflict; cyclic moves return validation error. |
+| Spaces | Archived spaces reject document, evidence and task/phase link write commands while keeping read/admin visibility. |
+| Documents | Archived documents reject `draft`, `publish`, `move`, `archive` and task/phase link writes; duplicate slugs return conflict; cyclic moves return validation error. |
 | Evidence | Evidence must target at least one document/task/phase; explicit `space` cannot conflict with document space. |
 | Attachments | Empty upload, unsafe filename, oversized body and unauthorized download are rejected. |
 | Search | Results are bounded, permission-filtered and do not expose unpublished draft text. |

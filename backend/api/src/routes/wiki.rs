@@ -355,11 +355,24 @@ fn ensure_space_accepts_writes(store: &WikiStore, space_key: &str) -> Result<(),
         .ok_or_else(|| shared::AppError::not_found("space", space_key))?;
     if space.status == "archived" {
         Err(shared::AppError::invalid_input(
-            "archived space does not accept new documents or evidence",
+            "archived space does not accept write commands",
         ))
     } else {
         Ok(())
     }
+}
+
+fn ensure_document_accepts_writes(
+    store: &WikiStore,
+    document: &DocumentRecord,
+) -> Result<(), shared::AppError> {
+    ensure_space_accepts_writes(store, &document.space_key)?;
+    if document.status == "archived" {
+        return Err(shared::AppError::invalid_input(
+            "archived document does not accept writes",
+        ));
+    }
+    Ok(())
 }
 
 fn can_view_space(store: &WikiStore, space_key: &str, user_id: &str) -> bool {
@@ -1197,13 +1210,13 @@ pub async fn update_document_draft(
     ensure_document_access(&store, &id, &claims.user_id, WikiSpaceAccess::Edit)?;
     let document = store
         .documents
+        .get(&id)
+        .ok_or_else(|| shared::AppError::not_found("document", &document_id))?;
+    ensure_document_accepts_writes(&store, document)?;
+    let document = store
+        .documents
         .get_mut(&id)
         .ok_or_else(|| shared::AppError::not_found("document", &document_id))?;
-    if document.status == "archived" {
-        return Err(shared::AppError::invalid_input(
-            "archived document does not accept writes",
-        ));
-    }
     if let Some(title) = body.title {
         let title = title.trim().to_string();
         if title.is_empty() {
@@ -1258,13 +1271,13 @@ pub async fn publish_document(
     let revision_id = new_id();
     let document = store
         .documents
+        .get(&id)
+        .ok_or_else(|| shared::AppError::not_found("document", &document_id))?;
+    ensure_document_accepts_writes(&store, document)?;
+    let document = store
+        .documents
         .get_mut(&id)
         .ok_or_else(|| shared::AppError::not_found("document", &document_id))?;
-    if document.status == "archived" {
-        return Err(shared::AppError::invalid_input(
-            "archived document does not accept writes",
-        ));
-    }
     if document.draft_markdown.trim().is_empty() {
         return Err(shared::AppError::invalid_input(
             "published content is required",
@@ -1317,6 +1330,11 @@ pub async fn archive_document(
     ensure_document_access(&store, &id, &claims.user_id, WikiSpaceAccess::Edit)?;
     let document = store
         .documents
+        .get(&id)
+        .ok_or_else(|| shared::AppError::not_found("document", &document_id))?;
+    ensure_document_accepts_writes(&store, document)?;
+    let document = store
+        .documents
         .get_mut(&id)
         .ok_or_else(|| shared::AppError::not_found("document", &document_id))?;
     document.status = "archived".to_string();
@@ -1361,11 +1379,7 @@ pub async fn move_document(
         .documents
         .get(&id)
         .ok_or_else(|| shared::AppError::not_found("document", &document_id))?;
-    if document.status == "archived" {
-        return Err(shared::AppError::invalid_input(
-            "archived document does not accept writes",
-        ));
-    }
+    ensure_document_accepts_writes(&store, document)?;
     let parent_id = match body.parent_id {
         Some(parent_id) => {
             let resolved_parent_id = resolve_document_id(&store, &parent_id)?;
@@ -1565,18 +1579,18 @@ pub async fn link_task_document(
     let document_id = resolve_document_id(&store, &body.document_id)?;
     let document = store
         .documents
-        .get_mut(&document_id)
+        .get(&document_id)
         .ok_or_else(|| shared::AppError::not_found("document", &body.document_id))?;
     if document.space_key != key {
         return Err(shared::AppError::invalid_input(
             "document belongs to another space",
         ));
     }
-    if document.status == "archived" {
-        return Err(shared::AppError::invalid_input(
-            "archived document does not accept writes",
-        ));
-    }
+    ensure_document_accepts_writes(&store, document)?;
+    let document = store
+        .documents
+        .get_mut(&document_id)
+        .ok_or_else(|| shared::AppError::not_found("document", &body.document_id))?;
     document.task_keys.insert(task_key.clone());
     document.updated_at = now_iso();
     store.audit(&claims.user_id, "task.link_document", "task", &task_key);
@@ -1748,18 +1762,18 @@ pub async fn link_phase_document(
     let document_id = resolve_document_id(&store, &body.document_id)?;
     let document = store
         .documents
-        .get_mut(&document_id)
+        .get(&document_id)
         .ok_or_else(|| shared::AppError::not_found("document", &body.document_id))?;
     if document.space_key != key {
         return Err(shared::AppError::invalid_input(
             "document belongs to another space",
         ));
     }
-    if document.status == "archived" {
-        return Err(shared::AppError::invalid_input(
-            "archived document does not accept writes",
-        ));
-    }
+    ensure_document_accepts_writes(&store, document)?;
+    let document = store
+        .documents
+        .get_mut(&document_id)
+        .ok_or_else(|| shared::AppError::not_found("document", &body.document_id))?;
     document.phase_keys.insert(phase_key.clone());
     document.updated_at = now_iso();
     store.audit(&claims.user_id, "phase.link_document", "phase", &phase_key);

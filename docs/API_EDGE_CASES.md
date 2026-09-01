@@ -24,7 +24,8 @@
 | Empty publish content                    | `400 VALIDATION_ERROR`                                  |
 | Document not found                       | `404 NOT_FOUND`                                         |
 | Slug already exists under same space     | `409 CONFLICT`                                          |
-| Archived document write                  | `400 VALIDATION_ERROR`; draft/publish/move are rejected |
+| Archived space content write             | `400 VALIDATION_ERROR`; document/evidence/dossier-link writes are rejected |
+| Archived document write                  | `400 VALIDATION_ERROR`; draft/publish/move/archive/link writes are rejected |
 | Parent document belongs to another space | `400 VALIDATION_ERROR`                                  |
 | Move parent under itself/descendant      | `400 VALIDATION_ERROR`; existing parent stays unchanged |
 | Markdown contains unsafe HTML            | HTML is sanitized before render/search projection       |
@@ -38,6 +39,7 @@
 | Same document linked to the same phase twice | Existing phase link is returned idempotently     |
 | Phase key has invalid format                 | `400 VALIDATION_ERROR`                           |
 | Link crosses space boundary                  | `400 VALIDATION_ERROR`                           |
+| Link targets archived document or space      | `400 VALIDATION_ERROR`                           |
 
 ## 5. Evidence
 

@@ -14,7 +14,8 @@ Wiki хранит документы, связанные с задачами SDL
 - Опубликованные ревизии неизменяемы.
 - Связи с задачами и фазами хранятся как внешние ключи-строки: `task_key`, `phase_key`.
 - Удаление в MVP реализуется как archive/soft-delete.
-- Архивированный документ является read-only: draft/publish/move write-команды не должны снимать `archived_at`.
+- Архивированный документ является read-only: draft/publish/move/archive/link write-команды не должны снимать `archived_at`.
+- Архивированный space замораживает content writes внутри себя: documents, evidence и task/phase document links не должны изменяться после `spaces.archived_at`.
 - Дерево документов должно оставаться ацикличным: `documents.parent_id` не может ссылаться на собственного потомка через цепочку родителей.
 
 ## 3. Tables

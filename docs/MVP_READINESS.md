@@ -60,7 +60,7 @@ API paths in this table are relative to `/api/v1` unless marked otherwise. `/met
 | ---- | -------------------------------------- |
 | Auth | bad credentials, disabled registration, expired/revoked token |
 | Access | viewer write attempt, editor admin attempt, removed membership, cross-space read/write |
-| Documents | duplicate slug, archived write, move into own descendant, missing title/body |
+| Documents | duplicate slug, archived document writes, archived space content writes, move into own descendant, missing title/body |
 | Evidence | no target, cross-space target, URL/file payload mismatch, reused staged upload |
 | Attachments | empty file, unsafe filename, unsafe storage key, oversize payload, unauthorized download |
 | Search | no-role access, archived filter, task/phase filter isolation, bounded limit |

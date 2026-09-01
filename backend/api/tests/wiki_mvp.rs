@@ -589,6 +589,22 @@ async fn wiki_memory_authz_and_audit_align_with_mvp_contract() {
     assert_eq!(status, StatusCode::CREATED);
     let archived_space_key = writable_space["key"].as_str().unwrap();
 
+    let (status, archived_space_document) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/spaces/{archived_space_key}/documents"),
+        Some(admin_token),
+        Some(json!({
+            "title": format!("Archived space existing document {short}"),
+            "slug": format!("archived-space-existing-document-{short}"),
+            "document_type": "page",
+            "content_markdown": "# Existing page before space archive"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let archived_space_document_id = archived_space_document["id"].as_str().unwrap();
+
     let (status, archived_space) = call(
         &app,
         Method::POST,
@@ -630,6 +646,50 @@ async fn wiki_memory_authz_and_audit_align_with_mvp_contract() {
     )
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    for (method, path, body) in [
+        (
+            Method::PUT,
+            format!("/api/v1/documents/{archived_space_document_id}/draft"),
+            Some(json!({
+                "title": "Archived space edit",
+                "content_markdown": "# Should not save"
+            })),
+        ),
+        (
+            Method::POST,
+            format!("/api/v1/documents/{archived_space_document_id}/publish"),
+            Some(json!({ "summary": "Should not publish" })),
+        ),
+        (
+            Method::POST,
+            format!("/api/v1/documents/{archived_space_document_id}/move"),
+            Some(json!({ "parent_id": Value::Null })),
+        ),
+        (
+            Method::POST,
+            format!("/api/v1/documents/{archived_space_document_id}/archive"),
+            None,
+        ),
+        (
+            Method::POST,
+            format!("/api/v1/spaces/{archived_space_key}/tasks/ARCHSPACE-{short}/links/documents"),
+            Some(json!({ "document_id": archived_space_document_id })),
+        ),
+        (
+            Method::POST,
+            format!("/api/v1/spaces/{archived_space_key}/phases/archspace-{short}/links/documents"),
+            Some(json!({ "document_id": archived_space_document_id })),
+        ),
+    ] {
+        let (status, error) = call(&app, method, &path, Some(admin_token), body).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(error["error"]["code"], "VALIDATION_ERROR");
+        assert_eq!(
+            error["error"]["message"],
+            "archived space does not accept write commands"
+        );
+    }
 
     let (status, document) = call(
         &app,
@@ -1196,6 +1256,21 @@ async fn wiki_memory_archived_document_rejects_write_commands() {
         &format!("/api/v1/documents/{document_id}/move"),
         Some(&token),
         Some(json!({ "parent_id": Value::Null })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(error["error"]["code"], "VALIDATION_ERROR");
+    assert_eq!(
+        error["error"]["message"],
+        "archived document does not accept writes"
+    );
+
+    let (status, error) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/documents/{document_id}/archive"),
+        Some(&token),
+        None,
     )
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
@@ -2070,6 +2145,11 @@ async fn wiki_postgres_archived_document_rejects_write_commands_when_database_av
         ),
         (
             Method::POST,
+            format!("/api/v1/documents/{document_id}/archive"),
+            json!({}),
+        ),
+        (
+            Method::POST,
             format!("/api/v1/spaces/SDLC/tasks/PGARCH-{short}/links/documents"),
             json!({ "document_id": document_id }),
         ),
@@ -2079,8 +2159,9 @@ async fn wiki_postgres_archived_document_rejects_write_commands_when_database_av
             json!({ "document_id": document_id }),
         ),
     ] {
+        let label = format!("{method:?} {path}");
         let (status, error) = call(&app, method, &path, Some(&token), Some(body)).await;
-        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{label}");
         assert_eq!(error["error"]["code"], "VALIDATION_ERROR");
         assert_eq!(
             error["error"]["message"],
@@ -2712,6 +2793,22 @@ async fn wiki_postgres_routes_persist_across_router_rebuilds() {
     assert_eq!(status, StatusCode::CREATED);
     let archived_key = archived_space["key"].as_str().unwrap();
 
+    let (status, archived_space_document) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/spaces/{archived_key}/documents"),
+        Some(&token),
+        Some(json!({
+            "title": format!("Postgres archived space existing document {short}"),
+            "slug": format!("postgres-archived-space-existing-document-{short}"),
+            "document_type": "page",
+            "content_markdown": "# Existing page before space archive"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let archived_space_document_id = archived_space_document["id"].as_str().unwrap();
+
     let (status, archived_space) = call(
         &app,
         Method::POST,
@@ -2753,6 +2850,50 @@ async fn wiki_postgres_routes_persist_across_router_rebuilds() {
     )
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    for (method, path, body) in [
+        (
+            Method::PUT,
+            format!("/api/v1/documents/{archived_space_document_id}/draft"),
+            Some(json!({
+                "title": "Postgres archived space edit",
+                "content_markdown": "# Should not save"
+            })),
+        ),
+        (
+            Method::POST,
+            format!("/api/v1/documents/{archived_space_document_id}/publish"),
+            Some(json!({ "summary": "Should not publish" })),
+        ),
+        (
+            Method::POST,
+            format!("/api/v1/documents/{archived_space_document_id}/move"),
+            Some(json!({ "parent_id": Value::Null })),
+        ),
+        (
+            Method::POST,
+            format!("/api/v1/documents/{archived_space_document_id}/archive"),
+            None,
+        ),
+        (
+            Method::POST,
+            format!("/api/v1/spaces/{archived_key}/tasks/PGARCHSPACE-{short}/links/documents"),
+            Some(json!({ "document_id": archived_space_document_id })),
+        ),
+        (
+            Method::POST,
+            format!("/api/v1/spaces/{archived_key}/phases/pgarchspace-{short}/links/documents"),
+            Some(json!({ "document_id": archived_space_document_id })),
+        ),
+    ] {
+        let (status, error) = call(&app, method, &path, Some(&token), body).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(error["error"]["code"], "VALIDATION_ERROR");
+        assert_eq!(
+            error["error"]["message"],
+            "archived space does not accept write commands"
+        );
+    }
 
     let (status, document) = call(
         &app,
