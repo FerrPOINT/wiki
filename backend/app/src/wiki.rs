@@ -159,6 +159,58 @@ impl<'a, R: WikiTemplateRepository + ?Sized> WikiTemplateUseCase<'a, R> {
     }
 }
 
+pub type WikiAuditRepositoryFuture<'a, T> =
+    Pin<Box<dyn Future<Output = Result<T, AppError>> + Send + 'a>>;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiAuditCommand {
+    pub actor_id: Option<Uuid>,
+    pub action: String,
+    pub entity_type: String,
+    pub entity_id: Uuid,
+}
+
+pub trait WikiAuditRepository {
+    fn list_recent_entries<'a>(
+        &'a self,
+        limit: usize,
+    ) -> WikiAuditRepositoryFuture<'a, Vec<shared::AuditEntryResponse>>;
+
+    fn record_entry<'a>(&'a self, command: WikiAuditCommand) -> WikiAuditRepositoryFuture<'a, ()>;
+}
+
+pub struct WikiAuditUseCase<'a, R: WikiAuditRepository + ?Sized> {
+    repository: &'a R,
+}
+
+impl<'a, R: WikiAuditRepository + ?Sized> WikiAuditUseCase<'a, R> {
+    pub fn new(repository: &'a R) -> Self {
+        Self { repository }
+    }
+
+    pub async fn list_recent(&self) -> Result<shared::AuditLogResponse, AppError> {
+        Ok(shared::AuditLogResponse {
+            entries: self.repository.list_recent_entries(200).await?,
+        })
+    }
+
+    pub async fn record(
+        &self,
+        actor_id: Option<Uuid>,
+        action: &str,
+        entity_type: &str,
+        entity_id: Uuid,
+    ) -> Result<(), AppError> {
+        let command = WikiAuditCommand {
+            actor_id,
+            action: normalize_required(action, "audit action")?,
+            entity_type: normalize_required(entity_type, "audit entity_type")?,
+            entity_id,
+        };
+        self.repository.record_entry(command).await
+    }
+}
+
 pub fn clamp_limit(limit: Option<usize>, max: i64) -> i64 {
     limit.unwrap_or(max as usize).clamp(1, max as usize) as i64
 }
@@ -478,6 +530,11 @@ mod tests {
         created: std::sync::Mutex<Vec<(Uuid, WikiCreateTemplateCommand)>>,
     }
 
+    struct RecordingAuditRepository {
+        entries: Vec<shared::AuditEntryResponse>,
+        recorded: std::sync::Mutex<Vec<WikiAuditCommand>>,
+    }
+
     impl WikiSearchRepository for StaticSearchRepository {
         fn search_documents<'a>(
             &'a self,
@@ -529,6 +586,39 @@ mod tests {
                     body_markdown: command.body_markdown,
                 })
             })
+        }
+    }
+
+    impl WikiAuditRepository for RecordingAuditRepository {
+        fn list_recent_entries<'a>(
+            &'a self,
+            limit: usize,
+        ) -> WikiAuditRepositoryFuture<'a, Vec<shared::AuditEntryResponse>> {
+            Box::pin(async move { Ok(self.entries.iter().take(limit).cloned().collect()) })
+        }
+
+        fn record_entry<'a>(
+            &'a self,
+            command: WikiAuditCommand,
+        ) -> WikiAuditRepositoryFuture<'a, ()> {
+            Box::pin(async move {
+                self.recorded
+                    .lock()
+                    .expect("audit commands should be lockable")
+                    .push(command);
+                Ok(())
+            })
+        }
+    }
+
+    fn audit_entry(action: &str) -> shared::AuditEntryResponse {
+        shared::AuditEntryResponse {
+            id: Uuid::now_v7().to_string(),
+            actor_id: Uuid::nil().to_string(),
+            action: action.to_string(),
+            entity_type: "document".to_string(),
+            entity_id: Uuid::now_v7().to_string(),
+            created_at: "2026-09-01T10:00:00Z".to_string(),
         }
     }
 
@@ -770,6 +860,52 @@ mod tests {
                         body_markdown: "# Page".to_string(),
                     },
                 )
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn wiki_audit_use_case_lists_and_validates_record_commands() {
+        let repository = RecordingAuditRepository {
+            entries: vec![audit_entry("document.publish")],
+            recorded: std::sync::Mutex::new(Vec::new()),
+        };
+        let entity_id = Uuid::now_v7();
+
+        let response = WikiAuditUseCase::new(&repository)
+            .list_recent()
+            .await
+            .unwrap();
+        assert_eq!(response.entries.len(), 1);
+        assert_eq!(response.entries[0].action, "document.publish");
+
+        WikiAuditUseCase::new(&repository)
+            .record(
+                Some(Uuid::nil()),
+                " document.archive ",
+                " document ",
+                entity_id,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            repository
+                .recorded
+                .lock()
+                .expect("audit commands should be lockable")
+                .as_slice(),
+            [WikiAuditCommand {
+                actor_id: Some(Uuid::nil()),
+                action: "document.archive".to_string(),
+                entity_type: "document".to_string(),
+                entity_id,
+            }]
+        );
+        assert!(
+            WikiAuditUseCase::new(&repository)
+                .record(None, " ", "document", entity_id)
                 .await
                 .is_err()
         );

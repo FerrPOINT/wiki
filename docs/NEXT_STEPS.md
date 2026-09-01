@@ -14,7 +14,7 @@ The documentation, screenshots, API-backed frontend MVP pages and SQLx-backed MV
 - a fresh SQLx MVP schema baseline exists in `backend/migrations/202608310001_create_wiki_mvp.*.sql`;
 - frontend MVP pages read from the public Wiki API; create document, edit/publish/archive/move document, create user, evidence, settings/admin overview and search flows call the same API;
 - production server runtime stores users, sessions, spaces, documents, revisions, task/phase links, evidence, attachments, templates, audit and search in PostgreSQL and refuses to start without `WIKI_DATABASE__URL`;
-- PostgreSQL runtime persistence is behind `shared::wiki_contract::WikiBackendPort`; public Wiki DTOs, `WikiSettingsSnapshot` and the port live in `shared::wiki_contract`; the concrete SQLx adapter is private in `infra::wiki_postgres`, with connection/bootstrap, SQL constants, row mapping and all transition operation slices separated into focused modules; search and templates have the first app-level use case/repository ports, while the main Wiki route module keeps HTTP/OpenAPI responsibilities and an explicit memory test/dev backend;
+- PostgreSQL runtime persistence is behind `shared::wiki_contract::WikiBackendPort`; public Wiki DTOs, `WikiSettingsSnapshot` and the port live in `shared::wiki_contract`; the concrete SQLx adapter is private in `infra::wiki_postgres`, with connection/bootstrap, SQL constants, row mapping and all transition operation slices separated into focused modules; search, templates and pool-backed audit list/write have the first app-level use case/repository ports, while the main Wiki route module keeps HTTP/OpenAPI responsibilities and an explicit memory test/dev backend;
 - API/server runtime uses `app::WikiAppContext` and no longer constructs the inherited task-tracker `AppContext`, repository bundle or report/notification/issue service graph;
 - inherited task-tracker domain modules are excluded from the default `domain` crate build and quarantined behind feature `legacy-tracker`;
 - inherited task-tracker app modules are excluded from the default `app` crate build and quarantined behind feature `legacy-tracker`;
@@ -23,7 +23,7 @@ The documentation, screenshots, API-backed frontend MVP pages and SQLx-backed MV
 - PostgreSQL runtime enforces global-admin, space-role, archived-space write and attachment-download boundaries for core read/write paths; the explicit memory test/dev backend mirrors the same MVP boundaries for smoke coverage;
 - attachment bytes are behind `domain::wiki::WikiAttachmentStorage`, with `infra::LocalWikiAttachmentStorage` wired by `server`;
 - shared Wiki normalization, access predicates, content helpers, storage-name helpers, password hashing, Wiki JWT/session token helpers and access/refresh token-pair TTL assembly are in `app::wiki`; safe runtime settings snapshot is in `shared::wiki_contract`;
-- search q/filter/limit normalization and merge/sort/limit behavior are in `app::wiki`; template create validation/normalization is in `app::wiki`; the PostgreSQL adapter still owns SQL details behind repository ports;
+- search q/filter/limit normalization and merge/sort/limit behavior are in `app::wiki`; template create validation/normalization and pool-backed audit command/list boundaries are in `app::wiki`; the PostgreSQL adapter still owns SQL details behind repository ports;
 - the API crate no longer declares direct Wiki auth crypto dependencies or production SQLx adapter code after the helper and persistence-boundary extractions;
 - CLI has mocked HTTP smoke coverage for auth, spaces, documents, task/phase dossiers, templates, settings, search, URL/file evidence request flows and API error envelopes; compiled-binary smoke verifies non-zero exit for API errors;
 - domain unit tests cover the first Wiki-owned invariants for route-safe keys, required space/document names, revision publish payload, evidence payload shape and attachment metadata;
@@ -38,7 +38,7 @@ The public API/router is now a Wiki MVP runtime with memory test fallback and SQ
 - identity/auth/users/settings;
 - spaces, members and page tree;
 - documents, revisions and dossier links;
-- evidence, attachments and audit.
+- evidence and attachments.
 
 Keep the inherited tracker compatibility surface outside default builds, then remove it after Wiki repositories no longer need transitional scaffolding:
 
@@ -47,7 +47,7 @@ Keep the inherited tracker compatibility surface outside default builds, then re
 - custom fields, components and versions;
 - reports and notifications legacy modules outside default builds.
 
-Current status: runtime router, OpenAPI, API route files and default API tests are reduced to Wiki MVP; a Wiki domain baseline exists; SQLx runtime persistence is implemented as a transition adapter behind `shared::wiki_contract::WikiBackendPort` in `infra::wiki_postgres`; connection/bootstrap, SQL constants, row mapping and all operation slices are split into submodules. Search and templates are the first vertical slices with app-level use cases and repository ports; the remaining transition modules still need to move into dedicated app use cases and infra repositories. Production `server::run` is PostgreSQL-only and memory mode is explicit test/dev composition; attachment bytes now use a dedicated storage port; shared Wiki validation/auth helpers and the Wiki runtime context live in the app layer; public Wiki DTOs/settings/port live in `shared::wiki_contract`; inherited task-tracker domain/app/infra modules are feature-gated as compatibility code.
+Current status: runtime router, OpenAPI, API route files and default API tests are reduced to Wiki MVP; a Wiki domain baseline exists; SQLx runtime persistence is implemented as a transition adapter behind `shared::wiki_contract::WikiBackendPort` in `infra::wiki_postgres`; connection/bootstrap, SQL constants, row mapping and all operation slices are split into submodules. Search, templates and pool-backed audit list/write are the first vertical slices with app-level use cases and repository ports; the remaining transition modules still need to move into dedicated app use cases and infra repositories. Production `server::run` is PostgreSQL-only and memory mode is explicit test/dev composition; attachment bytes now use a dedicated storage port; shared Wiki validation/auth/audit helpers and the Wiki runtime context live in the app layer; public Wiki DTOs/settings/port live in `shared::wiki_contract`; inherited task-tracker domain/app/infra modules are feature-gated as compatibility code. Transactional audit writes stay in the SQLx transition helper until the write use cases that own those transactions are extracted.
 
 ## 2. Database And Migrations
 
@@ -83,6 +83,7 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 - Tune current PostgreSQL FTS with ranking, query plans and language decisions; q/filter/limit normalization and response merge/limit already live in `app::wiki`, so the remaining work is SQL/repository behavior.
 - Expand current local filesystem storage coverage behind the dedicated Wiki storage port; add S3/MinIO later behind the same abstraction.
 - Expand attachment tests beyond the current staged upload, claim, download and missing-file smoke for less common storage edge cases.
+- Keep audit writes inside the same transaction as the command that caused them when document/user/evidence write use cases move out of the transition adapter.
 - Continue expanding audit tests beyond the current memory smoke for document archive, user updates and PostgreSQL-backed permission changes.
 
 ## 7. Tests And Release Readiness
@@ -105,7 +106,7 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 
 ## 9. Recommended Implementation Order
 
-1. Introduce Wiki repository traits/use cases for identity, spaces, documents, dossiers, evidence and audit, following the search/templates slices.
+1. Introduce Wiki repository traits/use cases for identity, spaces, documents, dossiers and evidence, following the search/templates/audit slices.
 2. Add focused repository/API tests for document draft/publish/history, task/phase links, evidence and attachments.
 3. Tune PostgreSQL FTS ranking/search filters and capture query-plan evidence for the expected MVP dataset size.
 4. Bring CLI smoke tests to parity with the public API.
