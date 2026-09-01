@@ -350,6 +350,13 @@ async function installWikiApiMocks(page: Page) {
       evidenceRequests.push(url.search)
       return routeJson(route, { evidence: [evidence, fileEvidence] })
     }
+    if (method === 'GET' && path.startsWith('/evidence/')) {
+      const evidenceId = decodeURIComponent(path.split('/').pop() ?? '')
+      const item = [evidence, fileEvidence].find((entry) => entry.id === evidenceId)
+      return item
+        ? routeJson(route, item)
+        : routeJson(route, { code: 'NOT_FOUND', message: 'Evidence not found' }, 404)
+    }
     if (method === 'GET' && path === `/attachments/${fileAttachment.id}`) {
       return routeJson(route, fileAttachment)
     }
@@ -533,6 +540,12 @@ test.describe('wiki smoke', () => {
         ),
       )
       .toBe(true)
+    await page.getByRole('link', { name: /Материал smoke-проверки фронта/ }).click()
+    await expect(page).toHaveURL(`${baseURL}/evidence?id=${evidence.id}`)
+    await expect(page.getByRole('heading', { name: 'Выбранный материал' })).toBeVisible()
+    await expect(page.getByText('документ product-requirements')).toBeVisible()
+    await expect(page.getByText('задача SDLC-42')).toBeVisible()
+    await expect(page.getByText('фаза implementation')).toBeVisible()
 
     await page.goto(`${baseURL}/templates`)
     await expect(page.getByRole('heading', { name: 'Шаблоны' })).toBeVisible()

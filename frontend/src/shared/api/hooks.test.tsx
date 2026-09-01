@@ -1,10 +1,16 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { useCreateFileEvidence, useLinkPhaseDocument, useLinkTaskDocument } from './hooks'
+import {
+  useCreateFileEvidence,
+  useEvidenceItem,
+  useLinkPhaseDocument,
+  useLinkTaskDocument,
+} from './hooks'
 
 const createEvidence = vi.hoisted(() => vi.fn())
+const getEvidence = vi.hoisted(() => vi.fn())
 const linkPhaseDocument = vi.hoisted(() => vi.fn())
 const linkTaskDocument = vi.hoisted(() => vi.fn())
 const uploadAttachment = vi.hoisted(() => vi.fn())
@@ -29,6 +35,7 @@ vi.mock('@/api/wiki', () => ({
   getAttachment: vi.fn(),
   getDocument: vi.fn(),
   getDocumentRevision: vi.fn(),
+  getEvidence,
   getPhase: vi.fn(),
   getSpaceTree: vi.fn(),
   getTask: vi.fn(),
@@ -154,5 +161,22 @@ describe('wiki API hooks', () => {
     expect(linkPhaseDocument).toHaveBeenCalledWith('SDLC', 'implementation', {
       document_id: 'product-requirements',
     })
+  })
+
+  it('reads a selected evidence item through the public API wrapper', async () => {
+    getEvidence.mockResolvedValueOnce({
+      id: 'evidence-1',
+      space_key: 'SDLC',
+      evidence_type: 'external_url',
+      title: 'Smoke proof',
+      url: 'https://ci.local/jobs/wiki-smoke',
+      created_at: '2026-08-31T12:10:00Z',
+    })
+
+    const { result } = renderHook(() => useEvidenceItem('evidence-1'), { wrapper })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(getEvidence).toHaveBeenCalledWith('evidence-1')
   })
 })

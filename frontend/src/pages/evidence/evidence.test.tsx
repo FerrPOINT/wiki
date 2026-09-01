@@ -10,6 +10,7 @@ const useCreateFileEvidence = vi.hoisted(() => vi.fn())
 const useAttachment = vi.hoisted(() => vi.fn())
 const useDownloadAttachment = vi.hoisted(() => vi.fn())
 const useEvidence = vi.hoisted(() => vi.fn())
+const useEvidenceItem = vi.hoisted(() => vi.fn())
 
 const createFileMutate = vi.hoisted(() => vi.fn())
 const createLinkMutate = vi.hoisted(() => vi.fn())
@@ -23,9 +24,40 @@ vi.mock('@/shared/api/hooks', () => ({
   useCreateFileEvidence,
   useDownloadAttachment,
   useEvidence,
+  useEvidenceItem,
 }))
 
-function setupEvidence() {
+function setupEvidence(initialRoute = '/evidence') {
+  const evidenceItems = [
+    {
+      attachment_id: null,
+      checksum: null,
+      created_at: '2026-08-31T12:10:00Z',
+      created_by: 'user-editor',
+      document_id: 'product-requirements',
+      evidence_type: 'external_url',
+      id: 'evidence-link',
+      phase_key: 'implementation',
+      space_key: 'SDLC',
+      task_key: 'SDLC-42',
+      title: 'Сборка прошла',
+      url: 'https://ci.local/jobs/wiki-smoke',
+    },
+    {
+      attachment_id: 'attachment-1',
+      checksum: 'sha256:abc123',
+      created_at: '2026-08-31T12:15:00Z',
+      created_by: 'user-editor',
+      document_id: 'test-plan',
+      evidence_type: 'uploaded_file',
+      id: 'evidence-file',
+      phase_key: 'testing',
+      space_key: 'SDLC',
+      task_key: 'SDLC-43',
+      title: 'Лог сборки',
+      url: null,
+    },
+  ]
   useAttachment.mockImplementation((attachmentId: string | null | undefined) => ({
     data:
       attachmentId === 'attachment-1'
@@ -45,41 +77,19 @@ function setupEvidence() {
   }))
   useEvidence.mockReturnValue({
     data: {
-      evidence: [
-        {
-          attachment_id: null,
-          checksum: null,
-          created_at: '2026-08-31T12:10:00Z',
-          created_by: 'user-editor',
-          document_id: 'product-requirements',
-          evidence_type: 'external_url',
-          id: 'evidence-link',
-          phase_key: 'implementation',
-          space_key: 'SDLC',
-          task_key: 'SDLC-42',
-          title: 'Сборка прошла',
-          url: 'https://ci.local/jobs/wiki-smoke',
-        },
-        {
-          attachment_id: 'attachment-1',
-          checksum: 'sha256:abc123',
-          created_at: '2026-08-31T12:15:00Z',
-          created_by: 'user-editor',
-          document_id: 'test-plan',
-          evidence_type: 'uploaded_file',
-          id: 'evidence-file',
-          phase_key: 'testing',
-          space_key: 'SDLC',
-          task_key: 'SDLC-43',
-          title: 'Лог сборки',
-          url: null,
-        },
-      ],
+      evidence: evidenceItems,
     },
     isLoading: false,
     isError: false,
     refetch: refetchEvidence,
   })
+  useEvidenceItem.mockImplementation((evidenceId: string | null | undefined) => ({
+    data: evidenceItems.find((item) => item.id === evidenceId),
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  }))
   useCreateEvidence.mockReturnValue({
     mutate: createLinkMutate,
     isPending: false,
@@ -98,7 +108,7 @@ function setupEvidence() {
   })
 
   render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initialRoute]}>
       <EvidencePage />
     </MemoryRouter>,
   )
@@ -152,6 +162,19 @@ describe('EvidencePage', () => {
       task_key: undefined,
       phase_key: undefined,
     })
+  })
+
+  it('opens selected evidence from URL query id', () => {
+    setupEvidence('/evidence?id=evidence-file')
+
+    expect(useEvidenceItem).toHaveBeenCalledWith('evidence-file')
+    expect(screen.getByRole('heading', { name: 'Выбранный материал' })).toBeInTheDocument()
+    expect(screen.getByText('документ test-plan')).toHaveAttribute('href', '/documents/test-plan')
+    expect(screen.getByText('задача SDLC-43')).toHaveAttribute('href', '/tasks/SDLC-43')
+    expect(screen.getByText('фаза testing')).toHaveAttribute('href', '/phases/testing')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Снять выделение' }))
+    expect(screen.queryByRole('heading', { name: 'Выбранный материал' })).not.toBeInTheDocument()
   })
 
   it('submits URL evidence through the shared API hook', () => {

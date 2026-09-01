@@ -1,5 +1,5 @@
 import { FormEvent, useMemo, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import {
   CheckCircle2,
   Download,
@@ -16,6 +16,7 @@ import {
   useCreateFileEvidence,
   useDownloadAttachment,
   useEvidence,
+  useEvidenceItem,
 } from '@/shared/api/hooks'
 import { EmptyState, ErrorState, LoadingState } from '@/shared/ui/async-states'
 import { Button } from '@/shared/ui/button'
@@ -105,7 +106,39 @@ function AttachmentMetadata({ item }: { item: Evidence }) {
   )
 }
 
+function EvidenceTargetLinks({ item }: { item: Evidence }) {
+  return (
+    <div className="flex flex-wrap gap-2 text-sm">
+      {item.document_id && (
+        <Link
+          to={`/documents/${item.document_id}`}
+          className="rounded bg-surface-raised px-2 py-1 text-accent"
+        >
+          документ {item.document_id}
+        </Link>
+      )}
+      {item.task_key && (
+        <Link
+          to={`/tasks/${item.task_key}`}
+          className="rounded bg-surface-raised px-2 py-1 text-accent"
+        >
+          задача {item.task_key}
+        </Link>
+      )}
+      {item.phase_key && (
+        <Link
+          to={`/phases/${item.phase_key}`}
+          className="rounded bg-surface-raised px-2 py-1 text-accent"
+        >
+          фаза {item.phase_key}
+        </Link>
+      )}
+    </div>
+  )
+}
+
 export function EvidencePage() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [query, setQuery] = useState('')
   const [mode, setMode] = useState<EvidenceMode>('external_url')
   const [title, setTitle] = useState('Проверка сборки')
@@ -119,6 +152,7 @@ export function EvidencePage() {
   const [filterTask, setFilterTask] = useState('')
   const [filterPhase, setFilterPhase] = useState('')
   const [file, setFile] = useState<File | null>(null)
+  const selectedEvidenceId = searchParams.get('id')?.trim() ?? ''
   const evidenceParams = useMemo(
     () => ({
       space: optional(filterSpace) ?? defaultSpaceKey,
@@ -131,7 +165,10 @@ export function EvidencePage() {
   const evidenceQuery = useEvidence(evidenceParams)
   const createLink = useCreateEvidence()
   const createFile = useCreateFileEvidence()
+  const selectedEvidenceQuery = useEvidenceItem(selectedEvidenceId)
   const items = useMemo(() => evidenceQuery.data?.evidence ?? [], [evidenceQuery.data?.evidence])
+  const selectedEvidence =
+    selectedEvidenceQuery.data ?? items.find((item) => item.id === selectedEvidenceId)
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase()
     if (!needle) return items
@@ -161,6 +198,12 @@ export function EvidencePage() {
     setFilterDocument('')
     setFilterTask('')
     setFilterPhase('')
+  }
+
+  function clearSelectedEvidence() {
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('id')
+    setSearchParams(nextParams)
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -332,6 +375,65 @@ export function EvidencePage() {
         </Button>
       </section>
 
+      {selectedEvidenceId && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <FileText className="h-4 w-4 text-accent" />
+              Выбранный материал
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {selectedEvidenceQuery.isLoading && <LoadingState message="Загружаем материал" />}
+            {selectedEvidenceQuery.isError && (
+              <ErrorState
+                message={formatApiErrorForUser(
+                  selectedEvidenceQuery.error,
+                  'Не удалось открыть материал',
+                )}
+                onRetry={() => selectedEvidenceQuery.refetch()}
+              />
+            )}
+            {!selectedEvidenceQuery.isLoading &&
+              !selectedEvidenceQuery.isError &&
+              selectedEvidence && (
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
+                  <div className="space-y-3">
+                    <div>
+                      <div className="text-sm font-medium text-text-primary">
+                        {selectedEvidence.title}
+                      </div>
+                      <div className="mt-1 text-xs text-text-muted">
+                        {formatEvidenceType(selectedEvidence.evidence_type)} ·{' '}
+                        {formatDateTime(selectedEvidence.created_at)}
+                      </div>
+                    </div>
+                    {selectedEvidence.url && (
+                      <a
+                        href={selectedEvidence.url}
+                        className="inline-flex items-center gap-2 text-sm text-accent hover:text-accent-hover"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        Открыть ссылку
+                      </a>
+                    )}
+                    <EvidenceTargetLinks item={selectedEvidence} />
+                  </div>
+                  <AttachmentMetadata item={selectedEvidence} />
+                </div>
+              )}
+            {!selectedEvidenceQuery.isLoading &&
+              !selectedEvidenceQuery.isError &&
+              !selectedEvidence && <EmptyState message="Материал не найден в текущем доступе" />}
+            <Button type="button" size="sm" variant="outline" onClick={clearSelectedEvidence}>
+              Снять выделение
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       <section className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
@@ -398,7 +500,10 @@ export function EvidencePage() {
               </TableHeader>
               <TableBody>
                 {filtered.map((item) => (
-                  <TableRow key={item.id}>
+                  <TableRow
+                    key={item.id}
+                    className={item.id === selectedEvidenceId ? 'bg-accent/10' : undefined}
+                  >
                     <TableCell className="font-medium">
                       {item.url ? (
                         <a

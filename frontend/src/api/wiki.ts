@@ -268,6 +268,10 @@ export function listEvidence(params: EvidenceListParams = {}): Promise<EvidenceL
   return apiRequest<EvidenceListResponse>(`/api/v1/evidence${queryString(params)}`)
 }
 
+export function getEvidence(evidenceId: string): Promise<Evidence> {
+  return apiRequest<Evidence>(`/api/v1/evidence/${encodeURIComponent(evidenceId)}`)
+}
+
 export function createEvidence(body: CreateEvidenceRequest): Promise<Evidence> {
   return apiRequest<Evidence>('/api/v1/evidence', { method: 'POST', body })
 }

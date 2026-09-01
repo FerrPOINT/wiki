@@ -13,6 +13,7 @@ import {
   downloadAttachment,
   getDocument,
   getDocumentRevision,
+  getEvidence,
   getAttachment,
   getWikiSettings,
   getPhase,
@@ -78,6 +79,7 @@ export const wikiKeys = {
   phase: (spaceKey: string, phaseKey: string) =>
     ['wiki', 'spaces', spaceKey, 'phases', phaseKey] as const,
   evidence: (params: EvidenceListParams) => ['wiki', 'evidence', params] as const,
+  evidenceItem: (evidenceId: string) => ['wiki', 'evidence', evidenceId] as const,
   attachment: (attachmentId: string) => ['wiki', 'attachments', attachmentId] as const,
   templates: ['wiki', 'templates'] as const,
   auditLog: ['wiki', 'audit-log'] as const,
@@ -361,6 +363,14 @@ export function useEvidence(params: EvidenceListParams = {}) {
   return useQuery({
     queryKey: wikiKeys.evidence(params),
     queryFn: () => listEvidence(params),
+  })
+}
+
+export function useEvidenceItem(evidenceId: string | null | undefined) {
+  return useQuery({
+    queryKey: wikiKeys.evidenceItem(evidenceId ?? ''),
+    queryFn: () => getEvidence(evidenceId ?? ''),
+    enabled: Boolean(evidenceId),
   })
 }
 
