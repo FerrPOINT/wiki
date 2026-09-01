@@ -10,8 +10,10 @@ import {
   createTemplate,
   createUser,
   deleteSpaceMember,
+  downloadAttachment,
   getDocument,
   getDocumentRevision,
+  getAttachment,
   getWikiSettings,
   getPhase,
   getSpaceTree,
@@ -73,6 +75,7 @@ export const wikiKeys = {
   phase: (spaceKey: string, phaseKey: string) =>
     ['wiki', 'spaces', spaceKey, 'phases', phaseKey] as const,
   evidence: (params: EvidenceListParams) => ['wiki', 'evidence', params] as const,
+  attachment: (attachmentId: string) => ['wiki', 'attachments', attachmentId] as const,
   templates: ['wiki', 'templates'] as const,
   auditLog: ['wiki', 'audit-log'] as const,
   users: ['wiki', 'users'] as const,
@@ -309,6 +312,20 @@ export function useEvidence(params: EvidenceListParams = {}) {
   return useQuery({
     queryKey: wikiKeys.evidence(params),
     queryFn: () => listEvidence(params),
+  })
+}
+
+export function useAttachment(attachmentId: string | null | undefined) {
+  return useQuery({
+    queryKey: wikiKeys.attachment(attachmentId ?? ''),
+    queryFn: () => getAttachment(attachmentId ?? ''),
+    enabled: Boolean(attachmentId),
+  })
+}
+
+export function useDownloadAttachment() {
+  return useMutation({
+    mutationFn: downloadAttachment,
   })
 }
 

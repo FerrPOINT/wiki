@@ -7,20 +7,42 @@ import { EvidencePage } from './'
 
 const useCreateEvidence = vi.hoisted(() => vi.fn())
 const useCreateFileEvidence = vi.hoisted(() => vi.fn())
+const useAttachment = vi.hoisted(() => vi.fn())
+const useDownloadAttachment = vi.hoisted(() => vi.fn())
 const useEvidence = vi.hoisted(() => vi.fn())
 
 const createFileMutate = vi.hoisted(() => vi.fn())
 const createLinkMutate = vi.hoisted(() => vi.fn())
+const downloadAttachmentMutate = vi.hoisted(() => vi.fn())
 const refetchEvidence = vi.hoisted(() => vi.fn())
 
 vi.mock('@/shared/api/hooks', () => ({
   defaultSpaceKey: 'SDLC',
+  useAttachment,
   useCreateEvidence,
   useCreateFileEvidence,
+  useDownloadAttachment,
   useEvidence,
 }))
 
 function setupEvidence() {
+  useAttachment.mockImplementation((attachmentId: string | null | undefined) => ({
+    data:
+      attachmentId === 'attachment-1'
+        ? {
+            checksum: 'sha256:abc123',
+            content_type: 'text/plain',
+            file_name: 'build.log',
+            id: 'attachment-1',
+            size_bytes: 2048,
+            uploaded_at: '2026-08-31T12:14:00Z',
+            uploaded_by: 'user-editor',
+          }
+        : undefined,
+    isLoading: false,
+    isError: false,
+    error: null,
+  }))
   useEvidence.mockReturnValue({
     data: {
       evidence: [
@@ -68,6 +90,12 @@ function setupEvidence() {
     isPending: false,
     error: null,
   })
+  useDownloadAttachment.mockReturnValue({
+    mutate: downloadAttachmentMutate,
+    isPending: false,
+    isError: false,
+    error: null,
+  })
 
   render(
     <MemoryRouter>
@@ -100,6 +128,13 @@ describe('EvidencePage', () => {
     )
     expect(screen.getByText('ссылка')).toBeInTheDocument()
     expect(screen.getByText('файл')).toBeInTheDocument()
+    expect(screen.getByText('build.log')).toBeInTheDocument()
+    expect(screen.getByText('2.0 КБ · text/plain')).toBeInTheDocument()
+    expect(screen.getByText('sha256:abc123')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Скачать Лог сборки' }))
+    expect(downloadAttachmentMutate).toHaveBeenCalledWith('attachment-1', {
+      onSuccess: expect.any(Function),
+    })
   })
 
   it('filters the visible registry without changing API-level filters', () => {

@@ -1,10 +1,20 @@
 import { FormEvent, useMemo, useState } from 'react'
 import { Link } from 'react-router'
-import { CheckCircle2, ExternalLink, FileText, Link2, RotateCcw, Upload } from 'lucide-react'
+import {
+  CheckCircle2,
+  Download,
+  ExternalLink,
+  FileText,
+  Link2,
+  RotateCcw,
+  Upload,
+} from 'lucide-react'
 import {
   defaultSpaceKey,
+  useAttachment,
   useCreateEvidence,
   useCreateFileEvidence,
+  useDownloadAttachment,
   useEvidence,
 } from '@/shared/api/hooks'
 import { EmptyState, ErrorState, LoadingState } from '@/shared/ui/async-states'
@@ -14,13 +24,85 @@ import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
 import { formatApiErrorForUser, formatFirstApiErrorForUser } from '@/shared/lib/api-error'
-import { formatDateTime, formatEvidenceType } from '@/shared/lib/wiki-format'
+import { formatBytes, formatDateTime, formatEvidenceType } from '@/shared/lib/wiki-format'
+import type { AttachmentDownload, Evidence } from '@/api/wiki'
 
 type EvidenceMode = 'external_url' | 'uploaded_file'
 
 function optional(value: string) {
   const trimmed = value.trim()
   return trimmed.length > 0 ? trimmed : null
+}
+
+function browserDownload(download: AttachmentDownload, fallbackFileName: string) {
+  const href = URL.createObjectURL(download.blob)
+  const anchor = window.document.createElement('a')
+  anchor.href = href
+  anchor.download = download.fileName ?? fallbackFileName
+  anchor.click()
+  URL.revokeObjectURL(href)
+}
+
+function AttachmentMetadata({ item }: { item: Evidence }) {
+  const hasAttachment = item.evidence_type === 'uploaded_file' && Boolean(item.attachment_id)
+  const attachmentQuery = useAttachment(hasAttachment ? item.attachment_id : null)
+  const downloadAttachment = useDownloadAttachment()
+  const attachment = attachmentQuery.data
+  const checksum = attachment?.checksum ?? item.checksum
+  const fileName = attachment?.file_name ?? item.attachment_id ?? item.title
+
+  if (!hasAttachment) {
+    return <span className="text-xs text-text-muted">внешняя ссылка</span>
+  }
+
+  function handleDownload() {
+    if (!item.attachment_id) return
+    downloadAttachment.mutate(item.attachment_id, {
+      onSuccess: (download) => browserDownload(download, fileName),
+    })
+  }
+
+  return (
+    <div className="space-y-2 text-xs text-text-muted">
+      <div>
+        <div className="max-w-[16rem] truncate font-medium text-text-secondary" title={fileName}>
+          {attachmentQuery.isLoading ? 'загружаем файл...' : fileName}
+        </div>
+        {attachment && (
+          <div>
+            {formatBytes(attachment.size_bytes)} · {attachment.content_type}
+          </div>
+        )}
+        {attachmentQuery.isError && <div className="text-warning">метаданные недоступны</div>}
+      </div>
+      {checksum ? (
+        <code
+          className="block max-w-[16rem] truncate rounded bg-background px-2 py-1"
+          title={checksum}
+        >
+          {checksum}
+        </code>
+      ) : (
+        <span>контрольная сумма не получена</span>
+      )}
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={handleDownload}
+        disabled={downloadAttachment.isPending}
+        aria-label={`Скачать ${item.title}`}
+      >
+        <Download className="h-3.5 w-3.5" />
+        {downloadAttachment.isPending ? 'Скачиваем...' : 'Скачать'}
+      </Button>
+      {downloadAttachment.isError && (
+        <div className="text-danger">
+          {formatApiErrorForUser(downloadAttachment.error, 'Не удалось скачать файл')}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function EvidencePage() {
@@ -310,6 +392,7 @@ export function EvidencePage() {
                   <TableHead>Задача</TableHead>
                   <TableHead>Фаза</TableHead>
                   <TableHead>Тип</TableHead>
+                  <TableHead>Метаданные</TableHead>
                   <TableHead>Дата</TableHead>
                 </TableRow>
               </TableHeader>
@@ -368,6 +451,9 @@ export function EvidencePage() {
                       )}
                     </TableCell>
                     <TableCell>{formatEvidenceType(item.evidence_type)}</TableCell>
+                    <TableCell>
+                      <AttachmentMetadata item={item} />
+                    </TableCell>
                     <TableCell className="whitespace-nowrap text-xs text-text-muted">
                       {formatDateTime(item.created_at)}
                     </TableCell>

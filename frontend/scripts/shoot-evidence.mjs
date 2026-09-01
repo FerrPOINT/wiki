@@ -63,6 +63,29 @@ const evidence = {
   created_by: user.id,
   created_at: now,
 }
+const fileAttachment = {
+  id: 'attachment-build-log',
+  checksum: 'sha256:fileabc123',
+  content_type: 'text/plain',
+  file_name: 'build.log',
+  size_bytes: 2048,
+  uploaded_at: now,
+  uploaded_by: user.id,
+}
+const fileEvidence = {
+  id: 'evidence-file-smoke',
+  space_key: 'SDLC',
+  document_id: 'product-requirements',
+  task_key: 'SDLC-42',
+  phase_key: 'testing',
+  title: 'Лог сборки',
+  evidence_type: 'uploaded_file',
+  url: null,
+  attachment_id: fileAttachment.id,
+  checksum: fileAttachment.checksum,
+  created_by: user.id,
+  created_at: now,
+}
 
 const revision = {
   id: 'revision-product-requirements-1',
@@ -89,7 +112,7 @@ const document = {
   current_revision: revision,
   task_keys: ['SDLC-42'],
   phase_keys: ['implementation'],
-  evidence: [evidence],
+  evidence: [evidence, fileEvidence],
   created_by: user.id,
   updated_by: user.id,
   created_at: now,
@@ -110,9 +133,9 @@ const task = {
   task_key: 'SDLC-42',
   title: document.title,
   document_count: 1,
-  evidence_count: 1,
+  evidence_count: 2,
   documents: [documentSummary],
-  evidence: [evidence],
+  evidence: [evidence, fileEvidence],
 }
 
 const phase = {
@@ -120,9 +143,9 @@ const phase = {
   phase_key: 'implementation',
   title: 'implementation',
   document_count: 1,
-  evidence_count: 1,
+  evidence_count: 2,
   documents: [documentSummary],
-  evidence: [evidence],
+  evidence: [evidence, fileEvidence],
 }
 
 const settings = {
@@ -316,7 +339,22 @@ async function installApiMocks(page) {
     if (method === 'GET' && path === '/spaces/SDLC/phases/implementation') {
       return routeJson(route, phase)
     }
-    if (method === 'GET' && path === '/evidence') return routeJson(route, { evidence: [evidence] })
+    if (method === 'GET' && path === '/evidence') {
+      return routeJson(route, { evidence: [evidence, fileEvidence] })
+    }
+    if (method === 'GET' && path === `/attachments/${fileAttachment.id}`) {
+      return routeJson(route, fileAttachment)
+    }
+    if (method === 'GET' && path === `/attachments/${fileAttachment.id}/download`) {
+      return route.fulfill({
+        status: 200,
+        contentType: fileAttachment.content_type,
+        headers: {
+          'Content-Disposition': `attachment; filename="${fileAttachment.file_name}"`,
+        },
+        body: 'downloaded bytes',
+      })
+    }
     if (method === 'GET' && path === '/templates') {
       return routeJson(route, {
         templates,

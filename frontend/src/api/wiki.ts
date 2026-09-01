@@ -1,4 +1,4 @@
-import { apiRequest } from './client'
+import { apiBlobRequest, apiRequest, type ApiBlobResponse } from './client'
 import type {
   AttachmentResponse,
   AuditEntryResponse,
@@ -44,6 +44,7 @@ export type SpaceTreeNode = SpaceTreeNodeResponse
 export type DocumentRevision = DocumentRevisionResponse
 export type Evidence = EvidenceResponse
 export type Attachment = AttachmentResponse
+export type AttachmentDownload = ApiBlobResponse
 export type DocumentSummary = DocumentSummaryResponse
 export type Document = DocumentResponse
 export type CreateSpaceRequest = GeneratedCreateSpaceRequest
@@ -245,6 +246,14 @@ export function uploadAttachment(file: File): Promise<Attachment> {
   const form = new FormData()
   form.set('file', file)
   return apiRequest<Attachment>('/api/v1/attachments', { method: 'POST', body: form })
+}
+
+export function getAttachment(attachmentId: string): Promise<Attachment> {
+  return apiRequest<Attachment>(`/api/v1/attachments/${encodeURIComponent(attachmentId)}`)
+}
+
+export function downloadAttachment(attachmentId: string): Promise<AttachmentDownload> {
+  return apiBlobRequest(`/api/v1/attachments/${encodeURIComponent(attachmentId)}/download`)
 }
 
 export function listTemplates(): Promise<TemplateListResponse> {

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { ApiError, apiRequest } from './client'
+import { ApiError, apiBlobRequest, apiRequest } from './client'
 
 function mockFetchResponse(response: Response) {
   const fetchMock = vi.fn<typeof fetch>()
@@ -67,5 +67,24 @@ describe('apiRequest error handling', () => {
       details: [{ field: 'summary', message: 'required' }],
       message: 'Request validation failed; details=summary: required; requestId=req-1',
     })
+  })
+
+  it('returns blob responses with download metadata', async () => {
+    mockFetchResponse(
+      new Response('downloaded bytes', {
+        status: 200,
+        headers: {
+          'Content-Disposition': 'attachment; filename="build.log"',
+          'Content-Type': 'text/plain',
+        },
+      }),
+    )
+
+    const download = await apiBlobRequest('/api/v1/attachments/attachment-1/download')
+
+    expect(download.contentType).toBe('text/plain')
+    expect(download.fileName).toBe('build.log')
+    expect(download.sizeBytes).toBe('downloaded bytes'.length)
+    expect(download.blob).toBeInstanceOf(Blob)
   })
 })

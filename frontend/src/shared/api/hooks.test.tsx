@@ -23,6 +23,8 @@ vi.mock('@/api/wiki', () => ({
   createTemplate: vi.fn(),
   createUser: vi.fn(),
   deleteSpaceMember: vi.fn(),
+  downloadAttachment: vi.fn(),
+  getAttachment: vi.fn(),
   getDocument: vi.fn(),
   getDocumentRevision: vi.fn(),
   getPhase: vi.fn(),

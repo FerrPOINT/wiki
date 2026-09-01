@@ -19,7 +19,7 @@
 | PostgreSQL smoke | Current | Env-gated tests with the `wiki_postgres_` prefix cover disabled registration, membership revocation, persistence across backend/router rebuilds and FTS index-plan evidence. `scripts/postgres-smoke.ps1` runs them against Docker Postgres; `scripts/postgres-smoke-wsl.ps1` runs the same suite against an isolated temporary WSL PostgreSQL database. |
 | Attachments | Current | Attachment uploads reject empty files, unsafe names and runtime size-limit violations; bytes are behind `domain::wiki::WikiAttachmentStorage`, and server wires `infra::LocalWikiAttachmentStorage`, which rejects unsafe or platform-ambiguous storage keys. |
 | CLI | Current | `wiki` CLI covers the MVP public API groups for auth, users, spaces/member management, documents/revisions, task/phase dossiers, evidence, attachments, templates, audit, search and settings. |
-| Frontend API-backed pages | Current | Dashboard, spaces, documents, tasks, phases, evidence, templates, users, settings, admin overview, audit and search read from the public Wiki API; create/update/archive space, assign/remove space members, create/edit/publish/archive/move document, create template, create/update user, URL evidence and file evidence forms call the same API. |
+| Frontend API-backed pages | Current | Dashboard, spaces, documents, tasks, phases, evidence, templates, users, settings, admin overview, audit and search read from the public Wiki API; create/update/archive space, assign/remove space members, create/edit/publish/archive/move document, create template, create/update user, URL evidence and file evidence forms, attachment metadata and attachment download call the same API. |
 | Screenshot evidence | Current | 17 desktop and 5 mobile screenshots exist for the MVP page set; README renders the gallery inline and `docs/assets/screens/manifest.md` references the same files. |
 | Documentation set | Current | CI/CD-style documentation filename parity is preserved. User guide, test plan and threat model now explicitly cover the MVP page map, API/CLI parity, screenshot evidence and security controls without adding deferred task-tracker scope. |
 | Pre-development readiness | Current | `docs/MVP_READINESS.md` defines the 100% gate for starting main development, with capability coverage, design freeze, API/CLI freeze, negative cases, developer handoff and go/no-go checklist. |
@@ -31,7 +31,7 @@
 - Spaces: list/create/update/archive, member list/upsert/delete and page tree.
 - Documents: create/get/draft/publish/archive/move, immutable revision detail and latest-first revision history.
 - Task/phase dossiers: list/detail, linked documents and linked evidence by external keys.
-- Evidence and attachments: URL evidence, staged file upload, file evidence claim, attachment metadata and download.
+- Evidence and attachments: URL evidence, staged file upload, file evidence claim, visible file checksum/metadata and authorized attachment download.
 - Search: document/evidence search with MVP filters and permission boundaries.
 - Search performance: document search uses PostgreSQL `tsvector`/GIN with title/body weighting and an env-gated `EXPLAIN` smoke for the filtered MVP query shape.
 - Templates: list/create/client template selection flow using Markdown body from template data.

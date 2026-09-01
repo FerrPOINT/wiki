@@ -18,6 +18,13 @@ type ApiErrorBody = {
   message?: unknown
 }
 
+export type ApiBlobResponse = {
+  blob: Blob
+  contentType: string
+  fileName?: string
+  sizeBytes: number
+}
+
 type ApiErrorInit = {
   status: number
   statusText: string
@@ -237,4 +244,48 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   }
   if (response.status === 204) return undefined as T
   return (await response.json()) as T
+}
+
+export async function apiBlobRequest(
+  path: string,
+  options: ApiRequestOptions = {},
+): Promise<ApiBlobResponse> {
+  let response = await send(path, options)
+  if (shouldRefresh(path, response)) {
+    const refreshed = await refreshAccessToken()
+    if (refreshed) response = await send(path, options)
+  }
+
+  if (!response.ok) {
+    const error = await readApiError(response)
+    throw error
+  }
+
+  const blob = await response.blob()
+  const contentType = response.headers.get('Content-Type') ?? blob.type
+  const fileName = filenameFromContentDisposition(response.headers.get('Content-Disposition'))
+
+  return {
+    blob,
+    contentType,
+    fileName,
+    sizeBytes: blob.size,
+  }
+}
+
+function filenameFromContentDisposition(value: string | null): string | undefined {
+  if (!value) return undefined
+  const encoded = value.match(/filename\*=UTF-8''([^;]+)/i)?.[1]
+  if (encoded) {
+    try {
+      return decodeURIComponent(encoded)
+    } catch {
+      return encoded
+    }
+  }
+
+  const quoted = value.match(/filename="([^"]+)"/i)?.[1]
+  if (quoted) return quoted
+
+  return value.match(/filename=([^;]+)/i)?.[1]?.trim()
 }
