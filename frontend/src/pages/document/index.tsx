@@ -4,6 +4,7 @@ import {
   Archive,
   CheckCircle2,
   Clock3,
+  Eye,
   FileCheck2,
   FilePenLine,
   FileText,
@@ -13,10 +14,12 @@ import {
   MoveRight,
   Save,
   Send,
+  X,
 } from 'lucide-react'
 import {
   useArchiveDocument,
   useDocument,
+  useDocumentRevision,
   useDocumentRevisions,
   useMoveDocument,
   usePublishDocument,
@@ -52,6 +55,13 @@ export function DocumentPage() {
   const moveDocument = useMoveDocument()
   const document = documentQuery.data
   const revisions = revisionsQuery.data?.revisions ?? []
+  const [selectedRevisionId, setSelectedRevisionId] = useState<string | null>(null)
+  const selectedRevisionQuery = useDocumentRevision(
+    documentId,
+    selectedRevisionId ?? '',
+    selectedRevisionId !== null,
+  )
+  const selectedRevision = selectedRevisionQuery.data
   const [draftTitle, setDraftTitle] = useState('')
   const [draftBody, setDraftBody] = useState('')
   const [publishSummary, setPublishSummary] = useState('')
@@ -69,6 +79,7 @@ export function DocumentPage() {
     setPublishSummary('')
     setStatusMessage('')
     setIsPublishingFlow(false)
+    setSelectedRevisionId(null)
     setLoadedDocumentId(document.id)
   }, [document, loadedDocumentId])
 
@@ -394,13 +405,14 @@ export function DocumentPage() {
                     revisionsQuery.error,
                     'Не удалось загрузить ревизии',
                   )}
+                  onRetry={() => revisionsQuery.refetch()}
                 />
               )}
               {!revisionsQuery.isLoading && !revisionsQuery.isError && revisions.length === 0 && (
                 <EmptyState message="Ревизий пока нет" />
               )}
               {revisions.map((revision) => (
-                <div key={revision.id} className="rounded-md border border-border p-3">
+                <div key={revision.id} className="space-y-3 rounded-md border border-border p-3">
                   <div className="flex items-center justify-between gap-3 text-sm font-medium">
                     <span className="inline-flex items-center gap-2">
                       <History className="h-4 w-4 text-accent" />
@@ -414,10 +426,71 @@ export function DocumentPage() {
                     {shortText(revision.summary, 'Без описания изменений')}
                   </p>
                   <p className="mt-1 text-xs text-text-muted">{revision.author_id}</p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={selectedRevisionId === revision.id ? 'secondary' : 'outline'}
+                    onClick={() => setSelectedRevisionId(revision.id)}
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                    Открыть
+                  </Button>
                 </div>
               ))}
             </CardContent>
           </Card>
+
+          {selectedRevisionId && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between gap-3">
+                  <CardTitle className="text-base">Снимок ревизии</CardTitle>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setSelectedRevisionId(null)}
+                  >
+                    <X className="h-4 w-4" />
+                    Закрыть
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {selectedRevisionQuery.isLoading && (
+                  <LoadingState message="Загружаем снимок ревизии" />
+                )}
+                {selectedRevisionQuery.isError && (
+                  <ErrorState
+                    message={formatApiErrorForUser(
+                      selectedRevisionQuery.error,
+                      'Не удалось открыть ревизию',
+                    )}
+                    onRetry={() => selectedRevisionQuery.refetch()}
+                  />
+                )}
+                {selectedRevision && (
+                  <>
+                    <div className="space-y-1 text-sm">
+                      <div className="font-medium">
+                        Ревизия {selectedRevision.version}: {selectedRevision.title}
+                      </div>
+                      <div className="text-xs text-text-muted">
+                        {formatDateTime(selectedRevision.published_at)} · автор{' '}
+                        {selectedRevision.author_id}
+                      </div>
+                      <p className="text-xs text-text-secondary">
+                        {shortText(selectedRevision.summary, 'Без описания изменений')}
+                      </p>
+                    </div>
+                    <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-surface p-3 text-xs leading-5 text-text-secondary">
+                      {selectedRevision.body_markdown}
+                    </pre>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </section>
 

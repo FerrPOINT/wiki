@@ -7,7 +7,7 @@ import { chromium } from '@playwright/test'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const OUT = join(ROOT, 'docs', 'screenshots')
-const BASE = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:4173'
+const BASE = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:4174'
 const now = '2026-08-31T10:00:00Z'
 
 mkdirSync(OUT, { recursive: true })
@@ -137,7 +137,12 @@ const shots = [
   { name: '03-dashboard.png', path: '/', title: 'Dashboard' },
   { name: '04-spaces.png', path: '/spaces', title: 'Spaces' },
   { name: '05-document-compose.png', path: '/documents/new', title: 'Document compose' },
-  { name: '06-document-view.png', path: '/documents/product-requirements', title: 'Document view' },
+  {
+    name: '06-document-view.png',
+    path: '/documents/product-requirements',
+    title: 'Document view',
+    openRevision: true,
+  },
   { name: '07-task-dossiers.png', path: '/tasks', title: 'Task pages' },
   { name: '08-task-dossier-detail.png', path: '/tasks/SDLC-42', title: 'Task page detail' },
   { name: '09-phase-dossiers.png', path: '/phases', title: 'Phase pages' },
@@ -259,6 +264,12 @@ async function installApiMocks(page) {
     if (method === 'GET' && path === '/documents/product-requirements/revisions') {
       return routeJson(route, { revisions: [revision] })
     }
+    if (
+      method === 'GET' &&
+      path === '/documents/product-requirements/revisions/revision-product-requirements-1'
+    ) {
+      return routeJson(route, revision)
+    }
     if (method === 'GET' && path === '/spaces/SDLC/tasks') {
       return routeJson(route, { tasks: [task] })
     }
@@ -350,6 +361,10 @@ async function shoot(shot) {
 
   try {
     await page.goto(`${BASE}${shot.path}`, { waitUntil: 'networkidle', timeout: 30_000 })
+    if (shot.openRevision) {
+      await page.getByRole('button', { name: 'Открыть' }).first().click()
+      await page.getByRole('heading', { name: 'Снимок ревизии' }).waitFor({ timeout: 5_000 })
+    }
     await page.waitForTimeout(1000)
     await page.screenshot({ path: join(OUT, shot.name), fullPage: true })
     console.log(`shot ${shot.name} ${shot.path} ${shot.title}`)

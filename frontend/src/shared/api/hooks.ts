@@ -10,6 +10,7 @@ import {
   createUser,
   deleteSpaceMember,
   getDocument,
+  getDocumentRevision,
   getWikiSettings,
   getPhase,
   getSpaceTree,
@@ -59,6 +60,8 @@ export const wikiKeys = {
   document: (documentId: string) => ['wiki', 'documents', documentId] as const,
   documentRevisions: (documentId: string) =>
     ['wiki', 'documents', documentId, 'revisions'] as const,
+  documentRevision: (documentId: string, revisionId: string) =>
+    ['wiki', 'documents', documentId, 'revisions', revisionId] as const,
   tasks: (spaceKey: string) => ['wiki', 'spaces', spaceKey, 'tasks'] as const,
   task: (spaceKey: string, taskKey: string) =>
     ['wiki', 'spaces', spaceKey, 'tasks', taskKey] as const,
@@ -257,6 +260,14 @@ export function useDocumentRevisions(documentId: string) {
     queryKey: wikiKeys.documentRevisions(documentId),
     queryFn: () => listDocumentRevisions(documentId),
     enabled: Boolean(documentId),
+  })
+}
+
+export function useDocumentRevision(documentId: string, revisionId: string, enabled = true) {
+  return useQuery({
+    queryKey: wikiKeys.documentRevision(documentId, revisionId),
+    queryFn: () => getDocumentRevision(documentId, revisionId),
+    enabled: enabled && Boolean(documentId) && Boolean(revisionId),
   })
 }
 

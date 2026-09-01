@@ -200,6 +200,15 @@ export function listDocumentRevisions(documentId: string): Promise<DocumentRevis
   )
 }
 
+export function getDocumentRevision(
+  documentId: string,
+  revisionId: string,
+): Promise<DocumentRevision> {
+  return apiRequest<DocumentRevision>(
+    `/api/v1/documents/${encodeURIComponent(documentId)}/revisions/${encodeURIComponent(revisionId)}`,
+  )
+}
+
 export function listTasks(spaceKey: string): Promise<TaskPageListResponse> {
   return apiRequest<TaskPageListResponse>(`/api/v1/spaces/${encodeURIComponent(spaceKey)}/tasks`)
 }

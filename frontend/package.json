@@ -11,7 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "preview": "vite preview --port 4173",
+    "preview": "vite preview --host 127.0.0.1 --port 4174 --strictPort",
     "shoot:evidence": "node scripts/shoot-evidence.mjs",
     "generate:api": "node scripts/generate-api-types.mjs",
     "lint": "eslint . --max-warnings=0",

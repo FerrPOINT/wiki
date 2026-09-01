@@ -29,7 +29,7 @@
 - Auth: register/login/refresh/logout/current user, disabled registration policy and safe runtime settings.
 - Users and roles: admin user list/create/update plus space member role management.
 - Spaces: list/create/update/archive, member list/upsert/delete and page tree.
-- Documents: create/get/draft/publish/archive/move, immutable revisions and latest-first revision history.
+- Documents: create/get/draft/publish/archive/move, immutable revision detail and latest-first revision history.
 - Task/phase dossiers: list/detail, linked documents and linked evidence by external keys.
 - Evidence and attachments: URL evidence, staged file upload, file evidence claim, attachment metadata and download.
 - Search: document/evidence search with MVP filters and permission boundaries.
@@ -41,7 +41,7 @@
 
 - Latest backend WSL regression after readiness, FTS query, attachment upload hardening, compose cleanup and shared tracker cleanup: `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test --workspace -- --test-threads=1 --nocapture`, `cargo clippy --workspace --all-targets -- -D warnings`.
 - Focused PostgreSQL test group passes against an isolated temporary WSL PostgreSQL database through `pwsh -File scripts/postgres-smoke-wsl.ps1`; the same test group also compiles and safely skips without `WIKI_TEST_DATABASE_URL`.
-- Latest frontend regression after documentation/test changes: `npm run typecheck`, `npm run test`, `npm run lint`, `npm run format:check`, `npm run build`, `npm run test:e2e -- --project=chromium`.
+- Latest frontend regression after space management and revision detail UI: `npm run typecheck`, `npm run test`, `npm run lint`, `npm run format:check`, `npm run build`, `npm run test:e2e -- --project=chromium`.
 - Docker PostgreSQL smoke runner syntax check passed; `pwsh -File scripts/postgres-smoke.ps1` currently stops with a clear Docker-daemon unavailable message on this host because `com.docker.service` cannot be started from this process.
 - `docker compose config` and `docker compose -f backend/docker-compose.test.yml config` render the MVP service set without extra cache/worker services.
 - Screenshot script passed against `vite preview`: `npm run shoot:evidence` captured 17 desktop and 5 mobile MVP screenshots.

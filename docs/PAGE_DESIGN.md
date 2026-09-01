@@ -80,7 +80,7 @@ Document view includes:
 - parent document field for moving within the tree;
 - primary body content;
 - linked task and phase;
-- revision timeline;
+- revision timeline and selected immutable revision snapshot;
 - related documents and related evidence materials.
 
 ## 7. Tasks And Phases

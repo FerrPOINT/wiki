@@ -189,6 +189,13 @@ async function installWikiApiMocks(page: Page) {
     if (method === 'GET' && path === '/documents/product-requirements/revisions') {
       return routeJson(route, { revisions: currentRevisions })
     }
+    if (method === 'GET' && path.startsWith('/documents/product-requirements/revisions/')) {
+      const revisionId = path.split('/').pop()
+      const revision = currentRevisions.find((item) => item.id === revisionId)
+      return revision
+        ? routeJson(route, revision)
+        : routeJson(route, { code: 'NOT_FOUND', message: 'Revision not found' }, 404)
+    }
     if (method === 'PUT' && path === '/documents/product-requirements/draft') {
       const body = request.postDataJSON() as { title?: string; content_markdown: string }
       documentDraftRequests.push(body)
@@ -335,6 +342,9 @@ test.describe('wiki smoke', () => {
       )
       .toBe(true)
     await expect(page.getByText('Опубликована ревизия 2')).toBeVisible()
+    await page.getByRole('button', { name: 'Открыть' }).first().click()
+    await expect(page.getByRole('heading', { name: 'Снимок ревизии' })).toBeVisible()
+    await expect(page.getByText('Ревизия 2: Требования к Wiki MVP')).toBeVisible()
 
     await page.goto(`${baseURL}/tasks/SDLC-42`)
     await expect(page.getByRole('heading', { name: 'SDLC-42' })).toBeVisible()

@@ -8,6 +8,7 @@ import { DocumentPage } from './'
 
 const useArchiveDocument = vi.hoisted(() => vi.fn())
 const useDocument = vi.hoisted(() => vi.fn())
+const useDocumentRevision = vi.hoisted(() => vi.fn())
 const useDocumentRevisions = vi.hoisted(() => vi.fn())
 const useMoveDocument = vi.hoisted(() => vi.fn())
 const usePublishDocument = vi.hoisted(() => vi.fn())
@@ -22,6 +23,7 @@ const updateDraftMutateAsync = vi.hoisted(() => vi.fn())
 vi.mock('@/shared/api/hooks', () => ({
   useArchiveDocument,
   useDocument,
+  useDocumentRevision,
   useDocumentRevisions,
   useMoveDocument,
   usePublishDocument,
@@ -85,7 +87,16 @@ function setupDocument(document: Document = baseDocument) {
     data: { revisions: [baseRevision] },
     isLoading: false,
     isError: false,
+    refetch: vi.fn(),
   })
+  useDocumentRevision.mockImplementation(
+    (_documentId: string, revisionId: string, enabled: boolean) => ({
+      data: enabled && revisionId === baseRevision.id ? baseRevision : undefined,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    }),
+  )
   useUpdateDocumentDraft.mockReturnValue({
     mutate: updateDraftMutate,
     mutateAsync: updateDraftMutateAsync,
@@ -136,6 +147,17 @@ describe('DocumentPage', () => {
       '/phases/implementation',
     )
     expect(screen.getByRole('link', { name: /Smoke proof/ })).toHaveAttribute('href', '/evidence')
+  })
+
+  it('opens a specific immutable revision through the revision detail hook', () => {
+    setupDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть' }))
+
+    expect(useDocumentRevision).toHaveBeenLastCalledWith('product-requirements', 'revision-2', true)
+    expect(screen.getByRole('heading', { name: 'Снимок ревизии' })).toBeInTheDocument()
+    expect(screen.getByText('Ревизия 2: Требования Wiki')).toBeInTheDocument()
+    expect(screen.getAllByText('# Published')).toHaveLength(2)
   })
 
   it('sends draft and tree move mutations from visible form state', () => {
