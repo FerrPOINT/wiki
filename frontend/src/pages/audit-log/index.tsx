@@ -3,6 +3,7 @@ import { useAuditLog } from '@/shared/api/hooks'
 import { EmptyState, ErrorState, LoadingState } from '@/shared/ui/async-states'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
+import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime } from '@/shared/lib/wiki-format'
 
 function countBy(entries: { action: string }[], needle: string): number {
@@ -75,7 +76,10 @@ export function AuditLogPage() {
         <CardContent>
           {auditQuery.isLoading && <LoadingState message="Загружаем аудит" />}
           {auditQuery.isError && (
-            <ErrorState message="Не удалось загрузить аудит" onRetry={() => auditQuery.refetch()} />
+            <ErrorState
+              message={formatApiErrorForUser(auditQuery.error, 'Не удалось загрузить аудит')}
+              onRetry={() => auditQuery.refetch()}
+            />
           )}
           {!auditQuery.isLoading && !auditQuery.isError && entries.length === 0 && (
             <EmptyState message="Событий аудита пока нет" />

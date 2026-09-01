@@ -5,6 +5,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/shared/ui/async-states'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import { Progress } from '@/shared/ui/progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
+import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import {
   formatDateTime,
   formatDocumentStatus,
@@ -34,7 +35,10 @@ export function TaskDossiersPage() {
 
       {tasksQuery.isLoading && <LoadingState message="Загружаем задачи" />}
       {tasksQuery.isError && (
-        <ErrorState message="Не удалось загрузить задачи" onRetry={() => tasksQuery.refetch()} />
+        <ErrorState
+          message={formatApiErrorForUser(tasksQuery.error, 'Не удалось загрузить задачи')}
+          onRetry={() => tasksQuery.refetch()}
+        />
       )}
       {!tasksQuery.isLoading && !tasksQuery.isError && tasks.length === 0 && (
         <EmptyState message="Документы ещё не связаны с задачами" />
@@ -90,7 +94,12 @@ export function TaskDossierPage() {
 
   if (taskQuery.isLoading) return <LoadingState message="Загружаем задачу" />
   if (taskQuery.isError || !task) {
-    return <ErrorState message="Не удалось открыть задачу" onRetry={() => taskQuery.refetch()} />
+    return (
+      <ErrorState
+        message={formatApiErrorForUser(taskQuery.error, 'Не удалось открыть задачу')}
+        onRetry={() => taskQuery.refetch()}
+      />
+    )
   }
 
   return (

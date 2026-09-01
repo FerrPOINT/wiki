@@ -28,6 +28,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
 import { Textarea } from '@/shared/ui/textarea'
+import { formatApiErrorForUser, formatFirstApiErrorForUser } from '@/shared/lib/api-error'
 import {
   formatDateTime,
   formatDocumentStatus,
@@ -74,7 +75,10 @@ export function DocumentPage() {
   if (documentQuery.isLoading) return <LoadingState message="Загружаем документ" />
   if (documentQuery.isError || !document) {
     return (
-      <ErrorState message="Не удалось открыть документ" onRetry={() => documentQuery.refetch()} />
+      <ErrorState
+        message={formatApiErrorForUser(documentQuery.error, 'Не удалось открыть документ')}
+        onRetry={() => documentQuery.refetch()}
+      />
     )
   }
 
@@ -83,11 +87,10 @@ export function DocumentPage() {
   const currentParentId = document.parent_id ?? null
   const nextParentId = optional(parentId)
   const parentChanged = nextParentId !== currentParentId
-  const mutationError =
-    updateDraft.error?.message ??
-    publishDocument.error?.message ??
-    archiveDocument.error?.message ??
-    moveDocument.error?.message
+  const mutationError = formatFirstApiErrorForUser(
+    [updateDraft.error, publishDocument.error, archiveDocument.error, moveDocument.error],
+    'Не удалось выполнить действие',
+  )
 
   function handleSaveDraft(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -385,7 +388,14 @@ export function DocumentPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               {revisionsQuery.isLoading && <LoadingState message="Загружаем ревизии" />}
-              {revisionsQuery.isError && <ErrorState message="Не удалось загрузить ревизии" />}
+              {revisionsQuery.isError && (
+                <ErrorState
+                  message={formatApiErrorForUser(
+                    revisionsQuery.error,
+                    'Не удалось загрузить ревизии',
+                  )}
+                />
+              )}
               {!revisionsQuery.isLoading && !revisionsQuery.isError && revisions.length === 0 && (
                 <EmptyState message="Ревизий пока нет" />
               )}

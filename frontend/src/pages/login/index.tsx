@@ -7,6 +7,7 @@ import { ErrorState } from '@/shared/ui/async-states'
 import { Input } from '@/shared/ui/input'
 import { ThemeToggle } from '@/shared/ui/theme-toggle'
 import { useLogin } from '@/shared/api/hooks'
+import { formatApiErrorForUser } from '@/shared/lib/api-error'
 
 export function LoginPage() {
   const { t } = useTranslation()
@@ -60,7 +61,7 @@ export function LoginPage() {
               required
             />
           </div>
-          {error && <ErrorState message={error.message} />}
+          {error && <ErrorState message={formatApiErrorForUser(error, 'Не удалось войти')} />}
           <Button type="submit" className="w-full" disabled={isPending}>
             {isPending ? `${t('auth.login')}…` : t('auth.login')}
           </Button>

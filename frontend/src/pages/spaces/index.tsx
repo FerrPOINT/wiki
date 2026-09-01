@@ -4,6 +4,7 @@ import { defaultSpaceKey, useSpaceTree, useSpaces } from '@/shared/api/hooks'
 import { EmptyState, ErrorState, LoadingState } from '@/shared/ui/async-states'
 import { Button } from '@/shared/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
+import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime, formatDocumentType, shortText } from '@/shared/lib/wiki-format'
 import type { Space, SpaceTreeNode } from '@/api/wiki'
 
@@ -25,7 +26,11 @@ function SpaceTreePreview({ spaceKey }: { spaceKey: string }) {
   const documents = flattenTree(treeQuery.data?.documents ?? [])
 
   if (treeQuery.isLoading) return <LoadingState message="Загружаем дерево" />
-  if (treeQuery.isError) return <ErrorState message="Не удалось загрузить дерево" />
+  if (treeQuery.isError) {
+    return (
+      <ErrorState message={formatApiErrorForUser(treeQuery.error, 'Не удалось загрузить дерево')} />
+    )
+  }
   if (documents.length === 0) return <EmptyState message="В пространстве пока нет документов" />
 
   return (
@@ -103,7 +108,11 @@ export function SpacesPage() {
       </section>
 
       {spacesQuery.isLoading && <LoadingState message="Загружаем пространства" />}
-      {spacesQuery.isError && <ErrorState message="Не удалось загрузить пространства" />}
+      {spacesQuery.isError && (
+        <ErrorState
+          message={formatApiErrorForUser(spacesQuery.error, 'Не удалось загрузить пространства')}
+        />
+      )}
       {!spacesQuery.isLoading && !spacesQuery.isError && spaces.length === 0 && (
         <EmptyState
           message="Пространства ещё не созданы"

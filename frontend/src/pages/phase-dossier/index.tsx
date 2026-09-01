@@ -4,6 +4,7 @@ import { defaultSpaceKey, usePhase, usePhases } from '@/shared/api/hooks'
 import { EmptyState, ErrorState, LoadingState } from '@/shared/ui/async-states'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import { Progress } from '@/shared/ui/progress'
+import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import {
   formatDateTime,
   formatDocumentStatus,
@@ -32,7 +33,10 @@ export function PhaseDossiersPage() {
 
       {phasesQuery.isLoading && <LoadingState message="Загружаем фазы" />}
       {phasesQuery.isError && (
-        <ErrorState message="Не удалось загрузить фазы" onRetry={() => phasesQuery.refetch()} />
+        <ErrorState
+          message={formatApiErrorForUser(phasesQuery.error, 'Не удалось загрузить фазы')}
+          onRetry={() => phasesQuery.refetch()}
+        />
       )}
       {!phasesQuery.isLoading && !phasesQuery.isError && phases.length === 0 && (
         <EmptyState message="Документы и материалы ещё не связаны с фазами" />
@@ -85,7 +89,12 @@ export function PhaseDossierPage() {
 
   if (phaseQuery.isLoading) return <LoadingState message="Загружаем фазу" />
   if (phaseQuery.isError || !phase) {
-    return <ErrorState message="Не удалось открыть фазу" onRetry={() => phaseQuery.refetch()} />
+    return (
+      <ErrorState
+        message={formatApiErrorForUser(phaseQuery.error, 'Не удалось открыть фазу')}
+        onRetry={() => phaseQuery.refetch()}
+      />
+    )
   }
 
   return (

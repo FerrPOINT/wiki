@@ -3,6 +3,7 @@ import { FileCheck2, History, Library, Settings, ShieldCheck, Users } from 'luci
 import { useAuditLog, useSpaces, useUsers, useWikiSettings } from '@/shared/api/hooks'
 import { ErrorState, LoadingState } from '@/shared/ui/async-states'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
+import { formatFirstApiErrorForUser } from '@/shared/lib/api-error'
 import { formatBytes, formatDateTime } from '@/shared/lib/wiki-format'
 
 const adminSections = [
@@ -47,6 +48,10 @@ export function AdminPage() {
     usersQuery.isLoading || spacesQuery.isLoading || auditQuery.isLoading || settingsQuery.isLoading
   const isError =
     usersQuery.isError || spacesQuery.isError || auditQuery.isError || settingsQuery.isError
+  const overviewError = formatFirstApiErrorForUser(
+    [usersQuery.error, spacesQuery.error, auditQuery.error, settingsQuery.error],
+    'Не удалось загрузить состояние инстанса',
+  )
 
   function retryOverview() {
     void usersQuery.refetch()
@@ -122,9 +127,7 @@ export function AdminPage() {
         </CardHeader>
         <CardContent>
           {isLoading && <LoadingState message="Загружаем состояние инстанса" />}
-          {isError && (
-            <ErrorState message="Не удалось загрузить состояние инстанса" onRetry={retryOverview} />
-          )}
+          {isError && <ErrorState message={overviewError} onRetry={retryOverview} />}
           {!isLoading && !isError && (
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {overviewItems.map((item) => {

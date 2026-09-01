@@ -11,6 +11,7 @@ import {
 import { EmptyState, ErrorState, LoadingState } from '@/shared/ui/async-states'
 import { Button } from '@/shared/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
+import { formatFirstApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime } from '@/shared/lib/wiki-format'
 
 export function DashboardPage() {
@@ -32,6 +33,10 @@ export function DashboardPage() {
     spacesQuery.isLoading || searchQuery.isLoading || tasksQuery.isLoading || phasesQuery.isLoading
   const isError =
     spacesQuery.isError || searchQuery.isError || tasksQuery.isError || phasesQuery.isError
+  const overviewError = formatFirstApiErrorForUser(
+    [spacesQuery.error, searchQuery.error, tasksQuery.error, phasesQuery.error],
+    'Не удалось загрузить обзор Wiki',
+  )
 
   return (
     <div className="space-y-6">
@@ -112,7 +117,7 @@ export function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {isLoading && <LoadingState message="Загружаем документы" />}
-            {isError && <ErrorState message="Не удалось загрузить обзор Wiki" />}
+            {isError && <ErrorState message={overviewError} />}
             {!isLoading && !isError && recentDocuments.length === 0 && (
               <EmptyState
                 message="В этом пространстве пока нет документов"
@@ -153,7 +158,7 @@ export function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {isLoading && <LoadingState message="Загружаем задачи" />}
-            {isError && <ErrorState message="Не удалось загрузить задачи" />}
+            {isError && <ErrorState message={overviewError} />}
             {!isLoading && !isError && focusTasks.length === 0 && (
               <EmptyState message="Документы ещё не связаны с задачами" />
             )}

@@ -7,6 +7,7 @@ import { ErrorState } from '@/shared/ui/async-states'
 import { Input } from '@/shared/ui/input'
 import { ThemeToggle } from '@/shared/ui/theme-toggle'
 import { useRegister } from '@/shared/api/hooks'
+import { formatApiErrorForUser } from '@/shared/lib/api-error'
 
 export function RegisterPage() {
   const { t } = useTranslation()
@@ -93,7 +94,9 @@ export function RegisterPage() {
             />
           </div>
           {passwordError && <ErrorState message={passwordError} />}
-          {error && <ErrorState message={error.message} />}
+          {error && (
+            <ErrorState message={formatApiErrorForUser(error, 'Не удалось зарегистрироваться')} />
+          )}
           <Button type="submit" className="w-full" disabled={isPending}>
             {isPending ? `${t('auth.register')}…` : t('auth.register')}
           </Button>

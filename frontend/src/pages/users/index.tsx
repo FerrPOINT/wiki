@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
+import { formatApiErrorForUser } from '@/shared/lib/api-error'
 
 function roleLabel(role: string | null | undefined, isSystemAdmin: boolean | undefined): string {
   if (isSystemAdmin) return 'системный администратор'
@@ -120,7 +121,7 @@ export function UsersPage() {
         </div>
         {createUser.isError && (
           <p className="mt-2 text-sm text-danger">
-            {createUser.error?.message ?? 'Не удалось создать пользователя'}
+            {formatApiErrorForUser(createUser.error, 'Не удалось создать пользователя')}
           </p>
         )}
       </form>
@@ -158,7 +159,10 @@ export function UsersPage() {
           {usersQuery.isLoading && <LoadingState message="Загружаем пользователей" />}
           {usersQuery.isError && (
             <ErrorState
-              message="Не удалось загрузить пользователей"
+              message={formatApiErrorForUser(
+                usersQuery.error,
+                'Не удалось загрузить пользователей',
+              )}
               onRetry={() => usersQuery.refetch()}
             />
           )}

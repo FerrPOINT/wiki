@@ -4,6 +4,7 @@ import { useTemplates } from '@/shared/api/hooks'
 import { EmptyState, ErrorState, LoadingState } from '@/shared/ui/async-states'
 import { Button } from '@/shared/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
+import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDocumentType } from '@/shared/lib/wiki-format'
 
 function templateIcon(documentType: string) {
@@ -36,7 +37,7 @@ export function TemplatesPage() {
       {templatesQuery.isLoading && <LoadingState message="Загружаем шаблоны" />}
       {templatesQuery.isError && (
         <ErrorState
-          message="Не удалось загрузить шаблоны"
+          message={formatApiErrorForUser(templatesQuery.error, 'Не удалось загрузить шаблоны')}
           onRetry={() => templatesQuery.refetch()}
         />
       )}

@@ -41,6 +41,7 @@ Unit/component tests:
 - app shell navigation, account menu and logout;
 - dashboard;
 - spaces and page tree preview;
+- safe API error formatting for permission denied and validation details;
 - document editor;
 - revision history;
 - evidence feed;

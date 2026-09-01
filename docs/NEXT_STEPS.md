@@ -29,6 +29,7 @@ The documentation, screenshots, API-backed frontend MVP pages and SQLx-backed MV
 - the API crate no longer declares direct Wiki auth crypto dependencies or production SQLx adapter code after the helper and persistence-boundary extractions;
 - CLI has mocked HTTP smoke coverage for auth, spaces, documents, task/phase dossiers, templates, settings, search, URL/file evidence request flows and API error envelopes; compiled-binary smoke verifies non-zero exit for API errors, Markdown stdin input for `doc create --from-file -`, local missing-file fail-fast behavior before HTTP, env option handling and compact/table output formats;
 - focused frontend component tests cover spaces tree preview/empty state, document editor/revision/linked dossier/evidence/archive read-only states and evidence registry/filter/URL/file submission;
+- frontend API errors are formatted into safe Russian user-facing messages across MVP query/form states, with focused coverage for validation details, permission denied errors, retry actions and document-compose space-key normalization;
 - domain unit tests cover the first Wiki-owned invariants for route-safe keys, required space/document names, revision publish payload, evidence payload shape and attachment metadata;
 - deferred areas are documented as reference only.
 
@@ -71,7 +72,7 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 
 ## 5. Frontend Integration
 
-- Add broader permission denied and validation error coverage on API-backed pages.
+- Keep permission denied and validation error coverage current when API-backed page states change.
 - Keep the current spaces/document/evidence component tests aligned with visible MVP page states when the UI changes.
 - Extract the current page-level document editor, document tree, revision panel and evidence feed into reusable widgets/features as the UI hardens.
 - Keep visible UI text Russian by default.

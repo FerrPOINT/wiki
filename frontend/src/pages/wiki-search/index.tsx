@@ -5,6 +5,7 @@ import { defaultSpaceKey, useWikiSearch } from '@/shared/api/hooks'
 import { EmptyState, ErrorState, LoadingState } from '@/shared/ui/async-states'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import { Input } from '@/shared/ui/input'
+import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime } from '@/shared/lib/wiki-format'
 import type { SearchResult } from '@/api/wiki'
 
@@ -120,7 +121,7 @@ export function WikiSearchPage() {
             {searchQuery.isLoading && <LoadingState message="Ищем" />}
             {searchQuery.isError && (
               <ErrorState
-                message="Не удалось выполнить поиск"
+                message={formatApiErrorForUser(searchQuery.error, 'Не удалось выполнить поиск')}
                 onRetry={() => searchQuery.refetch()}
               />
             )}

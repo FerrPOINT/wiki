@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
+import { formatApiErrorForUser, formatFirstApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime, formatEvidenceType } from '@/shared/lib/wiki-format'
 
 type EvidenceMode = 'external_url' | 'uploaded_file'
@@ -61,7 +62,10 @@ export function EvidencePage() {
   const linkCount = items.filter((item) => item.evidence_type === 'external_url').length
   const fileCount = items.filter((item) => item.evidence_type === 'uploaded_file').length
   const isSaving = createLink.isPending || createFile.isPending
-  const saveError = createLink.error?.message ?? createFile.error?.message
+  const saveError = formatFirstApiErrorForUser(
+    [createLink.error, createFile.error],
+    'Не удалось сохранить материал',
+  )
 
   function resetForm() {
     setTitle('')
@@ -290,7 +294,7 @@ export function EvidencePage() {
           {evidenceQuery.isLoading && <LoadingState message="Загружаем материалы" />}
           {evidenceQuery.isError && (
             <ErrorState
-              message="Не удалось загрузить материалы"
+              message={formatApiErrorForUser(evidenceQuery.error, 'Не удалось загрузить материалы')}
               onRetry={() => evidenceQuery.refetch()}
             />
           )}

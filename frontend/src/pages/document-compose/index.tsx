@@ -9,6 +9,7 @@ import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import { Textarea } from '@/shared/ui/textarea'
+import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDocumentType } from '@/shared/lib/wiki-format'
 
 const starterMarkdown = `# Краткое описание
@@ -41,7 +42,7 @@ function normalizeOptional(value: string) {
 export function DocumentComposePage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const initialSpace = searchParams.get('space') ?? defaultSpaceKey
+  const initialSpace = (searchParams.get('space') ?? defaultSpaceKey).toUpperCase()
   const [title, setTitle] = useState('Требования к Wiki')
   const [body, setBody] = useState(starterMarkdown)
   const [spaceKey, setSpaceKey] = useState(initialSpace)
@@ -64,7 +65,7 @@ export function DocumentComposePage() {
     event.preventDefault()
     createDocument.mutate(
       {
-        spaceKey: spaceKey.trim() || defaultSpaceKey,
+        spaceKey: spaceKey.trim().toUpperCase() || defaultSpaceKey,
         body: {
           title: title.trim(),
           slug: normalizeOptional(slug),
@@ -103,7 +104,9 @@ export function DocumentComposePage() {
       </section>
 
       {createDocument.isError && (
-        <ErrorState message={createDocument.error?.message ?? 'Не удалось сохранить документ'} />
+        <ErrorState
+          message={formatApiErrorForUser(createDocument.error, 'Не удалось сохранить документ')}
+        />
       )}
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">

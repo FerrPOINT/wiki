@@ -4,6 +4,7 @@ import { ErrorState, LoadingState } from '@/shared/ui/async-states'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
+import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatBytes } from '@/shared/lib/wiki-format'
 
 function enabledLabel(value: boolean): string {
@@ -92,7 +93,7 @@ export function SettingsPage() {
       {settingsQuery.isLoading && <LoadingState message="Загружаем настройки" />}
       {settingsQuery.isError && (
         <ErrorState
-          message="Не удалось загрузить настройки"
+          message={formatApiErrorForUser(settingsQuery.error, 'Не удалось загрузить настройки')}
           onRetry={() => settingsQuery.refetch()}
         />
       )}
