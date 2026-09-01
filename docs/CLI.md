@@ -146,10 +146,11 @@ wiki search query "archived decision" --space SDLC --include-archived
 
 ```bash
 wiki audit list
+wiki audit list --limit 25
 wiki settings get
 ```
 
-`wiki audit list` returns the API JSON as-is, including `request_id` for correlating CLI/UI/API write operations with backend logs.
+`wiki audit list` returns the API JSON as-is, including `request_id` for correlating CLI/UI/API write operations with backend logs. Without `--limit`, the API returns the latest 50 events; `--limit` is clamped server-side to `1..200`.
 
 ## Contract Freeze
 

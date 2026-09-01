@@ -3572,6 +3572,17 @@ async fn wiki_api_records_request_id_in_audit_log() {
     assert_eq!(status, StatusCode::CREATED);
     let document_id = document["id"].as_str().unwrap();
 
+    let (status, bounded_audit) = call(
+        &app,
+        Method::GET,
+        "/api/v1/audit-log?limit=1",
+        Some(token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(bounded_audit["entries"].as_array().unwrap().len(), 1);
+
     let (status, audit) = call(&app, Method::GET, "/api/v1/audit-log", Some(token), None).await;
     assert_eq!(status, StatusCode::OK);
     let entries = audit["entries"].as_array().unwrap();
@@ -3583,6 +3594,43 @@ async fn wiki_api_records_request_id_in_audit_log() {
             && entry["entity_id"] == document_id
             && entry["request_id"] == document_request_id
     }));
+}
+
+#[tokio::test]
+async fn wiki_audit_log_honors_bounded_limit_query() {
+    let app = test_app();
+    let token = login_memory_admin(&app).await;
+    let slug = format!("audit-limit-{}", Uuid::now_v7().simple());
+
+    let (status, document) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces/SDLC/documents",
+        Some(&token),
+        Some(json!({
+            "title": "Audit limit",
+            "slug": slug,
+            "document_type": "page",
+            "content_markdown": "# Audit limit"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let document_id = document["id"].as_str().unwrap();
+
+    let (status, audit) = call(
+        &app,
+        Method::GET,
+        "/api/v1/audit-log?limit=1",
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let entries = audit["entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0]["action"], "document.create");
+    assert_eq!(entries[0]["entity_id"], document_id);
 }
 
 #[tokio::test]

@@ -136,11 +136,11 @@ Canonical `evidence_type` values for MVP are `external_url` and `uploaded_file`.
 | `GET`  | `/templates` | Список шаблонов                                                    |
 | `POST` | `/templates` | Создать шаблон, system admin only                                  |
 | `GET`  | `/settings`  | Admin-only read-only snapshot безопасных runtime настроек инстанса |
-| `GET`  | `/audit-log` | Audit log для admin UI                                             |
+| `GET`  | `/audit-log` | Последние audit events для admin UI; `limit` clamps to `1..200` |
 
 `GET /settings` не возвращает секреты, connection strings, storage paths или bootstrap credentials. MVP endpoint показывает только значения, нужные UI/CLI: API path, регистрацию, storage/search backend, лимит загрузки, язык и timezone.
 
-`GET /audit-log` возвращает append-only события с `request_id`. Для mutating HTTP-запросов audit entry использует тот же `X-Request-ID`, который backend вернул клиенту в response header; если запрос пришёл без валидного id, middleware создаёт `req_` id и он попадает в audit.
+`GET /audit-log` возвращает append-only события с `request_id` в порядке от новых к старым. Endpoint всегда bounded: без параметра отдаёт последние 50 событий, `limit` ограничивается диапазоном `1..200`. Для mutating HTTP-запросов audit entry использует тот же `X-Request-ID`, который backend вернул клиенту в response header; если запрос пришёл без валидного id, middleware создаёт `req_` id и он попадает в audit.
 
 ## 13. Deferred API Areas
 

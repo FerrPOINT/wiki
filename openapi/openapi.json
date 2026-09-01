@@ -123,6 +123,21 @@
           "audit"
         ],
         "operationId": "list_audit_log",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "maximum": 200,
+              "minimum": 1
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "",

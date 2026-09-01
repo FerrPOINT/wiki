@@ -269,7 +269,11 @@ pub trait WikiBackendPort: Send + Sync {
         claims: &WikiClaims,
         body: CreateTemplateRequest,
     ) -> Result<TemplateResponse, AppError>;
-    async fn list_audit_log(&self, claims: &WikiClaims) -> Result<AuditLogResponse, AppError>;
+    async fn list_audit_log(
+        &self,
+        claims: &WikiClaims,
+        query: AuditLogQuery,
+    ) -> Result<AuditLogResponse, AppError>;
     async fn search(
         &self,
         claims: &WikiClaims,
@@ -665,6 +669,12 @@ pub struct AuditEntryResponse {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AuditLogResponse {
     pub entries: Vec<AuditEntryResponse>,
+}
+
+#[derive(Debug, Clone, Deserialize, IntoParams)]
+pub struct AuditLogQuery {
+    #[param(minimum = 1, maximum = 200)]
+    pub limit: Option<usize>,
 }
 
 #[derive(Debug, Clone, Deserialize, IntoParams)]

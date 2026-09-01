@@ -2465,21 +2465,24 @@ pub async fn create_template(
     get,
     path = "/api/v1/audit-log",
     tag = "audit",
+    params(AuditLogQuery),
     responses((status = 200, body = AuditLogResponse), (status = 403)),
     security(("bearer" = []))
 )]
 pub async fn list_audit_log(
     Extension(backend): Extension<WikiBackend>,
     Extension(claims): Extension<WikiClaims>,
+    Query(query): Query<AuditLogQuery>,
 ) -> Result<Json<AuditLogResponse>, shared::AppError> {
     if let Some(persistent) = backend.persistent_backend() {
-        return Ok(Json(persistent.list_audit_log(&claims).await?));
+        return Ok(Json(persistent.list_audit_log(&claims, query).await?));
     }
 
     let store = store().lock().expect("wiki store lock");
     ensure_system_admin(&store, &claims.user_id)?;
+    let limit = query.limit.unwrap_or(50).clamp(1, 200);
     Ok(Json(AuditLogResponse {
-        entries: store.audit.iter().rev().cloned().collect(),
+        entries: store.audit.iter().rev().take(limit).cloned().collect(),
     }))
 }
 

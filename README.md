@@ -199,7 +199,7 @@ target\debug\wiki.exe user list
 target\debug\wiki.exe doc create --space SDLC --title "Requirements" --from-file requirements.md
 target\debug\wiki.exe space member-set SDLC --user <user-id> --role editor
 target\debug\wiki.exe attachment download <attachment-id> --out artifact.bin
-target\debug\wiki.exe audit list
+target\debug\wiki.exe audit list --limit 25
 target\debug\wiki.exe settings get
 ```
 

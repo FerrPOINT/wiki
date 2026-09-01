@@ -41,7 +41,7 @@ API paths in this table are relative to `/api/v1` unless marked otherwise. `/met
 | Search | Пользователь ищет документы и материалы с фильтрами | `/search` | `wiki search query` | `/search` | PostgreSQL FTS projection | search tests, `16-search.png`, `m-search.png` |
 | Templates | Editor стартует документ из базового шаблона | `/templates` | `wiki template` | `/templates`, `/documents/new` | `document_templates` | template tests, `12-templates.png` |
 | Settings | Admin видит безопасный runtime snapshot | `/settings` | `wiki settings get` | `/settings`, `/admin` | runtime config snapshot | settings tests, `15-settings.png` |
-| Audit | Admin проверяет append-only write history and request correlation | `/audit-log` | `wiki audit list` | `/audit-log`, `/admin` | `audit_log.request_id` | audit tests, `13-audit-log.png` |
+| Audit | Admin проверяет bounded append-only write history and request correlation | `/audit-log` | `wiki audit list --limit` | `/audit-log`, `/admin` | `audit_log.request_id` | audit tests, `13-audit-log.png` |
 | Runtime probes | Operator проверяет liveness/readiness before traffic | `/health`, `/health/ready`, `/metrics` outside API v1 | curl/API-only | no route | runtime state, metrics exporter | health tests, ops docs |
 | API contract | UI/CLI and agents use the same public API | `/api/v1`, OpenAPI | all CLI groups | all MVP routes | DTO schemas | OpenAPI parity check |
 

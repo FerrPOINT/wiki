@@ -61,13 +61,14 @@ impl PostgresWikiBackend {
     pub(super) async fn list_audit_log(
         &self,
         claims: &WikiClaims,
+        query: AuditLogQuery,
     ) -> Result<AuditLogResponse, shared::AppError> {
         self.ensure_admin(claims).await?;
         let repository = PostgresWikiAuditRepository {
             backend: self,
             request_id: None,
         };
-        WikiAuditUseCase::new(&repository).list_recent().await
+        WikiAuditUseCase::new(&repository).list_recent(query).await
     }
 
     pub(super) async fn audit(

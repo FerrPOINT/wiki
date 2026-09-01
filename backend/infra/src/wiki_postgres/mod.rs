@@ -555,8 +555,9 @@ impl WikiBackendPort for PostgresWikiBackend {
     async fn list_audit_log(
         &self,
         claims: &WikiClaims,
+        query: AuditLogQuery,
     ) -> Result<AuditLogResponse, shared::AppError> {
-        PostgresWikiBackend::list_audit_log(self, claims).await
+        PostgresWikiBackend::list_audit_log(self, claims, query).await
     }
 
     async fn search(

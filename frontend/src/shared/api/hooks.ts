@@ -33,6 +33,7 @@ import {
   moveDocument,
   publishDocument,
   searchWiki,
+  type AuditLogParams,
   type CreateSpaceRequest,
   type CreateDocumentRequest,
   type CreateEvidenceRequest,
@@ -61,6 +62,7 @@ const authKeys = {
 }
 
 export const defaultSpaceKey = 'SDLC'
+const defaultAuditLogParams: AuditLogParams = { limit: 50 }
 
 export const wikiKeys = {
   spaces: ['wiki', 'spaces'] as const,
@@ -83,6 +85,7 @@ export const wikiKeys = {
   attachment: (attachmentId: string) => ['wiki', 'attachments', attachmentId] as const,
   templates: ['wiki', 'templates'] as const,
   auditLog: ['wiki', 'audit-log'] as const,
+  auditLogList: (params: AuditLogParams = {}) => ['wiki', 'audit-log', params] as const,
   users: ['wiki', 'users'] as const,
   search: (params: SearchParams) => ['wiki', 'search', params] as const,
 }
@@ -407,10 +410,10 @@ export function useCreateTemplate() {
   })
 }
 
-export function useAuditLog() {
+export function useAuditLog(params: AuditLogParams = defaultAuditLogParams) {
   return useQuery({
-    queryKey: wikiKeys.auditLog,
-    queryFn: listAuditLog,
+    queryKey: wikiKeys.auditLogList(params),
+    queryFn: () => listAuditLog(params),
   })
 }
 

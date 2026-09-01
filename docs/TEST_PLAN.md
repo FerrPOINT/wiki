@@ -25,7 +25,7 @@ The test plan covers document lifecycle, task/phase links, evidence ingestion, p
 - `openapi/openapi.json` must expose every route implemented by the public API router.
 - `docs/API.md` and `docs/PRODUCT_REQUIREMENTS.md` must document the same endpoint paths as OpenAPI.
 - API error responses must keep the standard `{ error: { code, message } }` envelope.
-- List endpoints must keep bounded `limit` behavior and stable ordering.
+- List endpoints must keep bounded `limit` behavior and stable ordering; audit log defaults to the latest 50 events and clamps `limit` to `1..200`.
 - Upload endpoints must reject empty files, unsafe filenames and payloads over the configured size limit.
 - File evidence tests must reject staged attachments uploaded by another user even when the caller has edit rights in the target space.
 - Search endpoints must verify permission filtering before returning document, task, phase or evidence results.
@@ -63,7 +63,7 @@ The PostgreSQL smoke suite must include an API-level matrix for outsider, viewer
 - Soft-delete/archive behavior is consistent for spaces and documents, including rejected content writes inside archived spaces.
 - Published revisions remain immutable after draft updates and later publishes.
 - Search plan uses `document_revisions_search_idx` for the MVP filtered query shape.
-- Audit writes are committed with the write command or rolled back with it.
+- Audit writes are committed with the write command or rolled back with it, and audit reads remain bounded.
 
 ## 7. Frontend Tests
 

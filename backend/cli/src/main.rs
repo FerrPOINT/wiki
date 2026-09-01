@@ -402,7 +402,10 @@ enum SearchCommands {
 
 #[derive(Subcommand)]
 enum AuditCommands {
-    List,
+    List {
+        #[arg(long)]
+        limit: Option<usize>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -987,7 +990,10 @@ async fn execute_search(api: &ApiClient, command: SearchCommands) -> Result<Valu
 
 async fn execute_audit(api: &ApiClient, command: AuditCommands) -> Result<Value> {
     match command {
-        AuditCommands::List => api.get("/audit-log").await,
+        AuditCommands::List { limit } => {
+            let query = query_string([("limit", limit.map(|value| value.to_string()))]);
+            api.get(&format!("/audit-log{}", query)).await
+        }
     }
 }
 
@@ -1968,7 +1974,7 @@ mod tests {
         let audit = execute(
             &api,
             Commands::Audit {
-                command: AuditCommands::List,
+                command: AuditCommands::List { limit: None },
             },
         )
         .await
@@ -2005,6 +2011,32 @@ mod tests {
         assert_eq!(requests[5].method, Method::GET);
         assert_eq!(requests[5].path, "/api/v1/audit-log");
         assert!(requests[5].idempotency_key.is_none());
+    }
+
+    #[tokio::test]
+    async fn audit_list_builds_bounded_query_without_idempotency_key() {
+        let server = spawn_mock_server().await;
+        let api = ApiClient::new(server.api_url.clone(), Some("secret-token".to_string()));
+
+        let value = execute(
+            &api,
+            Commands::Audit {
+                command: AuditCommands::List { limit: Some(25) },
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(value["status"], "ok");
+        let requests = server.requests();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].method, Method::GET);
+        assert_eq!(requests[0].path, "/api/v1/audit-log?limit=25");
+        assert_eq!(
+            requests[0].authorization.as_deref(),
+            Some("Bearer secret-token")
+        );
+        assert!(requests[0].idempotency_key.is_none());
     }
 
     #[tokio::test]

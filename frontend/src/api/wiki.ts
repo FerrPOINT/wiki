@@ -87,6 +87,10 @@ export type EvidenceListParams = {
   limit?: number
 }
 
+export type AuditLogParams = {
+  limit?: number
+}
+
 function queryString(params: Record<string, string | number | boolean | null | undefined>): string {
   const query = new URLSearchParams()
   for (const [key, value] of Object.entries(params)) {
@@ -298,8 +302,8 @@ export function createTemplate(body: CreateTemplateRequest): Promise<Template> {
   return apiRequest<Template>('/api/v1/templates', { method: 'POST', body })
 }
 
-export function listAuditLog(): Promise<AuditLogResponse> {
-  return apiRequest<AuditLogResponse>('/api/v1/audit-log')
+export function listAuditLog(params: AuditLogParams = {}): Promise<AuditLogResponse> {
+  return apiRequest<AuditLogResponse>(`/api/v1/audit-log${queryString(params)}`)
 }
 
 export function listUsers(): Promise<WikiUserListResponse> {

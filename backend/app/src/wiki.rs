@@ -1447,9 +1447,13 @@ impl<'a, R: WikiAuditRepository + ?Sized> WikiAuditUseCase<'a, R> {
         Self { repository }
     }
 
-    pub async fn list_recent(&self) -> Result<shared::AuditLogResponse, AppError> {
+    pub async fn list_recent(
+        &self,
+        query: shared::AuditLogQuery,
+    ) -> Result<shared::AuditLogResponse, AppError> {
+        let limit = query.limit.unwrap_or(50).clamp(1, 200);
         Ok(shared::AuditLogResponse {
-            entries: self.repository.list_recent_entries(200).await?,
+            entries: self.repository.list_recent_entries(limit).await?,
         })
     }
 
@@ -4245,7 +4249,7 @@ mod tests {
         let entity_id = Uuid::now_v7();
 
         let response = WikiAuditUseCase::new(&repository)
-            .list_recent()
+            .list_recent(shared::AuditLogQuery { limit: None })
             .await
             .unwrap();
         assert_eq!(response.entries.len(), 1);
