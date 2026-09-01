@@ -26,6 +26,7 @@ The documentation, screenshots, API-backed frontend MVP pages and SQLx-backed MV
 - search q/filter/limit normalization is in `app::wiki`; the PostgreSQL adapter still owns the SQL query and ranking details;
 - the API crate no longer declares direct Wiki auth crypto dependencies or production SQLx adapter code after the helper and persistence-boundary extractions;
 - CLI has mocked HTTP smoke coverage for auth, spaces, documents, task/phase dossiers, templates, settings, search, URL/file evidence request flows and API error envelopes; compiled-binary smoke verifies non-zero exit for API errors;
+- domain unit tests cover the first Wiki-owned invariants for route-safe keys, required space/document names, revision publish payload, evidence payload shape and attachment metadata;
 - deferred areas are documented as reference only.
 
 The remaining work is hardening and architecture cleanup, not product-scope expansion.
@@ -86,7 +87,7 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 
 ## 7. Tests And Release Readiness
 
-- Add backend unit tests for domain invariants.
+- Continue expanding backend unit tests for less common domain invariant combinations.
 - Add repository/API tests beyond the current persistence, permission and file-evidence smoke for spaces, documents, revisions, task/phase links, evidence, attachments, search and audit.
 - Rerun PostgreSQL-backed API smoke with `WIKI_TEST_DATABASE_URL` set, including production backend construction, persistence across router rebuilds and disabled public registration.
 - Add frontend component tests for editor/tree/revision/evidence states.

@@ -554,6 +554,10 @@ impl DocumentRevision {
         if content_markdown.as_str().trim().is_empty() {
             return Err(AppError::invalid_input("published content is required"));
         }
+        let content_checksum = content_checksum.into();
+        if content_checksum.as_str().trim().is_empty() {
+            return Err(AppError::invalid_input("revision checksum is required"));
+        }
         Ok(Self {
             id: DocumentRevisionId::new(),
             document_id: document.id,
@@ -562,7 +566,7 @@ impl DocumentRevision {
             content_markdown,
             content_html: content_html.into(),
             content_text: content_text.into(),
-            content_checksum: content_checksum.into(),
+            content_checksum,
             summary,
             author_id,
             published_at: shared::now(),
@@ -702,15 +706,25 @@ impl EvidenceItem {
         if title.as_str().trim().is_empty() {
             return Err(AppError::invalid_input("evidence title is required"));
         }
+        let url_missing = url
+            .as_ref()
+            .map(|value| value.as_str().trim().is_empty())
+            .unwrap_or(true);
+        let checksum_missing = checksum
+            .as_ref()
+            .map(|value| value.as_str().trim().is_empty())
+            .unwrap_or(true);
         match evidence_type {
-            EvidenceType::ExternalUrl if url.is_none() || attachment_id.is_some() => {
+            EvidenceType::ExternalUrl if url_missing || attachment_id.is_some() => {
                 return Err(AppError::invalid_input(
                     "external_url evidence requires url only",
                 ));
             }
-            EvidenceType::UploadedFile if attachment_id.is_none() || url.is_some() => {
+            EvidenceType::UploadedFile
+                if attachment_id.is_none() || url.is_some() || checksum_missing =>
+            {
                 return Err(AppError::invalid_input(
-                    "uploaded_file evidence requires attachment_id only",
+                    "uploaded_file evidence requires attachment_id and checksum only",
                 ));
             }
             EvidenceType::ExternalUrl | EvidenceType::UploadedFile => {}

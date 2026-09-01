@@ -27,6 +27,7 @@
 
 - Поля: `id`, `key`, `name`, `description`, `owner_id`, `archived_at`.
 - Инварианты:
+  - `name` обязателен;
   - `key` уникален глобально;
   - archived space не принимает новые documents/evidence;
   - доступ к space задаётся через `SpaceMember`.
@@ -43,8 +44,10 @@
 
 - Поля: `id`, `space_id`, `parent_id`, `slug`, `title`, `document_type`, `status`, `current_revision_id`, `owner_id`.
 - Инварианты:
+  - `title` обязателен;
   - `(space_id, parent_id, slug)` уникален;
   - published document имеет `current_revision_id`;
+  - document не может быть собственным parent;
   - archived document скрыт из обычного дерева.
 
 ### DocumentDraft
@@ -60,6 +63,7 @@
 - Поля: `id`, `document_id`, `version`, `title`, `content_markdown`, `content_html`, `content_text`, `content_checksum`, `summary`, `author_id`, `published_at`.
 - Инварианты:
   - revision неизменяема после публикации;
+  - published Markdown и `content_checksum` обязательны;
   - version монотонно растёт внутри document;
   - `content_html` является производным от Markdown.
 
@@ -83,9 +87,10 @@
 
 - Поля: `id`, `space_id`, `task_dossier_id`, `phase_dossier_id`, `document_id`, `evidence_type`, `title`, `url`, `attachment_id`, `checksum`, `metadata`.
 - Инварианты:
+  - `title` обязателен;
   - evidence связано минимум с document, task dossier или phase dossier;
-  - `uploaded_file` evidence имеет attachment и не имеет url;
-  - `external_url` evidence имеет url и не имеет attachment;
+  - `uploaded_file` evidence имеет attachment и checksum, но не имеет url;
+  - `external_url` evidence имеет непустой url и не имеет attachment;
   - evidence другого space недоступно через связи текущего space.
 
 ### Attachment
@@ -94,6 +99,7 @@
 - Инварианты:
   - staged upload до создания evidence имеет пустые owner-поля;
   - claimed attachment имеет `space_id`, `owner_entity_type` и `owner_entity_id`;
+  - file name, content type, storage key, checksum и положительный размер обязательны;
   - bytes хранятся вне PostgreSQL;
   - download проверяет права на owner entity;
   - checksum вычисляется при загрузке.
@@ -119,7 +125,7 @@
 | `DocumentSlug` | `release-plan`       | 1-96 lowercase letters, digits or single hyphens       |
 | `TaskKey`      | `SDLC-42`            | Non-empty external key without whitespace              |
 | `PhaseKey`     | `implementation`     | 1-64 lowercase letters, digits, hyphens or underscores |
-| `Checksum`     | `sha256:...`         | Target value object; baseline stores validated text    |
+| `Checksum`     | `sha256:...`         | Target value object; baseline stores non-empty text    |
 | `StorageKey`   | `documents/{id}/...` | Target value object; baseline stores validated text    |
 
 ## 4. Domain Events

@@ -55,6 +55,31 @@ fn role_and_type_enums_match_api_values() {
 }
 
 #[test]
+fn space_and_document_reject_empty_names() {
+    let owner_id = UserId::new();
+    assert!(
+        Space::create(
+            SpaceKey::parse("ENG").unwrap(),
+            "   ",
+            "Internal docs",
+            owner_id
+        )
+        .is_err()
+    );
+    assert!(
+        Document::create(
+            SpaceId::new(),
+            None,
+            DocumentSlug::parse("requirements").unwrap(),
+            "   ",
+            DocumentType::Requirements,
+            owner_id,
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn document_lifecycle_enforces_base_invariants() {
     let owner_id = UserId::new();
     let space = Space::create(
@@ -125,6 +150,19 @@ fn publish_rejects_empty_body_and_non_positive_version() {
         DocumentRevision::publish(&document, 1, "   ", "", "", "hash", None, UserId::new())
             .is_err()
     );
+    assert!(
+        DocumentRevision::publish(
+            &document,
+            1,
+            "# Body",
+            "<h1>Body</h1>",
+            "Body",
+            "   ",
+            None,
+            UserId::new()
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -168,6 +206,11 @@ fn evidence_requires_target_and_matching_payload() {
             user_id
         )
         .is_err()
+    );
+    assert!(EvidenceItem::external_url(space_id, target, "Bad", "   ", user_id).is_err());
+    assert!(
+        EvidenceItem::uploaded_file(space_id, target, "Bad", AttachmentId::new(), "   ", user_id)
+            .is_err()
     );
 }
 
