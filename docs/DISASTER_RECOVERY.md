@@ -28,3 +28,11 @@
 ## 4. Drills
 
 Run a restore drill before production and then monthly.
+
+On a Windows/WSL development host without Docker Desktop, use the isolated PostgreSQL and attachment smoke:
+
+```powershell
+pwsh -File scripts/backup-restore-smoke-wsl.ps1
+```
+
+Production readiness still requires the same logical restore to be rehearsed on a target-like staging environment using the real backup storage path.

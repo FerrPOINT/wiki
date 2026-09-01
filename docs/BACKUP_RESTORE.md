@@ -80,6 +80,14 @@ docker compose cp backend:"${WIKI_STORAGE__DIR:-/var/lib/wiki/uploads}/." ./atta
 - Раз в месяц делать test restore на staging.
 - Метрика: `backup_last_success_timestamp`.
 
+Локальный WSL drill для Windows-хоста без Docker Desktop:
+
+```powershell
+pwsh -File scripts/backup-restore-smoke-wsl.ps1
+```
+
+Команда создаёт две временные PostgreSQL базы и роль в WSL, применяет canonical SQLx migrations к source DB, добавляет контрольный документ/evidence/attachment, делает `pg_dump -Fc` и `attachments.tar`, восстанавливает их в restore DB и сравнивает checksum записи и файла. В конце удаляются только временные базы, роль и временный каталог; с `-KeepArtifacts` архив и распакованные файлы остаются для ручной проверки.
+
 ## 8. Disaster recovery
 
 | Сценарий | RTO | RPO | Действия |

@@ -57,20 +57,28 @@ curl -sf http://localhost:3456/api/v1/health
 curl -sf http://localhost:3456/api/v1/health/ready
 ```
 
-## 7. Scaling API
+## 7. Restore Drill
+
+```powershell
+pwsh -File scripts/backup-restore-smoke-wsl.ps1
+```
+
+Run this on Windows/WSL hosts before release when Docker Desktop is unavailable. On the production-like target host, run the Docker/compose backup and restore path against staging instead.
+
+## 8. Scaling API
 
 ```bash
 docker compose up -d --scale backend=3
 ```
 
-## 8. High CPU / Memory
+## 9. High CPU / Memory
 
 1. Check `top` / `docker stats`.
 2. Review slow query log.
 3. Restart affected container.
 4. Enable rate limit if DDoS suspected.
 
-## 9. DB Connection Pool Exhaustion
+## 10. DB Connection Pool Exhaustion
 
 ```sql
 SELECT count(*), state FROM pg_stat_activity GROUP BY state;
@@ -82,7 +90,7 @@ Mitigation:
 - Increase pool size temporarily.
 - Kill long-running queries.
 
-## 10. Disk Full
+## 11. Disk Full
 
 ```bash
 df -h
@@ -91,13 +99,13 @@ docker image prune -a
 ./scripts/cleanup_old_backups.sh
 ```
 
-## 11. Incident Contacts
+## 12. Incident Contacts
 
 - Primary operator: project owner.
 - Alert channel: configured by deployment environment.
 - Escalation: hosting provider and database administrator.
 
-## 12. Post-Mortem
+## 13. Post-Mortem
 
 After every SEV-1/SEV-2 incident:
 

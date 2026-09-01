@@ -1,6 +1,6 @@
 # Wiki MVP Readiness 100%
 
-> Snapshot date: 2026-09-01. This document defines readiness for starting main Wiki development, not production launch readiness.
+> Snapshot date: 2026-09-02. This document defines readiness for starting main Wiki development, not production launch readiness.
 
 ## 1. Purpose
 
@@ -91,7 +91,7 @@ None known after this readiness gate passes.
 - Docker-backed PostgreSQL smoke must still be run on a host with Docker Desktop available.
 - Native Windows Rust checks require MSVC Build Tools; WSL backend verification is accepted on this host.
 - Generated operation client can replace handwritten frontend endpoint wrappers after the API contract stabilizes further.
-- Security scans, backup restore drills and deployment TLS/CORS review remain release gates.
+- Security scans, target-environment backup restore drill and deployment TLS/CORS review remain release gates.
 
 ### Deferred Features
 
@@ -124,6 +124,9 @@ cargo clippy --workspace --all-targets -- -D warnings
 # PostgreSQL smoke
 pwsh -File scripts/postgres-smoke.ps1
 pwsh -File scripts/postgres-smoke-wsl.ps1
+
+# Backup/restore smoke
+pwsh -File scripts/backup-restore-smoke-wsl.ps1
 ```
 
 ## 9. Developer Handoff

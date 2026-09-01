@@ -41,7 +41,8 @@
 | WSL PostgreSQL smoke on this host | yes, accepted fallback | no, Docker or target env smoke preferred |
 | Docker PostgreSQL smoke | only where Docker is available | yes |
 | Backup/restore procedure documented | yes | yes |
-| Backup restore drill executed | no | yes |
+| WSL backup restore drill on this host | yes, accepted fallback | no, target env drill preferred |
+| Backup restore drill executed on target env | no | yes |
 | TLS/CORS/secrets reviewed for target host | no | yes |
 | Security scanner and dependency audit | no | yes |
 

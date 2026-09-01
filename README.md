@@ -104,6 +104,12 @@ If Docker Desktop is unavailable but WSL has a local PostgreSQL service, run the
 pwsh -File scripts/postgres-smoke-wsl.ps1
 ```
 
+Backup/restore drill on the same Windows/WSL fallback path:
+
+```powershell
+pwsh -File scripts/backup-restore-smoke-wsl.ps1
+```
+
 <a name="routes"></a>
 
 ## 🧭 Frontend Routes

@@ -98,6 +98,14 @@ pwsh -File scripts/postgres-smoke-wsl.ps1
 
 The WSL runner creates an isolated temporary database and role, runs the same `wiki_postgres_` suite through WSL Cargo, and removes only those temporary objects on exit.
 
+Backup/restore smoke from the repository root:
+
+```powershell
+pwsh -File scripts/backup-restore-smoke-wsl.ps1
+```
+
+The backup/restore smoke applies canonical SQLx migrations to an isolated source DB, writes document/evidence/attachment control data, creates a custom-format PostgreSQL dump plus attachment tar, restores them into an isolated restore DB, verifies restored metadata/checksums/file bytes and removes the temporary DBs/role on exit.
+
 ## 5. Fixtures
 
 Baseline test fixtures:

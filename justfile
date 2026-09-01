@@ -93,6 +93,14 @@ test-backend:
 test-backend-coverage:
     bash scripts/run-e2e-tests.sh
 
+# Run PostgreSQL API smoke against local WSL PostgreSQL
+postgres-smoke-wsl:
+    pwsh -File scripts/postgres-smoke-wsl.ps1
+
+# Run backup/restore drill against local WSL PostgreSQL
+backup-restore-smoke-wsl:
+    pwsh -File scripts/backup-restore-smoke-wsl.ps1
+
 # Run all fast tests
 @test: test-backend test-frontend
 
