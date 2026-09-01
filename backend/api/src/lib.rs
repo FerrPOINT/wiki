@@ -14,6 +14,7 @@ use tower_governor::{GovernorLayer, governor::GovernorConfigBuilder};
 use tower_http::{
     cors::{Any, CorsLayer},
     set_header::SetResponseHeaderLayer,
+    trace::TraceLayer,
 };
 use utoipa::{
     Modify, OpenApi,
@@ -367,6 +368,19 @@ pub fn router_with_wiki(
     let api = public.merge(auth_routes).merge(protected);
     let handle = metric_handle();
     let prometheus_layer: PrometheusMetricLayer = GenericMetricLayer::new();
+    let trace_layer = TraceLayer::new_for_http().make_span_with(|request: &Request| {
+        let request_id = request
+            .headers()
+            .get(REQUEST_ID_HEADER)
+            .and_then(normalize_request_id)
+            .unwrap_or_else(|| "unknown".to_string());
+        tracing::info_span!(
+            "http_request",
+            method = %request.method(),
+            path = %request.uri().path(),
+            request_id = %request_id
+        )
+    });
 
     let app = Router::<Arc<app::WikiAppContext>>::new()
         .route("/metrics", get(move || std::future::ready(handle.render())))
@@ -376,15 +390,21 @@ pub fn router_with_wiki(
     with_security_headers(app)
         .layer(prometheus_layer)
         .layer(cors)
+        .layer(trace_layer)
         .layer(from_fn(request_id_middleware))
 }
 
-async fn request_id_middleware(request: Request, next: Next) -> Response {
+async fn request_id_middleware(mut request: Request, next: Next) -> Response {
     let request_id = request
         .headers()
         .get(REQUEST_ID_HEADER)
         .and_then(normalize_request_id)
         .unwrap_or_else(new_request_id);
+    if let Ok(value) = HeaderValue::from_str(&request_id) {
+        request
+            .headers_mut()
+            .insert(HeaderName::from_static(REQUEST_ID_HEADER), value);
+    }
     let mut response = next.run(request).await;
     if let Ok(value) = HeaderValue::from_str(&request_id) {
         response
