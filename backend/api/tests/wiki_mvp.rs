@@ -3595,6 +3595,36 @@ async fn wiki_api_propagates_request_id_header() {
 }
 
 #[tokio::test]
+async fn wiki_metrics_endpoint_exposes_prometheus_http_metrics() {
+    let app = test_app();
+
+    let (status, _) = call(&app, Method::GET, "/api/v1/health", None, None).await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, headers, metrics) =
+        call_with_headers(&app, Method::GET, "/metrics", None, None, &[]).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        headers
+            .get("content-type")
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| value.starts_with("text/plain")),
+        "metrics endpoint should return Prometheus text"
+    );
+    let raw = metrics["raw"]
+        .as_str()
+        .expect("metrics endpoint should return raw Prometheus text");
+    assert!(
+        raw.contains("axum_http_requests_total"),
+        "metrics endpoint should expose the HTTP request counter:\n{raw}"
+    );
+    assert!(
+        raw.contains(r#"endpoint="/api/v1/health""#) || raw.contains(r#"endpoint="/metrics""#),
+        "metrics endpoint should expose route labels:\n{raw}"
+    );
+}
+
+#[tokio::test]
 async fn wiki_api_records_request_id_in_audit_log() {
     let app = test_app();
     let login_request_id = format!("req-audit-login-{}", Uuid::now_v7().simple());
