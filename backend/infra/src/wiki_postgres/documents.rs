@@ -1,5 +1,5 @@
 use super::{
-    PostgresWikiBackend,
+    PostgresWikiBackend, ensure_document_accepts_writes_tx,
     mapping::{parse_uuid, revision_response_from_row, to_iso},
 };
 use app::wiki::{
@@ -9,7 +9,7 @@ use app::wiki::{
     checksum, markdown_to_text, normalize_space_key,
 };
 use shared::wiki_contract::*;
-use sqlx::{Postgres, Row, Transaction};
+use sqlx::Row;
 use std::collections::BTreeSet;
 use uuid::Uuid;
 
@@ -430,32 +430,6 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
             Ok(revision_response_from_row(&row))
         })
     }
-}
-
-async fn ensure_document_accepts_writes_tx(
-    tx: &mut Transaction<'_, Postgres>,
-    document_id: Uuid,
-) -> Result<(), shared::AppError> {
-    let row = sqlx::query(
-        r#"
-        SELECT (status = 'archived' OR archived_at IS NOT NULL) AS archived
-        FROM documents
-        WHERE id = $1
-        FOR UPDATE
-        "#,
-    )
-    .bind(document_id)
-    .fetch_optional(&mut **tx)
-    .await
-    .map_err(shared::AppError::database)?
-    .ok_or_else(|| shared::AppError::not_found("document", document_id))?;
-    let archived: bool = row.get("archived");
-    if archived {
-        return Err(shared::AppError::invalid_input(
-            "archived document does not accept writes",
-        ));
-    }
-    Ok(())
 }
 
 impl PostgresWikiBackend {

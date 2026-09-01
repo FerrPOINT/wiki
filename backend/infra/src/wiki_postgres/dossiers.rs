@@ -1,5 +1,5 @@
 use super::{
-    PostgresWikiBackend,
+    PostgresWikiBackend, ensure_document_accepts_writes_tx,
     mapping::{document_summary_from_row, evidence_response_from_row, parse_uuid},
     queries::EVIDENCE_TARGET_SQL,
 };
@@ -200,6 +200,7 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
                 .begin()
                 .await
                 .map_err(shared::AppError::database)?;
+            ensure_document_accepts_writes_tx(&mut tx, command.document_id).await?;
             let task_id = self
                 .backend
                 .upsert_task_dossier_tx(&mut tx, command.space_id, &command.task_key)
@@ -318,6 +319,7 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
                 .begin()
                 .await
                 .map_err(shared::AppError::database)?;
+            ensure_document_accepts_writes_tx(&mut tx, command.document_id).await?;
             let phase_id = self
                 .backend
                 .upsert_phase_dossier_tx(&mut tx, command.space_id, &command.phase_key)

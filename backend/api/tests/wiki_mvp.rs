@@ -1205,6 +1205,32 @@ async fn wiki_memory_archived_document_rejects_write_commands() {
         "archived document does not accept writes"
     );
 
+    for (path, task_or_phase) in [
+        (
+            format!("/api/v1/spaces/SDLC/tasks/ARCHIVE-{short}/links/documents"),
+            "task",
+        ),
+        (
+            format!("/api/v1/spaces/SDLC/phases/archive-{short}/links/documents"),
+            "phase",
+        ),
+    ] {
+        let (status, error) = call(
+            &app,
+            Method::POST,
+            &path,
+            Some(&token),
+            Some(json!({ "document_id": document_id })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{task_or_phase} link");
+        assert_eq!(error["error"]["code"], "VALIDATION_ERROR");
+        assert_eq!(
+            error["error"]["message"],
+            "archived document does not accept writes"
+        );
+    }
+
     let (status, after) = call(
         &app,
         Method::GET,
@@ -2010,7 +2036,7 @@ async fn wiki_postgres_archived_document_rejects_write_commands_when_database_av
     )
     .await;
     assert_eq!(status, StatusCode::CREATED);
-    let document_id = document["id"].as_str().unwrap();
+    let document_id = document["id"].as_str().unwrap().to_string();
 
     let (status, archived) = call(
         &app,
@@ -2041,6 +2067,16 @@ async fn wiki_postgres_archived_document_rejects_write_commands_when_database_av
             Method::POST,
             format!("/api/v1/documents/{document_id}/move"),
             json!({ "parent_id": Value::Null }),
+        ),
+        (
+            Method::POST,
+            format!("/api/v1/spaces/SDLC/tasks/PGARCH-{short}/links/documents"),
+            json!({ "document_id": document_id }),
+        ),
+        (
+            Method::POST,
+            format!("/api/v1/spaces/SDLC/phases/pgarch-{short}/links/documents"),
+            json!({ "document_id": document_id }),
         ),
     ] {
         let (status, error) = call(&app, method, &path, Some(&token), Some(body)).await;

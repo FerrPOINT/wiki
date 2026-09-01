@@ -1572,6 +1572,11 @@ pub async fn link_task_document(
             "document belongs to another space",
         ));
     }
+    if document.status == "archived" {
+        return Err(shared::AppError::invalid_input(
+            "archived document does not accept writes",
+        ));
+    }
     document.task_keys.insert(task_key.clone());
     document.updated_at = now_iso();
     store.audit(&claims.user_id, "task.link_document", "task", &task_key);
@@ -1748,6 +1753,11 @@ pub async fn link_phase_document(
     if document.space_key != key {
         return Err(shared::AppError::invalid_input(
             "document belongs to another space",
+        ));
+    }
+    if document.status == "archived" {
+        return Err(shared::AppError::invalid_input(
+            "archived document does not accept writes",
         ));
     }
     document.phase_keys.insert(phase_key.clone());

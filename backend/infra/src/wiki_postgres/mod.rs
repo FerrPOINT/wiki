@@ -27,6 +27,32 @@ struct PostgresWikiBackend {
     settings: WikiSettingsSnapshot,
 }
 
+async fn ensure_document_accepts_writes_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    document_id: Uuid,
+) -> Result<(), shared::AppError> {
+    let row = sqlx::query(
+        r#"
+        SELECT (status = 'archived' OR archived_at IS NOT NULL) AS archived
+        FROM documents
+        WHERE id = $1
+        FOR UPDATE
+        "#,
+    )
+    .bind(document_id)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(shared::AppError::database)?
+    .ok_or_else(|| shared::AppError::not_found("document", document_id))?;
+    let archived: bool = row.get("archived");
+    if archived {
+        return Err(shared::AppError::invalid_input(
+            "archived document does not accept writes",
+        ));
+    }
+    Ok(())
+}
+
 impl PostgresWikiBackend {
     async fn ensure_admin(&self, claims: &WikiClaims) -> Result<Uuid, shared::AppError> {
         let user_id = parse_uuid(&claims.user_id, "user")?;
