@@ -50,6 +50,126 @@ pub struct WikiTokenPair {
     pub expires_in: u64,
 }
 
+pub type WikiUserRepositoryFuture<'a, T> =
+    Pin<Box<dyn Future<Output = Result<T, AppError>> + Send + 'a>>;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiCreateUserCommand {
+    pub email: String,
+    pub username: String,
+    pub display_name: String,
+    pub password_hash: String,
+    pub global_role: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiUpdateUserCommand {
+    pub user_id: Uuid,
+    pub email: Option<String>,
+    pub username: Option<String>,
+    pub display_name: Option<String>,
+    pub global_role: Option<String>,
+    pub active: Option<bool>,
+}
+
+pub trait WikiUserRepository {
+    fn list_users<'a>(&'a self) -> WikiUserRepositoryFuture<'a, Vec<shared::WikiUserResponse>>;
+
+    fn create_user<'a>(
+        &'a self,
+        actor_id: Uuid,
+        command: WikiCreateUserCommand,
+    ) -> WikiUserRepositoryFuture<'a, shared::WikiUserResponse>;
+
+    fn update_user<'a>(
+        &'a self,
+        actor_id: Uuid,
+        command: WikiUpdateUserCommand,
+    ) -> WikiUserRepositoryFuture<'a, shared::WikiUserResponse>;
+}
+
+pub struct WikiUserUseCase<'a, R: WikiUserRepository + ?Sized> {
+    repository: &'a R,
+}
+
+impl<'a, R: WikiUserRepository + ?Sized> WikiUserUseCase<'a, R> {
+    pub fn new(repository: &'a R) -> Self {
+        Self { repository }
+    }
+
+    pub async fn list(&self) -> Result<shared::WikiUserListResponse, AppError> {
+        Ok(shared::WikiUserListResponse {
+            users: self.repository.list_users().await?,
+        })
+    }
+
+    pub async fn create(
+        &self,
+        actor_id: Uuid,
+        body: shared::WikiCreateUserRequest,
+    ) -> Result<shared::WikiUserResponse, AppError> {
+        let password = normalize_required(&body.password, "password")?;
+        let command = WikiCreateUserCommand {
+            email: normalize_required(&body.email, "email")?,
+            username: normalize_required(&body.username, "username")?,
+            display_name: normalize_required(&body.display_name, "display_name")?,
+            password_hash: hash_password(&password)?,
+            global_role: global_role_from_request(&body.role)?.to_string(),
+        };
+        self.repository.create_user(actor_id, command).await
+    }
+
+    pub async fn update(
+        &self,
+        actor_id: Uuid,
+        user_id: Uuid,
+        body: shared::WikiUpdateUserRequest,
+    ) -> Result<shared::WikiUserResponse, AppError> {
+        let role = match body.role.as_deref() {
+            Some(role) => Some(global_role_from_request(role)?.to_string()),
+            None => None,
+        };
+        let global_role = if body.is_system_admin == Some(true) {
+            Some(GlobalRole::Admin.as_str().to_string())
+        } else if body.is_system_admin == Some(false) {
+            Some(GlobalRole::User.as_str().to_string())
+        } else {
+            role
+        };
+
+        let command = WikiUpdateUserCommand {
+            user_id,
+            email: normalize_optional_update_value(body.email.as_deref()),
+            username: normalize_optional_update_value(body.username.as_deref()),
+            display_name: normalize_optional_update_value(body.display_name.as_deref()),
+            global_role,
+            active: body.active,
+        };
+        self.repository.update_user(actor_id, command).await
+    }
+}
+
+pub type WikiSettingsRepositoryFuture<'a> =
+    Pin<Box<dyn Future<Output = Result<WikiSettingsSnapshot, AppError>> + Send + 'a>>;
+
+pub trait WikiSettingsRepository {
+    fn get_settings<'a>(&'a self) -> WikiSettingsRepositoryFuture<'a>;
+}
+
+pub struct WikiSettingsUseCase<'a, R: WikiSettingsRepository + ?Sized> {
+    repository: &'a R,
+}
+
+impl<'a, R: WikiSettingsRepository + ?Sized> WikiSettingsUseCase<'a, R> {
+    pub fn new(repository: &'a R) -> Self {
+        Self { repository }
+    }
+
+    pub async fn get(&self) -> Result<WikiSettingsSnapshot, AppError> {
+        self.repository.get_settings().await
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WikiSearchCriteria {
     pub needle: String,
@@ -221,6 +341,13 @@ pub fn normalize_required(value: &str, field: &str) -> Result<String, AppError> 
         return Err(AppError::invalid_input(format!("{field} is required")));
     }
     Ok(value.to_string())
+}
+
+fn normalize_optional_update_value(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
 }
 
 pub fn normalize_space_key(value: &str) -> Result<String, AppError> {
@@ -526,6 +653,16 @@ mod tests {
         evidence: Vec<shared::SearchResultResponse>,
     }
 
+    struct RecordingUserRepository {
+        users: Vec<shared::WikiUserResponse>,
+        created: std::sync::Mutex<Vec<(Uuid, WikiCreateUserCommand)>>,
+        updated: std::sync::Mutex<Vec<(Uuid, WikiUpdateUserCommand)>>,
+    }
+
+    struct StaticSettingsRepository {
+        snapshot: WikiSettingsSnapshot,
+    }
+
     struct RecordingTemplateRepository {
         created: std::sync::Mutex<Vec<(Uuid, WikiCreateTemplateCommand)>>,
     }
@@ -552,6 +689,75 @@ mod tests {
         ) -> WikiSearchRepositoryFuture<'a> {
             let evidence = self.evidence.clone();
             Box::pin(async move { Ok(evidence) })
+        }
+    }
+
+    impl WikiUserRepository for RecordingUserRepository {
+        fn list_users<'a>(&'a self) -> WikiUserRepositoryFuture<'a, Vec<shared::WikiUserResponse>> {
+            Box::pin(async move { Ok(self.users.clone()) })
+        }
+
+        fn create_user<'a>(
+            &'a self,
+            actor_id: Uuid,
+            command: WikiCreateUserCommand,
+        ) -> WikiUserRepositoryFuture<'a, shared::WikiUserResponse> {
+            Box::pin(async move {
+                self.created
+                    .lock()
+                    .expect("user create commands should be lockable")
+                    .push((actor_id, command.clone()));
+                Ok(shared::WikiUserResponse {
+                    id: Uuid::now_v7().to_string(),
+                    email: command.email,
+                    username: command.username,
+                    display_name: command.display_name,
+                    role: command.global_role.clone(),
+                    is_system_admin: command.global_role == GlobalRole::Admin.as_str(),
+                    active: true,
+                })
+            })
+        }
+
+        fn update_user<'a>(
+            &'a self,
+            actor_id: Uuid,
+            command: WikiUpdateUserCommand,
+        ) -> WikiUserRepositoryFuture<'a, shared::WikiUserResponse> {
+            Box::pin(async move {
+                self.updated
+                    .lock()
+                    .expect("user update commands should be lockable")
+                    .push((actor_id, command.clone()));
+                let role = command
+                    .global_role
+                    .clone()
+                    .unwrap_or_else(|| GlobalRole::User.as_str().to_string());
+                Ok(shared::WikiUserResponse {
+                    id: command.user_id.to_string(),
+                    email: command
+                        .email
+                        .clone()
+                        .unwrap_or_else(|| "user@example.test".to_string()),
+                    username: command
+                        .username
+                        .clone()
+                        .unwrap_or_else(|| "user".to_string()),
+                    display_name: command
+                        .display_name
+                        .clone()
+                        .unwrap_or_else(|| "User".to_string()),
+                    role: role.clone(),
+                    is_system_admin: role == GlobalRole::Admin.as_str(),
+                    active: command.active.unwrap_or(true),
+                })
+            })
+        }
+    }
+
+    impl WikiSettingsRepository for StaticSettingsRepository {
+        fn get_settings<'a>(&'a self) -> WikiSettingsRepositoryFuture<'a> {
+            Box::pin(async move { Ok(self.snapshot.clone()) })
         }
     }
 
@@ -619,6 +825,18 @@ mod tests {
             entity_type: "document".to_string(),
             entity_id: Uuid::now_v7().to_string(),
             created_at: "2026-09-01T10:00:00Z".to_string(),
+        }
+    }
+
+    fn wiki_user(email: &str, role: &str) -> shared::WikiUserResponse {
+        shared::WikiUserResponse {
+            id: Uuid::now_v7().to_string(),
+            email: email.to_string(),
+            username: default_username(email),
+            display_name: email.to_string(),
+            role: role.to_string(),
+            is_system_admin: role == GlobalRole::Admin.as_str(),
+            active: true,
         }
     }
 
@@ -701,6 +919,113 @@ mod tests {
         assert!(space_role_allows(Some("viewer"), WikiSpaceAccess::View));
         assert!(!space_role_allows(Some("viewer"), WikiSpaceAccess::Edit));
         assert!(!space_role_allows(None, WikiSpaceAccess::View));
+    }
+
+    #[tokio::test]
+    async fn wiki_user_use_case_lists_and_validates_admin_commands() {
+        let repository = RecordingUserRepository {
+            users: vec![wiki_user("admin@example.test", "admin")],
+            created: std::sync::Mutex::new(Vec::new()),
+            updated: std::sync::Mutex::new(Vec::new()),
+        };
+        let actor_id = Uuid::now_v7();
+
+        let list = WikiUserUseCase::new(&repository).list().await.unwrap();
+        assert_eq!(list.users.len(), 1);
+        assert_eq!(list.users[0].email, "admin@example.test");
+
+        let created = WikiUserUseCase::new(&repository)
+            .create(
+                actor_id,
+                shared::WikiCreateUserRequest {
+                    email: "  editor@example.test  ".to_string(),
+                    username: "  editor  ".to_string(),
+                    password: "  secret-password  ".to_string(),
+                    display_name: "  Editor User  ".to_string(),
+                    role: "editor".to_string(),
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(created.email, "editor@example.test");
+        assert_eq!(created.username, "editor");
+        assert_eq!(created.display_name, "Editor User");
+        assert_eq!(created.role, "user");
+
+        {
+            let created_commands = repository
+                .created
+                .lock()
+                .expect("user create commands should be lockable");
+            assert_eq!(created_commands.len(), 1);
+            assert_eq!(created_commands[0].0, actor_id);
+            assert_eq!(created_commands[0].1.email, "editor@example.test");
+            assert_eq!(created_commands[0].1.username, "editor");
+            assert_eq!(created_commands[0].1.display_name, "Editor User");
+            assert_eq!(created_commands[0].1.global_role, "user");
+            assert_ne!(created_commands[0].1.password_hash, "secret-password");
+            assert!(
+                verify_password("secret-password", &created_commands[0].1.password_hash).unwrap()
+            );
+        }
+
+        assert!(
+            WikiUserUseCase::new(&repository)
+                .create(
+                    actor_id,
+                    shared::WikiCreateUserRequest {
+                        email: "admin@example.test".to_string(),
+                        username: "admin".to_string(),
+                        password: " ".to_string(),
+                        display_name: "Admin".to_string(),
+                        role: "admin".to_string(),
+                    },
+                )
+                .await
+                .is_err()
+        );
+
+        let user_id = Uuid::now_v7();
+        let updated = WikiUserUseCase::new(&repository)
+            .update(
+                actor_id,
+                user_id,
+                shared::WikiUpdateUserRequest {
+                    email: Some("   ".to_string()),
+                    username: Some("  viewer  ".to_string()),
+                    display_name: Some("  Viewer User  ".to_string()),
+                    role: Some("admin".to_string()),
+                    is_system_admin: Some(false),
+                    active: Some(false),
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(updated.id, user_id.to_string());
+        assert_eq!(updated.email, "user@example.test");
+        assert_eq!(updated.username, "viewer");
+        assert_eq!(updated.display_name, "Viewer User");
+        assert_eq!(updated.role, "user");
+        assert!(!updated.active);
+
+        assert_eq!(
+            repository
+                .updated
+                .lock()
+                .expect("user update commands should be lockable")
+                .as_slice(),
+            [(
+                actor_id,
+                WikiUpdateUserCommand {
+                    user_id,
+                    email: None,
+                    username: Some("viewer".to_string()),
+                    display_name: Some("Viewer User".to_string()),
+                    global_role: Some("user".to_string()),
+                    active: Some(false),
+                }
+            )]
+        );
     }
 
     #[test]
@@ -940,6 +1265,19 @@ mod tests {
 
         assert!(snapshot.registration_enabled);
         assert_eq!(snapshot.max_upload_bytes, 25 * 1024 * 1024);
+    }
+
+    #[tokio::test]
+    async fn wiki_settings_use_case_returns_repository_snapshot() {
+        let snapshot = WikiSettingsSnapshot::from_values(true, 25 * 1024 * 1024);
+        let repository = StaticSettingsRepository {
+            snapshot: snapshot.clone(),
+        };
+
+        assert_eq!(
+            WikiSettingsUseCase::new(&repository).get().await.unwrap(),
+            snapshot
+        );
     }
 
     #[test]

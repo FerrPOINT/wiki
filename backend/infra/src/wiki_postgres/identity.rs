@@ -3,12 +3,142 @@ use super::{
     mapping::{parse_uuid, user_response_from_row},
 };
 use app::wiki::{
-    create_wiki_session_token_pair, create_wiki_token_pair, decode_token, global_role_from_request,
+    WikiCreateUserCommand, WikiSettingsRepository, WikiSettingsRepositoryFuture,
+    WikiSettingsUseCase, WikiUpdateUserCommand, WikiUserRepository, WikiUserRepositoryFuture,
+    WikiUserUseCase, create_wiki_session_token_pair, create_wiki_token_pair, decode_token,
     hash_password, hash_token, normalize_required, verify_password,
 };
 use shared::wiki_contract::*;
 use sqlx::{Row, postgres::PgRow};
 use uuid::Uuid;
+
+struct PostgresWikiUserRepository<'a> {
+    backend: &'a PostgresWikiBackend,
+}
+
+impl WikiUserRepository for PostgresWikiUserRepository<'_> {
+    fn list_users<'a>(&'a self) -> WikiUserRepositoryFuture<'a, Vec<WikiUserResponse>> {
+        Box::pin(async move {
+            let rows = sqlx::query(
+                r#"
+                SELECT id, email, username, display_name, global_role, is_active
+                FROM users
+                ORDER BY lower(email)
+                "#,
+            )
+            .fetch_all(&self.backend.pool)
+            .await
+            .map_err(shared::AppError::database)?;
+
+            Ok(rows.iter().map(user_response_from_row).collect())
+        })
+    }
+
+    fn create_user<'a>(
+        &'a self,
+        actor_id: Uuid,
+        command: WikiCreateUserCommand,
+    ) -> WikiUserRepositoryFuture<'a, WikiUserResponse> {
+        Box::pin(async move {
+            let mut tx = self
+                .backend
+                .pool
+                .begin()
+                .await
+                .map_err(shared::AppError::database)?;
+            let user_id = Uuid::now_v7();
+
+            let row = sqlx::query(
+                r#"
+                INSERT INTO users (
+                    id, email, username, display_name, password_hash,
+                    global_role, is_active, created_at, updated_at
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, true, now(), now())
+                RETURNING id, email, username, display_name, global_role, is_active
+                "#,
+            )
+            .bind(user_id)
+            .bind(&command.email)
+            .bind(&command.username)
+            .bind(&command.display_name)
+            .bind(&command.password_hash)
+            .bind(&command.global_role)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(shared::AppError::database)?;
+
+            self.backend
+                .insert_audit(&mut tx, Some(actor_id), "user.create", "user", user_id)
+                .await?;
+            tx.commit().await.map_err(shared::AppError::database)?;
+
+            Ok(user_response_from_row(&row))
+        })
+    }
+
+    fn update_user<'a>(
+        &'a self,
+        actor_id: Uuid,
+        command: WikiUpdateUserCommand,
+    ) -> WikiUserRepositoryFuture<'a, WikiUserResponse> {
+        Box::pin(async move {
+            let mut tx = self
+                .backend
+                .pool
+                .begin()
+                .await
+                .map_err(shared::AppError::database)?;
+
+            let row = sqlx::query(
+                r#"
+                UPDATE users
+                SET email = COALESCE($2, email),
+                    username = COALESCE($3, username),
+                    display_name = COALESCE($4, display_name),
+                    global_role = COALESCE($5, global_role),
+                    is_active = COALESCE($6, is_active),
+                    updated_at = now()
+                WHERE id = $1
+                RETURNING id, email, username, display_name, global_role, is_active
+                "#,
+            )
+            .bind(command.user_id)
+            .bind(command.email.as_deref())
+            .bind(command.username.as_deref())
+            .bind(command.display_name.as_deref())
+            .bind(command.global_role.as_deref())
+            .bind(command.active)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(shared::AppError::database)?
+            .ok_or_else(|| shared::AppError::not_found("user", command.user_id))?;
+
+            self.backend
+                .insert_audit(
+                    &mut tx,
+                    Some(actor_id),
+                    "user.update",
+                    "user",
+                    command.user_id,
+                )
+                .await?;
+            tx.commit().await.map_err(shared::AppError::database)?;
+
+            Ok(user_response_from_row(&row))
+        })
+    }
+}
+
+struct PostgresWikiSettingsRepository<'a> {
+    backend: &'a PostgresWikiBackend,
+}
+
+impl WikiSettingsRepository for PostgresWikiSettingsRepository<'_> {
+    fn get_settings<'a>(&'a self) -> WikiSettingsRepositoryFuture<'a> {
+        Box::pin(async move { Ok(self.backend.settings.clone()) })
+    }
+}
 
 impl PostgresWikiBackend {
     pub(super) async fn authenticate_access_token(
@@ -232,20 +362,8 @@ impl PostgresWikiBackend {
         claims: &WikiClaims,
     ) -> Result<WikiUserListResponse, shared::AppError> {
         self.ensure_admin(claims).await?;
-        let rows = sqlx::query(
-            r#"
-            SELECT id, email, username, display_name, global_role, is_active
-            FROM users
-            ORDER BY lower(email)
-            "#,
-        )
-        .fetch_all(&self.pool)
-        .await
-        .map_err(shared::AppError::database)?;
-
-        Ok(WikiUserListResponse {
-            users: rows.iter().map(user_response_from_row).collect(),
-        })
+        let repository = PostgresWikiUserRepository { backend: self };
+        WikiUserUseCase::new(&repository).list().await
     }
 
     pub(super) async fn get_settings(
@@ -253,7 +371,8 @@ impl PostgresWikiBackend {
         claims: &WikiClaims,
     ) -> Result<WikiSettingsSnapshot, shared::AppError> {
         self.ensure_admin(claims).await?;
-        Ok(self.settings.clone())
+        let repository = PostgresWikiSettingsRepository { backend: self };
+        WikiSettingsUseCase::new(&repository).get().await
     }
 
     pub(super) async fn create_user(
@@ -262,37 +381,10 @@ impl PostgresWikiBackend {
         body: WikiCreateUserRequest,
     ) -> Result<WikiUserResponse, shared::AppError> {
         let actor_id = self.ensure_admin(claims).await?;
-        let email = normalize_required(&body.email, "email")?;
-        let username = normalize_required(&body.username, "username")?;
-        let display_name = normalize_required(&body.display_name, "display_name")?;
-        let password = normalize_required(&body.password, "password")?;
-        let role = global_role_from_request(&body.role)?;
-        let user_id = Uuid::now_v7();
-        let password_hash = hash_password(&password)?;
-
-        let row = sqlx::query(
-            r#"
-            INSERT INTO users (
-                id, email, username, display_name, password_hash,
-                global_role, is_active, created_at, updated_at
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, true, now(), now())
-            RETURNING id, email, username, display_name, global_role, is_active
-            "#,
-        )
-        .bind(user_id)
-        .bind(email)
-        .bind(username)
-        .bind(display_name)
-        .bind(password_hash)
-        .bind(role)
-        .fetch_one(&self.pool)
-        .await
-        .map_err(shared::AppError::database)?;
-
-        self.audit(Some(actor_id), "user.create", "user", user_id)
-            .await?;
-        Ok(user_response_from_row(&row))
+        let repository = PostgresWikiUserRepository { backend: self };
+        WikiUserUseCase::new(&repository)
+            .create(actor_id, body)
+            .await
     }
 
     pub(super) async fn update_user(
@@ -303,60 +395,10 @@ impl PostgresWikiBackend {
     ) -> Result<WikiUserResponse, shared::AppError> {
         let actor_id = self.ensure_admin(claims).await?;
         let user_id = parse_uuid(user_id, "user")?;
-        let role = match body.role.as_deref() {
-            Some(role) => Some(global_role_from_request(role)?),
-            None => None,
-        };
-        let global_role = if body.is_system_admin == Some(true) {
-            Some("admin")
-        } else if body.is_system_admin == Some(false) {
-            Some("user")
-        } else {
-            role
-        };
-
-        let row = sqlx::query(
-            r#"
-            UPDATE users
-            SET email = COALESCE($2, email),
-                username = COALESCE($3, username),
-                display_name = COALESCE($4, display_name),
-                global_role = COALESCE($5, global_role),
-                is_active = COALESCE($6, is_active),
-                updated_at = now()
-            WHERE id = $1
-            RETURNING id, email, username, display_name, global_role, is_active
-            "#,
-        )
-        .bind(user_id)
-        .bind(
-            body.email
-                .as_deref()
-                .map(str::trim)
-                .filter(|value| !value.is_empty()),
-        )
-        .bind(
-            body.username
-                .as_deref()
-                .map(str::trim)
-                .filter(|value| !value.is_empty()),
-        )
-        .bind(
-            body.display_name
-                .as_deref()
-                .map(str::trim)
-                .filter(|value| !value.is_empty()),
-        )
-        .bind(global_role)
-        .bind(body.active)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(shared::AppError::database)?
-        .ok_or_else(|| shared::AppError::not_found("user", user_id))?;
-
-        self.audit(Some(actor_id), "user.update", "user", user_id)
-            .await?;
-        Ok(user_response_from_row(&row))
+        let repository = PostgresWikiUserRepository { backend: self };
+        WikiUserUseCase::new(&repository)
+            .update(actor_id, user_id, body)
+            .await
     }
 
     async fn issue_tokens(
