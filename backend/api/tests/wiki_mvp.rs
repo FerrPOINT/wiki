@@ -1048,6 +1048,23 @@ async fn wiki_mvp_routes_cover_public_contract() {
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(token),
+        Some(json!({
+            "space": "SDLC",
+            "task_key": "SDLC-99",
+            "title": "Uploaded checksum must not be accepted",
+            "evidence_type": "uploaded_file",
+            "attachment_id": "00000000-0000-0000-0000-000000000001",
+            "checksum": "sha256:client"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
     let (status, phase) = call(
         &app,
         Method::GET,

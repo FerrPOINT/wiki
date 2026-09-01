@@ -1816,7 +1816,7 @@ pub async fn create_evidence(
                 "external_url evidence requires url only",
             ));
         }
-        "uploaded_file" if attachment_id.is_none() || url_supplied => {
+        "uploaded_file" if attachment_id.is_none() || url_supplied || checksum_supplied => {
             return Err(shared::AppError::invalid_input(
                 "uploaded_file evidence requires attachment_id only",
             ));

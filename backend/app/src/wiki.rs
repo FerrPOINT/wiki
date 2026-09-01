@@ -1063,6 +1063,228 @@ impl<'a, R: WikiDossierRepository + ?Sized> WikiDossierUseCase<'a, R> {
     }
 }
 
+pub type WikiEvidenceRepositoryFuture<'a, T> =
+    Pin<Box<dyn Future<Output = Result<T, AppError>> + Send + 'a>>;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiCreateEvidenceCommand {
+    pub evidence_id: Uuid,
+    pub space_id: Uuid,
+    pub document_id: Option<Uuid>,
+    pub task_key: Option<String>,
+    pub phase_key: Option<String>,
+    pub title: String,
+    pub evidence_type: String,
+    pub url: Option<String>,
+    pub attachment_id: Option<Uuid>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiEvidenceQueryCriteria {
+    pub space_key: Option<String>,
+    pub document_id: Option<Uuid>,
+    pub task_key: Option<String>,
+    pub phase_key: Option<String>,
+    pub access_user_id: Option<Uuid>,
+    pub limit: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiUploadAttachmentCommand {
+    pub attachment_id: Uuid,
+    pub file_name: String,
+    pub content_type: String,
+    pub size_bytes: i64,
+    pub storage_key: String,
+    pub checksum: String,
+    pub bytes: Vec<u8>,
+}
+
+pub trait WikiEvidenceRepository {
+    fn create_evidence<'a>(
+        &'a self,
+        actor_id: Uuid,
+        command: WikiCreateEvidenceCommand,
+    ) -> WikiEvidenceRepositoryFuture<'a, shared::EvidenceResponse>;
+
+    fn list_evidence<'a>(
+        &'a self,
+        criteria: &'a WikiEvidenceQueryCriteria,
+    ) -> WikiEvidenceRepositoryFuture<'a, Vec<shared::EvidenceResponse>>;
+
+    fn get_evidence<'a>(
+        &'a self,
+        evidence_id: Uuid,
+    ) -> WikiEvidenceRepositoryFuture<'a, shared::EvidenceResponse>;
+
+    fn upload_attachment<'a>(
+        &'a self,
+        actor_id: Uuid,
+        command: WikiUploadAttachmentCommand,
+    ) -> WikiEvidenceRepositoryFuture<'a, shared::AttachmentResponse>;
+
+    fn get_attachment<'a>(
+        &'a self,
+        attachment_id: Uuid,
+    ) -> WikiEvidenceRepositoryFuture<'a, shared::AttachmentResponse>;
+
+    fn download_attachment<'a>(
+        &'a self,
+        attachment_id: Uuid,
+    ) -> WikiEvidenceRepositoryFuture<'a, shared::AttachmentDownloadResponse>;
+}
+
+pub struct WikiEvidenceUseCase<'a, R: WikiEvidenceRepository + ?Sized> {
+    repository: &'a R,
+}
+
+impl<'a, R: WikiEvidenceRepository + ?Sized> WikiEvidenceUseCase<'a, R> {
+    pub fn new(repository: &'a R) -> Self {
+        Self { repository }
+    }
+
+    pub async fn create(
+        &self,
+        actor_id: Uuid,
+        space_id: Uuid,
+        document_id: Option<Uuid>,
+        body: shared::CreateEvidenceRequest,
+    ) -> Result<shared::EvidenceResponse, AppError> {
+        let title = normalize_required(&body.title, "evidence title")?;
+        let evidence_type = normalize_evidence_type(&body.evidence_type)?;
+        let url_supplied = body.url.is_some();
+        let attachment_id_supplied = body.attachment_id.is_some();
+        let checksum_supplied = body.checksum.is_some();
+        let url = body
+            .url
+            .as_deref()
+            .map(|value| normalize_required(value, "evidence url"))
+            .transpose()?;
+
+        match evidence_type {
+            "external_url" if url.is_none() || attachment_id_supplied || checksum_supplied => {
+                return Err(AppError::invalid_input(
+                    "external_url evidence requires url only",
+                ));
+            }
+            "uploaded_file" if !attachment_id_supplied || url_supplied || checksum_supplied => {
+                return Err(AppError::invalid_input(
+                    "uploaded_file evidence requires attachment_id only",
+                ));
+            }
+            "external_url" | "uploaded_file" => {}
+            _ => unreachable!("validated evidence type"),
+        }
+
+        let task_key = body
+            .task_key
+            .as_deref()
+            .map(normalize_task_key)
+            .transpose()?;
+        let phase_key = body
+            .phase_key
+            .as_deref()
+            .map(normalize_phase_key)
+            .transpose()?;
+        if document_id.is_none() && task_key.is_none() && phase_key.is_none() {
+            return Err(AppError::invalid_input(
+                "evidence must target a document, task or phase",
+            ));
+        }
+
+        let command = WikiCreateEvidenceCommand {
+            evidence_id: Uuid::now_v7(),
+            space_id,
+            document_id,
+            task_key,
+            phase_key,
+            title,
+            evidence_type: evidence_type.to_string(),
+            url,
+            attachment_id: body
+                .attachment_id
+                .as_deref()
+                .map(|value| parse_request_uuid(value, "attachment"))
+                .transpose()?,
+        };
+        self.repository.create_evidence(actor_id, command).await
+    }
+
+    pub async fn list(
+        &self,
+        space_key: Option<&str>,
+        document_id: Option<Uuid>,
+        task_key: Option<&str>,
+        phase_key: Option<&str>,
+        access_user_id: Option<Uuid>,
+        limit: Option<usize>,
+    ) -> Result<shared::EvidenceListResponse, AppError> {
+        let criteria = WikiEvidenceQueryCriteria {
+            space_key: space_key.map(normalize_space_key).transpose()?,
+            document_id,
+            task_key: task_key.map(normalize_task_key).transpose()?,
+            phase_key: phase_key.map(normalize_phase_key).transpose()?,
+            access_user_id,
+            limit: clamp_limit(limit, 100),
+        };
+        Ok(shared::EvidenceListResponse {
+            evidence: self.repository.list_evidence(&criteria).await?,
+        })
+    }
+
+    pub async fn get(&self, evidence_id: Uuid) -> Result<shared::EvidenceResponse, AppError> {
+        self.repository.get_evidence(evidence_id).await
+    }
+
+    pub async fn upload_attachment(
+        &self,
+        actor_id: Uuid,
+        file_name: String,
+        content_type: String,
+        bytes: Vec<u8>,
+        max_upload_bytes: usize,
+    ) -> Result<shared::AttachmentResponse, AppError> {
+        if bytes.is_empty() {
+            return Err(AppError::invalid_input("file is required"));
+        }
+        if bytes.len() > max_upload_bytes {
+            return Err(AppError::invalid_input("file is too large"));
+        }
+
+        let attachment_id = Uuid::now_v7();
+        let file_name = normalize_attachment_file_name(&file_name)?;
+        let content_type = normalize_required(&content_type, "attachment content type")?;
+        let storage_key = format!(
+            "attachments/{attachment_id}/{}",
+            safe_download_filename(&file_name)
+        );
+        let command = WikiUploadAttachmentCommand {
+            attachment_id,
+            file_name,
+            content_type,
+            size_bytes: bytes.len() as i64,
+            storage_key,
+            checksum: checksum(&bytes),
+            bytes,
+        };
+        self.repository.upload_attachment(actor_id, command).await
+    }
+
+    pub async fn get_attachment(
+        &self,
+        attachment_id: Uuid,
+    ) -> Result<shared::AttachmentResponse, AppError> {
+        self.repository.get_attachment(attachment_id).await
+    }
+
+    pub async fn download_attachment(
+        &self,
+        attachment_id: Uuid,
+    ) -> Result<shared::AttachmentDownloadResponse, AppError> {
+        self.repository.download_attachment(attachment_id).await
+    }
+}
+
 pub type WikiSettingsRepositoryFuture<'a> =
     Pin<Box<dyn Future<Output = Result<WikiSettingsSnapshot, AppError>> + Send + 'a>>;
 
@@ -1280,6 +1502,10 @@ fn parse_claim_uuid(value: &str, entity: &str) -> Result<Uuid, AppError> {
     Uuid::parse_str(value).map_err(|_| AppError::not_found(entity, value))
 }
 
+fn parse_request_uuid(value: &str, entity: &str) -> Result<Uuid, AppError> {
+    Uuid::parse_str(value).map_err(|_| AppError::not_found(entity, value))
+}
+
 fn session_command(user_id: Uuid, token_pair: &WikiTokenPair) -> WikiSessionCommand {
     WikiSessionCommand {
         session_id: token_pair.session_id,
@@ -1318,6 +1544,17 @@ pub fn normalize_task_key(value: &str) -> Result<String, AppError> {
 
 pub fn normalize_phase_key(value: &str) -> Result<String, AppError> {
     Ok(PhaseKey::parse(value)?.to_string())
+}
+
+pub fn normalize_evidence_space_key(
+    space_key: Option<&str>,
+    document_space_key: Option<&str>,
+) -> Result<String, AppError> {
+    space_key
+        .or(document_space_key)
+        .map(normalize_space_key)
+        .transpose()
+        .map(|key| key.unwrap_or_else(|| "SDLC".to_string()))
 }
 
 pub fn normalize_document_type(value: &str, allow_page: bool) -> Result<&'static str, AppError> {
@@ -1598,6 +1835,18 @@ pub fn safe_download_filename(file_name: &str) -> String {
     }
 }
 
+fn normalize_attachment_file_name(file_name: &str) -> Result<String, AppError> {
+    let normalized = normalize_required(file_name, "attachment file name")?;
+    if normalized != file_name
+        || normalized
+            .chars()
+            .any(|ch| matches!(ch, '/' | '\\' | '\0') || ch.is_control())
+    {
+        return Err(AppError::invalid_input("attachment file name is invalid"));
+    }
+    Ok(normalized)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1658,6 +1907,18 @@ mod tests {
         linked_phases: std::sync::Mutex<Vec<(Uuid, WikiLinkPhaseDocumentCommand)>>,
         listed_phase_documents: std::sync::Mutex<Vec<(Uuid, String, String)>>,
         listed_phase_evidence: std::sync::Mutex<Vec<(Uuid, String, String)>>,
+    }
+
+    struct RecordingEvidenceRepository {
+        evidence: shared::EvidenceResponse,
+        attachment: shared::AttachmentResponse,
+        download: shared::AttachmentDownloadResponse,
+        created: std::sync::Mutex<Vec<(Uuid, WikiCreateEvidenceCommand)>>,
+        listed: std::sync::Mutex<Vec<WikiEvidenceQueryCriteria>>,
+        requested_evidence: std::sync::Mutex<Vec<Uuid>>,
+        uploaded: std::sync::Mutex<Vec<(Uuid, WikiUploadAttachmentCommand)>>,
+        requested_attachments: std::sync::Mutex<Vec<Uuid>>,
+        downloaded_attachments: std::sync::Mutex<Vec<Uuid>>,
     }
 
     struct StaticSettingsRepository {
@@ -2181,6 +2442,88 @@ mod tests {
         }
     }
 
+    impl WikiEvidenceRepository for RecordingEvidenceRepository {
+        fn create_evidence<'a>(
+            &'a self,
+            actor_id: Uuid,
+            command: WikiCreateEvidenceCommand,
+        ) -> WikiEvidenceRepositoryFuture<'a, shared::EvidenceResponse> {
+            Box::pin(async move {
+                self.created
+                    .lock()
+                    .expect("evidence create commands should be lockable")
+                    .push((actor_id, command));
+                Ok(self.evidence.clone())
+            })
+        }
+
+        fn list_evidence<'a>(
+            &'a self,
+            criteria: &'a WikiEvidenceQueryCriteria,
+        ) -> WikiEvidenceRepositoryFuture<'a, Vec<shared::EvidenceResponse>> {
+            Box::pin(async move {
+                self.listed
+                    .lock()
+                    .expect("evidence list criteria should be lockable")
+                    .push(criteria.clone());
+                Ok(vec![self.evidence.clone()])
+            })
+        }
+
+        fn get_evidence<'a>(
+            &'a self,
+            evidence_id: Uuid,
+        ) -> WikiEvidenceRepositoryFuture<'a, shared::EvidenceResponse> {
+            Box::pin(async move {
+                self.requested_evidence
+                    .lock()
+                    .expect("evidence requests should be lockable")
+                    .push(evidence_id);
+                Ok(self.evidence.clone())
+            })
+        }
+
+        fn upload_attachment<'a>(
+            &'a self,
+            actor_id: Uuid,
+            command: WikiUploadAttachmentCommand,
+        ) -> WikiEvidenceRepositoryFuture<'a, shared::AttachmentResponse> {
+            Box::pin(async move {
+                self.uploaded
+                    .lock()
+                    .expect("attachment upload commands should be lockable")
+                    .push((actor_id, command));
+                Ok(self.attachment.clone())
+            })
+        }
+
+        fn get_attachment<'a>(
+            &'a self,
+            attachment_id: Uuid,
+        ) -> WikiEvidenceRepositoryFuture<'a, shared::AttachmentResponse> {
+            Box::pin(async move {
+                self.requested_attachments
+                    .lock()
+                    .expect("attachment requests should be lockable")
+                    .push(attachment_id);
+                Ok(self.attachment.clone())
+            })
+        }
+
+        fn download_attachment<'a>(
+            &'a self,
+            attachment_id: Uuid,
+        ) -> WikiEvidenceRepositoryFuture<'a, shared::AttachmentDownloadResponse> {
+            Box::pin(async move {
+                self.downloaded_attachments
+                    .lock()
+                    .expect("attachment download requests should be lockable")
+                    .push(attachment_id);
+                Ok(self.download.clone())
+            })
+        }
+    }
+
     impl WikiSettingsRepository for StaticSettingsRepository {
         fn get_settings<'a>(&'a self) -> WikiSettingsRepositoryFuture<'a> {
             Box::pin(async move { Ok(self.snapshot.clone()) })
@@ -2502,6 +2845,26 @@ mod tests {
         }
     }
 
+    fn attachment_response(attachment_id: Uuid, checksum: &str) -> shared::AttachmentResponse {
+        shared::AttachmentResponse {
+            id: attachment_id.to_string(),
+            file_name: "build.log".to_string(),
+            content_type: "text/plain".to_string(),
+            size_bytes: 9,
+            checksum: checksum.to_string(),
+            uploaded_by: Uuid::now_v7().to_string(),
+            uploaded_at: "2026-09-01T10:00:00Z".to_string(),
+        }
+    }
+
+    fn attachment_download_response(bytes: Vec<u8>) -> shared::AttachmentDownloadResponse {
+        shared::AttachmentDownloadResponse {
+            file_name: "build.log".to_string(),
+            content_type: "text/plain".to_string(),
+            bytes,
+        }
+    }
+
     fn task_page_response(document_id: Uuid) -> shared::TaskPageResponse {
         let evidence = vec![evidence_response("Task evidence")];
         let documents = vec![document_summary(
@@ -2579,6 +2942,21 @@ mod tests {
             linked_phases: std::sync::Mutex::new(Vec::new()),
             listed_phase_documents: std::sync::Mutex::new(Vec::new()),
             listed_phase_evidence: std::sync::Mutex::new(Vec::new()),
+        }
+    }
+
+    fn recording_evidence_repository() -> RecordingEvidenceRepository {
+        let attachment_id = Uuid::now_v7();
+        RecordingEvidenceRepository {
+            evidence: evidence_response("Evidence"),
+            attachment: attachment_response(attachment_id, "sha256-test"),
+            download: attachment_download_response(b"build log".to_vec()),
+            created: std::sync::Mutex::new(Vec::new()),
+            listed: std::sync::Mutex::new(Vec::new()),
+            requested_evidence: std::sync::Mutex::new(Vec::new()),
+            uploaded: std::sync::Mutex::new(Vec::new()),
+            requested_attachments: std::sync::Mutex::new(Vec::new()),
+            downloaded_attachments: std::sync::Mutex::new(Vec::new()),
         }
     }
 
@@ -3436,6 +3814,240 @@ mod tests {
         assert!(
             use_case
                 .get_phase(space_id, "SDLC", "_implementation")
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn wiki_evidence_use_case_normalizes_create_and_list_requests() {
+        let repository = recording_evidence_repository();
+        let use_case = WikiEvidenceUseCase::new(&repository);
+        let actor_id = Uuid::now_v7();
+        let space_id = Uuid::now_v7();
+        let document_id = Uuid::now_v7();
+        let access_user_id = Uuid::now_v7();
+
+        let response = use_case
+            .create(
+                actor_id,
+                space_id,
+                Some(document_id),
+                shared::CreateEvidenceRequest {
+                    space: Some("sdlc".to_string()),
+                    document_id: Some(document_id.to_string()),
+                    task_key: Some(" SDLC-42 ".to_string()),
+                    phase_key: Some(" Implementation ".to_string()),
+                    title: " Build log ".to_string(),
+                    evidence_type: " external_url ".to_string(),
+                    url: Some(" https://ci.local/jobs/42 ".to_string()),
+                    attachment_id: None,
+                    checksum: None,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.title, "Evidence");
+
+        {
+            let created = repository
+                .created
+                .lock()
+                .expect("created evidence should be lockable");
+            assert_eq!(created.len(), 1);
+            assert_eq!(created[0].0, actor_id);
+            let command = &created[0].1;
+            assert_ne!(command.evidence_id, Uuid::nil());
+            assert_eq!(command.space_id, space_id);
+            assert_eq!(command.document_id, Some(document_id));
+            assert_eq!(command.task_key.as_deref(), Some("SDLC-42"));
+            assert_eq!(command.phase_key.as_deref(), Some("implementation"));
+            assert_eq!(command.title, "Build log");
+            assert_eq!(command.evidence_type, "external_url");
+            assert_eq!(command.url.as_deref(), Some("https://ci.local/jobs/42"));
+            assert_eq!(command.attachment_id, None);
+        }
+
+        let list = use_case
+            .list(
+                Some("sdlc"),
+                Some(document_id),
+                Some(" SDLC-42 "),
+                Some(" Implementation "),
+                Some(access_user_id),
+                Some(500),
+            )
+            .await
+            .unwrap();
+        assert_eq!(list.evidence.len(), 1);
+        assert_eq!(
+            repository
+                .listed
+                .lock()
+                .expect("listed evidence should be lockable")
+                .as_slice(),
+            [WikiEvidenceQueryCriteria {
+                space_key: Some("SDLC".to_string()),
+                document_id: Some(document_id),
+                task_key: Some("SDLC-42".to_string()),
+                phase_key: Some("implementation".to_string()),
+                access_user_id: Some(access_user_id),
+                limit: 100,
+            }]
+        );
+
+        assert_eq!(
+            normalize_evidence_space_key(None, Some("docs")).unwrap(),
+            "DOCS"
+        );
+        assert_eq!(normalize_evidence_space_key(None, None).unwrap(), "SDLC");
+        assert!(normalize_evidence_space_key(Some("bad space"), None).is_err());
+    }
+
+    #[tokio::test]
+    async fn wiki_evidence_use_case_handles_attachment_commands_and_validation() {
+        let repository = recording_evidence_repository();
+        let use_case = WikiEvidenceUseCase::new(&repository);
+        let actor_id = Uuid::now_v7();
+        let evidence_id = Uuid::now_v7();
+        let attachment_id = Uuid::now_v7();
+
+        use_case
+            .upload_attachment(
+                actor_id,
+                "build log.txt".to_string(),
+                " text/plain ".to_string(),
+                b"build log".to_vec(),
+                64,
+            )
+            .await
+            .unwrap();
+        {
+            let uploaded = repository
+                .uploaded
+                .lock()
+                .expect("uploaded attachments should be lockable");
+            assert_eq!(uploaded.len(), 1);
+            assert_eq!(uploaded[0].0, actor_id);
+            let command = &uploaded[0].1;
+            assert_ne!(command.attachment_id, Uuid::nil());
+            assert_eq!(command.file_name, "build log.txt");
+            assert_eq!(command.content_type, "text/plain");
+            assert_eq!(command.size_bytes, 9);
+            assert_eq!(
+                command.storage_key,
+                format!("attachments/{}/build_log.txt", command.attachment_id)
+            );
+            assert_eq!(command.checksum, checksum(b"build log"));
+            assert_eq!(command.bytes, b"build log".to_vec());
+        }
+
+        use_case.get(evidence_id).await.unwrap();
+        assert_eq!(
+            repository
+                .requested_evidence
+                .lock()
+                .expect("requested evidence should be lockable")
+                .as_slice(),
+            [evidence_id]
+        );
+
+        use_case.get_attachment(attachment_id).await.unwrap();
+        assert_eq!(
+            repository
+                .requested_attachments
+                .lock()
+                .expect("requested attachments should be lockable")
+                .as_slice(),
+            [attachment_id]
+        );
+
+        let downloaded = use_case.download_attachment(attachment_id).await.unwrap();
+        assert_eq!(downloaded.bytes, b"build log".to_vec());
+        assert_eq!(
+            repository
+                .downloaded_attachments
+                .lock()
+                .expect("downloaded attachments should be lockable")
+                .as_slice(),
+            [attachment_id]
+        );
+
+        assert!(
+            use_case
+                .upload_attachment(
+                    actor_id,
+                    "build.log".to_string(),
+                    "text/plain".to_string(),
+                    Vec::new(),
+                    64,
+                )
+                .await
+                .is_err()
+        );
+        assert!(
+            use_case
+                .upload_attachment(
+                    actor_id,
+                    "build.log".to_string(),
+                    "text/plain".to_string(),
+                    vec![0; 65],
+                    64,
+                )
+                .await
+                .is_err()
+        );
+        assert!(
+            use_case
+                .upload_attachment(
+                    actor_id,
+                    "bad/name.log".to_string(),
+                    "text/plain".to_string(),
+                    b"x".to_vec(),
+                    64,
+                )
+                .await
+                .is_err()
+        );
+        assert!(
+            use_case
+                .create(
+                    actor_id,
+                    Uuid::now_v7(),
+                    None,
+                    shared::CreateEvidenceRequest {
+                        space: None,
+                        document_id: None,
+                        task_key: Some("SDLC-42".to_string()),
+                        phase_key: None,
+                        title: "File evidence".to_string(),
+                        evidence_type: "uploaded_file".to_string(),
+                        url: None,
+                        attachment_id: Some(attachment_id.to_string()),
+                        checksum: Some("sha256:client".to_string()),
+                    },
+                )
+                .await
+                .is_err()
+        );
+        assert!(
+            use_case
+                .create(
+                    actor_id,
+                    Uuid::now_v7(),
+                    None,
+                    shared::CreateEvidenceRequest {
+                        space: None,
+                        document_id: None,
+                        task_key: None,
+                        phase_key: None,
+                        title: "Orphan evidence".to_string(),
+                        evidence_type: "external_url".to_string(),
+                        url: Some("https://ci.local/jobs/42".to_string()),
+                        attachment_id: None,
+                        checksum: None,
+                    },
+                )
                 .await
                 .is_err()
         );
