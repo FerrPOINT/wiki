@@ -1457,6 +1457,27 @@ async fn wiki_memory_archived_document_rejects_write_commands() {
         );
     }
 
+    let (status, error) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(&token),
+        Some(json!({
+            "space": "SDLC",
+            "document_id": document_id,
+            "title": "Evidence must not attach to archived document",
+            "evidence_type": "external_url",
+            "url": "https://ci.local/jobs/archived-document"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(error["error"]["code"], "VALIDATION_ERROR");
+    assert_eq!(
+        error["error"]["message"],
+        "archived document does not accept writes"
+    );
+
     let (status, after) = call(
         &app,
         Method::GET,
@@ -2650,6 +2671,27 @@ async fn wiki_postgres_archived_document_rejects_write_commands_when_database_av
             "archived document does not accept writes"
         );
     }
+
+    let (status, error) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(&token),
+        Some(json!({
+            "space": "SDLC",
+            "document_id": document_id,
+            "title": "Postgres archived document evidence",
+            "evidence_type": "external_url",
+            "url": "https://ci.local/jobs/postgres-archived-document"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(error["error"]["code"], "VALIDATION_ERROR");
+    assert_eq!(
+        error["error"]["message"],
+        "archived document does not accept writes"
+    );
 
     let (status, after) = call(
         &app,

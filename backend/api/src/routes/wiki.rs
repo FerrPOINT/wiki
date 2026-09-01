@@ -1931,6 +1931,13 @@ pub async fn create_evidence(
     if !store.spaces.contains_key(&space_key) {
         return Err(shared::AppError::not_found("space", &space_key));
     }
+    if let Some(document_id) = &document_id {
+        let document = store
+            .documents
+            .get(document_id)
+            .ok_or_else(|| shared::AppError::not_found("document", document_id))?;
+        ensure_document_accepts_writes(&store, document)?;
+    }
     ensure_space_access(&store, &space_key, &claims.user_id, WikiSpaceAccess::Edit)?;
     ensure_space_accepts_writes(&store, &space_key)?;
     if document_space.is_some_and(|document_space| document_space != space_key) {

@@ -1,5 +1,5 @@
 use super::{
-    PostgresWikiBackend,
+    PostgresWikiBackend, ensure_document_accepts_writes_tx,
     mapping::{attachment_response_from_row, evidence_response_from_row, parse_uuid},
     queries::{ATTACHMENT_ONE_SQL, EVIDENCE_LIST_SQL, EVIDENCE_ONE_SQL},
 };
@@ -44,6 +44,9 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
                 .begin()
                 .await
                 .map_err(shared::AppError::database)?;
+            if let Some(document_id) = command.document_id {
+                ensure_document_accepts_writes_tx(&mut tx, document_id).await?;
+            }
             let task_dossier_id = match &command.task_key {
                 Some(task_key) => Some(
                     self.backend
