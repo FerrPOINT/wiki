@@ -129,11 +129,9 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - run: pnpm install
-      - run: pnpm exec playwright install --with-deps
-      - run: docker compose -f docker-compose.yml -f docker-compose.test.yml up -d
-      - run: pnpm test:e2e
-      - run: docker compose -f docker-compose.yml -f docker-compose.test.yml down -v
+      - run: cd frontend && pnpm install --frozen-lockfile
+      - run: cd frontend && pnpm exec playwright install --with-deps
+      - run: cd frontend && pnpm test:e2e -- --project=chromium
 
   coverage:
     runs-on: ubuntu-latest

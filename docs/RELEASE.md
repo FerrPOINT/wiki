@@ -62,7 +62,7 @@ PR → main and cherry-pick to release branch
 
 ```bash
 git checkout v0.1.9
-./scripts/deploy-production.sh --tag v0.1.9
+./scripts/deploy-production.sh
 ```
 
 ## 9. Communication

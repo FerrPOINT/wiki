@@ -11,7 +11,8 @@
 | Removed non-MVP screens | Current | `/integrations`, `/reports` and `/notifications` are absent from frontend routing, navigation, screenshot generation, README gallery and OpenAPI mocks. |
 | Removed copied tracker backend | Current | Copied task-tracker domain/app/infra modules for issues, boards, sprints, worklogs, reports, notifications, email, cache, old repositories and old ORM entities have been removed from the backend workspace. |
 | API runtime | Current | Runtime router and OpenAPI expose Wiki MVP endpoints plus operational `/api/v1/health` and `/api/v1/health/ready`. Production server requires `WIKI_DATABASE__URL` and wires SQLx/PostgreSQL persistence through `shared::wiki_contract::WikiBackendPort`; memory backend remains an explicit test/dev composition. |
-| Runtime composition | Current | API/server state uses `app::WikiAppContext` with runtime config only. Docker Compose contains backend, frontend, PostgreSQL and an uploads volume; extra cache/worker services are not part of the base Wiki runtime. The real Wiki server does not construct task-tracker service graphs. |
+| Runtime composition | Current | API/server state uses `app::WikiAppContext` with runtime config only. Docker Compose and init/deploy scripts contain backend, frontend, PostgreSQL and an uploads volume; extra cache/worker/migrator services are not part of the base Wiki runtime. The real Wiki server does not construct task-tracker service graphs. |
+| Test runtime composition | Current | Docker test compose files and coverage runners use only the disposable Wiki PostgreSQL service. Legacy task-tracker Redis and `TT_DB_PASS` coverage setup have been removed from the active dev/ops commands. |
 | Domain baseline | Current | `domain::wiki` defines Wiki value objects, roles, documents, revisions, evidence, attachments and core invariants. Domain tests cover route-safe keys, required names/titles, revision checksum, evidence payload shape and attachment metadata. |
 | Application layer | Current | `app::wiki` owns normalization, access predicates, auth/session helpers, user/space/document/dossier/evidence/search/template/audit use cases and repository ports. |
 | PostgreSQL persistence | Current | `infra::wiki_postgres` owns SQLx connection/bootstrap, SQL constants, row mapping and repository implementations for users, auth sessions, spaces, members, documents, drafts, revisions, task/phase links, evidence, attachments, templates, audit and search. |
@@ -43,7 +44,8 @@
 - Focused PostgreSQL test group passes against an isolated temporary WSL PostgreSQL database through `pwsh -File scripts/postgres-smoke-wsl.ps1`; the same test group also compiles and safely skips without `WIKI_TEST_DATABASE_URL`.
 - Latest frontend regression after attachment metadata/download, search filter UI, task/phase document link UI and evidence deep-link detail: `npm run typecheck`, `npm run test`, `npm run lint`, `npm run format:check`, `npm run build`, `npm run test:e2e -- --project=chromium`.
 - Docker PostgreSQL smoke runner syntax check passed; `pwsh -File scripts/postgres-smoke.ps1` currently stops with a clear Docker-daemon unavailable message on this host because `com.docker.service` cannot be started from this process.
-- `docker compose config` and `docker compose -f backend/docker-compose.test.yml config` render the MVP service set without extra cache/worker services.
+- `docker compose config`, `docker compose -f backend/docker-compose.test.yml config` and `docker compose -f docker-compose.test.yml config` render the MVP service set without extra cache/worker services.
+- Dev/ops scripts parse cleanly through `bash -n scripts/init.sh scripts/run-e2e-tests.sh scripts/deploy-production.sh scripts/deploy-staging.sh backend/scripts/run-e2e-tests.sh`; static search confirms no active Redis, `migrator` service or `TT_DB_PASS` dependency remains in Wiki init/test/deploy commands.
 - Screenshot script passed against `vite preview`: `npm run shoot:evidence` captured 17 desktop and 5 mobile MVP screenshots.
 - Static checks confirmed no active references to removed `/integrations`, `/reports` or `/notifications` routes, no unresolved task markers, no short Markdown docs, README/manifest screenshot refs with `missing=0`, API/PRD documentation parity with all 42 OpenAPI paths and CI/CD docs parity `missing_from_wiki=0`.
 
@@ -51,7 +53,7 @@
 
 - Native Windows Rust linking currently requires MSVC `link.exe`; backend checks are run through WSL on this host.
 - `pnpm add` is blocked on this host by Corepack/Node `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING`; existing package binaries under `frontend/node_modules/.bin` can still be used for TypeScript/tests/build/lint verification.
-- Docker PostgreSQL smoke can be run through `scripts/postgres-smoke.ps1` once Docker Desktop is available. In the last setup check, Docker CLI was installed, but the Docker daemon/service was stopped and could not be started from this process; Postgres ports `3458` and `15432` were closed.
+- Docker PostgreSQL smoke can be run through `scripts/postgres-smoke.ps1` once Docker Desktop is available. In the last setup check, Docker CLI was installed, but the Docker daemon/service was stopped and could not be started from this process; the test Postgres port `3458` was closed.
 
 ## Remaining Gaps
 

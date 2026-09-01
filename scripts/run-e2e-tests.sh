@@ -4,23 +4,20 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
-if [ -z "${WIKI_DATABASE_URL:-}" ]; then
-    echo "Set WIKI_DATABASE_URL before running E2E tests" >&2
-    exit 1
-fi
-# Not required when the test Postgres uses trust auth (docker-compose.test.yml default).
+COMPOSE_FILE="$REPO_ROOT/backend/docker-compose.test.yml"
+export WIKI_TEST_DATABASE_URL="${WIKI_TEST_DATABASE_URL:-postgres://wiki@127.0.0.1:3458/wiki_test}"
 
 cleanup() {
-    docker compose -f "$REPO_ROOT/backend/docker-compose.test.yml" down -v
+    docker compose -f "$COMPOSE_FILE" down -v
 }
 trap cleanup EXIT
 
-docker compose -f "$REPO_ROOT/backend/docker-compose.test.yml" down -v
-docker compose -f "$REPO_ROOT/backend/docker-compose.test.yml" up -d
+docker compose -f "$COMPOSE_FILE" down -v
+docker compose -f "$COMPOSE_FILE" up -d postgres-test
 
-echo "Waiting for test Postgres and Redis to be healthy..."
-docker compose -f "$REPO_ROOT/backend/docker-compose.test.yml" exec -T postgres-test sh -c "until pg_isready -U wiki -d wiki_test; do sleep 1; done"
-docker compose -f "$REPO_ROOT/backend/docker-compose.test.yml" exec -T redis-test sh -c "until redis-cli ping | grep -q PONG; do sleep 1; done"
+echo "Waiting for test Postgres to be healthy..."
+docker compose -f "$COMPOSE_FILE" exec -T postgres-test sh -c "until pg_isready -U wiki -d wiki_test; do sleep 1; done"
+echo "Running backend coverage against WIKI_TEST_DATABASE_URL=$WIKI_TEST_DATABASE_URL"
 
 cd backend
 cargo llvm-cov --workspace --json --output-path target/llvm-cov/coverage.json -- --include-ignored --test-threads=1
