@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{future::Future, pin::Pin, sync::Arc};
 
 use chrono::{DateTime, Duration, Utc};
 use domain::wiki::{DocumentSlug, DocumentType, EvidenceType, GlobalRole, PhaseKey, SpaceKey};
@@ -62,6 +62,52 @@ pub struct WikiSearchCriteria {
     pub limit: i64,
 }
 
+pub type WikiSearchRepositoryFuture<'a> =
+    Pin<Box<dyn Future<Output = Result<Vec<shared::SearchResultResponse>, AppError>> + Send + 'a>>;
+
+pub trait WikiSearchRepository {
+    fn search_documents<'a>(
+        &'a self,
+        criteria: &'a WikiSearchCriteria,
+        restricted_user_id: Option<Uuid>,
+    ) -> WikiSearchRepositoryFuture<'a>;
+
+    fn search_evidence<'a>(
+        &'a self,
+        criteria: &'a WikiSearchCriteria,
+        restricted_user_id: Option<Uuid>,
+    ) -> WikiSearchRepositoryFuture<'a>;
+}
+
+pub struct WikiSearchUseCase<'a, R: WikiSearchRepository + ?Sized> {
+    repository: &'a R,
+}
+
+impl<'a, R: WikiSearchRepository + ?Sized> WikiSearchUseCase<'a, R> {
+    pub fn new(repository: &'a R) -> Self {
+        Self { repository }
+    }
+
+    pub async fn execute(
+        &self,
+        criteria: WikiSearchCriteria,
+        restricted_user_id: Option<Uuid>,
+    ) -> Result<shared::SearchResponse, AppError> {
+        let mut results = self
+            .repository
+            .search_documents(&criteria, restricted_user_id)
+            .await?;
+        results.extend(
+            self.repository
+                .search_evidence(&criteria, restricted_user_id)
+                .await?,
+        );
+        results.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+        results.truncate(criteria.limit as usize);
+        Ok(shared::SearchResponse { results })
+    }
+}
+
 pub fn clamp_limit(limit: Option<usize>, max: i64) -> i64 {
     limit.unwrap_or(max as usize).clamp(1, max as usize) as i64
 }
@@ -123,6 +169,20 @@ pub fn build_wiki_search_criteria(
         include_archived: include_archived.unwrap_or(false),
         limit: clamp_limit(limit, 50),
     })
+}
+
+pub fn build_wiki_search_criteria_from_query(
+    query: &shared::SearchQuery,
+) -> Result<WikiSearchCriteria, AppError> {
+    build_wiki_search_criteria(
+        query.q.as_deref(),
+        query.space.as_deref(),
+        query.task_key.as_deref(),
+        query.phase_key.as_deref(),
+        query.document_type.as_deref(),
+        query.include_archived,
+        query.limit,
+    )
 }
 
 fn evidence_like_pattern(value: &str) -> String {
@@ -358,6 +418,48 @@ pub fn safe_download_filename(file_name: &str) -> String {
 mod tests {
     use super::*;
 
+    struct StaticSearchRepository {
+        documents: Vec<shared::SearchResultResponse>,
+        evidence: Vec<shared::SearchResultResponse>,
+    }
+
+    impl WikiSearchRepository for StaticSearchRepository {
+        fn search_documents<'a>(
+            &'a self,
+            _criteria: &'a WikiSearchCriteria,
+            _restricted_user_id: Option<Uuid>,
+        ) -> WikiSearchRepositoryFuture<'a> {
+            let documents = self.documents.clone();
+            Box::pin(async move { Ok(documents) })
+        }
+
+        fn search_evidence<'a>(
+            &'a self,
+            _criteria: &'a WikiSearchCriteria,
+            _restricted_user_id: Option<Uuid>,
+        ) -> WikiSearchRepositoryFuture<'a> {
+            let evidence = self.evidence.clone();
+            Box::pin(async move { Ok(evidence) })
+        }
+    }
+
+    fn search_result(
+        id: &str,
+        result_type: &str,
+        title: &str,
+        updated_at: &str,
+    ) -> shared::SearchResultResponse {
+        shared::SearchResultResponse {
+            id: id.to_string(),
+            result_type: result_type.to_string(),
+            title: title.to_string(),
+            space_key: "SDLC".to_string(),
+            url: format!("/{result_type}/{id}"),
+            snippet: title.to_string(),
+            updated_at: updated_at.to_string(),
+        }
+    }
+
     fn test_auth_config() -> AuthConfig {
         AuthConfig {
             jwt_secret: "test-secret-32-chars-long!!!!!".to_string(),
@@ -486,6 +588,49 @@ mod tests {
         assert_eq!(criteria.needle, "");
         assert_eq!(criteria.evidence_like_pattern, "%%");
         assert_eq!(criteria.limit, 50);
+    }
+
+    #[tokio::test]
+    async fn wiki_search_use_case_merges_sorts_and_limits_repository_results() {
+        let repository = StaticSearchRepository {
+            documents: vec![
+                search_result(
+                    "doc-old",
+                    "document",
+                    "Old document",
+                    "2026-08-30T10:00:00Z",
+                ),
+                search_result(
+                    "doc-new",
+                    "document",
+                    "New document",
+                    "2026-09-01T10:00:00Z",
+                ),
+            ],
+            evidence: vec![search_result(
+                "evidence-mid",
+                "evidence",
+                "Middle evidence",
+                "2026-08-31T10:00:00Z",
+            )],
+        };
+        let criteria =
+            build_wiki_search_criteria(Some("wiki"), None, None, None, None, None, Some(2))
+                .unwrap();
+
+        let response = WikiSearchUseCase::new(&repository)
+            .execute(criteria, Some(Uuid::nil()))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            response
+                .results
+                .iter()
+                .map(|result| result.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["doc-new", "evidence-mid"]
+        );
     }
 
     #[test]
