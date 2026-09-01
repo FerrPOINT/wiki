@@ -3,7 +3,11 @@ use app::wiki::{default_username, hash_password};
 use shared::wiki_contract::{WikiBackendPort, WikiSettingsSnapshot};
 use shared::{AppConfig, AppError, BootstrapConfig};
 use sqlx::{Row, postgres::PgPoolOptions};
-use std::{sync::Arc, time::Duration};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 use uuid::Uuid;
 
 pub async fn connect_postgres_wiki_backend(
@@ -35,10 +39,10 @@ impl PostgresWikiBackend {
             .await
             .map_err(AppError::database)?;
 
-        sqlx::migrate!("../migrations")
-            .run(&pool)
+        let migrator = sqlx::migrate::Migrator::new(migrations_dir())
             .await
             .map_err(AppError::database)?;
+        migrator.run(&pool).await.map_err(AppError::database)?;
 
         let backend = Self {
             pool,
@@ -214,4 +218,15 @@ impl PostgresWikiBackend {
         }
         Ok(())
     }
+}
+
+fn migrations_dir() -> PathBuf {
+    if let Some(path) = std::env::var_os("WIKI_MIGRATIONS_DIR") {
+        return PathBuf::from(path);
+    }
+
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .join("migrations")
 }

@@ -102,13 +102,13 @@ Reports, notifications, integrations, webhooks, runners, comments, mentions, app
 ```bash
 # Frontend
 cd frontend
-npm run typecheck
-npm run test
-npm run lint
-npm run format:check
-npm run build
-npm run test:e2e -- --project=chromium
-npm run shoot:evidence
+pnpm typecheck
+pnpm test -- --run
+pnpm lint
+pnpm format:check
+pnpm build
+pnpm test:e2e -- --project=chromium
+pnpm shoot:evidence
 ```
 
 ```bash

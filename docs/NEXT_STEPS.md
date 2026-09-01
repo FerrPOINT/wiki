@@ -67,7 +67,7 @@ The remaining work is hardening and release readiness, not expansion of product 
 ## 7. Release Readiness
 
 - Run backend final suite: `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test --workspace -- --test-threads=1 --nocapture`, `cargo clippy --workspace --all-targets -- -D warnings`.
-- Run frontend final suite: `npm run typecheck`, `npm run test`, `npm run lint`, `npm run format:check`, `npm run build`, `npm run test:e2e -- --project=chromium`.
+- Run frontend final suite: `pnpm typecheck`, `pnpm test -- --run`, `pnpm lint`, `pnpm format:check`, `pnpm build`, `pnpm test:e2e -- --project=chromium`.
 - Run screenshot script against `vite preview` and verify README/manifest references.
 - Regenerate `openapi/openapi.json` after API changes and verify it has only MVP paths.
 - Fix local Windows Rust toolchain by installing MSVC Build Tools, or keep backend verification documented as WSL-based.

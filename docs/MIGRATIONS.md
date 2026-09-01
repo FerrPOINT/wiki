@@ -60,10 +60,12 @@ backend/migrations/
 
 ## 6. Applying Migrations
 
-Текущий startup runner в `api::routes::wiki::WikiBackend`:
+Текущий startup runner в PostgreSQL runtime adapter читает canonical directory из
+`WIKI_MIGRATIONS_DIR` или из соседнего `backend/migrations` относительно crate:
 
 ```rust
-sqlx::migrate!("../migrations").run(&pool).await?;
+let migrator = sqlx::migrate::Migrator::new(migrations_dir()).await?;
+migrator.run(&pool).await?;
 ```
 
 Вручную через runner:

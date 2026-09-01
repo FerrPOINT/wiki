@@ -35,7 +35,7 @@
 
 ## 5. Backend (Rust) — чек-лист
 
-- [ ] Код проходит `cargo check`, `cargo clippy`, `cargo fmt --check`.
+- [ ] Код проходит `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo fmt --all -- --check`.
 - [ ] Тесты проходят: `cargo test`.
 - [ ] Новые endpoint покрыты интеграционными тестами.
 - [ ] Архитектурные слои соблюдены: route handler → app use case → repository port.
@@ -61,7 +61,7 @@
 
 ## 7. CLI — чек-лист
 
-- [ ] `cargo check`, `cargo clippy`, `cargo fmt --check`.
+- [ ] `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo fmt --all -- --check`.
 - [ ] Команда документирована в `docs/CLI.md`.
 - [ ] `--help` актуален.
 - [ ] Env prefix `WIKI_` используется единообразно.
@@ -81,7 +81,7 @@
 - [ ] Новые endpoint защищены auth/rbac.
 - [ ] Входные данные валидируются на границе API.
 - [ ] CORS/CSRF учтены для новых route.
-- [ ] Зависимости проверены на уязвимости (`cargo audit`, `pnpm audit`).
+- [ ] Зависимости проверены на уязвимости (`cargo audit --ignore RUSTSEC-2023-0071`; `pnpm audit` остаётся release-hardening backlog).
 
 ## 10. Merge-критерии
 

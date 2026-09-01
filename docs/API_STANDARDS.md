@@ -15,7 +15,7 @@
 - Swagger UI доступен по `/swagger-ui/` в dev-режиме.
 - Каждый endpoint должен иметь summary, схемы request/response, статус-коды и применимые ошибки `400`, `401`, `403`, `404`, `409`, `500`.
 - `openapi/openapi.json` коммитится для hermetic frontend build, но не редактируется вручную.
-- После изменения API выполнить `cargo run -p api --bin openapi-gen -- ../openapi/openapi.json`, затем `npm run generate:api` в `frontend`.
+- После изменения API выполнить `cargo run -p api --bin openapi-gen -- ../openapi/openapi.json`, затем `pnpm generate:api` в `frontend`.
 
 ## 3. URL и ресурсы
 

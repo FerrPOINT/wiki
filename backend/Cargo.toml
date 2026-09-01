@@ -29,7 +29,7 @@ metrics-exporter-prometheus = { version = "0.18", default-features = false }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 # db
-sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "json", "migrate"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "json", "migrate"] }
 # auth
 argon2 = "0.5"
 # rand_core OsRng for salt generation (argon2 re-exports password_hash::rand_core)

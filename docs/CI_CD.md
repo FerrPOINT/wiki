@@ -2,303 +2,162 @@
 
 ## 1. Overview
 
-Непрерывная интеграция и доставка для Wiki. Цель — автоматическая проверка кода, тестов, безопасности и готовности к деплою.
+Current Wiki CI is the pre-development quality gate for the MVP baseline. It verifies Rust backend, OpenAPI parity, SQLx migrations, dependency audit, React frontend and Chromium smoke E2E.
+
+Release packaging, registry publishing, multi-browser E2E, mutation testing and production deployment automation are deferred release-hardening items.
 
 ## 2. Platform
 
-- **GitHub Actions** — основной CI/CD provider.
-- **Self-hosted runners** опционально для E2E и нагрузочных тестов.
+- **GitHub Actions** is the active CI provider.
+- **PostgreSQL 17.6-alpine** is used for migration checks and Docker-backed E2E.
+- **pnpm 10** and **Node.js 22** are used for frontend checks.
+- **Rust stable** is used for backend checks.
 
-## 3. Pipeline
+## 3. Active Workflow
 
-### 3.1 Trigger
+The active workflow is `.github/workflows/ci.yml` and runs on pushes and pull requests to `main`.
 
-```yaml
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-```
+| Job | Purpose | Blocking |
+| --- | ------- | -------- |
+| `backend` | Rust formatting, clippy and serial workspace tests | Yes |
+| `openapi-check` | Regenerate OpenAPI from Rust handlers and compare with committed spec | Yes |
+| `migrations` | Apply SQLx migrations to a clean PostgreSQL database and print status | Yes |
+| `coverage` | Run backend tests through `cargo llvm-cov` and enforce 60% summary coverage | Yes |
+| `audit` | Run `cargo audit` with the documented SQLx optional MySQL/RSA ignore | Yes |
+| `frontend` | Generate API DTOs, typecheck, run Vitest and build Vite app | Yes |
+| `e2e` | Build frontend, start Docker PostgreSQL + backend, then run Chromium Playwright smoke | Yes |
 
-### 3.2 Jobs
+## 4. Backend Gate
 
-| Job | Runner | Purpose | Block merge on fail |
-|-----|--------|---------|---------------------|
-| `lint-rust` | ubuntu-latest | `cargo fmt --check`, `cargo clippy -- -D warnings` | ✅ |
-| `lint-frontend` | ubuntu-latest | `pnpm lint`, `pnpm typecheck` | ✅ |
-| `test-backend-unit` | ubuntu-latest | `cargo test --lib` | ✅ |
-| `test-backend-integration` | ubuntu-latest | `cargo test --test '*'` с testcontainers | ✅ |
-| `test-frontend-unit` | ubuntu-latest | `vitest run` | ✅ |
-| `test-e2e` | ubuntu-latest | `playwright test` | ✅ |
-| `coverage` | ubuntu-latest | `cargo tarpaulin`, `vitest --coverage` | ✅ |
-| `security-audit` | ubuntu-latest | `cargo audit`, `pnpm audit` | ✅ |
-| `docker-build` | ubuntu-latest | Build and push Docker images | ❌ ( informational for PRs) |
-| `openapi-check` | ubuntu-latest | Проверка что `openapi.json` соответствует коду | ✅ |
-
-### 3.3 Workflow file
-
-```yaml
-# .github/workflows/ci.yml
-name: CI
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
-jobs:
-  lint-rust:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-      - run: cargo fmt --check
-      - run: cargo clippy -- -D warnings
-
-  lint-frontend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install
-      - run: pnpm lint
-      - run: pnpm typecheck
-
-  test-backend-unit:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test --lib --all-features
-
-  test-backend-integration:
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:17.6-alpine
-        env:
-          POSTGRES_USER: wiki
-          POSTGRES_PASSWORD: wiki
-          POSTGRES_DB: wiki
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test --test '*'
-        env:
-          WIKI_DATABASE__URL: postgres://wiki:wiki@localhost:5432/wiki
-          WIKI_JWT_SECRET: test-secret-32-chars-long!!!!!
-
-  test-frontend-unit:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install
-      - run: vitest run
-
-  test-e2e:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: cd frontend && pnpm install --frozen-lockfile
-      - run: cd frontend && pnpm exec playwright install --with-deps
-      - run: cd frontend && pnpm test:e2e -- --project=chromium
-
-  coverage:
-    runs-on: ubuntu-latest
-    needs: [test-backend-unit, test-backend-integration, test-frontend-unit]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo install cargo-tarpaulin
-      - run: cargo tarpaulin --out Xml
-      - uses: codecov/codecov-action@v4
-        with:
-          files: ./cobertura.xml
-          fail_ci_if_error: true
-
-  security-audit:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo install cargo-audit
-      - run: cargo audit
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-      - run: pnpm audit --audit-level moderate
-
-  docker-build:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ghcr.io/ferrpoint/wiki:${{ github.sha }}
-```
-
-## 4. Test Isolation
-
-### 4.1 Backend
-
-- Каждый integration test получает **свежую логическую БД** в одном PostgreSQL контейнере.
-- Integration suite поднимает PostgreSQL один раз на suite.
-- Миграции применяются в `setup` hook.
-- Тесты внутри транзакции, откат после каждого теста (`BEGIN ... ROLLBACK`).
-- Параллельные тесты отключены для integration, включены для unit.
-
-### 4.2 Frontend
-
-- Unit-тесты изолированы через MSW.
-- LocalStorage/SessionStorage мокаются в `setupFiles`.
-- Zustand store сбрасывается в `beforeEach`.
-- TanStack Query cache — `queryClient.clear()`.
-
-### 4.3 E2E
-
-- Каждый test получает чистое состояние:
-  - новый браузерный контекст
-  - deterministic DB fixtures or test-only fixture loader
-  - no public `/api/v1/test/*` endpoints in the MVP API
-- Parallel workers = 4 (sharding по CI-нодам).
-
-## 5. Flaky Tests Strategy
-
-| Problem | Solution |
-|---------|----------|
-| Async race | `await expect(...).toPass({ timeout: 5000 })` |
-| DB ordering | deterministic `ORDER BY` и сортировка по `created_at` |
-| Time-based | `timekeeper` / fake timers |
-| Network mocks | MSW with strict request matching |
-| Unstable selectors | `data-testid`, stable text |
-| Quarantine | flaky test → `@flaky` tag → отдельный CI job с retry |
-| Retry policy | Playwright retry=2, unit/integration retry=0 |
-
-## 6. Coverage Gates
-
-| Layer | Required | CI gate |
-|-------|----------|---------|
-| Domain / services | >= 80% | ✅ block |
-| Repository | >= 70% | ✅ block |
-| API controllers | >= 75% | ✅ block |
-| Frontend utils / hooks | >= 70% | ✅ block |
-| Critical UI components | >= 60% | ✅ block |
-| E2E critical path | 100% | ✅ block |
-| Project total | >= 75% | ✅ block |
-
-Coverage не должно падать относительно `main`.
-
-## 7. Mutation Testing
-
-- Backend: `cargo-mutation-testing` (или `mutagen`) для domain/services.
-- Frontend: `stryker-js` для критичных pure functions.
-- Запускается в отдельном scheduled job раз в неделю, не блокирует PR.
-- Target: mutation score >= 60%.
-
-## 8. Test Artifacts
-
-| Artifact | Path | Retention |
-|----------|------|-----------|
-| Coverage HTML | `target/tarpaulin/` / `coverage/` | 30 days |
-| Playwright report | `playwright-report/` | 14 days |
-| Playwright screenshots | `test-results/` | 14 days |
-| JUnit XML | `junit-*.xml` | 30 days |
-| OpenAPI diff | `openapi-diff.md` | 30 days |
-
-## 9. Pre-commit / Pre-push
-
-### 9.1 Pre-commit (local)
+The backend job runs from `backend/`:
 
 ```bash
-# .husky/pre-commit
-pnpm lint-staged
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace -- --test-threads=1
 ```
 
-```json
-// package.json
-"lint-staged": {
-  "*.{ts,tsx}": ["eslint --fix", "prettier --write"],
-  "*.rs": ["rustfmt"]
-}
-```
+Serial tests are intentional because current integration coverage shares in-memory/runtime state in several suites. The documented local readiness gate uses the same serial mode.
 
-### 9.2 Pre-push (optional)
+## 5. OpenAPI Gate
+
+The OpenAPI job regenerates `backend/openapi/openapi.json` from Rust route/DTO definitions and compares it with the repository-level contract:
 
 ```bash
-# .husky/pre-push
-cargo test --lib
-pnpm vitest run
+mkdir -p openapi
+cargo run -p api --bin openapi-gen -- openapi/openapi.json
+diff -u ../openapi/openapi.json openapi/openapi.json
 ```
 
-## 10. Release Pipeline
+Any endpoint, DTO or schema change must update the generated root `openapi/openapi.json` in the same change.
 
-1. Создание release branch `release/v0.1.0`.
-2. PR в `main` с обновлением `RELEASE.md`.
-3. CI green.
-4. Tag `v0.1.0`.
-5. Docker image `ghcr.io/ferrpoint/wiki:v0.1.0`.
-6. GitHub Release notes.
+## 6. Migration Gate
 
-## 11. Branch Protection
+The migration job starts a clean PostgreSQL service and runs:
 
-- `main` требует:
-  - 1 approving review
-  - все CI jobs green
-  - up-to-date branch
-  - linear history
-- Force-push запрещён.
+```bash
+cargo run -p migration -- up
+cargo run -p migration -- status
+```
 
-## 12. Secrets
+The runtime migrator loads migrations from `WIKI_MIGRATIONS_DIR` when set, otherwise from the repository `backend/migrations` directory. Docker images copy this directory into `/app/migrations`.
 
-| Secret | Purpose |
-|--------|---------|
-| `GITHUB_TOKEN` | push images, create releases |
-| `CODECOV_TOKEN` | upload coverage |
-| `DOCKER_REGISTRY_TOKEN` | альтернативный registry |
+## 7. Coverage Gate
+
+The coverage job uses `cargo llvm-cov`:
+
+```bash
+cargo llvm-cov --workspace --summary-only -- --test-threads=1
+```
+
+The active CI threshold is **60% total backend coverage**. Higher layer-specific targets remain release-hardening goals, not MVP pre-development blockers.
+
+## 8. Audit Gate
+
+The audit job runs:
+
+```bash
+cargo audit --ignore RUSTSEC-2023-0071
+```
+
+`RUSTSEC-2023-0071` is ignored because it is reported through optional SQLx MySQL/RSA packages retained in `Cargo.lock`; Wiki enables PostgreSQL-only SQLx features. Other non-ignored RustSec vulnerabilities block CI. The `h2` advisory is resolved by using `h2` `0.4.16`.
+
+Frontend dependency audit is a release-hardening backlog item until the dependency policy is finalized.
+
+## 9. Frontend Gate
+
+The frontend job runs from `frontend/`:
+
+```bash
+pnpm install
+pnpm generate:api
+pnpm typecheck
+pnpm test -- --run
+pnpm build
+```
+
+`pnpm generate:api` must keep `frontend/src/api/generated.ts` aligned with `openapi/openapi.json`.
+
+## 10. E2E Gate
+
+The E2E job:
+
+1. Installs frontend dependencies.
+2. Builds the Vite app.
+3. Starts Docker Compose services `postgres` and `backend`.
+4. Checks `http://localhost:3456/api/v1/health`.
+5. Installs Chromium dependencies.
+6. Runs `pnpm exec playwright test e2e/smoke.spec.ts --project=chromium`.
+7. Tears down Docker volumes with `docker compose down -v`.
+
+The frontend Playwright config starts a local `vite preview` server unless `PLAYWRIGHT_BASE_URL` is provided. `VITE_API_BASE_URL` points to the Docker backend.
+
+## 11. Local Readiness Commands
+
+```bash
+# Backend
+cd backend
+cargo fmt --all -- --check
+cargo check --workspace
+cargo test --workspace -- --test-threads=1
+cargo clippy --workspace --all-targets -- -D warnings
+cargo audit --ignore RUSTSEC-2023-0071
+```
+
+```bash
+# Frontend
+cd frontend
+pnpm typecheck
+pnpm test -- --run
+pnpm lint
+pnpm format:check
+pnpm build
+pnpm test:e2e -- --project=chromium
+pnpm shoot:evidence
+```
+
+```powershell
+# PostgreSQL smoke on Windows host
+pwsh -File scripts/postgres-smoke.ps1
+pwsh -File scripts/postgres-smoke-wsl.ps1
+```
+
+Docker smoke is preferred when Docker Desktop is available. On this Windows host, the WSL PostgreSQL smoke is an accepted fallback and uses an isolated temporary database.
+
+## 12. Release-Hardening Backlog
+
+- Docker image publishing to GHCR.
+- Branch protection policy enforcement.
+- `pnpm audit` policy and lockfile vulnerability threshold.
+- Trivy/container image scanning.
+- Multi-browser Playwright matrix.
+- Scheduled backup/restore drill.
+- Production TLS/CORS/security-header verification.
 
 ## References
 
-- `docs/TESTING.md` — детали стратегии тестирования.
-- `docs/DEPLOYMENT.md` — Docker Compose и production деплой.
-- `docs/RELEASE.md` — процесс релизов.
-- `docs/SECURITY.md` — security hardening.
-- `docs/AGENTS.md` — правила для разработчиков.
+- `docs/TESTING.md`
+- `docs/DEPLOYMENT.md`
+- `docs/MIGRATIONS.md`
+- `docs/SECURITY.md`
+- `docs/CURRENT_STATE.md`

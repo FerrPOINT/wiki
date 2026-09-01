@@ -105,18 +105,17 @@ Wiki — self-hosted приложение с конфиденциальными 
 
 ## 13. Dependency Security
 
-- `cargo audit` в CI.
-- `pnpm audit` в CI.
+- `cargo audit --ignore RUSTSEC-2023-0071` в CI; ignore documented because SQLx keeps optional MySQL/RSA packages in `Cargo.lock` while Wiki enables PostgreSQL-only SQLx features.
+- `h2` advisory is resolved through `h2` `0.4.16`.
+- `pnpm audit` policy is a release-hardening backlog item until frontend dependency thresholds are fixed.
 - Dependabot/Renovate alerts.
 - Pin major versions.
 
 ## 14. Container Security
 
-- Non-root user в Docker images.
-- Read-only filesystem где возможно.
-- Distroless/alpine final images.
-- No secrets в image layers.
-- Image scan with Trivy — не реализовано (future).
+- MVP images contain only runtime artifacts and must not bake secrets into image layers.
+- Backend image copies SQLx migrations to `/app/migrations` and uses `WIKI_MIGRATIONS_DIR`.
+- Non-root runtime users, read-only filesystem, distroless backend image and Trivy scan are release-hardening items.
 
 ## 15. Network
 

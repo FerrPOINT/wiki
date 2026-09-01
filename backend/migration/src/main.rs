@@ -1,4 +1,5 @@
 use anyhow::{Context, Result, bail};
+use sqlx::migrate::Migrator;
 use sqlx::{Row, postgres::PgPoolOptions};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -24,21 +25,21 @@ async fn run() -> Result<()> {
         .connect(&url)
         .await
         .context("failed to connect to database")?;
+    let migrator = migration::migrator()
+        .await
+        .context("failed to load SQLx migrations")?;
 
     match cmd.as_str() {
         "up" => {
-            migration::MIGRATOR
-                .run(&pool)
-                .await
-                .context("migration up failed")?;
+            migrator.run(&pool).await.context("migration up failed")?;
             println!("SQLx migrations applied");
         }
         "status" => {
-            print_status(&pool).await?;
+            print_status(&pool, &migrator).await?;
         }
         "fresh" => {
             reset_public_schema(&pool).await?;
-            migration::MIGRATOR
+            migrator
                 .run(&pool)
                 .await
                 .context("migration fresh failed")?;
@@ -56,7 +57,7 @@ async fn run() -> Result<()> {
                 .find(|version| **version < current_version)
                 .copied()
                 .unwrap_or(0);
-            migration::MIGRATOR
+            migrator
                 .undo(&pool, target)
                 .await
                 .context("migration down failed")?;
@@ -74,9 +75,9 @@ fn database_url() -> Result<String> {
         .context("DATABASE_URL or WIKI_DATABASE__URL must be set")
 }
 
-async fn print_status(pool: &sqlx::PgPool) -> Result<()> {
+async fn print_status(pool: &sqlx::PgPool, migrator: &Migrator) -> Result<()> {
     let applied = applied_migrations(pool).await?;
-    let known_versions = migration::MIGRATOR
+    let known_versions = migrator
         .iter()
         .filter(|migration| migration.migration_type.is_up_migration())
         .map(|migration| migration.version)
@@ -93,7 +94,7 @@ async fn print_status(pool: &sqlx::PgPool) -> Result<()> {
         pending
     );
 
-    for migration in migration::MIGRATOR
+    for migration in migrator
         .iter()
         .filter(|migration| migration.migration_type.is_up_migration())
     {

@@ -128,7 +128,7 @@ describe('apiRequest error handling', () => {
     expect(download.contentType).toBe('text/plain')
     expect(download.fileName).toBe('build.log')
     expect(download.sizeBytes).toBe('downloaded bytes'.length)
-    expect(download.blob).toBeInstanceOf(Blob)
+    expect(download.blob).toMatchObject({ size: 'downloaded bytes'.length, type: 'text/plain' })
   })
 
   it('adds request id headers to API requests', async () => {

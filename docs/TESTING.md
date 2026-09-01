@@ -65,14 +65,15 @@ E2E smoke:
 
 ```bash
 cd backend
-cargo fmt --check
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace -- --test-threads=1
 
 cd frontend
-npm run typecheck
-npm run test
-npm run test:e2e
+pnpm typecheck
+pnpm test -- --run
+pnpm test:e2e
 ```
 
 PostgreSQL-backed API smoke from the repository root:
@@ -120,12 +121,12 @@ Baseline test fixtures:
 
 ## 6. Merge Checklist
 
-- [ ] `cargo fmt --check` clean
-- [ ] `cargo clippy --workspace --all-targets` clean
-- [ ] `cargo test --workspace` green
-- [ ] `npm run typecheck` clean
-- [ ] `npm run test` green
-- [ ] `npm run build` green
+- [ ] `cargo fmt --all -- --check` clean
+- [ ] `cargo clippy --workspace --all-targets -- -D warnings` clean
+- [ ] `cargo test --workspace -- --test-threads=1` green
+- [ ] `pnpm typecheck` clean
+- [ ] `pnpm test -- --run` green
+- [ ] `pnpm build` green
 - [ ] Playwright critical path green
 - [ ] Documentation updated
 

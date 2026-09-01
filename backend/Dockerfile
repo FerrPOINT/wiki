@@ -20,5 +20,7 @@ FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y ca-certificates libssl3 wget && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=builder /app/target/release/server /usr/local/bin/wiki-server
+COPY --from=builder /app/migrations ./migrations
+ENV WIKI_MIGRATIONS_DIR=/app/migrations
 EXPOSE 3456
 CMD ["wiki-server"]
