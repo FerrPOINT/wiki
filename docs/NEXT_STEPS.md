@@ -27,7 +27,7 @@ The documentation, screenshots, API-backed frontend MVP pages and SQLx-backed MV
 - shared Wiki normalization, access predicates, content helpers, storage-name helpers, password hashing, Wiki JWT/session token helpers and access/refresh token-pair TTL assembly are in `app::wiki`; safe runtime settings snapshot is in `shared::wiki_contract`;
 - auth/session flow validation, spaces/members/tree command validation, document create/draft/publish/archive/move command validation, task/phase dossier normalization/link command assembly, evidence/list/upload payload validation, user create/update validation and password hashing are in `app::wiki`; search q/filter/limit normalization and merge/sort/limit behavior are in `app::wiki`; template create validation/normalization and pool-backed audit command/list boundaries are in `app::wiki`; the PostgreSQL adapter owns SQL/storage details behind repository ports;
 - the API crate no longer declares direct Wiki auth crypto dependencies or production SQLx adapter code after the helper and persistence-boundary extractions;
-- CLI has mocked HTTP smoke coverage for auth, spaces, documents, task/phase dossiers, templates, settings, search, URL/file evidence request flows and API error envelopes; compiled-binary smoke verifies non-zero exit for API errors;
+- CLI has mocked HTTP smoke coverage for auth, spaces, documents, task/phase dossiers, templates, settings, search, URL/file evidence request flows and API error envelopes; compiled-binary smoke verifies non-zero exit for API errors, Markdown stdin input for `doc create --from-file -`, and local missing-file fail-fast behavior before HTTP;
 - domain unit tests cover the first Wiki-owned invariants for route-safe keys, required space/document names, revision publish payload, evidence payload shape and attachment metadata;
 - deferred areas are documented as reference only.
 
@@ -65,7 +65,7 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 ## 4. CLI Parity
 
 - Keep `backend/cli/src/main.rs` aligned with `docs/CLI.md`.
-- Expand CLI tests for command-specific validation failures as the command surface grows.
+- Continue CLI edge parity where command-specific failure cases are still thin, especially output formats and API/env option handling.
 - Keep idempotency key coverage for repeated write commands as the command surface grows.
 
 ## 5. Frontend Integration
@@ -106,7 +106,7 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 1. Rerun fresh PostgreSQL smoke with `WIKI_TEST_DATABASE_URL`, including router rebuild persistence, disabled-registration coverage and the space membership delete/revocation regression.
 2. Continue focused repository/API hardening for the remaining PostgreSQL-backed permission edge cases.
 3. Tune PostgreSQL FTS ranking/search filters and capture query-plan evidence for the expected MVP dataset size.
-4. Bring CLI smoke tests to parity with the public API where command-specific edge cases are still thin.
+4. Continue CLI edge parity for output formats and API/env option handling.
 5. Remove remaining inherited tracker compatibility modules and the SeaORM migration compatibility layer.
 6. Replace handwritten frontend endpoint wrappers with a generated operation client after the PostgreSQL-backed contract stabilizes.
 
