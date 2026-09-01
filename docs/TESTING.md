@@ -22,6 +22,8 @@
 - API tests for spaces, documents, revisions, task dossiers, phase dossiers, evidence and attachments.
 - Failing repository tests for 500/error envelope behavior.
 - External link ingestion tests use service-level mocks only after the base Wiki domain exists.
+- PostgreSQL smoke tests are grouped by the `wiki_postgres_` test-name prefix and are enabled by `WIKI_TEST_DATABASE_URL`.
+- `wiki_postgres_search_uses_fts_index_when_database_available` records query-plan evidence for MVP full-text search filters and asserts the GIN index is selected.
 
 ### Coverage Priorities
 
@@ -72,6 +74,21 @@ npm run typecheck
 npm run test
 npm run test:e2e
 ```
+
+PostgreSQL-backed API smoke from the repository root:
+
+```powershell
+pwsh -File scripts/postgres-smoke.ps1
+```
+
+The smoke runner starts `backend/docker-compose.test.yml`, waits for `postgres-test`, sets `WIKI_TEST_DATABASE_URL=postgres://wiki@127.0.0.1:3458/wiki_test` and runs:
+
+```bash
+cd backend
+cargo test -p api wiki_postgres_ -- --test-threads=1 --nocapture
+```
+
+If Docker is managed outside the script, set `WIKI_TEST_DATABASE_URL` manually and run the same filtered Cargo command.
 
 ## 5. Fixtures
 

@@ -219,8 +219,8 @@ CLI returns JSON by default, exits non-zero on API errors and sends `Idempotency
 | Frontend Wiki MVP shell and API-backed pages | Готово |
 | OpenAPI MVP artifact | Готово |
 | CLI MVP command surface | Готово |
-| PostgreSQL smoke with fresh disposable DB | Нужно выполнить в окружении с `WIKI_TEST_DATABASE_URL` |
-| Search FTS plan/ranking evidence | Нужно выполнить после DB smoke |
+| PostgreSQL smoke with fresh disposable DB | Runner готов: `pwsh -File scripts/postgres-smoke.ps1`; успешный прогон нужен на host с Docker/Postgres |
+| Search FTS plan/index evidence | Env-gated API test готов; успешный `EXPLAIN` output нужно сохранить после DB smoke |
 
 ## References
 

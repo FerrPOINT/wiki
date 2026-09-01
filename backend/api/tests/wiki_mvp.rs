@@ -3,7 +3,7 @@ use axum::{
     http::{HeaderMap, Method, Request, StatusCode},
 };
 use serde_json::{Value, json};
-use sqlx::postgres::PgPoolOptions;
+use sqlx::{Row, postgres::PgPoolOptions};
 use std::{env, path::PathBuf, sync::Arc};
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -109,6 +109,67 @@ async fn reset_postgres(database_url: &str) {
         .await
         .unwrap();
     pool.close().await;
+}
+
+async fn postgres_search_plan(
+    database_url: &str,
+    query: &str,
+    space_key: &str,
+    task_key: &str,
+    phase_key: &str,
+    document_type: &str,
+) -> String {
+    let pool = PgPoolOptions::new()
+        .max_connections(1)
+        .connect(database_url)
+        .await
+        .unwrap();
+    sqlx::query("SET enable_seqscan = off")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let rows = sqlx::query(
+        r#"
+        EXPLAIN (FORMAT TEXT, COSTS OFF)
+        SELECT cr.id
+        FROM document_revisions cr
+        WHERE cr.search_vector @@ websearch_to_tsquery('simple', $1)
+          AND EXISTS (
+              SELECT 1
+              FROM documents d
+              JOIN spaces s ON s.id = d.space_id
+              WHERE d.current_revision_id = cr.id
+                AND s.key = $2
+                AND d.document_type = $3
+                AND d.archived_at IS NULL
+                AND EXISTS (
+                    SELECT 1
+                    FROM document_task_links dtl
+                    JOIN task_dossiers td ON td.id = dtl.task_dossier_id
+                    WHERE dtl.document_id = d.id AND td.task_key = $4
+                )
+                AND EXISTS (
+                    SELECT 1
+                    FROM document_phase_links dpl
+                    JOIN phase_dossiers pd ON pd.id = dpl.phase_dossier_id
+                    WHERE dpl.document_id = d.id AND pd.phase_key = $5
+                )
+          )
+        "#,
+    )
+    .bind(query)
+    .bind(space_key)
+    .bind(document_type)
+    .bind(task_key)
+    .bind(phase_key)
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    pool.close().await;
+    rows.iter()
+        .map(|row| row.get::<String, _>(0))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 async fn call(
@@ -2140,6 +2201,84 @@ async fn wiki_postgres_space_member_delete_revokes_access_when_database_availabl
             .unwrap()
             .iter()
             .any(|member| member["user_id"] == member_id)
+    );
+}
+
+#[tokio::test]
+async fn wiki_postgres_search_uses_fts_index_when_database_available() {
+    let Ok(database_url) = env::var("WIKI_TEST_DATABASE_URL") else {
+        eprintln!("skipping postgres search index test: WIKI_TEST_DATABASE_URL is not set");
+        return;
+    };
+    reset_postgres(&database_url).await;
+    let storage_dir = env::temp_dir().join(format!("wiki-api-test-{}", Uuid::now_v7()));
+    let (app, _) = postgres_test_app(database_url.clone(), storage_dir).await;
+    let token = login_admin(&app).await;
+    let suffix = Uuid::now_v7().simple().to_string();
+    let short = &suffix[..12];
+    let task_key = format!("PGFTS-{short}");
+    let phase_key = "search-index";
+
+    let (status, document) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces/SDLC/documents",
+        Some(&token),
+        Some(json!({
+            "title": "Postgres FTS Requirements",
+            "slug": format!("postgres-fts-requirements-{short}"),
+            "document_type": "requirements",
+            "task_key": task_key,
+            "phase_key": phase_key,
+            "content_markdown": "# Postgres FTS Requirements\n\nPostgres search should use the document revision GIN index."
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let document_id = document["id"].as_str().unwrap();
+
+    let (status, revision) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/documents/{document_id}/publish"),
+        Some(&token),
+        Some(json!({ "summary": "FTS index smoke" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(revision["version"], 1);
+
+    let (status, search) = call(
+        &app,
+        Method::GET,
+        &format!(
+            "/api/v1/search?q=Postgres&space=SDLC&task_key={task_key}&phase_key={phase_key}&document_type=requirements"
+        ),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        search["results"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["id"] == document_id)
+    );
+
+    let plan = postgres_search_plan(
+        &database_url,
+        "Postgres",
+        "SDLC",
+        &task_key,
+        phase_key,
+        "requirements",
+    )
+    .await;
+    assert!(
+        plan.contains("document_revisions_search_idx"),
+        "expected Postgres FTS plan to use document_revisions_search_idx:\n{plan}"
     );
 }
 

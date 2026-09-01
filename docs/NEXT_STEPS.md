@@ -18,12 +18,11 @@ The remaining work is hardening and release readiness, not expansion of product 
 
 ## 1. PostgreSQL Runtime Smoke
 
-- Run a fresh disposable database with `WIKI_TEST_DATABASE_URL`.
-- Apply SQLx migrations from an empty database.
-- Verify production backend construction through `server`/`infra`.
-- Verify disabled public registration returns the expected API error.
-- Verify documents, revisions, dossiers, evidence, attachments, templates and audit persist across router/backend rebuilds.
-- Verify membership removal revokes access to spaces, documents, evidence, attachment downloads and search results.
+- Run `pwsh -File scripts/postgres-smoke.ps1` on a host where Docker Desktop is running.
+- The runner starts disposable `backend/docker-compose.test.yml` Postgres on `127.0.0.1:3458`, sets `WIKI_TEST_DATABASE_URL=postgres://wiki@127.0.0.1:3458/wiki_test` and runs `cargo test -p api wiki_postgres_ -- --test-threads=1 --nocapture`.
+- The filtered suite applies SQLx migrations from an empty database, verifies disabled public registration, checks persistence across router/backend rebuilds and verifies membership removal revokes space/document/search access.
+- The suite also verifies MVP full-text search with `space`, `task_key`, `phase_key` and `document_type` filters and asserts the PostgreSQL plan uses `document_revisions_search_idx`.
+- Save the successful smoke output with release evidence once Docker/Postgres is available on the host.
 
 ## 2. Repository And API Hardening
 
@@ -35,9 +34,10 @@ The remaining work is hardening and release readiness, not expansion of product 
 
 ## 3. Search
 
-- Tune PostgreSQL full-text search ranking.
-- Record `EXPLAIN` evidence for expected MVP search filters: q, space, task key, phase key and document type.
-- Decide and document the default language configuration for Russian/English content.
+- Keep document search on PostgreSQL `tsvector`/GIN for MVP.
+- Keep title/body weighting in the generated vector and SQL ordering; do not expose search score in the public API unless the product requirement changes.
+- Run and archive the env-gated `EXPLAIN` evidence from `wiki_postgres_search_uses_fts_index_when_database_available`.
+- Decide whether to move from `simple` to a Russian/English-aware text search configuration only after representative Wiki content is available.
 - Keep search results permission-filtered and bounded.
 
 ## 4. CLI Parity

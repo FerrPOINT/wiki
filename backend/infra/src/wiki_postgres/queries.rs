@@ -104,7 +104,16 @@ pub(super) const SEARCH_DOCUMENTS_SQL: &str = r#"
                WHEN cr.id IS NOT NULL THEN COALESCE(NULLIF(cr.content_text, ''), cr.title)
                ELSE COALESCE(NULLIF(dd.content_markdown, ''), d.title)
            END AS snippet,
-           d.updated_at
+           d.updated_at,
+           CASE
+               WHEN sq.query IS NULL THEN 0::real
+               WHEN cr.id IS NOT NULL THEN ts_rank_cd(cr.search_vector, sq.query)
+               ELSE ts_rank_cd(
+                   setweight(to_tsvector('simple', coalesce(d.title, '')), 'A')
+                   || setweight(to_tsvector('simple', coalesce(dd.content_markdown, '')), 'B'),
+                   sq.query
+               )
+           END AS search_rank
     FROM search_query sq
     CROSS JOIN documents d
     JOIN spaces s ON s.id = d.space_id
@@ -141,7 +150,7 @@ pub(super) const SEARCH_DOCUMENTS_SQL: &str = r#"
           FROM space_members sm
           WHERE sm.space_id = d.space_id AND sm.user_id = $7
       ))
-    ORDER BY d.updated_at DESC
+    ORDER BY search_rank DESC, d.updated_at DESC
     LIMIT $8
 "#;
 

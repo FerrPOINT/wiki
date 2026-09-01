@@ -91,6 +91,14 @@ pnpm install
 pnpm dev
 ```
 
+PostgreSQL API smoke:
+
+```powershell
+pwsh -File scripts/postgres-smoke.ps1
+```
+
+This starts the disposable test database from [backend/docker-compose.test.yml](backend/docker-compose.test.yml) and runs the env-gated `wiki_postgres_` API tests, including persistence, membership revocation and FTS index-plan evidence.
+
 <a name="routes"></a>
 
 ## 🧭 Frontend Routes

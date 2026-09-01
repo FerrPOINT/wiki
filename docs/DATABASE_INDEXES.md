@@ -52,7 +52,11 @@ CREATE INDEX document_revisions_search_idx
 
 ```
 
-Keep MVP search inside PostgreSQL. A separate search service requires a new approved requirement.
+Document search uses PostgreSQL `websearch_to_tsquery('simple', q)` against `document_revisions.search_vector`. Title matches are weighted above body text in the generated vector, and the document query orders matching rows by `ts_rank_cd(...) DESC, updated_at DESC` before the MVP response limit is applied.
+
+The release smoke must verify the normal filtered search shape with `EXPLAIN`: `q`, `space`, `task_key`, `phase_key`, `document_type` and `archived_at IS NULL`. The expected plan includes `document_revisions_search_idx`; this is covered by the env-gated `wiki_postgres_search_uses_fts_index_when_database_available` API test.
+
+Evidence search remains a bounded MVP lookup over `evidence_items` title and URL plus indexed space/task/phase filters. Do not add a separate search service, trigram search, OCR or binary attachment indexing without a new approved requirement.
 
 ## 5. Migration Rules
 
