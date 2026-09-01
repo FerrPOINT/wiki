@@ -2219,6 +2219,7 @@
           "document_type",
           "status",
           "body_markdown",
+          "body_html",
           "draft_markdown",
           "task_keys",
           "phase_keys",
@@ -2229,6 +2230,9 @@
           "updated_at"
         ],
         "properties": {
+          "body_html": {
+            "type": "string"
+          },
           "body_markdown": {
             "type": "string"
           },
@@ -2323,11 +2327,15 @@
           "version",
           "title",
           "body_markdown",
+          "body_html",
           "author_id",
           "published_at"
         ],
         "properties": {
           "author_id": {
+            "type": "string"
+          },
+          "body_html": {
             "type": "string"
           },
           "body_markdown": {

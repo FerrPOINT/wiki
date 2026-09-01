@@ -60,3 +60,93 @@ body {
     'Segoe UI',
     sans-serif;
 }
+
+.wiki-rendered {
+  color: var(--color-text-secondary);
+  font-size: 0.9375rem;
+  line-height: 1.7;
+}
+
+.wiki-rendered > * + * {
+  margin-top: 0.9rem;
+}
+
+.wiki-rendered h1,
+.wiki-rendered h2,
+.wiki-rendered h3 {
+  color: var(--color-text-primary);
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.wiki-rendered h1 {
+  font-size: 1.5rem;
+}
+
+.wiki-rendered h2 {
+  font-size: 1.25rem;
+}
+
+.wiki-rendered h3 {
+  font-size: 1.05rem;
+}
+
+.wiki-rendered a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.wiki-rendered ul,
+.wiki-rendered ol {
+  padding-left: 1.25rem;
+}
+
+.wiki-rendered ul {
+  list-style: disc;
+}
+
+.wiki-rendered ol {
+  list-style: decimal;
+}
+
+.wiki-rendered code {
+  border-radius: 0.25rem;
+  background: var(--color-surface-raised);
+  padding: 0.125rem 0.25rem;
+  color: var(--color-text-primary);
+  font-size: 0.85em;
+}
+
+.wiki-rendered pre {
+  overflow: auto;
+  border-radius: 0.375rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
+  padding: 0.75rem;
+}
+
+.wiki-rendered pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.wiki-rendered blockquote {
+  border-left: 3px solid var(--color-border-strong);
+  padding-left: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.wiki-rendered-compact {
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+.wiki-rendered-compact h1 {
+  font-size: 1.05rem;
+}
+
+.wiki-rendered-compact h2,
+.wiki-rendered-compact h3 {
+  font-size: 0.95rem;
+}

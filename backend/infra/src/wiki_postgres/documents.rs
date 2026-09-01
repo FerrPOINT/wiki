@@ -249,7 +249,7 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
                     content_text, content_checksum, summary, author_id, published_at
                 )
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
-                RETURNING id, document_id, version, title, content_markdown, summary, author_id, published_at
+                RETURNING id, document_id, version, title, content_markdown, content_html, summary, author_id, published_at
                 "#,
             )
             .bind(command.revision_id)
@@ -390,7 +390,7 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
         Box::pin(async move {
             let rows = sqlx::query(
                 r#"
-                SELECT id, document_id, version, title, content_markdown, summary, author_id, published_at
+                SELECT id, document_id, version, title, content_markdown, content_html, summary, author_id, published_at
                 FROM document_revisions
                 WHERE document_id = $1
                 ORDER BY version DESC
@@ -412,7 +412,7 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
         Box::pin(async move {
             let row = sqlx::query(
                 r#"
-                SELECT id, document_id, version, title, content_markdown, summary, author_id, published_at
+                SELECT id, document_id, version, title, content_markdown, content_html, summary, author_id, published_at
                 FROM document_revisions
                 WHERE document_id = $1 AND id = $2
                 "#,
@@ -720,6 +720,10 @@ impl PostgresWikiBackend {
                 .as_ref()
                 .map(|revision| revision.body_markdown.clone())
                 .unwrap_or_default(),
+            body_html: current_revision
+                .as_ref()
+                .map(|revision| revision.body_html.clone())
+                .unwrap_or_default(),
             draft_markdown: row.get("draft_markdown"),
             current_revision,
             task_keys,
@@ -739,7 +743,7 @@ impl PostgresWikiBackend {
     ) -> Result<DocumentRevisionResponse, shared::AppError> {
         let row = sqlx::query(
             r#"
-            SELECT id, document_id, version, title, content_markdown, summary, author_id, published_at
+            SELECT id, document_id, version, title, content_markdown, content_html, summary, author_id, published_at
             FROM document_revisions
             WHERE document_id = $1 AND id = $2
             "#,

@@ -33,6 +33,7 @@ vi.mock('@/shared/api/hooks', () => ({
 const baseRevision: DocumentRevision = {
   author_id: 'user-editor',
   body_markdown: '# Published',
+  body_html: '<h1>Published</h1><p>Approved body</p>',
   document_id: 'product-requirements',
   id: 'revision-2',
   published_at: '2026-08-31T12:00:00Z',
@@ -43,6 +44,7 @@ const baseRevision: DocumentRevision = {
 
 const baseDocument: Document = {
   body_markdown: '# Published',
+  body_html: '<h1>Published</h1><p>Approved body</p>',
   created_at: '2026-08-31T10:00:00Z',
   created_by: 'user-editor',
   current_revision: baseRevision,
@@ -139,6 +141,8 @@ describe('DocumentPage', () => {
     expect(screen.getByRole('heading', { name: 'Требования Wiki' })).toBeInTheDocument()
     expect(screen.getByLabelText('Название')).toHaveValue('Требования Wiki')
     expect(screen.getByLabelText('Markdown черновика')).toHaveValue('# Draft\n\nUpdated body')
+    expect(screen.getByRole('heading', { name: 'Published' })).toBeInTheDocument()
+    expect(screen.getByText('Approved body')).toBeInTheDocument()
     expect(screen.getByText('Ревизия 2')).toBeInTheDocument()
     expect(screen.getByText('Утверждён MVP scope')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'SDLC-42' })).toHaveAttribute('href', '/tasks/SDLC-42')
@@ -157,7 +161,8 @@ describe('DocumentPage', () => {
     expect(useDocumentRevision).toHaveBeenLastCalledWith('product-requirements', 'revision-2', true)
     expect(screen.getByRole('heading', { name: 'Снимок ревизии' })).toBeInTheDocument()
     expect(screen.getByText('Ревизия 2: Требования Wiki')).toBeInTheDocument()
-    expect(screen.getAllByText('# Published')).toHaveLength(2)
+    expect(screen.getAllByRole('heading', { name: 'Published' })).toHaveLength(2)
+    expect(screen.getAllByText('Approved body')).toHaveLength(2)
   })
 
   it('sends draft and tree move mutations from visible form state', () => {
@@ -200,6 +205,7 @@ describe('DocumentPage', () => {
     setupDocument({
       ...baseDocument,
       current_revision: null,
+      body_html: '',
       draft_markdown: '',
       evidence: [],
       parent_id: null,

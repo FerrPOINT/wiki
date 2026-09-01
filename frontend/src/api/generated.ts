@@ -58,6 +58,7 @@ export type components = {
       documents: components['schemas']['DocumentResponse'][]
     }
     DocumentResponse: {
+      body_html: string
       body_markdown: string
       created_at: string
       created_by: string
@@ -81,6 +82,7 @@ export type components = {
     }
     DocumentRevisionResponse: {
       author_id: string
+      body_html: string
       body_markdown: string
       document_id: string
       id: string

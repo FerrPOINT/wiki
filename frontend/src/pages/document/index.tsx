@@ -45,6 +45,25 @@ function optional(value: string) {
   return trimmed.length > 0 ? trimmed : null
 }
 
+function RenderedDocumentBody({
+  html,
+  emptyMessage,
+  compact = false,
+}: {
+  html: string
+  emptyMessage: string
+  compact?: boolean
+}) {
+  if (html.trim().length === 0) return <EmptyState message={emptyMessage} />
+
+  return (
+    <div
+      className={compact ? 'wiki-rendered wiki-rendered-compact' : 'wiki-rendered'}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  )
+}
+
 export function DocumentPage() {
   const { documentId = 'product-requirements' } = useParams()
   const documentQuery = useDocument(documentId)
@@ -94,7 +113,7 @@ export function DocumentPage() {
   }
 
   const isArchived = document.status === 'archived'
-  const content = document.body_markdown || document.draft_markdown
+  const publishedHtml = document.body_html || document.current_revision?.body_html || ''
   const currentParentId = document.parent_id ?? null
   const nextParentId = optional(parentId)
   const parentChanged = nextParentId !== currentParentId
@@ -318,16 +337,13 @@ export function DocumentPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Содержимое</CardTitle>
+              <CardTitle className="text-base">Опубликованное содержание</CardTitle>
             </CardHeader>
             <CardContent>
-              {content.trim().length === 0 ? (
-                <EmptyState message="В документе пока нет опубликованного содержания" />
-              ) : (
-                <pre className="whitespace-pre-wrap text-sm leading-6 text-text-secondary">
-                  {content}
-                </pre>
-              )}
+              <RenderedDocumentBody
+                html={publishedHtml}
+                emptyMessage="В документе пока нет опубликованного содержания"
+              />
             </CardContent>
           </Card>
         </div>
@@ -488,9 +504,13 @@ export function DocumentPage() {
                         {shortText(selectedRevision.summary, 'Без описания изменений')}
                       </p>
                     </div>
-                    <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-surface p-3 text-xs leading-5 text-text-secondary">
-                      {selectedRevision.body_markdown}
-                    </pre>
+                    <div className="max-h-96 overflow-auto rounded-md border border-border bg-surface p-3">
+                      <RenderedDocumentBody
+                        html={selectedRevision.body_html}
+                        emptyMessage="В ревизии нет опубликованного содержания"
+                        compact
+                      />
+                    </div>
                   </>
                 )}
               </CardContent>

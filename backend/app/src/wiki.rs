@@ -2781,6 +2781,7 @@ mod tests {
             version,
             title: title.to_string(),
             body_markdown: "# Published".to_string(),
+            body_html: "<h1>Published</h1>\n".to_string(),
             summary: Some("Initial publish".to_string()),
             author_id: Uuid::now_v7().to_string(),
             published_at: "2026-09-01T10:00:00Z".to_string(),
@@ -2808,6 +2809,10 @@ mod tests {
             body_markdown: current_revision
                 .as_ref()
                 .map(|revision| revision.body_markdown.clone())
+                .unwrap_or_default(),
+            body_html: current_revision
+                .as_ref()
+                .map(|revision| revision.body_html.clone())
                 .unwrap_or_default(),
             draft_markdown: "# Draft".to_string(),
             current_revision,

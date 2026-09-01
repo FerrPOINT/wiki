@@ -1506,6 +1506,12 @@ async fn wiki_memory_document_revision_history_is_latest_first_and_immutable() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(first_revision["version"], 1);
     assert_eq!(first_revision["summary"], "Initial publish");
+    assert!(
+        first_revision["body_html"]
+            .as_str()
+            .unwrap()
+            .contains(&format!("<h1>Revision history {short}</h1>"))
+    );
     let first_revision_id = first_revision["id"].as_str().unwrap().to_string();
 
     let (status, draft) = call(
@@ -1591,6 +1597,12 @@ async fn wiki_memory_document_revision_history_is_latest_first_and_immutable() {
             .as_str()
             .unwrap()
             .contains("Second published body")
+    );
+    assert!(
+        new_revision["body_html"]
+            .as_str()
+            .unwrap()
+            .contains(&format!("<h1>Revision history updated {short}</h1>"))
     );
 }
 
@@ -3851,6 +3863,19 @@ async fn wiki_postgres_routes_persist_across_router_rebuilds() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(revision["version"], 1);
+    assert!(
+        revision["body_html"]
+            .as_str()
+            .unwrap()
+            .contains("<h1>Persistent Requirements</h1>")
+    );
+    assert!(!revision["body_html"].as_str().unwrap().contains("<script"));
+    assert!(
+        !revision["body_html"]
+            .as_str()
+            .unwrap()
+            .contains("alert('x')")
+    );
 
     let revision_id = Uuid::parse_str(revision["id"].as_str().unwrap()).unwrap();
     let pool = PgPoolOptions::new()

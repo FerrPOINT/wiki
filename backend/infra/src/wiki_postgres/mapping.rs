@@ -54,6 +54,7 @@ pub(super) fn revision_response_from_row(row: &PgRow) -> DocumentRevisionRespons
         version: row.get::<i32, _>("version") as u32,
         title: row.get("title"),
         body_markdown: row.get("content_markdown"),
+        body_html: row.get("content_html"),
         summary: row.get("summary"),
         author_id: row.get::<Uuid, _>("author_id").to_string(),
         published_at: to_iso(row.get("published_at")),

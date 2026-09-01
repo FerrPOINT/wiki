@@ -79,6 +79,8 @@ Operational endpoints are part of the public API surface but do not create Wiki 
 
 `GET /documents/{document_id}/revisions` возвращает историю в порядке от последней опубликованной ревизии к первой. Опубликованные ревизии immutable: новый draft или повторная публикация не меняют тело, заголовок и summary уже созданных ревизий.
 
+`DocumentResponse` and `DocumentRevisionResponse` expose both `body_markdown` and `body_html`. `body_markdown` is the canonical source for editing and CLI export; `body_html` is the sanitized HTML rendered by the backend from the published revision and is the only HTML surface the UI should render.
+
 ## 8. Task Links
 
 Task dossier в MVP - это представление документов/evidence, связанных одним внешним `task_key`. Wiki не владеет статусом задачи.

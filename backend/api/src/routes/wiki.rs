@@ -1,8 +1,8 @@
 use app::wiki::{
-    WikiSpaceAccess, checksum, normalize_attachment_file_name, normalize_document_type,
-    normalize_evidence_type, normalize_phase_key, normalize_required, normalize_space_key,
-    normalize_space_role, normalize_task_key, safe_download_filename, slugify, snippet,
-    space_role_allows,
+    WikiSpaceAccess, checksum, markdown_to_html, normalize_attachment_file_name,
+    normalize_document_type, normalize_evidence_type, normalize_phase_key, normalize_required,
+    normalize_space_key, normalize_space_role, normalize_task_key, safe_download_filename, slugify,
+    snippet, space_role_allows,
 };
 use axum::{
     Extension, Json,
@@ -167,12 +167,14 @@ impl WikiStore {
             created_at: now.clone(),
             updated_at: now.clone(),
         };
+        let revision_body_markdown = "# Требования к Wiki MVP\n\nБазовый документ для пространств, документов, связей с задачами и фазами, материалов, поиска и аудита.".to_string();
         let revision = DocumentRevisionResponse {
             id: "revision-product-requirements-1".to_string(),
             document_id: "product-requirements".to_string(),
             version: 1,
             title: "Требования к Wiki MVP".to_string(),
-            body_markdown: "# Требования к Wiki MVP\n\nБазовый документ для пространств, документов, связей с задачами и фазами, материалов, поиска и аудита.".to_string(),
+            body_markdown: revision_body_markdown.clone(),
+            body_html: markdown_to_html(&revision_body_markdown),
             summary: Some("Исходные требования MVP".to_string()),
             author_id: user_id.clone(),
             published_at: now.clone(),
@@ -1296,6 +1298,7 @@ pub async fn publish_document(
         version,
         title: document.title.clone(),
         body_markdown: document.draft_markdown.clone(),
+        body_html: markdown_to_html(&document.draft_markdown),
         summary: body.summary,
         author_id: claims.user_id.clone(),
         published_at: now_iso(),
@@ -2515,6 +2518,10 @@ fn document_response(store: &WikiStore, id: &str) -> Result<DocumentResponse, sh
         body_markdown: current_revision
             .as_ref()
             .map(|revision| revision.body_markdown.clone())
+            .unwrap_or_default(),
+        body_html: current_revision
+            .as_ref()
+            .map(|revision| revision.body_html.clone())
             .unwrap_or_default(),
         draft_markdown: document.draft_markdown.clone(),
         current_revision,

@@ -67,6 +67,29 @@ const fileEvidence = {
   created_by: user.id,
   created_at: now,
 }
+const documentBodyMarkdown =
+  '# Требования к Wiki MVP\n\nБазовый документ для пространств, документов, связей с задачами и фазами, материалов, поиска и аудита.'
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+}
+
+function renderMockMarkdown(markdown: string) {
+  return markdown
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
+    .filter(Boolean)
+    .map((block) => {
+      if (block.startsWith('# ')) return `<h1>${escapeHtml(block.slice(2))}</h1>`
+      if (block.startsWith('## ')) return `<h2>${escapeHtml(block.slice(3))}</h2>`
+      return `<p>${escapeHtml(block).replaceAll('\n', '<br />')}</p>`
+    })
+    .join('\n')
+}
 const document = {
   id: 'product-requirements',
   space_key: 'SDLC',
@@ -75,17 +98,16 @@ const document = {
   title: 'Требования к Wiki MVP',
   document_type: 'requirements',
   status: 'published',
-  body_markdown:
-    '# Требования к Wiki MVP\n\nБазовый документ для пространств, документов, связей с задачами и фазами, материалов, поиска и аудита.',
-  draft_markdown:
-    '# Требования к Wiki MVP\n\nБазовый документ для пространств, документов, связей с задачами и фазами, материалов, поиска и аудита.',
+  body_markdown: documentBodyMarkdown,
+  body_html: renderMockMarkdown(documentBodyMarkdown),
+  draft_markdown: documentBodyMarkdown,
   current_revision: {
     id: 'revision-product-requirements-1',
     document_id: 'product-requirements',
     version: 1,
     title: 'Требования к Wiki MVP',
-    body_markdown:
-      '# Требования к Wiki MVP\n\nБазовый документ для пространств, документов, связей с задачами и фазами, материалов, поиска и аудита.',
+    body_markdown: documentBodyMarkdown,
+    body_html: renderMockMarkdown(documentBodyMarkdown),
     summary: 'Исходные требования MVP',
     author_id: user.id,
     published_at: now,
@@ -286,6 +308,7 @@ async function installWikiApiMocks(page: Page) {
         version: 2,
         title: currentDocument.title,
         body_markdown: currentDocument.draft_markdown,
+        body_html: renderMockMarkdown(currentDocument.draft_markdown),
         summary: body.summary ?? null,
         published_at: now,
       }
@@ -293,6 +316,7 @@ async function installWikiApiMocks(page: Page) {
         ...currentDocument,
         status: 'published',
         body_markdown: currentDocument.draft_markdown,
+        body_html: renderMockMarkdown(currentDocument.draft_markdown),
         current_revision: revision,
         updated_at: now,
       }
@@ -465,7 +489,15 @@ test.describe('wiki smoke', () => {
     await expect(page.getByRole('heading', { name: 'Новый документ' })).toBeVisible()
 
     await page.goto(`${baseURL}/documents/product-requirements`)
-    await expect(page.getByRole('heading', { name: 'Требования к Wiki MVP' })).toBeVisible()
+    await expect(
+      page.locator('article > section').first().getByRole('heading', {
+        name: 'Требования к Wiki MVP',
+        exact: true,
+      }),
+    ).toBeVisible()
+    await expect(
+      page.locator('.wiki-rendered').first().getByText('Базовый документ для пространств'),
+    ).toBeVisible()
     await page.getByLabel('Markdown черновика').fill('# Обновлено\n\nЧерновик из e2e.')
     await page.getByRole('button', { name: 'Сохранить', exact: true }).click()
     await expect.poll(() => apiMocks.documentDraftRequests.length).toBe(1)

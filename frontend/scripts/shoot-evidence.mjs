@@ -87,13 +87,37 @@ const fileEvidence = {
   created_at: now,
 }
 
+const documentBodyMarkdown =
+  '# Требования к Wiki MVP\n\nБазовый документ для пространств, документов, связей с задачами и фазами, материалов, поиска и аудита.'
+
+function escapeHtml(value) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+}
+
+function renderMockMarkdown(markdown) {
+  return markdown
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
+    .filter(Boolean)
+    .map((block) => {
+      if (block.startsWith('# ')) return `<h1>${escapeHtml(block.slice(2))}</h1>`
+      if (block.startsWith('## ')) return `<h2>${escapeHtml(block.slice(3))}</h2>`
+      return `<p>${escapeHtml(block).replaceAll('\n', '<br />')}</p>`
+    })
+    .join('\n')
+}
+
 const revision = {
   id: 'revision-product-requirements-1',
   document_id: 'product-requirements',
   version: 1,
   title: 'Требования к Wiki MVP',
-  body_markdown:
-    '# Требования к Wiki MVP\n\nБазовый документ для пространств, документов, связей с задачами и фазами, материалов, поиска и аудита.',
+  body_markdown: documentBodyMarkdown,
+  body_html: renderMockMarkdown(documentBodyMarkdown),
   summary: 'Исходные требования MVP',
   author_id: user.id,
   published_at: now,
@@ -108,6 +132,7 @@ const document = {
   document_type: 'requirements',
   status: 'published',
   body_markdown: revision.body_markdown,
+  body_html: revision.body_html,
   draft_markdown: revision.body_markdown,
   current_revision: revision,
   task_keys: ['SDLC-42'],
