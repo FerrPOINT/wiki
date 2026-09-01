@@ -25,6 +25,7 @@ The test plan covers document lifecycle, task/phase links, evidence ingestion, p
 - `openapi/openapi.json` must expose every route implemented by the public API router.
 - `docs/API.md` and `docs/PRODUCT_REQUIREMENTS.md` must document the same endpoint paths as OpenAPI.
 - API error responses must keep the standard `{ error: { code, message } }` envelope.
+- User deactivation must revoke existing access and refresh sessions so reactivation cannot resurrect old tokens.
 - Large list endpoints must keep bounded `limit` behavior and stable ordering: revisions default 20 and clamp `1..100`, evidence default 30 and clamp `1..100`, search default 20 and clamp `1..100`, audit log default 50 and clamp `1..200`.
 - Upload endpoints must reject empty files, unsafe filenames and payloads over the configured size limit.
 - File evidence tests must reject staged attachments uploaded by another user even when the caller has edit rights in the target space.

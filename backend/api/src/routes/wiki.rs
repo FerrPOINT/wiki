@@ -766,6 +766,7 @@ pub async fn update_user(
         .users
         .get_mut(&user_id)
         .ok_or_else(|| shared::AppError::not_found("user", &user_id))?;
+    let revoke_sessions = body.active == Some(false);
     if let Some(email) = body.email {
         user.email = email;
     }
@@ -785,6 +786,14 @@ pub async fn update_user(
         user.active = active;
     }
     let response = user.clone();
+    if revoke_sessions {
+        store
+            .tokens
+            .retain(|_, token_user_id| token_user_id != &user_id);
+        store
+            .refresh_tokens
+            .retain(|_, token_user_id| token_user_id != &user_id);
+    }
     store.audit(
         &claims.user_id,
         "user.update",

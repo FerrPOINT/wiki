@@ -123,6 +123,16 @@ impl WikiUserRepository for PostgresWikiUserRepository<'_> {
             .map_err(shared::AppError::database)?
             .ok_or_else(|| shared::AppError::not_found("user", command.user_id))?;
 
+            if command.active == Some(false) {
+                sqlx::query(
+                    "UPDATE auth_sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL",
+                )
+                .bind(command.user_id)
+                .execute(&mut *tx)
+                .await
+                .map_err(shared::AppError::database)?;
+            }
+
             self.backend
                 .insert_audit(
                     &mut tx,

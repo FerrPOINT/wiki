@@ -591,6 +591,101 @@ async fn wiki_memory_refresh_rotates_refresh_token() {
 }
 
 #[tokio::test]
+async fn wiki_memory_user_deactivation_revokes_sessions_permanently() {
+    let app = test_app();
+    let admin_token = login_memory_admin(&app).await;
+    let suffix = Uuid::now_v7().simple().to_string();
+    let short = &suffix[..12];
+    let email = format!("memory-deactivate-{short}@example.com");
+    let username = format!("memory-deactivate-{short}");
+    let password = "deactivate-password";
+
+    let (status, registered) = call(
+        &app,
+        Method::POST,
+        "/api/v1/auth/register",
+        None,
+        Some(json!({
+            "email": email,
+            "username": username,
+            "password": password,
+            "name": "Memory Deactivate User"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let user_id = registered["user_id"].as_str().unwrap();
+    let access_token = registered["access_token"].as_str().unwrap();
+    let refresh_token = registered["refresh_token"].as_str().unwrap();
+
+    let (status, me) = call(
+        &app,
+        Method::GET,
+        "/api/v1/users/me",
+        Some(access_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(me["email"], email);
+
+    let (status, deactivated) = call(
+        &app,
+        Method::PUT,
+        &format!("/api/v1/users/{user_id}"),
+        Some(&admin_token),
+        Some(json!({ "active": false })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(deactivated["active"], false);
+
+    let (status, reactivated) = call(
+        &app,
+        Method::PUT,
+        &format!("/api/v1/users/{user_id}"),
+        Some(&admin_token),
+        Some(json!({ "active": true })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(reactivated["active"], true);
+
+    let (status, body) = call(
+        &app,
+        Method::GET,
+        "/api/v1/users/me",
+        Some(access_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert_eq!(body["error"]["code"], "UNAUTHORIZED");
+
+    let (status, body) = call(
+        &app,
+        Method::POST,
+        "/api/v1/auth/refresh",
+        None,
+        Some(json!({ "refresh_token": refresh_token })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert_eq!(body["error"]["code"], "UNAUTHORIZED");
+
+    let (status, login) = call(
+        &app,
+        Method::POST,
+        "/api/v1/auth/login",
+        None,
+        Some(json!({ "email": email, "password": password })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(login["access_token"].is_string());
+}
+
+#[tokio::test]
 async fn wiki_memory_authz_and_audit_align_with_mvp_contract() {
     let app = test_app();
     let (status, login) = call(
@@ -2580,6 +2675,109 @@ async fn wiki_postgres_refresh_rotates_refresh_token() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(me["email"], "admin@example.com");
+}
+
+#[tokio::test]
+async fn wiki_postgres_user_deactivation_revokes_sessions_permanently() {
+    let Ok(database_url) = env::var("WIKI_TEST_DATABASE_URL") else {
+        eprintln!(
+            "skipping postgres user deactivation session test: WIKI_TEST_DATABASE_URL is not set"
+        );
+        return;
+    };
+    reset_postgres(&database_url).await;
+    let storage_dir = env::temp_dir().join(format!("wiki-api-test-{}", Uuid::now_v7()));
+    let (app, _) = postgres_test_app(database_url, storage_dir).await;
+    let admin_token = login_admin(&app).await;
+    let suffix = Uuid::now_v7().simple().to_string();
+    let short = &suffix[..12];
+    let email = format!("postgres-deactivate-{short}@example.com");
+    let username = format!("postgres-deactivate-{short}");
+    let password = "deactivate-password";
+
+    let (status, registered) = call(
+        &app,
+        Method::POST,
+        "/api/v1/auth/register",
+        None,
+        Some(json!({
+            "email": email,
+            "username": username,
+            "password": password,
+            "name": "Postgres Deactivate User"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let user_id = registered["user_id"].as_str().unwrap();
+    let access_token = registered["access_token"].as_str().unwrap();
+    let refresh_token = registered["refresh_token"].as_str().unwrap();
+
+    let (status, me) = call(
+        &app,
+        Method::GET,
+        "/api/v1/users/me",
+        Some(access_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(me["email"], email);
+
+    let (status, deactivated) = call(
+        &app,
+        Method::PUT,
+        &format!("/api/v1/users/{user_id}"),
+        Some(&admin_token),
+        Some(json!({ "active": false })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(deactivated["active"], false);
+
+    let (status, reactivated) = call(
+        &app,
+        Method::PUT,
+        &format!("/api/v1/users/{user_id}"),
+        Some(&admin_token),
+        Some(json!({ "active": true })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(reactivated["active"], true);
+
+    let (status, body) = call(
+        &app,
+        Method::GET,
+        "/api/v1/users/me",
+        Some(access_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert_eq!(body["error"]["code"], "UNAUTHORIZED");
+
+    let (status, body) = call(
+        &app,
+        Method::POST,
+        "/api/v1/auth/refresh",
+        None,
+        Some(json!({ "refresh_token": refresh_token })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert_eq!(body["error"]["code"], "UNAUTHORIZED");
+
+    let (status, login) = call(
+        &app,
+        Method::POST,
+        "/api/v1/auth/login",
+        None,
+        Some(json!({ "email": email, "password": password })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(login["access_token"].is_string());
 }
 
 #[tokio::test]

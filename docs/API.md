@@ -50,6 +50,8 @@ Operational endpoints are part of the public API surface but do not create Wiki 
 
 `DELETE /spaces/{space_key}/members/{user_id}` возвращает `404 NOT_FOUND`, если такой membership уже отсутствует. Успешный `204` означает, что membership реально был удалён; обычный пользователь без другой роли больше не проходит проверки чтения/поиска для этого space.
 
+`PUT /users/{user_id}` with `active=false` revokes that user's current access and refresh sessions. Reactivating the account does not make old tokens usable again; the user must login again.
+
 ## 6. Spaces
 
 | Method | Path                          | Назначение              |
@@ -169,7 +171,7 @@ The pre-development API contract is frozen when these checks pass:
 
 | Area | Required behavior |
 | ---- | ----------------- |
-| Auth | Bad credentials return an auth error; disabled registration returns `403`; missing/invalid bearer tokens return the standard error envelope; refresh rotates access and refresh token paths; logout invalidates both token paths for the current session. |
+| Auth | Bad credentials return an auth error; disabled registration returns `403`; missing/invalid bearer tokens return the standard error envelope; refresh rotates access and refresh token paths; logout and user deactivation invalidate existing token paths. |
 | Access | No role or removed membership blocks document, tree, evidence, attachment and search reads for that space. |
 | Spaces | Archived spaces reject document, evidence and task/phase link write commands while keeping read/admin visibility. |
 | Documents | Archived documents reject `draft`, `publish`, `move`, `archive` and task/phase link writes; duplicate slugs return conflict; stale `base_revision_id` returns conflict; cyclic moves return validation error. |

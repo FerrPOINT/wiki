@@ -8,6 +8,7 @@ Wiki — self-hosted приложение с конфиденциальными 
 
 - Passwords hashed with **argon2id**.
 - JWT access token (15 min) + httpOnly refresh cookie (7 days, rotation).
+- User deactivation revokes existing access and refresh sessions; reactivation requires a new login.
 - Failed login lockout после 5 попыток на 15 минут.
 - MFA/TOTP — не реализовано (future).
 - OAuth/OpenID/LDAP — не реализовано (future).
@@ -126,7 +127,7 @@ Wiki — self-hosted приложение с конфиденциальными 
 ## 16. Incident Response
 
 - Rotate compromised secrets.
-- Revoke sessions via admin panel.
+- Revoke sessions via logout or user deactivation in the admin panel.
 - Block users.
 - Export audit log.
 
