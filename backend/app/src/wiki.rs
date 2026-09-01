@@ -195,6 +195,7 @@ impl<'a, R: WikiAuthRepository + ?Sized> WikiAuthUseCase<'a, R> {
         Ok(shared::WikiClaims {
             user_id: user_id.to_string(),
             session_id: Some(session_id.to_string()),
+            request_id: None,
         })
     }
 
@@ -2717,6 +2718,7 @@ mod tests {
             action: action.to_string(),
             entity_type: "document".to_string(),
             entity_id: Uuid::now_v7().to_string(),
+            request_id: "test-request".to_string(),
             created_at: "2026-09-01T10:00:00Z".to_string(),
         }
     }

@@ -20,6 +20,7 @@ export type components = {
       entity_id: string
       entity_type: string
       id: string
+      request_id: string
     }
     AuditLogResponse: {
       entries: components['schemas']['AuditEntryResponse'][]

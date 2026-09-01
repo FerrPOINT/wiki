@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 struct PostgresWikiAuditRepository<'a> {
     backend: &'a PostgresWikiBackend,
+    request_id: Option<&'a str>,
 }
 
 impl WikiAuditRepository for PostgresWikiAuditRepository<'_> {
@@ -18,7 +19,7 @@ impl WikiAuditRepository for PostgresWikiAuditRepository<'_> {
         Box::pin(async move {
             let rows = sqlx::query(
                 r#"
-                SELECT id, actor_id, action, entity_type, entity_id, created_at
+                SELECT id, actor_id, action, entity_type, entity_id, request_id, created_at
                 FROM audit_log
                 ORDER BY created_at DESC
                 LIMIT $1
@@ -47,7 +48,7 @@ impl WikiAuditRepository for PostgresWikiAuditRepository<'_> {
             .bind(&command.action)
             .bind(&command.entity_type)
             .bind(command.entity_id)
-            .bind(format!("api-{}", Uuid::now_v7()))
+            .bind(audit_request_id(self.request_id))
             .execute(&self.backend.pool)
             .await
             .map_err(shared::AppError::database)?;
@@ -62,7 +63,10 @@ impl PostgresWikiBackend {
         claims: &WikiClaims,
     ) -> Result<AuditLogResponse, shared::AppError> {
         self.ensure_admin(claims).await?;
-        let repository = PostgresWikiAuditRepository { backend: self };
+        let repository = PostgresWikiAuditRepository {
+            backend: self,
+            request_id: None,
+        };
         WikiAuditUseCase::new(&repository).list_recent().await
     }
 
@@ -73,7 +77,10 @@ impl PostgresWikiBackend {
         entity_type: &str,
         entity_id: Uuid,
     ) -> Result<(), shared::AppError> {
-        let repository = PostgresWikiAuditRepository { backend: self };
+        let repository = PostgresWikiAuditRepository {
+            backend: self,
+            request_id: None,
+        };
         WikiAuditUseCase::new(&repository)
             .record(actor_id, action, entity_type, entity_id)
             .await
@@ -86,6 +93,7 @@ impl PostgresWikiBackend {
         action: &str,
         entity_type: &str,
         entity_id: Uuid,
+        request_id: Option<&str>,
     ) -> Result<(), shared::AppError> {
         sqlx::query(
             r#"
@@ -100,10 +108,17 @@ impl PostgresWikiBackend {
         .bind(action)
         .bind(entity_type)
         .bind(entity_id)
-        .bind(format!("api-{}", Uuid::now_v7()))
+        .bind(audit_request_id(request_id))
         .execute(&mut **tx)
         .await
         .map_err(shared::AppError::database)?;
         Ok(())
     }
+}
+
+fn audit_request_id(request_id: Option<&str>) -> String {
+    request_id
+        .filter(|value| !value.trim().is_empty() && value.len() <= 128)
+        .map(ToString::to_string)
+        .unwrap_or_else(|| format!("api-{}", Uuid::now_v7().simple()))
 }

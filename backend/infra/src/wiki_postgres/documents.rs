@@ -15,6 +15,7 @@ use uuid::Uuid;
 
 struct PostgresWikiDocumentRepository<'a> {
     backend: &'a PostgresWikiBackend,
+    request_id: Option<&'a str>,
 }
 
 impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
@@ -126,6 +127,7 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
                     "document.create",
                     "document",
                     command.document_id,
+                    self.request_id,
                 )
                 .await?;
             tx.commit().await.map_err(shared::AppError::database)?;
@@ -190,6 +192,7 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
                     "document.draft_update",
                     "document",
                     command.document_id,
+                    self.request_id,
                 )
                 .await?;
             tx.commit().await.map_err(shared::AppError::database)?;
@@ -293,6 +296,7 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
                     "document.publish",
                     "document",
                     command.document_id,
+                    self.request_id,
                 )
                 .await?;
             tx.commit().await.map_err(shared::AppError::database)?;
@@ -334,6 +338,7 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
                     "document.archive",
                     "document",
                     document_id,
+                    self.request_id,
                 )
                 .await?;
             tx.commit().await.map_err(shared::AppError::database)?;
@@ -376,6 +381,7 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
                     "document.move",
                     "document",
                     document_id,
+                    self.request_id,
                 )
                 .await?;
             tx.commit().await.map_err(shared::AppError::database)?;
@@ -456,7 +462,10 @@ impl PostgresWikiBackend {
             None => None,
         };
 
-        let repository = PostgresWikiDocumentRepository { backend: self };
+        let repository = PostgresWikiDocumentRepository {
+            backend: self,
+            request_id: claims.request_id.as_deref(),
+        };
         WikiDocumentUseCase::new(&repository)
             .create(actor_id, space_id, parent_id, body)
             .await
@@ -470,7 +479,10 @@ impl PostgresWikiBackend {
         let document_id = self.resolve_document_id(document_id).await?;
         self.ensure_document_access(claims, document_id, SpaceAccess::View)
             .await?;
-        let repository = PostgresWikiDocumentRepository { backend: self };
+        let repository = PostgresWikiDocumentRepository {
+            backend: self,
+            request_id: None,
+        };
         WikiDocumentUseCase::new(&repository).get(document_id).await
     }
 
@@ -484,7 +496,10 @@ impl PostgresWikiBackend {
         self.ensure_document_access(claims, document_id, SpaceAccess::Edit)
             .await?;
         let actor_id = parse_uuid(&claims.user_id, "user")?;
-        let repository = PostgresWikiDocumentRepository { backend: self };
+        let repository = PostgresWikiDocumentRepository {
+            backend: self,
+            request_id: claims.request_id.as_deref(),
+        };
         WikiDocumentUseCase::new(&repository)
             .update_draft(actor_id, document_id, body)
             .await
@@ -500,7 +515,10 @@ impl PostgresWikiBackend {
         self.ensure_document_access(claims, document_id, SpaceAccess::Edit)
             .await?;
         let actor_id = parse_uuid(&claims.user_id, "user")?;
-        let repository = PostgresWikiDocumentRepository { backend: self };
+        let repository = PostgresWikiDocumentRepository {
+            backend: self,
+            request_id: claims.request_id.as_deref(),
+        };
         WikiDocumentUseCase::new(&repository)
             .publish(actor_id, document_id, body)
             .await
@@ -515,7 +533,10 @@ impl PostgresWikiBackend {
         self.ensure_document_access(claims, document_id, SpaceAccess::Edit)
             .await?;
         let actor_id = parse_uuid(&claims.user_id, "user")?;
-        let repository = PostgresWikiDocumentRepository { backend: self };
+        let repository = PostgresWikiDocumentRepository {
+            backend: self,
+            request_id: claims.request_id.as_deref(),
+        };
         WikiDocumentUseCase::new(&repository)
             .archive(actor_id, document_id)
             .await
@@ -558,7 +579,10 @@ impl PostgresWikiBackend {
             }
             None => None,
         };
-        let repository = PostgresWikiDocumentRepository { backend: self };
+        let repository = PostgresWikiDocumentRepository {
+            backend: self,
+            request_id: claims.request_id.as_deref(),
+        };
         WikiDocumentUseCase::new(&repository)
             .move_document(actor_id, document_id, parent_id)
             .await
@@ -572,7 +596,10 @@ impl PostgresWikiBackend {
         let document_id = self.resolve_document_id(document_id).await?;
         self.ensure_document_access(claims, document_id, SpaceAccess::View)
             .await?;
-        let repository = PostgresWikiDocumentRepository { backend: self };
+        let repository = PostgresWikiDocumentRepository {
+            backend: self,
+            request_id: None,
+        };
         WikiDocumentUseCase::new(&repository)
             .list_revisions(document_id)
             .await
@@ -588,7 +615,10 @@ impl PostgresWikiBackend {
         self.ensure_document_access(claims, document_id, SpaceAccess::View)
             .await?;
         let revision_id = parse_uuid(revision_id, "revision")?;
-        let repository = PostgresWikiDocumentRepository { backend: self };
+        let repository = PostgresWikiDocumentRepository {
+            backend: self,
+            request_id: None,
+        };
         WikiDocumentUseCase::new(&repository)
             .get_revision(document_id, revision_id)
             .await

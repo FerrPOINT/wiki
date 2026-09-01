@@ -407,6 +407,7 @@ async function installApiMocks(page) {
             action: 'wiki.seeded',
             entity_type: 'space',
             entity_id: 'SDLC',
+            request_id: 'mock-request',
             created_at: now,
           },
         ],

@@ -193,13 +193,18 @@ impl WikiBackendPort for PostgresWikiBackend {
 
     async fn register(
         &self,
+        request_id: Option<String>,
         body: WikiRegisterRequest,
     ) -> Result<WikiAuthResponse, shared::AppError> {
-        PostgresWikiBackend::register(self, body).await
+        PostgresWikiBackend::register(self, request_id, body).await
     }
 
-    async fn login(&self, body: WikiLoginRequest) -> Result<WikiAuthResponse, shared::AppError> {
-        PostgresWikiBackend::login(self, body).await
+    async fn login(
+        &self,
+        request_id: Option<String>,
+        body: WikiLoginRequest,
+    ) -> Result<WikiAuthResponse, shared::AppError> {
+        PostgresWikiBackend::login(self, request_id, body).await
     }
 
     async fn refresh(

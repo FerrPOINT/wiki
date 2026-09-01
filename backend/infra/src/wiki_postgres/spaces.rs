@@ -14,6 +14,7 @@ use uuid::Uuid;
 
 struct PostgresWikiSpaceRepository<'a> {
     backend: &'a PostgresWikiBackend,
+    request_id: Option<&'a str>,
 }
 
 async fn fetch_space_by_key(
@@ -91,6 +92,7 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
                     "space.create",
                     "space",
                     command.space_id,
+                    self.request_id,
                 )
                 .await?;
             tx.commit().await.map_err(shared::AppError::database)?;
@@ -144,6 +146,7 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
                     "space.update",
                     "space",
                     command.space_id,
+                    self.request_id,
                 )
                 .await?;
             tx.commit().await.map_err(shared::AppError::database)?;
@@ -189,6 +192,7 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
                     "space.archive",
                     "space",
                     command.space_id,
+                    self.request_id,
                 )
                 .await?;
             tx.commit().await.map_err(shared::AppError::database)?;
@@ -272,6 +276,7 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
                     "space.member_upsert",
                     "space",
                     command.space_id,
+                    self.request_id,
                 )
                 .await?;
             tx.commit().await.map_err(shared::AppError::database)?;
@@ -311,6 +316,7 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
                     "space.member_delete",
                     "space",
                     command.space_id,
+                    self.request_id,
                 )
                 .await?;
             tx.commit().await.map_err(shared::AppError::database)?;
@@ -346,7 +352,10 @@ impl PostgresWikiBackend {
         claims: &WikiClaims,
     ) -> Result<SpaceListResponse, shared::AppError> {
         let user_id = parse_uuid(&claims.user_id, "user")?;
-        let repository = PostgresWikiSpaceRepository { backend: self };
+        let repository = PostgresWikiSpaceRepository {
+            backend: self,
+            request_id: None,
+        };
         WikiSpaceUseCase::new(&repository).list(user_id).await
     }
 
@@ -356,7 +365,10 @@ impl PostgresWikiBackend {
         body: CreateSpaceRequest,
     ) -> Result<SpaceResponse, shared::AppError> {
         let actor_id = self.ensure_admin(claims).await?;
-        let repository = PostgresWikiSpaceRepository { backend: self };
+        let repository = PostgresWikiSpaceRepository {
+            backend: self,
+            request_id: claims.request_id.as_deref(),
+        };
         WikiSpaceUseCase::new(&repository)
             .create(actor_id, body)
             .await
@@ -369,7 +381,10 @@ impl PostgresWikiBackend {
     ) -> Result<SpaceResponse, shared::AppError> {
         self.ensure_space_access(claims, space_key, SpaceAccess::View)
             .await?;
-        let repository = PostgresWikiSpaceRepository { backend: self };
+        let repository = PostgresWikiSpaceRepository {
+            backend: self,
+            request_id: None,
+        };
         WikiSpaceUseCase::new(&repository).get(space_key).await
     }
 
@@ -383,7 +398,10 @@ impl PostgresWikiBackend {
             .ensure_space_access(claims, space_key, SpaceAccess::Admin)
             .await?;
         let actor_id = parse_uuid(&claims.user_id, "user")?;
-        let repository = PostgresWikiSpaceRepository { backend: self };
+        let repository = PostgresWikiSpaceRepository {
+            backend: self,
+            request_id: claims.request_id.as_deref(),
+        };
         WikiSpaceUseCase::new(&repository)
             .update(actor_id, space_id, space_key, body)
             .await
@@ -398,7 +416,10 @@ impl PostgresWikiBackend {
             .ensure_space_access(claims, space_key, SpaceAccess::Admin)
             .await?;
         let actor_id = parse_uuid(&claims.user_id, "user")?;
-        let repository = PostgresWikiSpaceRepository { backend: self };
+        let repository = PostgresWikiSpaceRepository {
+            backend: self,
+            request_id: claims.request_id.as_deref(),
+        };
         WikiSpaceUseCase::new(&repository)
             .archive(actor_id, space_id, space_key)
             .await
@@ -412,7 +433,10 @@ impl PostgresWikiBackend {
         let space_id = self
             .ensure_space_access(claims, space_key, SpaceAccess::Admin)
             .await?;
-        let repository = PostgresWikiSpaceRepository { backend: self };
+        let repository = PostgresWikiSpaceRepository {
+            backend: self,
+            request_id: None,
+        };
         WikiSpaceUseCase::new(&repository)
             .list_members(space_id)
             .await
@@ -430,7 +454,10 @@ impl PostgresWikiBackend {
             .await?;
         let actor_id = parse_uuid(&claims.user_id, "user")?;
         let user_id = parse_uuid(user_id, "user")?;
-        let repository = PostgresWikiSpaceRepository { backend: self };
+        let repository = PostgresWikiSpaceRepository {
+            backend: self,
+            request_id: claims.request_id.as_deref(),
+        };
         WikiSpaceUseCase::new(&repository)
             .upsert_member(actor_id, space_id, user_id, body)
             .await
@@ -447,7 +474,10 @@ impl PostgresWikiBackend {
             .await?;
         let actor_id = parse_uuid(&claims.user_id, "user")?;
         let user_id = parse_uuid(user_id, "user")?;
-        let repository = PostgresWikiSpaceRepository { backend: self };
+        let repository = PostgresWikiSpaceRepository {
+            backend: self,
+            request_id: claims.request_id.as_deref(),
+        };
         WikiSpaceUseCase::new(&repository)
             .delete_member(actor_id, space_id, user_id)
             .await
@@ -461,7 +491,10 @@ impl PostgresWikiBackend {
         let space_id = self
             .ensure_space_access(claims, space_key, SpaceAccess::View)
             .await?;
-        let repository = PostgresWikiSpaceRepository { backend: self };
+        let repository = PostgresWikiSpaceRepository {
+            backend: self,
+            request_id: None,
+        };
         WikiSpaceUseCase::new(&repository)
             .tree(space_id, space_key)
             .await

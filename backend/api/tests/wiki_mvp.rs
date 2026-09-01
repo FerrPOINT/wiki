@@ -3537,6 +3537,110 @@ async fn wiki_api_propagates_request_id_header() {
 }
 
 #[tokio::test]
+async fn wiki_api_records_request_id_in_audit_log() {
+    let app = test_app();
+    let login_request_id = format!("req-audit-login-{}", Uuid::now_v7().simple());
+
+    let (status, _, login) = call_with_headers(
+        &app,
+        Method::POST,
+        "/api/v1/auth/login",
+        None,
+        Some(json!({ "email": "demo@example.com", "password": "demo" })),
+        &[("x-request-id", login_request_id.as_str())],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let token = login["access_token"].as_str().unwrap();
+
+    let document_request_id = format!("req-audit-document-{}", Uuid::now_v7().simple());
+    let slug = format!("audit-request-id-{}", Uuid::now_v7().simple());
+    let (status, _, document) = call_with_headers(
+        &app,
+        Method::POST,
+        "/api/v1/spaces/SDLC/documents",
+        Some(token),
+        Some(json!({
+            "title": "Audit request id",
+            "slug": slug,
+            "document_type": "page",
+            "content_markdown": "# Audit request id"
+        })),
+        &[("x-request-id", document_request_id.as_str())],
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let document_id = document["id"].as_str().unwrap();
+
+    let (status, audit) = call(&app, Method::GET, "/api/v1/audit-log", Some(token), None).await;
+    assert_eq!(status, StatusCode::OK);
+    let entries = audit["entries"].as_array().unwrap();
+    assert!(entries.iter().any(|entry| {
+        entry["action"] == "auth.login" && entry["request_id"] == login_request_id
+    }));
+    assert!(entries.iter().any(|entry| {
+        entry["action"] == "document.create"
+            && entry["entity_id"] == document_id
+            && entry["request_id"] == document_request_id
+    }));
+}
+
+#[tokio::test]
+async fn wiki_postgres_audit_records_request_id_when_database_available() {
+    let Ok(database_url) = env::var("WIKI_TEST_DATABASE_URL") else {
+        eprintln!("skipping postgres audit request id test: WIKI_TEST_DATABASE_URL is not set");
+        return;
+    };
+    reset_postgres(&database_url).await;
+    let storage_dir = env::temp_dir().join(format!("wiki-api-test-{}", Uuid::now_v7()));
+    let (app, _) = postgres_test_app(database_url, storage_dir).await;
+    let login_request_id = format!("req-pg-audit-login-{}", Uuid::now_v7().simple());
+
+    let (status, _, login) = call_with_headers(
+        &app,
+        Method::POST,
+        "/api/v1/auth/login",
+        None,
+        Some(json!({ "email": "admin@example.com", "password": "admin-password" })),
+        &[("x-request-id", login_request_id.as_str())],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let token = login["access_token"].as_str().unwrap();
+
+    let document_request_id = format!("req-pg-audit-document-{}", Uuid::now_v7().simple());
+    let slug = format!("pg-audit-request-id-{}", Uuid::now_v7().simple());
+    let (status, _, document) = call_with_headers(
+        &app,
+        Method::POST,
+        "/api/v1/spaces/SDLC/documents",
+        Some(token),
+        Some(json!({
+            "title": "Postgres audit request id",
+            "slug": slug,
+            "document_type": "page",
+            "content_markdown": "# Postgres audit request id"
+        })),
+        &[("x-request-id", document_request_id.as_str())],
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let document_id = document["id"].as_str().unwrap();
+
+    let (status, audit) = call(&app, Method::GET, "/api/v1/audit-log", Some(token), None).await;
+    assert_eq!(status, StatusCode::OK);
+    let entries = audit["entries"].as_array().unwrap();
+    assert!(entries.iter().any(|entry| {
+        entry["action"] == "auth.login" && entry["request_id"] == login_request_id
+    }));
+    assert!(entries.iter().any(|entry| {
+        entry["action"] == "document.create"
+            && entry["entity_id"] == document_id
+            && entry["request_id"] == document_request_id
+    }));
+}
+
+#[tokio::test]
 async fn wiki_mvp_routes_cover_public_contract() {
     let app = test_app();
 

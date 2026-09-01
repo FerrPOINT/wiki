@@ -2021,6 +2021,7 @@
           "action",
           "entity_type",
           "entity_id",
+          "request_id",
           "created_at"
         ],
         "properties": {
@@ -2040,6 +2041,9 @@
             "type": "string"
           },
           "id": {
+            "type": "string"
+          },
+          "request_id": {
             "type": "string"
           }
         }

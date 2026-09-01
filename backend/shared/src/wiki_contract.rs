@@ -7,6 +7,7 @@ use crate::{AppConfig, AppError};
 pub struct WikiClaims {
     pub user_id: String,
     pub session_id: Option<String>,
+    pub request_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -54,8 +55,16 @@ impl WikiSettingsSnapshot {
 pub trait WikiBackendPort: Send + Sync {
     async fn readiness_check(&self) -> Result<(), AppError>;
     async fn authenticate_access_token(&self, token: &str) -> Result<WikiClaims, AppError>;
-    async fn register(&self, body: WikiRegisterRequest) -> Result<WikiAuthResponse, AppError>;
-    async fn login(&self, body: WikiLoginRequest) -> Result<WikiAuthResponse, AppError>;
+    async fn register(
+        &self,
+        request_id: Option<String>,
+        body: WikiRegisterRequest,
+    ) -> Result<WikiAuthResponse, AppError>;
+    async fn login(
+        &self,
+        request_id: Option<String>,
+        body: WikiLoginRequest,
+    ) -> Result<WikiAuthResponse, AppError>;
     async fn refresh(&self, body: WikiRefreshRequest) -> Result<WikiAuthResponse, AppError>;
     async fn logout(&self, claims: &WikiClaims) -> Result<(), AppError>;
     async fn get_current_user(&self, claims: &WikiClaims) -> Result<WikiUserResponse, AppError>;
@@ -649,6 +658,7 @@ pub struct AuditEntryResponse {
     pub action: String,
     pub entity_type: String,
     pub entity_id: String,
+    pub request_id: String,
     pub created_at: String,
 }
 

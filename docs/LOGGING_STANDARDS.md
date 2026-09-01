@@ -34,7 +34,7 @@
   "level": "INFO",
   "target": "wiki::api::documents",
   "message": "Document published",
-  "request_id": "0192a7b4-...",
+  "request_id": "req_0192a7b4...",
   "trace_id": "...",
   "span_id": "...",
   "user_id": "...",
@@ -48,7 +48,7 @@
 - `timestamp` — ISO-8601 UTC.
 - `level` — uppercase.
 - `target` — Rust module / frontend component / CLI command.
-- `request_id` — UUID, прокидывается через все слои.
+- `request_id` — correlation id из `X-Request-ID` или серверный `req_` id, прокидывается через HTTP, tracing, CLI/UI clients и audit.
 - `duration_ms` — время обработки запроса/операции.
 
 ## 5. Что логировать
@@ -75,6 +75,7 @@
 - Frontend добавляет `X-Request-ID` ко всем API-вызовам.
 - `request_id` включается в ответ заголовком `X-Request-ID`.
 - CLI передаёт `X-Request-ID` в заголовках.
+- Audit log сохраняет тот же `request_id` для mutating операций, чтобы запись аудита можно было сопоставить с HTTP response/log span.
 
 ## 7. Tracing
 

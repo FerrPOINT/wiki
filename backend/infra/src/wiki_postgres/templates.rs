@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 struct PostgresWikiTemplateRepository<'a> {
     backend: &'a PostgresWikiBackend,
+    request_id: Option<&'a str>,
 }
 
 impl WikiTemplateRepository for PostgresWikiTemplateRepository<'_> {
@@ -60,7 +61,14 @@ impl WikiTemplateRepository for PostgresWikiTemplateRepository<'_> {
             .await
             .map_err(shared::AppError::database)?;
             self.backend
-                .insert_audit(&mut tx, Some(actor_id), "template.create", "template", id)
+                .insert_audit(
+                    &mut tx,
+                    Some(actor_id),
+                    "template.create",
+                    "template",
+                    id,
+                    self.request_id,
+                )
                 .await?;
             tx.commit().await.map_err(shared::AppError::database)?;
             Ok(template_response_from_row(&row))
@@ -70,7 +78,10 @@ impl WikiTemplateRepository for PostgresWikiTemplateRepository<'_> {
 
 impl PostgresWikiBackend {
     pub(super) async fn list_templates(&self) -> Result<TemplateListResponse, shared::AppError> {
-        let repository = PostgresWikiTemplateRepository { backend: self };
+        let repository = PostgresWikiTemplateRepository {
+            backend: self,
+            request_id: None,
+        };
         WikiTemplateUseCase::new(&repository).list().await
     }
 
@@ -80,7 +91,10 @@ impl PostgresWikiBackend {
         body: CreateTemplateRequest,
     ) -> Result<TemplateResponse, shared::AppError> {
         let actor_id = self.ensure_admin(claims).await?;
-        let repository = PostgresWikiTemplateRepository { backend: self };
+        let repository = PostgresWikiTemplateRepository {
+            backend: self,
+            request_id: claims.request_id.as_deref(),
+        };
         WikiTemplateUseCase::new(&repository)
             .create(actor_id, body)
             .await

@@ -15,6 +15,7 @@ use uuid::Uuid;
 
 struct PostgresWikiUserRepository<'a> {
     backend: &'a PostgresWikiBackend,
+    request_id: Option<&'a str>,
 }
 
 impl WikiUserRepository for PostgresWikiUserRepository<'_> {
@@ -70,7 +71,14 @@ impl WikiUserRepository for PostgresWikiUserRepository<'_> {
             .map_err(shared::AppError::database)?;
 
             self.backend
-                .insert_audit(&mut tx, Some(actor_id), "user.create", "user", user_id)
+                .insert_audit(
+                    &mut tx,
+                    Some(actor_id),
+                    "user.create",
+                    "user",
+                    user_id,
+                    self.request_id,
+                )
                 .await?;
             tx.commit().await.map_err(shared::AppError::database)?;
 
@@ -122,6 +130,7 @@ impl WikiUserRepository for PostgresWikiUserRepository<'_> {
                     "user.update",
                     "user",
                     command.user_id,
+                    self.request_id,
                 )
                 .await?;
             tx.commit().await.map_err(shared::AppError::database)?;
@@ -143,6 +152,7 @@ impl WikiSettingsRepository for PostgresWikiSettingsRepository<'_> {
 
 struct PostgresWikiAuthRepository<'a> {
     backend: &'a PostgresWikiBackend,
+    request_id: Option<&'a str>,
 }
 
 fn auth_user_from_row(row: &PgRow) -> WikiAuthUserRecord {
@@ -258,6 +268,7 @@ impl WikiAuthRepository for PostgresWikiAuthRepository<'_> {
                     "auth.register",
                     "user",
                     command.user_id,
+                    self.request_id,
                 )
                 .await?;
             insert_session(&mut tx, &command.session).await?;
@@ -308,6 +319,7 @@ impl WikiAuthRepository for PostgresWikiAuthRepository<'_> {
                     "auth.login",
                     "user",
                     session.user_id,
+                    self.request_id,
                 )
                 .await?;
             tx.commit().await.map_err(shared::AppError::database)?;
@@ -413,6 +425,7 @@ impl WikiAuthRepository for PostgresWikiAuthRepository<'_> {
                     "auth.logout",
                     "user",
                     command.user_id,
+                    self.request_id,
                 )
                 .await?;
             tx.commit().await.map_err(shared::AppError::database)?;
@@ -448,7 +461,10 @@ impl PostgresWikiBackend {
         &self,
         token: &str,
     ) -> Result<WikiClaims, shared::AppError> {
-        let repository = PostgresWikiAuthRepository { backend: self };
+        let repository = PostgresWikiAuthRepository {
+            backend: self,
+            request_id: None,
+        };
         WikiAuthUseCase::new(&repository, &self.auth)
             .authenticate_access_token(token)
             .await
@@ -456,9 +472,13 @@ impl PostgresWikiBackend {
 
     pub(super) async fn register(
         &self,
+        request_id: Option<String>,
         body: WikiRegisterRequest,
     ) -> Result<WikiAuthResponse, shared::AppError> {
-        let repository = PostgresWikiAuthRepository { backend: self };
+        let repository = PostgresWikiAuthRepository {
+            backend: self,
+            request_id: request_id.as_deref(),
+        };
         WikiAuthUseCase::new(&repository, &self.auth)
             .register(body)
             .await
@@ -466,9 +486,13 @@ impl PostgresWikiBackend {
 
     pub(super) async fn login(
         &self,
+        request_id: Option<String>,
         body: WikiLoginRequest,
     ) -> Result<WikiAuthResponse, shared::AppError> {
-        let repository = PostgresWikiAuthRepository { backend: self };
+        let repository = PostgresWikiAuthRepository {
+            backend: self,
+            request_id: request_id.as_deref(),
+        };
         WikiAuthUseCase::new(&repository, &self.auth)
             .login(body)
             .await
@@ -478,14 +502,20 @@ impl PostgresWikiBackend {
         &self,
         body: WikiRefreshRequest,
     ) -> Result<WikiAuthResponse, shared::AppError> {
-        let repository = PostgresWikiAuthRepository { backend: self };
+        let repository = PostgresWikiAuthRepository {
+            backend: self,
+            request_id: None,
+        };
         WikiAuthUseCase::new(&repository, &self.auth)
             .refresh(body)
             .await
     }
 
     pub(super) async fn logout(&self, claims: &WikiClaims) -> Result<(), shared::AppError> {
-        let repository = PostgresWikiAuthRepository { backend: self };
+        let repository = PostgresWikiAuthRepository {
+            backend: self,
+            request_id: claims.request_id.as_deref(),
+        };
         WikiAuthUseCase::new(&repository, &self.auth)
             .logout(claims)
             .await
@@ -495,7 +525,10 @@ impl PostgresWikiBackend {
         &self,
         claims: &WikiClaims,
     ) -> Result<WikiUserResponse, shared::AppError> {
-        let repository = PostgresWikiAuthRepository { backend: self };
+        let repository = PostgresWikiAuthRepository {
+            backend: self,
+            request_id: None,
+        };
         WikiAuthUseCase::new(&repository, &self.auth)
             .current_user(claims)
             .await
@@ -506,7 +539,10 @@ impl PostgresWikiBackend {
         claims: &WikiClaims,
     ) -> Result<WikiUserListResponse, shared::AppError> {
         self.ensure_admin(claims).await?;
-        let repository = PostgresWikiUserRepository { backend: self };
+        let repository = PostgresWikiUserRepository {
+            backend: self,
+            request_id: None,
+        };
         WikiUserUseCase::new(&repository).list().await
     }
 
@@ -525,7 +561,10 @@ impl PostgresWikiBackend {
         body: WikiCreateUserRequest,
     ) -> Result<WikiUserResponse, shared::AppError> {
         let actor_id = self.ensure_admin(claims).await?;
-        let repository = PostgresWikiUserRepository { backend: self };
+        let repository = PostgresWikiUserRepository {
+            backend: self,
+            request_id: claims.request_id.as_deref(),
+        };
         WikiUserUseCase::new(&repository)
             .create(actor_id, body)
             .await
@@ -539,7 +578,10 @@ impl PostgresWikiBackend {
     ) -> Result<WikiUserResponse, shared::AppError> {
         let actor_id = self.ensure_admin(claims).await?;
         let user_id = parse_uuid(user_id, "user")?;
-        let repository = PostgresWikiUserRepository { backend: self };
+        let repository = PostgresWikiUserRepository {
+            backend: self,
+            request_id: claims.request_id.as_deref(),
+        };
         WikiUserUseCase::new(&repository)
             .update(actor_id, user_id, body)
             .await

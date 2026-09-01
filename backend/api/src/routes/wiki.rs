@@ -92,13 +92,22 @@ pub async fn require_wiki_auth(
         })
         .ok_or(shared::AppError::Unauthorized)?;
 
-    let claims = match backend.authenticate_access_token(token).await {
+    let mut claims = match backend.authenticate_access_token(token).await {
         Ok(claims) => claims,
         Err(_) => return Err(shared::AppError::Unauthorized),
     };
+    claims.request_id = request_id_from_headers(req.headers());
 
     req.extensions_mut().insert(claims);
     Ok(next.run(req).await)
+}
+
+fn request_id_from_headers(headers: &HeaderMap) -> Option<String> {
+    let value = headers.get("x-request-id")?.to_str().ok()?.trim();
+    if value.is_empty() || value.len() > 128 {
+        return None;
+    }
+    Some(value.to_string())
 }
 
 #[derive(Debug, Clone)]
@@ -258,21 +267,37 @@ impl WikiStore {
                 action: "wiki.seeded".to_string(),
                 entity_type: "space".to_string(),
                 entity_id: "SDLC".to_string(),
+                request_id: "memory-seed".to_string(),
                 created_at: now,
             }],
         }
     }
 
-    fn audit(&mut self, actor_id: &str, action: &str, entity_type: &str, entity_id: &str) {
+    fn audit(
+        &mut self,
+        actor_id: &str,
+        action: &str,
+        entity_type: &str,
+        entity_id: &str,
+        request_id: Option<&str>,
+    ) {
         self.audit.push(AuditEntryResponse {
             id: new_id(),
             actor_id: actor_id.to_string(),
             action: action.to_string(),
             entity_type: entity_type.to_string(),
             entity_id: entity_id.to_string(),
+            request_id: audit_request_id(request_id),
             created_at: now_iso(),
         });
     }
+}
+
+fn audit_request_id(request_id: Option<&str>) -> String {
+    request_id
+        .filter(|value| !value.trim().is_empty() && value.len() <= 128)
+        .map(ToString::to_string)
+        .unwrap_or_else(|| format!("api-{}", Uuid::now_v7().simple()))
 }
 
 static STORE: OnceLock<Mutex<WikiStore>> = OnceLock::new();
@@ -300,6 +325,7 @@ impl WikiBackend {
         Ok(WikiClaims {
             user_id,
             session_id: None,
+            request_id: None,
         })
     }
 }
@@ -427,6 +453,7 @@ fn ensure_attachment_access(
 )]
 pub async fn register(
     Extension(backend): Extension<WikiBackend>,
+    headers: HeaderMap,
     Json(body): Json<WikiRegisterRequest>,
 ) -> Result<impl IntoResponse, shared::AppError> {
     if !backend.registration_enabled() {
@@ -434,7 +461,9 @@ pub async fn register(
     }
 
     if let Some(persistent) = backend.persistent_backend() {
-        let response = persistent.register(body).await?;
+        let response = persistent
+            .register(request_id_from_headers(&headers), body)
+            .await?;
         return Ok((StatusCode::CREATED, Json(response)));
     }
 
@@ -462,7 +491,13 @@ pub async fn register(
     };
     store.passwords.insert(user_id.clone(), body.password);
     store.users.insert(user_id.clone(), user.clone());
-    store.audit(&user_id, "auth.register", "user", &user_id);
+    store.audit(
+        &user_id,
+        "auth.register",
+        "user",
+        &user_id,
+        request_id_from_headers(&headers).as_deref(),
+    );
     Ok((StatusCode::CREATED, Json(auth_response(&mut store, &user))))
 }
 
@@ -475,10 +510,15 @@ pub async fn register(
 )]
 pub async fn login(
     Extension(backend): Extension<WikiBackend>,
+    headers: HeaderMap,
     Json(body): Json<WikiLoginRequest>,
 ) -> Result<Json<WikiAuthResponse>, shared::AppError> {
     if let Some(persistent) = backend.persistent_backend() {
-        return Ok(Json(persistent.login(body).await?));
+        return Ok(Json(
+            persistent
+                .login(request_id_from_headers(&headers), body)
+                .await?,
+        ));
     }
 
     let mut store = store().lock().expect("wiki store lock");
@@ -491,7 +531,13 @@ pub async fn login(
     if store.passwords.get(&user.id) != Some(&body.password) {
         return Err(shared::AppError::Unauthorized);
     }
-    store.audit(&user.id, "auth.login", "user", &user.id);
+    store.audit(
+        &user.id,
+        "auth.login",
+        "user",
+        &user.id,
+        request_id_from_headers(&headers).as_deref(),
+    );
     Ok(Json(auth_response(&mut store, &user)))
 }
 
@@ -550,7 +596,13 @@ pub async fn logout(
     store
         .refresh_tokens
         .retain(|_, user_id| user_id != &claims.user_id);
-    store.audit(&claims.user_id, "auth.logout", "user", &claims.user_id);
+    store.audit(
+        &claims.user_id,
+        "auth.logout",
+        "user",
+        &claims.user_id,
+        claims.request_id.as_deref(),
+    );
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -668,7 +720,13 @@ pub async fn create_user(
     };
     store.passwords.insert(user_id.clone(), body.password);
     store.users.insert(user_id.clone(), user.clone());
-    store.audit(&claims.user_id, "user.create", "user", &user_id);
+    store.audit(
+        &claims.user_id,
+        "user.create",
+        "user",
+        &user_id,
+        claims.request_id.as_deref(),
+    );
     Ok((StatusCode::CREATED, Json(user)))
 }
 
@@ -725,7 +783,13 @@ pub async fn update_user(
         user.active = active;
     }
     let response = user.clone();
-    store.audit(&claims.user_id, "user.update", "user", &user_id);
+    store.audit(
+        &claims.user_id,
+        "user.update",
+        "user",
+        &user_id,
+        claims.request_id.as_deref(),
+    );
     Ok(Json(response))
 }
 
@@ -801,7 +865,13 @@ pub async fn create_space(
         key.clone(),
         BTreeMap::from([(claims.user_id.clone(), "admin".to_string())]),
     );
-    store.audit(&claims.user_id, "space.create", "space", &key);
+    store.audit(
+        &claims.user_id,
+        "space.create",
+        "space",
+        &key,
+        claims.request_id.as_deref(),
+    );
     Ok((StatusCode::CREATED, Json(space)))
 }
 
@@ -872,7 +942,13 @@ pub async fn update_space(
     }
     space.updated_at = now_iso();
     let response = space.clone();
-    store.audit(&claims.user_id, "space.update", "space", &key);
+    store.audit(
+        &claims.user_id,
+        "space.update",
+        "space",
+        &key,
+        claims.request_id.as_deref(),
+    );
     Ok(Json(response))
 }
 
@@ -903,7 +979,13 @@ pub async fn archive_space(
     space.status = "archived".to_string();
     space.updated_at = now_iso();
     let response = space.clone();
-    store.audit(&claims.user_id, "space.archive", "space", &key);
+    store.audit(
+        &claims.user_id,
+        "space.archive",
+        "space",
+        &key,
+        claims.request_id.as_deref(),
+    );
     Ok(Json(response))
 }
 
@@ -989,7 +1071,13 @@ pub async fn upsert_space_member(
         space.member_count = member_count;
         space.updated_at = now_iso();
     }
-    store.audit(&claims.user_id, "space.member_upsert", "space", &key);
+    store.audit(
+        &claims.user_id,
+        "space.member_upsert",
+        "space",
+        &key,
+        claims.request_id.as_deref(),
+    );
     Ok(Json(SpaceMemberResponse {
         user_id,
         email: user.email,
@@ -1034,7 +1122,13 @@ pub async fn delete_space_member(
         space.member_count = member_count;
         space.updated_at = now_iso();
     }
-    store.audit(&claims.user_id, "space.member_delete", "space", &key);
+    store.audit(
+        &claims.user_id,
+        "space.member_delete",
+        "space",
+        &key,
+        claims.request_id.as_deref(),
+    );
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -1159,7 +1253,13 @@ pub async fn create_document(
         space.document_count = document_count;
         space.updated_at = now_iso();
     }
-    store.audit(&claims.user_id, "document.create", "document", &id);
+    store.audit(
+        &claims.user_id,
+        "document.create",
+        "document",
+        &id,
+        claims.request_id.as_deref(),
+    );
     let response = document_response(&store, &id)?;
     Ok((StatusCode::CREATED, Json(response)))
 }
@@ -1239,7 +1339,13 @@ pub async fn update_document_draft(
     document.status = "draft".to_string();
     document.updated_by = claims.user_id.clone();
     document.updated_at = now_iso();
-    store.audit(&claims.user_id, "document.draft_update", "document", &id);
+    store.audit(
+        &claims.user_id,
+        "document.draft_update",
+        "document",
+        &id,
+        claims.request_id.as_deref(),
+    );
     Ok(Json(document_response(&store, &id)?))
 }
 
@@ -1312,7 +1418,13 @@ pub async fn publish_document(
         .entry(id.clone())
         .or_default()
         .push(revision.clone());
-    store.audit(&claims.user_id, "document.publish", "document", &id);
+    store.audit(
+        &claims.user_id,
+        "document.publish",
+        "document",
+        &id,
+        claims.request_id.as_deref(),
+    );
     Ok(Json(revision))
 }
 
@@ -1350,7 +1462,13 @@ pub async fn archive_document(
     document.status = "archived".to_string();
     document.updated_by = claims.user_id.clone();
     document.updated_at = now_iso();
-    store.audit(&claims.user_id, "document.archive", "document", &id);
+    store.audit(
+        &claims.user_id,
+        "document.archive",
+        "document",
+        &id,
+        claims.request_id.as_deref(),
+    );
     Ok(Json(document_response(&store, &id)?))
 }
 
@@ -1423,7 +1541,13 @@ pub async fn move_document(
     document.parent_id = parent_id;
     document.updated_by = claims.user_id.clone();
     document.updated_at = now_iso();
-    store.audit(&claims.user_id, "document.move", "document", &id);
+    store.audit(
+        &claims.user_id,
+        "document.move",
+        "document",
+        &id,
+        claims.request_id.as_deref(),
+    );
     Ok(Json(document_response(&store, &id)?))
 }
 
@@ -1603,7 +1727,13 @@ pub async fn link_task_document(
         .ok_or_else(|| shared::AppError::not_found("document", &body.document_id))?;
     document.task_keys.insert(task_key.clone());
     document.updated_at = now_iso();
-    store.audit(&claims.user_id, "task.link_document", "task", &task_key);
+    store.audit(
+        &claims.user_id,
+        "task.link_document",
+        "task",
+        &task_key,
+        claims.request_id.as_deref(),
+    );
     Ok(Json(task_page(&store, &key, &task_key)))
 }
 
@@ -1786,7 +1916,13 @@ pub async fn link_phase_document(
         .ok_or_else(|| shared::AppError::not_found("document", &body.document_id))?;
     document.phase_keys.insert(phase_key.clone());
     document.updated_at = now_iso();
-    store.audit(&claims.user_id, "phase.link_document", "phase", &phase_key);
+    store.audit(
+        &claims.user_id,
+        "phase.link_document",
+        "phase",
+        &phase_key,
+        claims.request_id.as_deref(),
+    );
     Ok(Json(phase_page(&store, &key, &phase_key)))
 }
 
@@ -1987,7 +2123,13 @@ pub async fn create_evidence(
         created_at: now_iso(),
     };
     store.evidence.insert(id.clone(), evidence.clone());
-    store.audit(&claims.user_id, "evidence.create", "evidence", &id);
+    store.audit(
+        &claims.user_id,
+        "evidence.create",
+        "evidence",
+        &id,
+        claims.request_id.as_deref(),
+    );
     Ok((StatusCode::CREATED, Json(evidence)))
 }
 
@@ -2165,7 +2307,13 @@ pub async fn upload_attachment(
             bytes,
         },
     );
-    store.audit(&claims.user_id, "attachment.upload", "attachment", &id);
+    store.audit(
+        &claims.user_id,
+        "attachment.upload",
+        "attachment",
+        &id,
+        claims.request_id.as_deref(),
+    );
     Ok((StatusCode::CREATED, Json(metadata)))
 }
 
@@ -2303,7 +2451,13 @@ pub async fn create_template(
         body_markdown,
     };
     store.templates.insert(id.clone(), template.clone());
-    store.audit(&claims.user_id, "template.create", "template", &id);
+    store.audit(
+        &claims.user_id,
+        "template.create",
+        "template",
+        &id,
+        claims.request_id.as_deref(),
+    );
     Ok((StatusCode::CREATED, Json(template)))
 }
 

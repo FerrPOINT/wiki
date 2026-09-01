@@ -124,6 +124,7 @@ pub(super) fn audit_entry_from_row(row: &PgRow) -> AuditEntryResponse {
         action: row.get("action"),
         entity_type: row.get("entity_type"),
         entity_id: row.get::<Uuid, _>("entity_id").to_string(),
+        request_id: row.get("request_id"),
         created_at: to_iso(row.get("created_at")),
     }
 }

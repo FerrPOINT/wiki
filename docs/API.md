@@ -140,6 +140,8 @@ Canonical `evidence_type` values for MVP are `external_url` and `uploaded_file`.
 
 `GET /settings` не возвращает секреты, connection strings, storage paths или bootstrap credentials. MVP endpoint показывает только значения, нужные UI/CLI: API path, регистрацию, storage/search backend, лимит загрузки, язык и timezone.
 
+`GET /audit-log` возвращает append-only события с `request_id`. Для mutating HTTP-запросов audit entry использует тот же `X-Request-ID`, который backend вернул клиенту в response header; если запрос пришёл без валидного id, middleware создаёт `req_` id и он попадает в audit.
+
 ## 13. Deferred API Areas
 
 - Comments.

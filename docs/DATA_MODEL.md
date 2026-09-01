@@ -242,7 +242,7 @@ Constraint: минимум одно из `document_id`, `task_dossier_id`, `phas
 | `entity_type` | text           | Тип объекта                        |
 | `entity_id`   | uuid           | ID объекта                         |
 | `diff`        | jsonb nullable | Старое/новое значение без секретов |
-| `request_id`  | text           | Корреляция                         |
+| `request_id`  | text           | HTTP/API correlation id из `X-Request-ID` или серверный `req_` id |
 | `created_at`  | timestamptz    | Время                              |
 
 ## 4. Migration Parity Gate

@@ -14,6 +14,7 @@ use uuid::Uuid;
 
 struct PostgresWikiEvidenceRepository<'a> {
     backend: &'a PostgresWikiBackend,
+    request_id: Option<&'a str>,
 }
 
 impl PostgresWikiEvidenceRepository<'_> {
@@ -123,6 +124,7 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
                     "evidence.create",
                     "evidence",
                     evidence_id,
+                    self.request_id,
                 )
                 .await?;
             tx.commit().await.map_err(shared::AppError::database)?;
@@ -201,6 +203,7 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
                         "attachment.upload",
                         "attachment",
                         command.attachment_id,
+                        self.request_id,
                     )
                     .await?;
                 tx.commit().await.map_err(shared::AppError::database)?;
@@ -303,7 +306,10 @@ impl PostgresWikiBackend {
         self.ensure_space_id_access(claims, space_id, SpaceAccess::Edit)
             .await?;
         self.ensure_space_accepts_writes(space_id).await?;
-        let repository = PostgresWikiEvidenceRepository { backend: self };
+        let repository = PostgresWikiEvidenceRepository {
+            backend: self,
+            request_id: claims.request_id.as_deref(),
+        };
         WikiEvidenceUseCase::new(&repository)
             .create(actor_id, space_id, document_id, body)
             .await
@@ -340,7 +346,10 @@ impl PostgresWikiBackend {
             }
             None => None,
         };
-        let repository = PostgresWikiEvidenceRepository { backend: self };
+        let repository = PostgresWikiEvidenceRepository {
+            backend: self,
+            request_id: None,
+        };
         WikiEvidenceUseCase::new(&repository)
             .list(
                 space_key.as_deref(),
@@ -361,7 +370,10 @@ impl PostgresWikiBackend {
         let evidence_id = parse_uuid(evidence_id, "evidence")?;
         self.ensure_evidence_access(claims, evidence_id, SpaceAccess::View)
             .await?;
-        let repository = PostgresWikiEvidenceRepository { backend: self };
+        let repository = PostgresWikiEvidenceRepository {
+            backend: self,
+            request_id: None,
+        };
         WikiEvidenceUseCase::new(&repository).get(evidence_id).await
     }
 
@@ -373,7 +385,10 @@ impl PostgresWikiBackend {
         bytes: Vec<u8>,
     ) -> Result<AttachmentResponse, shared::AppError> {
         let actor_id = parse_uuid(&claims.user_id, "user")?;
-        let repository = PostgresWikiEvidenceRepository { backend: self };
+        let repository = PostgresWikiEvidenceRepository {
+            backend: self,
+            request_id: claims.request_id.as_deref(),
+        };
         WikiEvidenceUseCase::new(&repository)
             .upload_attachment(
                 actor_id,
@@ -392,7 +407,10 @@ impl PostgresWikiBackend {
     ) -> Result<AttachmentResponse, shared::AppError> {
         let attachment_id = parse_uuid(attachment_id, "attachment")?;
         self.ensure_attachment_access(claims, attachment_id).await?;
-        let repository = PostgresWikiEvidenceRepository { backend: self };
+        let repository = PostgresWikiEvidenceRepository {
+            backend: self,
+            request_id: None,
+        };
         WikiEvidenceUseCase::new(&repository)
             .get_attachment(attachment_id)
             .await
@@ -405,7 +423,10 @@ impl PostgresWikiBackend {
     ) -> Result<AttachmentDownloadResponse, shared::AppError> {
         let attachment_id = parse_uuid(attachment_id, "attachment")?;
         self.ensure_attachment_access(claims, attachment_id).await?;
-        let repository = PostgresWikiEvidenceRepository { backend: self };
+        let repository = PostgresWikiEvidenceRepository {
+            backend: self,
+            request_id: None,
+        };
         WikiEvidenceUseCase::new(&repository)
             .download_attachment(attachment_id)
             .await

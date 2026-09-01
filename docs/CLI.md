@@ -149,6 +149,8 @@ wiki audit list
 wiki settings get
 ```
 
+`wiki audit list` returns the API JSON as-is, including `request_id` for correlating CLI/UI/API write operations with backend logs.
+
 ## Contract Freeze
 
 CLI is ready for main development when:

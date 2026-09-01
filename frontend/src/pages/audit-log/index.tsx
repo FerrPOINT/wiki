@@ -92,6 +92,7 @@ export function AuditLogPage() {
                   <TableHead>Участник</TableHead>
                   <TableHead>Объект</TableHead>
                   <TableHead>Тип</TableHead>
+                  <TableHead>Запрос</TableHead>
                   <TableHead>Время</TableHead>
                 </TableRow>
               </TableHeader>
@@ -102,6 +103,9 @@ export function AuditLogPage() {
                     <TableCell>{event.actor_id}</TableCell>
                     <TableCell>{event.entity_id}</TableCell>
                     <TableCell>{event.entity_type}</TableCell>
+                    <TableCell className="max-w-52 truncate font-mono text-xs">
+                      {event.request_id}
+                    </TableCell>
                     <TableCell className="whitespace-nowrap text-xs text-text-muted">
                       {formatDateTime(event.created_at)}
                     </TableCell>
