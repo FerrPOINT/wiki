@@ -52,6 +52,7 @@ The test plan covers document lifecycle, task/phase links, evidence ingestion, p
 | Read another space without membership | deny | deny | deny | deny unless system admin | allow |
 
 Every permission test must check API behavior first. Frontend role states are supporting evidence only.
+The PostgreSQL smoke suite must include an API-level matrix for outsider, viewer, editor, space admin and system admin behavior.
 
 ## 6. Data And Migration Tests
 

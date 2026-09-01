@@ -294,6 +294,33 @@ async fn login_memory_admin(app: &axum::Router) -> String {
     login["access_token"].as_str().unwrap().to_string()
 }
 
+async fn register_test_user(
+    app: &axum::Router,
+    email: String,
+    username: String,
+    password: &str,
+    name: &str,
+) -> (String, String) {
+    let (status, user) = call(
+        app,
+        Method::POST,
+        "/api/v1/auth/register",
+        None,
+        Some(json!({
+            "email": email,
+            "username": username,
+            "password": password,
+            "name": name
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    (
+        user["access_token"].as_str().unwrap().to_string(),
+        user["user_id"].as_str().unwrap().to_string(),
+    )
+}
+
 #[tokio::test]
 async fn wiki_persistent_backend_requires_database_url() {
     let config = test_config();
@@ -2697,6 +2724,434 @@ async fn wiki_postgres_space_member_delete_revokes_access_when_database_availabl
             .unwrap()
             .iter()
             .any(|member| member["user_id"] == member_id)
+    );
+}
+
+#[tokio::test]
+async fn wiki_postgres_role_matrix_enforces_space_and_global_boundaries() {
+    let Ok(database_url) = env::var("WIKI_TEST_DATABASE_URL") else {
+        eprintln!("skipping postgres role matrix test: WIKI_TEST_DATABASE_URL is not set");
+        return;
+    };
+    reset_postgres(&database_url).await;
+    let storage_dir = env::temp_dir().join(format!("wiki-api-test-{}", Uuid::now_v7()));
+    let (app, _) = postgres_test_app(database_url, storage_dir).await;
+    let admin_token = login_admin(&app).await;
+    let suffix = Uuid::now_v7().simple().to_string();
+    let short = &suffix[..12];
+    let short_upper = short.to_uppercase();
+    let space_key = format!("PGROLE-{short_upper}");
+    let editor_task_key = format!("PGR-{short_upper}");
+    let editor_phase_key = format!("pgrole-{short}");
+    let search_token = format!("pgrolematrix{short}");
+
+    let (viewer_token, viewer_id) = register_test_user(
+        &app,
+        format!("postgres-viewer-{short}@example.com"),
+        format!("postgres-viewer-{short}"),
+        "viewer-password",
+        "Postgres Viewer",
+    )
+    .await;
+    let (editor_token, editor_id) = register_test_user(
+        &app,
+        format!("postgres-editor-{short}@example.com"),
+        format!("postgres-editor-{short}"),
+        "editor-password",
+        "Postgres Editor",
+    )
+    .await;
+    let (space_admin_token, space_admin_id) = register_test_user(
+        &app,
+        format!("postgres-space-admin-{short}@example.com"),
+        format!("postgres-space-admin-{short}"),
+        "space-admin-password",
+        "Postgres Space Admin",
+    )
+    .await;
+    let (outsider_token, outsider_id) = register_test_user(
+        &app,
+        format!("postgres-outsider-{short}@example.com"),
+        format!("postgres-outsider-{short}"),
+        "outsider-password",
+        "Postgres Outsider",
+    )
+    .await;
+
+    let (status, space) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces",
+        Some(&admin_token),
+        Some(json!({
+            "key": space_key,
+            "name": format!("Postgres role matrix {short}")
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let space_key = space["key"].as_str().unwrap().to_string();
+
+    let (status, document) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/spaces/{space_key}/documents"),
+        Some(&admin_token),
+        Some(json!({
+            "title": format!("Postgres role matrix document {short}"),
+            "slug": format!("postgres-role-matrix-{short}"),
+            "document_type": "requirements",
+            "content_markdown": format!("# Role matrix\n\nInitial {search_token}.")
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let document_id = document["id"].as_str().unwrap().to_string();
+
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/documents/{document_id}/publish"),
+        Some(&admin_token),
+        Some(json!({ "summary": "Initial role matrix publish" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    for (user_id, role) in [
+        (viewer_id.as_str(), "viewer"),
+        (editor_id.as_str(), "editor"),
+        (space_admin_id.as_str(), "admin"),
+    ] {
+        let (status, member) = call(
+            &app,
+            Method::PUT,
+            &format!("/api/v1/spaces/{space_key}/members/{user_id}"),
+            Some(&admin_token),
+            Some(json!({ "role": role })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(member["role"], role);
+    }
+
+    let (status, _) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}"),
+        Some(&outsider_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, outsider_search) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/search?q={search_token}"),
+        Some(&outsider_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        !outsider_search["results"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["id"] == document_id)
+    );
+
+    let (status, viewer_document) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/documents/{document_id}"),
+        Some(&viewer_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(viewer_document["id"], document_id);
+
+    for (method, path, body) in [
+        (
+            Method::POST,
+            format!("/api/v1/spaces/{space_key}/documents"),
+            Some(json!({
+                "title": "Viewer forbidden document",
+                "document_type": "page",
+                "content_markdown": "# Viewer forbidden"
+            })),
+        ),
+        (
+            Method::PUT,
+            format!("/api/v1/documents/{document_id}/draft"),
+            Some(json!({
+                "title": "Viewer forbidden draft",
+                "content_markdown": "# Viewer forbidden"
+            })),
+        ),
+        (
+            Method::POST,
+            format!("/api/v1/spaces/{space_key}/tasks/VIEW-{short_upper}/links/documents"),
+            Some(json!({ "document_id": document_id })),
+        ),
+        (
+            Method::POST,
+            "/api/v1/evidence".to_string(),
+            Some(json!({
+                "space": space_key,
+                "document_id": document_id,
+                "title": "Viewer forbidden evidence",
+                "evidence_type": "external_url",
+                "url": "https://ci.local/jobs/viewer-forbidden"
+            })),
+        ),
+        (
+            Method::GET,
+            format!("/api/v1/spaces/{space_key}/members"),
+            None,
+        ),
+        (
+            Method::PUT,
+            format!("/api/v1/spaces/{space_key}/members/{outsider_id}"),
+            Some(json!({ "role": "viewer" })),
+        ),
+    ] {
+        let (status, _) = call(&app, method, &path, Some(&viewer_token), body).await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{path}");
+    }
+
+    let (status, _) = call(
+        &app,
+        Method::PUT,
+        &format!("/api/v1/documents/{document_id}/draft"),
+        Some(&editor_token),
+        Some(json!({
+            "title": format!("Edited by role matrix editor {short}"),
+            "content_markdown": format!("# Edited\n\nEditor can update {search_token}.")
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, revision) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/documents/{document_id}/publish"),
+        Some(&editor_token),
+        Some(json!({ "summary": "Editor publish" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(revision["version"], 2);
+
+    let (status, task_link) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/spaces/{space_key}/tasks/{editor_task_key}/links/documents"),
+        Some(&editor_token),
+        Some(json!({ "document_id": document_id })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(task_link["task_key"], editor_task_key);
+
+    let (status, phase_link) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/spaces/{space_key}/phases/{editor_phase_key}/links/documents"),
+        Some(&editor_token),
+        Some(json!({ "document_id": document_id })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(phase_link["phase_key"], editor_phase_key);
+
+    let (status, evidence) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(&editor_token),
+        Some(json!({
+            "space": space_key,
+            "document_id": document_id,
+            "task_key": editor_task_key,
+            "phase_key": editor_phase_key,
+            "title": "Editor evidence",
+            "evidence_type": "external_url",
+            "url": "https://ci.local/jobs/editor-evidence"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(evidence["created_by"], editor_id);
+
+    for (method, path, body) in [
+        (
+            Method::PUT,
+            format!("/api/v1/spaces/{space_key}"),
+            Some(json!({ "name": "Editor forbidden space rename" })),
+        ),
+        (
+            Method::GET,
+            format!("/api/v1/spaces/{space_key}/members"),
+            None,
+        ),
+        (
+            Method::PUT,
+            format!("/api/v1/spaces/{space_key}/members/{outsider_id}"),
+            Some(json!({ "role": "viewer" })),
+        ),
+        (Method::GET, "/api/v1/audit-log".to_string(), None),
+        (Method::GET, "/api/v1/settings".to_string(), None),
+        (Method::GET, "/api/v1/users".to_string(), None),
+        (
+            Method::POST,
+            "/api/v1/templates".to_string(),
+            Some(json!({
+                "name": "Editor forbidden template",
+                "document_type": "requirements",
+                "body_markdown": "# Forbidden"
+            })),
+        ),
+    ] {
+        let (status, _) = call(&app, method, &path, Some(&editor_token), body).await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{path}");
+    }
+
+    let (status, members) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}/members"),
+        Some(&space_admin_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        members["members"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|member| member["user_id"] == viewer_id && member["role"] == "viewer")
+    );
+
+    let (status, renamed_space) = call(
+        &app,
+        Method::PUT,
+        &format!("/api/v1/spaces/{space_key}"),
+        Some(&space_admin_token),
+        Some(json!({ "name": format!("Renamed by space admin {short}") })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        renamed_space["name"],
+        format!("Renamed by space admin {short}")
+    );
+
+    let (status, outsider_member) = call(
+        &app,
+        Method::PUT,
+        &format!("/api/v1/spaces/{space_key}/members/{outsider_id}"),
+        Some(&space_admin_token),
+        Some(json!({ "role": "viewer" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(outsider_member["role"], "viewer");
+
+    let (status, _) = call(
+        &app,
+        Method::DELETE,
+        &format!("/api/v1/spaces/{space_key}/members/{outsider_id}"),
+        Some(&space_admin_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    for (method, path, body) in [
+        (Method::GET, "/api/v1/audit-log".to_string(), None),
+        (Method::GET, "/api/v1/settings".to_string(), None),
+        (Method::GET, "/api/v1/users".to_string(), None),
+        (
+            Method::POST,
+            "/api/v1/users".to_string(),
+            Some(json!({
+                "email": format!("space-admin-user-{short}@example.com"),
+                "username": format!("space-admin-user-{short}"),
+                "display_name": "Forbidden user",
+                "password": "forbidden-password",
+                "role": "user"
+            })),
+        ),
+        (
+            Method::POST,
+            "/api/v1/templates".to_string(),
+            Some(json!({
+                "name": "Space admin forbidden template",
+                "document_type": "requirements",
+                "body_markdown": "# Forbidden"
+            })),
+        ),
+    ] {
+        let (status, _) = call(&app, method, &path, Some(&space_admin_token), body).await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{path}");
+    }
+
+    let (status, users) = call(&app, Method::GET, "/api/v1/users", Some(&admin_token), None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        users["users"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|user| user["id"] == space_admin_id)
+    );
+
+    let (status, settings) = call(
+        &app,
+        Method::GET,
+        "/api/v1/settings",
+        Some(&admin_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(settings["instance_name"], "Wiki");
+
+    let (status, template) = call(
+        &app,
+        Method::POST,
+        "/api/v1/templates",
+        Some(&admin_token),
+        Some(json!({
+            "name": format!("Global admin template {short}"),
+            "document_type": "requirements",
+            "body_markdown": "# Global admin template"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(template["document_type"], "requirements");
+
+    let (status, audit) = call(
+        &app,
+        Method::GET,
+        "/api/v1/audit-log",
+        Some(&admin_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        audit["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|entry| entry["action"] == "template.create")
     );
 }
 
