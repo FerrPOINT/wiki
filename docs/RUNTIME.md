@@ -10,9 +10,9 @@
 
 | Probe | Path | Success | Failure |
 |-------|------|---------|---------|
-| Current liveness | `GET /api/v1/health` | HTTP 200 | HTTP 503 |
-| Target readiness | `GET /api/v1/health/ready` | DB, Redis, storage OK | HTTP 503 |
-| Target startup | `GET /api/v1/health/startup` | migrations done | HTTP 503 |
+| Liveness | `GET /api/v1/health` | HTTP 200 | Process unavailable |
+| Readiness | `GET /api/v1/health/ready` | PostgreSQL backend reachable | HTTP 503 |
+| Startup | covered by backend startup | migrations and bootstrap done before bind | process exits on failure |
 
 ### 2.2 Startup Probe
 
@@ -23,7 +23,7 @@
 
 ### 2.3 Readiness Probe
 
-- Проверяет соединение с PostgreSQL и Redis.
+- Проверяет соединение с PostgreSQL для persistent runtime.
 - Если БД недоступна — readiness 503, трафик не направляется.
 - Период: 5s.
 
@@ -41,17 +41,15 @@
    - Max retries: 30.
 3. Применение Wiki SQLx migrations.
 4. Seed default data (admin, default spaces, document templates).
-5. Подключение к Redis с retry.
-6. Запуск HTTP сервера.
-7. Mark startup probe as ready.
+5. Запуск HTTP сервера.
+6. Readiness probe начинает отдавать `ready`.
 
 ## 4. Retry / Backoff
 
 | Dependency | Strategy |
 |------------|----------|
 | PostgreSQL | exponential backoff 1s → 30s |
-| Redis | exponential backoff 1s → 10s |
-| Object storage | 3 attempts with exponential backoff |
+| Attachment storage | validate configured location before production rollout |
 
 ## 5. Graceful Shutdown
 
@@ -69,7 +67,6 @@
 | `nofile` | 65536 | uploads + concurrent HTTP |
 | `max_connections` PostgreSQL | 200 | connection pool |
 | Backend connection pool | 20-50 | per instance |
-| Redis pool | 20 | per instance |
 | Request body | 10 MB | JSON payloads |
 | Upload file | 50 MB | attachments |
 

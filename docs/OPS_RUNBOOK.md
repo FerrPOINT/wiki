@@ -84,13 +84,7 @@ Mitigation:
 - Increase pool size temporarily.
 - Kill long-running queries.
 
-## 10. Redis Failure
-
-- Current MVP API should continue for PostgreSQL-backed reads/writes that do not require distributed cache.
-- Idempotency/cache behavior may degrade to DB-backed checks until Redis is healthy.
-- Recreate Redis from compose if healthcheck fails: `docker compose up -d redis`.
-
-## 11. Disk Full
+## 10. Disk Full
 
 ```bash
 df -h
@@ -99,13 +93,13 @@ docker image prune -a
 ./scripts/cleanup_old_backups.sh
 ```
 
-## 12. Incident Contacts
+## 11. Incident Contacts
 
 - Primary operator: project owner.
 - Alert channel: configured by deployment environment.
 - Escalation: hosting provider and database administrator.
 
-## 13. Post-Mortem
+## 12. Post-Mortem
 
 After every SEV-1/SEV-2 incident:
 

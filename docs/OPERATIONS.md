@@ -4,8 +4,7 @@
 
 - Backend API.
 - PostgreSQL.
-- Redis.
-- Object storage: filesystem, MinIO or S3.
+- Attachment storage: filesystem in MVP, MinIO/S3-compatible adapter later if needed.
 - Frontend static app.
 - Optional in-process maintenance jobs for cleanup after backend domain migration.
 
@@ -14,7 +13,7 @@
 | Endpoint | Meaning |
 |---|---|
 | `/api/v1/health` | current process liveness |
-| `/api/v1/health/ready` | target database/cache/storage readiness |
+| `/api/v1/health/ready` | persistent backend readiness |
 | `/metrics` | Prometheus metrics |
 
 ## 3. Routine Tasks

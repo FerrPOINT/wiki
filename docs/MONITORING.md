@@ -16,9 +16,6 @@
 | `http_response_size_bytes` | histogram | response body size |
 | `db_pool_connections` | gauge | active/idle DB connections |
 | `db_query_duration_seconds` | histogram | query latency |
-| `redis_pool_connections` | gauge | Redis connections |
-| `cache_hit_total` | counter | cache hits by namespace |
-| `cache_miss_total` | counter | cache misses by namespace |
 | `attachment_upload_bytes_total` | counter | uploaded attachment bytes |
 | `search_index_updates_total` | counter | document search projection updates |
 | `rate_limited_requests_total` | counter | rate-limited requests |
@@ -77,7 +74,7 @@ JSON structured logs:
 
 - OpenTelemetry для распределённой трассировки.
 - Trace ID прокидывается через `x-trace-id`.
-- Spans: controller → service → repository → DB/Redis.
+- Spans: controller → service → repository → DB/storage.
 
 ## 5. Alerting
 
@@ -92,7 +89,6 @@ JSON structured logs:
 
 - 4xx rate > 10%.
 - P95 latency > 1s.
-- Cache hit ratio < 70%.
 - Background job failures > 5/hour.
 
 ## 6. Dashboards
@@ -101,7 +97,6 @@ JSON structured logs:
 |-----------|--------|
 | API Overview | RPS, latency, errors, rate limits |
 | Database | query time, pool, slow queries |
-| Cache | hit/miss, size, eviction |
 | Infrastructure | CPU, memory, disk, network |
 | Product | DAU, published documents, evidence coverage |
 
@@ -116,7 +111,7 @@ JSON structured logs:
 | Endpoint | Purpose |
 |----------|---------|
 | `GET /api/v1/health` | current liveness |
-| `GET /api/v1/health/ready` | target readiness (DB + Redis + storage) |
+| `GET /api/v1/health/ready` | persistent backend readiness |
 | `GET /metrics` | Prometheus |
 
 ## 9. Uptime Monitoring

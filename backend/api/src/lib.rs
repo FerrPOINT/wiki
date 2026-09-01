@@ -63,6 +63,7 @@ pub use routes::*;
 #[openapi(
     paths(
         routes::health::health,
+        routes::health::readiness,
         routes::wiki::register,
         routes::wiki::login,
         routes::wiki::refresh,
@@ -226,8 +227,10 @@ pub fn router_with_wiki(
         .finish()
         .expect("valid general rate limit config");
 
-    let public =
-        Router::<Arc<app::WikiAppContext>>::new().route("/health", get(routes::health::health));
+    let public = Router::<Arc<app::WikiAppContext>>::new()
+        .route("/health", get(routes::health::health))
+        .route("/health/ready", get(routes::health::readiness))
+        .layer(Extension(wiki_backend.clone()));
 
     let auth_routes = Router::<Arc<app::WikiAppContext>>::new()
         .route("/auth/register", post(routes::wiki::register))

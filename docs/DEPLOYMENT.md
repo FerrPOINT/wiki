@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-Self-hosted Wiki для SDLC knowledge base. MVP поставляется как Docker Compose: backend (Rust), frontend (Vite static), PostgreSQL, Redis. Reverse proxy по желанию.
+Self-hosted Wiki для SDLC knowledge base. MVP поставляется как Docker Compose: backend (Rust), frontend (Vite static), PostgreSQL and persistent attachment volume. Reverse proxy по желанию.
 
 ## 2. System Requirements
 
@@ -21,7 +21,7 @@ Self-hosted Wiki для SDLC knowledge base. MVP поставляется как
 |---------|-------|------|-------------|
 | `backend` | build from `backend/Dockerfile` | `3456` | Axum API |
 | `postgres` | `postgres:17.6-alpine` | `5432` | PostgreSQL |
-| `redis` | `redis:8.0-alpine` | `6379` | Cache / event bus |
+| `frontend` | build from `frontend/Dockerfile` | `19877` | Static Wiki UI |
 
 ## 4. Quick Start
 
@@ -29,15 +29,15 @@ Self-hosted Wiki для SDLC knowledge base. MVP поставляется как
 cp .env.example .env
 # отредактируйте секреты и задайте bootstrap admin для fresh DB
 # Для backend в контейнере с PostgreSQL persistence используйте host `postgres:5432`.
-docker compose up -d postgres redis backend
-curl -sf http://localhost:3456/api/v1/health
+docker compose up -d postgres backend
+curl -sf http://localhost:3456/api/v1/health/ready
 ```
 
 ## 5. Local Development
 
 ```bash
 # Terminal 1
-docker compose up -d postgres redis
+docker compose up -d postgres
 cd backend
 export WIKI_JWT_SECRET=dev-secret-32-chars-minimum
 export WIKI_DATABASE__URL=postgres://wiki:[CHANGE_ME]@localhost:3457/wiki
@@ -72,6 +72,7 @@ pnpm build
 | Endpoint | Service |
 |----------|---------|
 | `GET /api/v1/health` | api liveness |
+| `GET /api/v1/health/ready` | PostgreSQL-backed runtime readiness |
 
 ## 9. Backup
 
@@ -85,7 +86,7 @@ docker compose cp wiki-backend-1:/var/lib/wiki/uploads ./attachments-backup
 ```bash
 git pull origin main
 docker compose down -v   # при изменениях миграций
-docker compose up -d postgres redis backend
+docker compose up -d postgres backend
 ```
 
 ## 11. Reverse Proxy Example (nginx)

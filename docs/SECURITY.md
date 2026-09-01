@@ -119,9 +119,9 @@ Wiki — self-hosted приложение с конфиденциальными 
 
 ## 15. Network
 
-- PostgreSQL и Redis доступны только в internal network.
+- PostgreSQL доступен только в internal network.
 - Traefik на edge.
-- Firewall: expose only frontend/reverse-proxy ports and required backend admin ports; keep PostgreSQL/Redis internal.
+- Firewall: expose only frontend/reverse-proxy ports and required backend admin ports; keep PostgreSQL internal.
 
 ## 16. Incident Response
 

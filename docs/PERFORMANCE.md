@@ -65,7 +65,7 @@ Key metrics:
 - `document_open_duration_seconds`
 - `search_query_duration_seconds`
 - `storage_operation_duration_seconds`
-- `cache_hit_ratio`
+- `frontend_query_cache_refetch_total`
 
 ## 8. Load Testing
 

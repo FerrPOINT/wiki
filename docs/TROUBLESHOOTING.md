@@ -55,16 +55,7 @@ LIMIT 10;
 
 См. `docs/DATABASE_INDEXES.md`.
 
-## 3. Redis
-
-### Redis connection refused
-
-- `docker compose ps` — redis healthy?
-- Проверить, что не путаете host `redis` vs `localhost`.
-
-Current Wiki API shell should not require Redis for normal reads/writes. Target cache/idempotency behavior may degrade until Redis is restored.
-
-## 4. Auth
+## 3. Auth
 
 ### Access token rejected
 
@@ -78,7 +69,7 @@ Current Wiki API shell should not require Redis for normal reads/writes. Target 
 - Проверить `SameSite=Lax`.
 - См. `docs/SECURITY.md`.
 
-## 5. API
+## 4. API
 
 ### 400 Validation Error
 
@@ -96,7 +87,7 @@ Current Wiki API shell should not require Redis for normal reads/writes. Target 
 - Проверить заголовки `X-RateLimit-*`.
 - Подождать или использовать `Idempotency-Key`.
 
-## 6. Frontend
+## 5. Frontend
 
 ### Белый экран после сборки
 
@@ -114,7 +105,7 @@ Current Wiki API shell should not require Redis for normal reads/writes. Target 
 - Проверить, что JSON-локали в `frontend/src/i18n/locales/`.
 - Проверить fallback locale (`ru`).
 
-## 7. Тесты
+## 6. Тесты
 
 ### Playwright flaky
 
@@ -128,12 +119,13 @@ pnpm exec playwright test --workers=1 --retries=2
 - Убедиться, что `TEST_DATABASE_URL` настроен (обычно отдельная DB `wiki_test`).
 - Запускать миграции перед тестами.
 
-## 8. Диагностика
+## 7. Диагностика
 
 ### Health checks
 
 ```bash
 curl http://localhost:3456/api/v1/health
+curl http://localhost:3456/api/v1/health/ready
 curl http://localhost:3456/metrics
 ```
 
@@ -147,7 +139,7 @@ cargo run --bin server 2>&1 | jq
 docker compose logs -f backend
 ```
 
-## 9. References
+## 8. References
 
 - `docs/LOCAL_SETUP.md`
 - `docs/DEPLOYMENT.md`

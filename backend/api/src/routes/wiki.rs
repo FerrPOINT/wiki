@@ -60,6 +60,13 @@ impl WikiBackend {
         self.persistent.as_deref()
     }
 
+    pub(crate) async fn readiness_check(&self) -> Result<(), shared::AppError> {
+        if let Some(persistent) = self.persistent_backend() {
+            return persistent.readiness_check().await;
+        }
+        Ok(())
+    }
+
     fn registration_enabled(&self) -> bool {
         self.settings.registration_enabled
     }

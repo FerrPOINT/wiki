@@ -8,10 +8,9 @@
 
 ### 2.1 Idempotency Keys
 
-- Каждый mutation request может содержать заголовок `Idempotency-Key: <uuid>`.
-- Сервер сохраняет mapping `key → response` на 24 часа.
-- При повторном запросе с тем же ключом возвращается сохранённый ответ.
-- Применяется к:
+- CLI отправляет `Idempotency-Key` для повторяемых mutation requests.
+- Серверная дедупликация ключей вынесена в hardening после MVP; до неё write-команды должны оставаться естественно безопасными через уникальные ограничения, архивирование вместо hard delete и явные conflict responses.
+- В первую очередь дедупликация потребуется для:
   - `POST /api/v1/spaces`
   - `POST /api/v1/spaces/{space_key}/documents`
   - `POST /api/v1/documents/{document_id}/publish`
@@ -28,14 +27,12 @@
 | Dependency | Failure Threshold | Recovery |
 |------------|-------------------|----------|
 | PostgreSQL | 5 errors in 30s | retry every 5s |
-| Redis | 10 errors in 30s | retry every 5s |
 | Object storage | 5 errors in 60s | retry every 10s |
 
 ## 4. Graceful Degradation
 
 | Component Fails | Fallback Behavior |
 |-------------------|-------------------|
-| Redis | Cache miss → DB query; sessions stateless via JWT |
 | PostgreSQL search projection | Degrade to bounded title search when safe |
 | File storage S3 | Switch to local filesystem |
 | Audit write path | Reject mutation if audit cannot be recorded |
@@ -46,9 +43,9 @@ Bulk evidence creation and document import are deferred. If added later, they mu
 
 ## 6. Optimistic Locking
 
-- Document/space/config имеют `version` поле.
-- `PUT` с `If-Match: <version>`.
-- При conflict — `409` с актуальной версией.
+- Published document revisions are immutable and monotonically versioned.
+- Concurrent write hardening with `ETag` / `If-Match` is deferred until the base API contract stabilizes.
+- Current conflicts use unique constraints and `409` responses.
 
 ## 7. Request Limits
 

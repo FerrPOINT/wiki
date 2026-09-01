@@ -18,17 +18,19 @@ The remaining work is hardening and release readiness, not expansion of product 
 
 ## 1. PostgreSQL Runtime Smoke
 
-- Run `pwsh -File scripts/postgres-smoke.ps1` on a host where Docker Desktop is running.
+- Keep `pwsh -File scripts/postgres-smoke.ps1` as the Docker-backed release smoke on hosts where Docker Desktop is running.
+- Use `pwsh -File scripts/postgres-smoke-wsl.ps1` on hosts with a local WSL PostgreSQL service when Docker Desktop is unavailable.
 - The runner starts disposable `backend/docker-compose.test.yml` Postgres on `127.0.0.1:3458`, sets `WIKI_TEST_DATABASE_URL=postgres://wiki@127.0.0.1:3458/wiki_test` and runs `cargo test -p api wiki_postgres_ -- --test-threads=1 --nocapture`.
+- The WSL runner creates a temporary isolated role/database, sets `WIKI_TEST_DATABASE_URL` to that database, runs the same filtered suite and drops only those temporary objects on exit.
 - The filtered suite applies SQLx migrations from an empty database, verifies disabled public registration, checks persistence across router/backend rebuilds and verifies membership removal revokes space/document/search access.
 - The suite also verifies MVP full-text search with `space`, `task_key`, `phase_key` and `document_type` filters and asserts the PostgreSQL plan uses `document_revisions_search_idx`.
-- Save the successful smoke output with release evidence once Docker/Postgres is available on the host.
+- Save the successful smoke output with release evidence for the chosen runner.
 
 ## 2. Repository And API Hardening
 
 - Add focused PostgreSQL-backed tests for viewer/editor/admin boundary combinations.
 - Add negative tests for archived spaces/documents across all write commands.
-- Expand attachment tests for missing bytes, unsafe storage keys, reused staged uploads and owner-space mismatch.
+- Keep attachment tests covering missing bytes, runtime size limits, unsafe names, unsafe storage keys, reused staged uploads and owner-space mismatch.
 - Keep audit writes in the same transaction as the command that caused them.
 - Keep route handlers behind app use cases/repository ports; handlers should not know concrete SQL/storage details.
 

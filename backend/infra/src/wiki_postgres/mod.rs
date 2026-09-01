@@ -145,6 +145,14 @@ impl PostgresWikiBackend {
 
 #[async_trait::async_trait]
 impl WikiBackendPort for PostgresWikiBackend {
+    async fn readiness_check(&self) -> Result<(), shared::AppError> {
+        let _: i32 = sqlx::query_scalar("SELECT 1")
+            .fetch_one(&self.pool)
+            .await
+            .map_err(shared::AppError::database)?;
+        Ok(())
+    }
+
     async fn authenticate_access_token(&self, token: &str) -> Result<WikiClaims, shared::AppError> {
         PostgresWikiBackend::authenticate_access_token(self, token).await
     }

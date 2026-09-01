@@ -94,6 +94,13 @@ pub(super) const SEARCH_DOCUMENTS_SQL: &str = r#"
             WHEN NULLIF(btrim($1::text), '') IS NULL THEN NULL
             ELSE websearch_to_tsquery('simple', $1::text)
         END AS query
+    ),
+    matching_revisions AS MATERIALIZED (
+        SELECT cr.id,
+               ts_rank_cd(cr.search_vector, sq.query) AS search_rank
+        FROM search_query sq
+        JOIN document_revisions cr ON sq.query IS NOT NULL
+        WHERE cr.search_vector @@ sq.query
     )
     SELECT d.id,
            'document' AS result_type,
@@ -107,7 +114,7 @@ pub(super) const SEARCH_DOCUMENTS_SQL: &str = r#"
            d.updated_at,
            CASE
                WHEN sq.query IS NULL THEN 0::real
-               WHEN cr.id IS NOT NULL THEN ts_rank_cd(cr.search_vector, sq.query)
+               WHEN mr.id IS NOT NULL THEN mr.search_rank
                ELSE ts_rank_cd(
                    setweight(to_tsvector('simple', coalesce(d.title, '')), 'A')
                    || setweight(to_tsvector('simple', coalesce(dd.content_markdown, '')), 'B'),
@@ -119,9 +126,10 @@ pub(super) const SEARCH_DOCUMENTS_SQL: &str = r#"
     JOIN spaces s ON s.id = d.space_id
     LEFT JOIN document_drafts dd ON dd.document_id = d.id
     LEFT JOIN document_revisions cr ON cr.id = d.current_revision_id
+    LEFT JOIN matching_revisions mr ON mr.id = d.current_revision_id
     WHERE (
         sq.query IS NULL
-        OR cr.search_vector @@ sq.query
+        OR mr.id IS NOT NULL
         OR (
             cr.id IS NULL
             AND (

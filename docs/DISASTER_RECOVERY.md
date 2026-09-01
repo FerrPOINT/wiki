@@ -22,7 +22,7 @@
 3. Restore object storage.
 4. Run checksum consistency check for `attachments`.
 5. Start API in read-only mode if available.
-6. Validate `/ready`, document open, search and attachment download.
+6. Validate `/api/v1/health/ready`, document open, search and attachment download.
 7. Re-enable writes.
 
 ## 4. Drills

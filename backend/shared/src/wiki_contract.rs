@@ -52,6 +52,7 @@ impl WikiSettingsSnapshot {
 }
 #[async_trait::async_trait]
 pub trait WikiBackendPort: Send + Sync {
+    async fn readiness_check(&self) -> Result<(), AppError>;
     async fn authenticate_access_token(&self, token: &str) -> Result<WikiClaims, AppError>;
     async fn register(&self, body: WikiRegisterRequest) -> Result<WikiAuthResponse, AppError>;
     async fn login(&self, body: WikiLoginRequest) -> Result<WikiAuthResponse, AppError>;

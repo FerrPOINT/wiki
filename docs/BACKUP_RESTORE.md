@@ -6,7 +6,6 @@
 |---|---|---|
 | PostgreSQL | `pg_dump` | ежедневно |
 | Attachments | `rsync` / object storage replication | ежедневно |
-| Redis | необязательно (cache + pub/sub) | — |
 | `.env` | внешний secret manager / encrypted store | при изменении |
 
 ## 2. Автоматический бэкап
@@ -52,7 +51,7 @@ docker compose cp backend:/var/lib/wiki/uploads ./attachments-backup
    gunzip -c postgres-2026-07-13.sql.gz | docker compose exec -T postgres psql -U wiki -d wiki
    ```
 3. Восстановить attachments.
-4. Запустить `backend` и проверить `/api/v1/health`, затем target readiness после её реализации.
+4. Запустить `backend` и проверить `/api/v1/health`, затем `/api/v1/health/ready`.
 
 ## 5. Point-in-time recovery
 

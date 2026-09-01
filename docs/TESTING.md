@@ -90,6 +90,14 @@ cargo test -p api wiki_postgres_ -- --test-threads=1 --nocapture
 
 If Docker is managed outside the script, set `WIKI_TEST_DATABASE_URL` manually and run the same filtered Cargo command.
 
+When Docker Desktop is unavailable but WSL has a local PostgreSQL service and the `postgres` system user can create temporary roles/databases, use:
+
+```powershell
+pwsh -File scripts/postgres-smoke-wsl.ps1
+```
+
+The WSL runner creates an isolated temporary database and role, runs the same `wiki_postgres_` suite through WSL Cargo, and removes only those temporary objects on exit.
+
 ## 5. Fixtures
 
 Baseline test fixtures:

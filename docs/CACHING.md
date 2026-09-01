@@ -9,7 +9,6 @@
 | Layer | Library | Use Case | TTL |
 |---|---|---|---|
 | L1 process cache | optional Rust cache adapter | permissions, settings, templates | 1-10 min |
-| L2 distributed | `redis` | document metadata, search filters, permissions snapshots | 5-60 min |
 | Query cache | TanStack Query | Frontend server state | per route |
 | CDN/browser | Nginx/object storage | Static assets and immutable attachments | long-term |
 
@@ -33,22 +32,21 @@ Examples:
 
 | Data | Cache | TTL | Invalidation |
 |---|---|---|---|
-| Space metadata | Redis | 10 min | space update/archive |
-| Document metadata | Redis | 5 min | document update/archive |
-| Current published revision | Redis | 5 min | publish/restore |
-| Space tree | Redis | 2 min | create/move/archive document |
-| Permissions matrix | process cache | 5 min | member/role change |
-| Templates | process cache + Redis | 15 min | template update |
-| Search results | Redis | 1 min | document/evidence index event |
+| Current user | TanStack Query | 5 min | logout/profile change |
+| Space list | TanStack Query | 2 min | space create/update/archive |
+| Space tree | TanStack Query | 30 sec | create/move/archive document |
+| Document view | TanStack Query | 30 sec | draft/publish/archive/move |
+| Search results | TanStack Query | 15 sec | document/evidence mutation |
+| Templates | process cache, future | 15 min | template update |
 
 ## 5. What Not to Cache
 
 - Passwords, bearer tokens, refresh tokens, API secrets.
-- Draft bodies in shared Redis unless encrypted and explicitly configured.
+- Draft bodies in shared backend caches unless encrypted and explicitly configured.
 - Large binary files; object storage handles them.
 - Audit log writes before durable persistence.
 
-## 6. Cache Aside Pattern
+## 6. Cache Aside Pattern For Future Backend Cache
 
 ```rust
 async fn get_document(&self, id: Uuid) -> Result<Document, Error> {
@@ -71,7 +69,6 @@ async fn publish_document(&self, id: Uuid, draft: PublishDraft) -> Result<Docume
     self.cache.delete(format!("wiki:document:{id}")).await;
     self.cache.delete_pattern("wiki:document-tree:*").await;
     self.cache.delete_pattern("wiki:search:*").await;
-    self.event_bus.publish(DocumentPublished { id, revision_id: revision.id }).await;
     Ok(revision)
 }
 ```
@@ -90,7 +87,7 @@ async fn publish_document(&self, id: Uuid, draft: PublishDraft) -> Result<Docume
 
 ## 9. Invalidation Strategy
 
-- Backend invalidates local/distributed cache after successful write transactions.
+- Future backend cache adapters must invalidate after successful write transactions.
 - Frontend invalidates TanStack Query keys after successful mutations.
 - Refetch on focus can reconcile stale reads.
 - Realtime cache invalidation is deferred and must not be required for MVP.
@@ -98,7 +95,6 @@ async fn publish_document(&self, id: Uuid, draft: PublishDraft) -> Result<Docume
 ## 10. Monitoring
 
 - Hit/miss ratio by namespace.
-- Redis latency and memory usage.
 - Process cache size and eviction count.
 - Alert when cache errors exceed threshold but keep reads functional from PostgreSQL.
 

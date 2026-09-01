@@ -90,6 +90,14 @@ async fn server_starts_and_serves_health() {
     assert_eq!(res.status(), 200);
     assert_eq!(res.text().await.unwrap(), "ok");
 
+    let readiness = client
+        .get(format!("http://{}/api/v1/health/ready", addr))
+        .send()
+        .await
+        .expect("readiness request failed");
+    assert_eq!(readiness.status(), 200);
+    assert_eq!(readiness.text().await.unwrap(), "ready");
+
     // A healthy server must outlive the 30-second graceful-shutdown drain
     // limit. This caught a regression where the serve future itself was timed
     // out, causing a clean container restart every 30 seconds.

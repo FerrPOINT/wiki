@@ -96,10 +96,6 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
-      redis:
-        image: redis:8.0-alpine
-        ports:
-          - 6379:6379
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -187,7 +183,7 @@ jobs:
 ### 4.1 Backend
 
 - Каждый integration test получает **свежую логическую БД** в одном PostgreSQL контейнере.
-- `testcontainers` поднимает Postgres/Redis один раз на suite.
+- Integration suite поднимает PostgreSQL один раз на suite.
 - Миграции применяются в `setup` hook.
 - Тесты внутри транзакции, откат после каждого теста (`BEGIN ... ROLLBACK`).
 - Параллельные тесты отключены для integration, включены для unit.

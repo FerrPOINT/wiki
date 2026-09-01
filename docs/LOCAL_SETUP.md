@@ -4,7 +4,7 @@
 
 | Инструмент | Минимальная версия | Примечание |
 |---|---|---|
-| Docker + Compose | 24.x | для Postgres, Redis, Traefik |
+| Docker + Compose | 24.x | для Postgres, backend/frontend containers and optional Traefik |
 | Rust | 1.86+ | backend workspace |
 | cargo | 1.86+ | backend workspace |
 | Node.js | 22 LTS | frontend |
@@ -163,7 +163,6 @@ docker compose up -d --force-recreate backend
 | Порт 19877 занят | Изменить frontend port mapping в `docker-compose.override.yml` |
 | Порт 3456 занят | `WIKI_SERVER__PORT` в `.env` / `docker-compose.override.yml` |
 | Postgres не стартует | `docker compose down -v` и пересоздать volume |
-| Redis connection refused | Redis не используется бекендом (event bus in-process); сервис в compose опционален |
 | `cargo` долго компилирует | `sccache` + `cargo nextest` |
 
 Больше диагностики — в `docs/TROUBLESHOOTING.md`.

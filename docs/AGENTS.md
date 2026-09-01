@@ -5,7 +5,7 @@
 - **GitHub**: `git@github.com:FerrPOINT/wiki.git`
 - **Стек**: backend Rust (Axum + SQLx/PostgreSQL), frontend React 19.1.0 + Vite 6.2.0 + Tailwind CSS 4.1.0
 - **Env prefix**: `WIKI_`
-- **Публичные порты по умолчанию**: frontend docker `19877`, backend `3456`, PostgreSQL `3457`, Redis `6379`
+- **Публичные порты по умолчанию**: frontend docker `19877`, backend `3456`, PostgreSQL `3457`
 
 ## Правила работы
 
@@ -23,7 +23,7 @@
 - Все публичные API покрыты OpenAPI через `utoipa-axum`.
 - Rust-хендлеры и DTO — единственный источник правды для схемы; frontend DTO types генерируются из `openapi/openapi.json`, а thin endpoint wrappers остаются временным слоем до полного generated operation client.
 - Новую Wiki persistence-логику писать на SQLx по ADR-0001. Не возвращать task-tracker domain/app/infra services, routes, DTO или ORM-модули в MVP.
-- Все endpoint тестируются интеграционно через testcontainers.
+- Все endpoint тестируются интеграционно; PostgreSQL smoke запускается через Docker Postgres или изолированную WSL PostgreSQL database.
 - Frontend: компоненты на `shadcn/ui` + Tailwind.
 - Состояние: серверное — `@tanstack/react-query`, клиентское — `zustand`.
 - Формы — native React forms/local validators для MVP; новые form/schema библиотеки добавлять только при явной необходимости.

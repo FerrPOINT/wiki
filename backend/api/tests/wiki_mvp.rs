@@ -131,29 +131,33 @@ async fn postgres_search_plan(
     let rows = sqlx::query(
         r#"
         EXPLAIN (FORMAT TEXT, COSTS OFF)
-        SELECT cr.id
-        FROM document_revisions cr
-        WHERE cr.search_vector @@ websearch_to_tsquery('simple', $1)
+        WITH search_query AS (
+            SELECT websearch_to_tsquery('simple', $1) AS query
+        ),
+        matching_revisions AS MATERIALIZED (
+            SELECT cr.id
+            FROM search_query sq
+            JOIN document_revisions cr ON true
+            WHERE cr.search_vector @@ sq.query
+        )
+        SELECT mr.id
+        FROM matching_revisions mr
+        JOIN documents d ON d.current_revision_id = mr.id
+        JOIN spaces s ON s.id = d.space_id
+        WHERE s.key = $2
+          AND d.document_type = $3
+          AND d.archived_at IS NULL
           AND EXISTS (
               SELECT 1
-              FROM documents d
-              JOIN spaces s ON s.id = d.space_id
-              WHERE d.current_revision_id = cr.id
-                AND s.key = $2
-                AND d.document_type = $3
-                AND d.archived_at IS NULL
-                AND EXISTS (
-                    SELECT 1
-                    FROM document_task_links dtl
-                    JOIN task_dossiers td ON td.id = dtl.task_dossier_id
-                    WHERE dtl.document_id = d.id AND td.task_key = $4
-                )
-                AND EXISTS (
-                    SELECT 1
-                    FROM document_phase_links dpl
-                    JOIN phase_dossiers pd ON pd.id = dpl.phase_dossier_id
-                    WHERE dpl.document_id = d.id AND pd.phase_key = $5
-                )
+              FROM document_task_links dtl
+              JOIN task_dossiers td ON td.id = dtl.task_dossier_id
+              WHERE dtl.document_id = d.id AND td.task_key = $4
+          )
+          AND EXISTS (
+              SELECT 1
+              FROM document_phase_links dpl
+              JOIN phase_dossiers pd ON pd.id = dpl.phase_dossier_id
+              WHERE dpl.document_id = d.id AND pd.phase_key = $5
           )
         "#,
     )
@@ -2319,6 +2323,10 @@ async fn wiki_mvp_routes_cover_public_contract() {
 
     let (status, _) = call(&app, Method::GET, "/api/v1/health", None, None).await;
     assert_eq!(status, StatusCode::OK);
+
+    let (status, readiness) = call(&app, Method::GET, "/api/v1/health/ready", None, None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(readiness["raw"], "ready");
 
     let (status, _) = call(&app, Method::GET, "/api/v1/spaces", None, None).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);

@@ -167,7 +167,6 @@ onError: (error) => {
 
 - DB connections: exponential backoff через `sqlx::Pool`.
 - External HTTP calls: 3 retries.
-- Redis: reconnect.
 
 ### 5.2 Frontend
 

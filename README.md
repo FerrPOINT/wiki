@@ -17,7 +17,6 @@
   <img src="https://img.shields.io/badge/Axum-111827?style=flat-square" alt="Axum" />
   <img src="https://img.shields.io/badge/SQLx-1D4ED8?style=flat-square" alt="SQLx" />
   <img src="https://img.shields.io/badge/PostgreSQL-17-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL" />
-  <img src="https://img.shields.io/badge/Redis-8-DC382D?style=flat-square&logo=redis&logoColor=white" alt="Redis" />
   <img src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=111827" alt="React" />
   <img src="https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white" alt="Vite" />
   <img src="https://img.shields.io/badge/OpenAPI-6BA539?style=flat-square&logo=openapiinitiative&logoColor=white" alt="OpenAPI" />
@@ -41,10 +40,10 @@ The repository is now reduced to the Wiki MVP runtime: public API/OpenAPI, CLI s
 | -------- | --------------------------------------------------------------------------------------------- |
 | Статус   | MVP baseline: Wiki API/OpenAPI, CLI surface, frontend shell and SQLx persistence are in place |
 | Backend  | Rust 2024, Axum, SQLx runtime persistence                                                     |
-| Data     | PostgreSQL 17, Redis 8                                                                        |
+| Data     | PostgreSQL 17 and filesystem attachment storage                                               |
 | Frontend | React 19, Vite, Tailwind CSS                                                                  |
 | API      | Canonical Wiki MVP contract in [openapi/openapi.json](openapi/openapi.json)                   |
-| Ports    | Frontend `19877`, backend `3456`, PostgreSQL `3457`, Redis `6379`                             |
+| Ports    | Frontend `19877`, backend `3456`, PostgreSQL `3457`                                           |
 | License  | FerrPOINT Proprietary Source-Available Evaluation License v1.0                                |
 
 <a name="features"></a>
@@ -69,7 +68,7 @@ The repository is now reduced to the Wiki MVP runtime: public API/OpenAPI, CLI s
 | ----------------- | --------------------------------- | ----------------------------------------------------- |
 | API               | Rust + Axum                       | Wiki MVP routes and public API                        |
 | Persistence       | SQLx + PostgreSQL                 | runtime data and migrations                           |
-| Support services  | Redis                             | cache/background support                              |
+| Attachment storage | local filesystem                  | uploaded evidence files                               |
 | Frontend          | React + Vite + Tailwind           | Wiki shell and API-backed MVP pages                   |
 | Contract          | OpenAPI                           | generated frontend types                              |
 | Docs              | contracts, security, traceability | source of truth for scope                             |
@@ -80,7 +79,7 @@ The repository is now reduced to the Wiki MVP runtime: public API/OpenAPI, CLI s
 cp .env.example .env
 # Replace [CHANGE_ME] values and set WIKI_BOOTSTRAP__ADMIN_EMAIL/PASSWORD
 docker compose up -d
-curl http://127.0.0.1:3456/api/v1/health
+curl http://127.0.0.1:3456/api/v1/health/ready
 ```
 
 Frontend dev:
@@ -98,6 +97,12 @@ pwsh -File scripts/postgres-smoke.ps1
 ```
 
 This starts the disposable test database from [backend/docker-compose.test.yml](backend/docker-compose.test.yml) and runs the env-gated `wiki_postgres_` API tests, including persistence, membership revocation and FTS index-plan evidence.
+
+If Docker Desktop is unavailable but WSL has a local PostgreSQL service, run the same smoke against an isolated temporary WSL database:
+
+```powershell
+pwsh -File scripts/postgres-smoke-wsl.ps1
+```
 
 <a name="routes"></a>
 
@@ -173,7 +178,6 @@ flowchart TD
     API --> Services[Wiki application services]
     Services --> Store[SQLx persistence]
     Store --> DB[(PostgreSQL)]
-    API --> Redis[(Redis)]
     Services --> Evidence[Evidence + audit]
     OpenAPI[OpenAPI contract] --> Gen[Generated frontend types]
     API --> OpenAPI
@@ -184,7 +188,7 @@ flowchart TD
 - Current baseline is API-backed MVP, not a finished enterprise knowledge platform.
 - Reports, notifications, webhooks, import/export bundles, OCR and real-time collaboration are deferred.
 - Before shared deployments, replace all `[CHANGE_ME]` values, set `WIKI_JWT_SECRET`, configure bootstrap admin credentials and review CORS/cookie/TLS settings.
-- PostgreSQL and Redis are local/dev defaults; treat exposed ports as intentional deployment choices.
+- PostgreSQL is the local/dev data service; treat exposed ports as intentional deployment choices.
 
 Full current-state cut: [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md).
 

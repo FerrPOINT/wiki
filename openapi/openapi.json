@@ -741,11 +741,41 @@
     "/api/v1/health": {
       "get": {
         "tags": [
-          "routes::health"
+          "health"
         ],
         "operationId": "health",
         "responses": {
           "200": {
+            "description": "",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/health/ready": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "operationId": "readiness",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
             "description": "",
             "content": {
               "text/plain": {
