@@ -42,21 +42,19 @@ docker compose up -d
 
 ```bash
 ./scripts/backup.sh
-# Verify archive in /backups
-ls -lh /backups
+# Verify archive in ./backups
+ls -lh ./backups/wiki-*.tar.gz
 ```
 
 ## 6. Restore
 
 ```bash
-# Stop app
-docker compose stop backend
-
-# Restore DB
-./scripts/restore.sh /backups/wiki-YYYY-MM-DD.tar.gz
+./scripts/restore.sh ./backups/wiki-YYYYMMDD-HHMMSS.tar.gz
 
 # Restart
-docker compose up -d
+docker compose up -d backend frontend
+curl -sf http://localhost:3456/api/v1/health
+curl -sf http://localhost:3456/api/v1/health/ready
 ```
 
 ## 7. Scaling API

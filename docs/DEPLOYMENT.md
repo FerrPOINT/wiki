@@ -77,9 +77,11 @@ pnpm build
 ## 9. Backup
 
 ```bash
-docker compose exec -T postgres pg_dump -U wiki wiki > wiki-$(date +%Y%m%d).sql
-docker compose cp wiki-backend-1:/var/lib/wiki/uploads ./attachments-backup
+./scripts/backup.sh
+./scripts/cleanup_old_backups.sh 30
 ```
+
+Archive format and restore procedure are described in `docs/BACKUP_RESTORE.md`.
 
 ## 10. Update
 

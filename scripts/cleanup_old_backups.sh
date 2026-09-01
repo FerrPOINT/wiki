@@ -6,6 +6,7 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 BACKUP_DIR="${PROJECT_DIR}/backups"
 KEEP_DAYS=${1:-30}
 
+mkdir -p "$BACKUP_DIR"
 find "$BACKUP_DIR" -maxdepth 1 -name 'wiki-*.tar.gz' -mtime +"$KEEP_DAYS" -delete
 
 echo "Removed backups older than $KEEP_DAYS days."

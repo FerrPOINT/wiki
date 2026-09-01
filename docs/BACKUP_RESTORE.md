@@ -16,10 +16,18 @@
 
 Скрипт делает:
 
-1. `pg_dump` в `/backups/postgres-YYYY-MM-DD.sql.gz`.
-2. `rsync` attachments в `/backups/attachments/`.
-3. Архив `/backups/wiki-YYYY-MM-DD.tar.gz`.
-4. Ротация: хранить последние 7 дневных и 4 недельных снапшота.
+1. `pg_dump -Fc` из compose service `postgres` в `postgres.dump`.
+2. Копирует текущий storage directory из service `backend` (`WIKI_STORAGE__DIR`, default `/var/lib/wiki/uploads`) в `attachments.tar`.
+3. Добавляет `manifest.env` с датой, DB name/user и storage path.
+4. Собирает архив `backups/wiki-YYYYMMDD-HHMMSS.tar.gz`.
+
+Если backend container не запущен, скрипт всё равно создаст database backup, но положит пустой `attachments.tar` и напишет warning. Для полного production backup backend должен быть running или хотя бы существовать с подключенным volume `uploads`.
+
+Ротация выполняется отдельной командой:
+
+```bash
+./scripts/cleanup_old_backups.sh 30
+```
 
 ### Cron
 
@@ -31,27 +39,29 @@
 
 ```bash
 # PostgreSQL
-docker compose exec postgres pg_dump -U wiki wiki | gzip > wiki-$(date +%F).sql.gz
+docker compose exec -T postgres pg_dump -U "${POSTGRES_USER:-wiki}" -d "${POSTGRES_DB:-wiki}" -Fc > postgres.dump
 
 # Attachments
-docker compose cp backend:/var/lib/wiki/uploads ./attachments-backup
+docker compose cp backend:"${WIKI_STORAGE__DIR:-/var/lib/wiki/uploads}/." ./attachments-backup
 ```
 
 ## 4. Восстановление
 
 ```bash
-./scripts/restore.sh /backups/wiki-2026-07-13.tar.gz
+./scripts/restore.sh ./backups/wiki-YYYYMMDD-HHMMSS.tar.gz
 ```
 
 Порядок:
 
-1. Остановить `backend` и `frontend`.
-2. Восстановить Postgres:
+1. Скрипт останавливает `backend` и `frontend`, чтобы во время restore не было записей.
+2. Скрипт поднимает `postgres`, если он не запущен.
+3. Восстановить Postgres:
    ```bash
-   gunzip -c postgres-2026-07-13.sql.gz | docker compose exec -T postgres psql -U wiki -d wiki
+   docker compose exec -T postgres pg_restore -U "${POSTGRES_USER:-wiki}" -d "${POSTGRES_DB:-wiki}" --clean --if-exists --no-owner < postgres.dump
    ```
-3. Восстановить attachments.
-4. Запустить `backend` и проверить `/api/v1/health`, затем `/api/v1/health/ready`.
+4. Очистить attachment volume и восстановить `attachments.tar`.
+5. Запустить `backend` и `frontend`.
+6. Проверить `/api/v1/health`, затем `/api/v1/health/ready`.
 
 ## 5. Point-in-time recovery
 
