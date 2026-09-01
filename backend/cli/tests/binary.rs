@@ -75,13 +75,25 @@ async fn record_request(State(state): State<Arc<MockState>>, request: Request<Bo
         body: body.to_vec(),
     });
 
-    let (status, payload) = if path_only == "/api/v1/spaces/SDLC/documents" {
-        (
+    let (status, payload) = match path_only.as_str() {
+        "/api/v1/spaces" => (
+            StatusCode::OK,
+            json!({
+                "spaces": [
+                    { "key": "SDLC", "name": "SDLC Knowledge Base", "status": "active" },
+                    { "key": "OPS", "name": "Operations", "status": "archived" }
+                ]
+            }),
+        ),
+        "/api/v1/spaces/SDLC%20KB" => (
+            StatusCode::OK,
+            json!({ "key": "SDLC KB", "name": "SDLC Knowledge Base", "status": "active" }),
+        ),
+        "/api/v1/spaces/SDLC/documents" => (
             StatusCode::CREATED,
             json!({ "id": "doc-from-stdin", "status": "draft" }),
-        )
-    } else {
-        (
+        ),
+        _ => (
             StatusCode::BAD_REQUEST,
             json!({
                 "error": {
@@ -91,7 +103,7 @@ async fn record_request(State(state): State<Arc<MockState>>, request: Request<Bo
                     "details": [{ "field": "q", "message": "too short" }]
                 }
             }),
-        )
+        ),
     };
 
     (status, Json(payload)).into_response()
@@ -257,4 +269,75 @@ async fn compiled_binary_missing_markdown_file_fails_before_http() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("failed to read"));
     assert!(server.requests().is_empty());
+}
+
+#[tokio::test]
+async fn compiled_binary_uses_env_options_and_compact_output() {
+    let server = spawn_mock_server().await;
+    let api_url = server.api_url.clone();
+
+    let output = tokio::task::spawn_blocking(move || {
+        Command::new(env!("CARGO_BIN_EXE_wiki"))
+            .env("WIKI_API_URL", api_url)
+            .env("WIKI_TOKEN", "env-token")
+            .env("WIKI_OUTPUT", "compact")
+            .arg("space")
+            .arg("get")
+            .arg("SDLC KB")
+            .output()
+            .expect("wiki binary should run")
+    })
+    .await
+    .expect("wiki binary task should complete");
+
+    assert!(output.status.success());
+    assert!(output.stderr.is_empty());
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout).trim(),
+        "key=SDLC KB | name=SDLC Knowledge Base | status=active"
+    );
+
+    let requests = server.requests();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].method, Method::GET);
+    assert_eq!(requests[0].path, "/api/v1/spaces/SDLC%20KB");
+    assert_eq!(
+        requests[0].authorization.as_deref(),
+        Some("Bearer env-token")
+    );
+    assert!(requests[0].idempotency_key.is_none());
+}
+
+#[tokio::test]
+async fn compiled_binary_table_output_prints_list_items() {
+    let server = spawn_mock_server().await;
+    let api_url = server.api_url.clone();
+
+    let output = tokio::task::spawn_blocking(move || {
+        Command::new(env!("CARGO_BIN_EXE_wiki"))
+            .arg("--api-url")
+            .arg(api_url)
+            .arg("--output")
+            .arg("table")
+            .arg("space")
+            .arg("list")
+            .output()
+            .expect("wiki binary should run")
+    })
+    .await
+    .expect("wiki binary task should complete");
+
+    assert!(output.status.success());
+    assert!(output.stderr.is_empty());
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout).trim(),
+        "key=SDLC | name=SDLC Knowledge Base | status=active\nkey=OPS | name=Operations | status=archived"
+    );
+
+    let requests = server.requests();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].method, Method::GET);
+    assert_eq!(requests[0].path, "/api/v1/spaces");
+    assert!(requests[0].authorization.is_none());
+    assert!(requests[0].idempotency_key.is_none());
 }
