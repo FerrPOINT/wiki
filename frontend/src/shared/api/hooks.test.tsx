@@ -3,16 +3,27 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  useArchiveDocument,
+  useCreateDocument,
   useCreateFileEvidence,
+  useCreateEvidence,
   useEvidenceItem,
   useLinkPhaseDocument,
   useLinkTaskDocument,
+  useMoveDocument,
+  usePublishDocument,
+  useUpdateDocumentDraft,
 } from './hooks'
 
+const archiveDocument = vi.hoisted(() => vi.fn())
+const createDocument = vi.hoisted(() => vi.fn())
 const createEvidence = vi.hoisted(() => vi.fn())
 const getEvidence = vi.hoisted(() => vi.fn())
 const linkPhaseDocument = vi.hoisted(() => vi.fn())
 const linkTaskDocument = vi.hoisted(() => vi.fn())
+const moveDocument = vi.hoisted(() => vi.fn())
+const publishDocument = vi.hoisted(() => vi.fn())
+const updateDocumentDraft = vi.hoisted(() => vi.fn())
 const uploadAttachment = vi.hoisted(() => vi.fn())
 
 vi.mock('@/api/auth', () => ({
@@ -24,9 +35,9 @@ vi.mock('@/api/auth', () => ({
 
 vi.mock('@/api/wiki', () => ({
   archiveSpace: vi.fn(),
-  archiveDocument: vi.fn(),
+  archiveDocument,
   createSpace: vi.fn(),
-  createDocument: vi.fn(),
+  createDocument,
   createEvidence,
   createTemplate: vi.fn(),
   createUser: vi.fn(),
@@ -51,10 +62,10 @@ vi.mock('@/api/wiki', () => ({
   listTasks: vi.fn(),
   listTemplates: vi.fn(),
   listUsers: vi.fn(),
-  moveDocument: vi.fn(),
-  publishDocument: vi.fn(),
+  moveDocument,
+  publishDocument,
   searchWiki: vi.fn(),
-  updateDocumentDraft: vi.fn(),
+  updateDocumentDraft,
   updateSpace: vi.fn(),
   updateUser: vi.fn(),
   uploadAttachment,
@@ -66,6 +77,33 @@ function wrapper({ children }: { children: React.ReactNode }) {
     defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
   })
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+}
+
+function wrapperFor(queryClient: QueryClient) {
+  return function TestWrapper({ children }: { children: React.ReactNode }) {
+    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  }
+}
+
+function documentResponse(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'product-requirements',
+    slug: 'product-requirements',
+    space_key: 'SDLC',
+    title: 'Product requirements',
+    document_type: 'requirements',
+    status: 'draft',
+    parent_id: null,
+    task_keys: [],
+    phase_keys: [],
+    evidence: [],
+    created_at: '2026-08-31T12:00:00Z',
+    updated_at: '2026-08-31T12:00:00Z',
+    body_markdown: '# Requirements',
+    draft_markdown: '# Requirements',
+    current_revision: null,
+    ...overrides,
+  }
 }
 
 describe('wiki API hooks', () => {
@@ -111,6 +149,102 @@ describe('wiki API hooks', () => {
       evidence_type: 'uploaded_file',
       attachment_id: 'attachment-1',
     })
+  })
+
+  it('invalidates audit log after document and evidence write mutations', async () => {
+    createDocument.mockResolvedValueOnce(documentResponse())
+    updateDocumentDraft.mockResolvedValueOnce(documentResponse({ title: 'Updated requirements' }))
+    publishDocument.mockResolvedValueOnce({
+      id: 'revision-1',
+      document_id: 'product-requirements',
+      version: 1,
+      title: 'Updated requirements',
+      summary: 'Ready',
+      author_id: 'admin',
+      published_at: '2026-08-31T12:05:00Z',
+      body_markdown: '# Requirements',
+      body_html: '<h1>Requirements</h1>',
+      checksum: 'sha256-test',
+    })
+    moveDocument.mockResolvedValueOnce(documentResponse({ parent_id: 'parent-document' }))
+    archiveDocument.mockResolvedValueOnce(documentResponse({ status: 'archived' }))
+    createEvidence.mockResolvedValueOnce({
+      id: 'evidence-1',
+      space_key: 'SDLC',
+      evidence_type: 'external_url',
+      title: 'Smoke proof',
+      url: 'https://ci.local/jobs/wiki-smoke',
+      created_at: '2026-08-31T12:10:00Z',
+    })
+    uploadAttachment.mockResolvedValueOnce({
+      id: 'attachment-1',
+      checksum: 'sha256-test',
+    })
+    createEvidence.mockResolvedValueOnce({
+      id: 'evidence-2',
+      space_key: 'SDLC',
+      evidence_type: 'uploaded_file',
+      attachment_id: 'attachment-1',
+      checksum: 'sha256-test',
+      created_at: '2026-08-31T12:11:00Z',
+    })
+    const queryClient = new QueryClient({
+      defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
+    })
+    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
+
+    const wrapper = wrapperFor(queryClient)
+    const createDocumentHook = renderHook(() => useCreateDocument(), { wrapper })
+    const updateDraftHook = renderHook(() => useUpdateDocumentDraft(), { wrapper })
+    const publishHook = renderHook(() => usePublishDocument(), { wrapper })
+    const moveHook = renderHook(() => useMoveDocument(), { wrapper })
+    const archiveHook = renderHook(() => useArchiveDocument(), { wrapper })
+    const createLinkHook = renderHook(() => useCreateEvidence(), { wrapper })
+    const createFileHook = renderHook(() => useCreateFileEvidence(), { wrapper })
+
+    await act(async () => {
+      await createDocumentHook.result.current.mutateAsync({
+        spaceKey: 'SDLC',
+        body: {
+          title: 'Product requirements',
+          document_type: 'requirements',
+          content_markdown: '# Requirements',
+        },
+      })
+      await updateDraftHook.result.current.mutateAsync({
+        documentId: 'product-requirements',
+        body: { title: 'Updated requirements', content_markdown: '# Requirements' },
+      })
+      await publishHook.result.current.mutateAsync({
+        documentId: 'product-requirements',
+        body: { summary: 'Ready' },
+      })
+      await moveHook.result.current.mutateAsync({
+        documentId: 'product-requirements',
+        body: { parent_id: 'parent-document' },
+      })
+      await archiveHook.result.current.mutateAsync('product-requirements')
+      await createLinkHook.result.current.mutateAsync({
+        space: 'SDLC',
+        document_id: 'product-requirements',
+        title: 'Smoke proof',
+        evidence_type: 'external_url',
+        url: 'https://ci.local/jobs/wiki-smoke',
+      })
+      await createFileHook.result.current.mutateAsync({
+        file: new File(['file body'], 'evidence.txt', { type: 'text/plain' }),
+        evidence: {
+          space: 'SDLC',
+          document_id: 'product-requirements',
+          title: 'File evidence',
+        },
+      })
+    })
+
+    const auditInvalidations = invalidateQueries.mock.calls.filter(
+      ([call]) => call?.queryKey?.join('/') === 'wiki/audit-log',
+    )
+    expect(auditInvalidations).toHaveLength(7)
   })
 
   it('links task documents through the public API wrapper', async () => {

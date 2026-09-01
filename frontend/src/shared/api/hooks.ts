@@ -442,6 +442,7 @@ export function useCreateDocument() {
       queryClient.invalidateQueries({ queryKey: wikiKeys.tasks(document.space_key) })
       queryClient.invalidateQueries({ queryKey: wikiKeys.phases(document.space_key) })
       queryClient.invalidateQueries({ queryKey: ['wiki', 'search'] })
+      queryClient.invalidateQueries({ queryKey: wikiKeys.auditLog })
     },
   })
 }
@@ -459,6 +460,7 @@ function writeDocumentCache(
   queryClient.invalidateQueries({ queryKey: wikiKeys.tasks(document.space_key) })
   queryClient.invalidateQueries({ queryKey: wikiKeys.phases(document.space_key) })
   queryClient.invalidateQueries({ queryKey: ['wiki', 'search'] })
+  queryClient.invalidateQueries({ queryKey: wikiKeys.auditLog })
 }
 
 export function useUpdateDocumentDraft() {
@@ -483,6 +485,7 @@ export function usePublishDocument() {
       queryClient.invalidateQueries({ queryKey: ['wiki', 'documents'] })
       queryClient.invalidateQueries({ queryKey: ['wiki', 'spaces'] })
       queryClient.invalidateQueries({ queryKey: ['wiki', 'search'] })
+      queryClient.invalidateQueries({ queryKey: wikiKeys.auditLog })
     },
   })
 }
@@ -520,6 +523,7 @@ export function useCreateEvidence() {
       queryClient.invalidateQueries({ queryKey: wikiKeys.tasks(evidence.space_key) })
       queryClient.invalidateQueries({ queryKey: wikiKeys.phases(evidence.space_key) })
       queryClient.invalidateQueries({ queryKey: ['wiki', 'search'] })
+      queryClient.invalidateQueries({ queryKey: wikiKeys.auditLog })
     },
   })
 }
@@ -547,6 +551,7 @@ export function useCreateFileEvidence() {
       queryClient.invalidateQueries({ queryKey: wikiKeys.tasks(evidence.space_key) })
       queryClient.invalidateQueries({ queryKey: wikiKeys.phases(evidence.space_key) })
       queryClient.invalidateQueries({ queryKey: ['wiki', 'search'] })
+      queryClient.invalidateQueries({ queryKey: wikiKeys.auditLog })
     },
   })
 }
