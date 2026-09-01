@@ -20,8 +20,15 @@ impl PostgresWikiBackend {
     ) -> Result<EvidenceResponse, shared::AppError> {
         let actor_id = parse_uuid(&claims.user_id, "user")?;
         let evidence_type = normalize_evidence_type(&body.evidence_type)?;
+        let url = body
+            .url
+            .as_deref()
+            .map(|value| normalize_required(value, "evidence url"))
+            .transpose()?;
         match evidence_type {
-            "external_url" if body.url.is_none() || body.attachment_id.is_some() => {
+            "external_url"
+                if url.is_none() || body.attachment_id.is_some() || body.checksum.is_some() =>
+            {
                 return Err(shared::AppError::invalid_input(
                     "external_url evidence requires url only",
                 ));
@@ -62,6 +69,7 @@ impl PostgresWikiBackend {
         };
         self.ensure_space_id_access(claims, space_id, SpaceAccess::Edit)
             .await?;
+        self.ensure_space_accepts_writes(space_id).await?;
         let task_key = body
             .task_key
             .as_deref()
@@ -149,7 +157,7 @@ impl PostgresWikiBackend {
         .bind(phase_dossier_id)
         .bind(evidence_type)
         .bind(title)
-        .bind(body.url)
+        .bind(url)
         .bind(attachment_id)
         .bind(stored_checksum)
         .bind(actor_id)

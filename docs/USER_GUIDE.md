@@ -6,13 +6,13 @@ Wiki stores the important materials around SDLC tasks: requirements, design note
 
 ## 2. Main Concepts
 
-| Concept | Meaning |
-|---|---|
-| Space | Area for a product, team or workflow context |
-| Document | Markdown page with revisions |
-| Task dossier | Knowledge folder linked to an external task |
-| Phase dossier | Materials for one project-workflow phase |
-| Evidence | Link or uploaded file proving a task or phase result |
+| Concept       | Meaning                                              |
+| ------------- | ---------------------------------------------------- |
+| Space         | Area for a product, team or workflow context         |
+| Document      | Markdown page with revisions                         |
+| Task dossier  | Knowledge folder linked to an external task          |
+| Phase dossier | Materials for one project-workflow phase             |
+| Evidence      | Link or uploaded file proving a task or phase result |
 
 ## 3. Daily Flow
 
@@ -25,11 +25,11 @@ Wiki stores the important materials around SDLC tasks: requirements, design note
 
 ## 4. Document States
 
-| State | Meaning |
-|---|---|
-| draft | Work in progress |
-| published | Stable revision visible to readers |
-| archived | Hidden from normal navigation, restorable by editors/admins |
+| State     | Meaning                                                     |
+| --------- | ----------------------------------------------------------- |
+| draft     | Work in progress                                            |
+| published | Stable revision visible to readers                          |
+| archived  | Hidden from normal navigation, restorable by editors/admins |
 
 ## 5. Evidence Types
 
@@ -49,4 +49,4 @@ Use `/search` to find:
 
 ## 7. Permissions
 
-Readers can view published content. Editors can create drafts, publish revisions and attach evidence. Owners can manage members, templates and retention.
+Readers can view published content. Editors can create drafts, publish revisions and attach evidence. Space owners can manage members and space metadata; system admins manage users, templates, settings and audit.

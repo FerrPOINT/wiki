@@ -18,17 +18,17 @@ CI-CD pipeline finishes
 
 ## Evidence Mapping
 
-| CI/CD Object | Wiki Evidence |
-|---|---|
-| Pipeline run | `kind=ci_pipeline` |
-| Job log | `kind=ci_job_log` |
-| Artifact | `kind=ci_artifact` |
-| Deployment | `kind=deployment` |
+| CI/CD Object | Wiki Evidence       |
+| ------------ | ------------------- |
+| Pipeline run | `kind=ci_pipeline`  |
+| Job log      | `kind=ci_job_log`   |
+| Artifact     | `kind=ci_artifact`  |
+| Deployment   | `kind=deployment`   |
 | Failed check | `kind=quality_gate` |
 
 ## Idempotency
 
-Use an explicit idempotency key for repeated CLI/API writes. When evidence comes from a CI/CD provider URL, clients should also send source URL and checksum where available.
+Use an explicit idempotency key for repeated CLI/API writes. URL evidence sends the provider URL only; file evidence is a staged attachment whose checksum is computed by Wiki during upload.
 
 ## Acceptance Criteria
 

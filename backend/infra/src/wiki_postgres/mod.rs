@@ -103,6 +103,23 @@ impl PostgresWikiBackend {
         }
     }
 
+    async fn ensure_space_accepts_writes(&self, space_id: Uuid) -> Result<(), shared::AppError> {
+        let accepts_writes: bool =
+            sqlx::query_scalar("SELECT archived_at IS NULL FROM spaces WHERE id = $1")
+                .bind(space_id)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(shared::AppError::database)?
+                .ok_or_else(|| shared::AppError::not_found("space", space_id))?;
+        if accepts_writes {
+            Ok(())
+        } else {
+            Err(shared::AppError::invalid_input(
+                "archived space does not accept new documents or evidence",
+            ))
+        }
+    }
+
     async fn ensure_document_access(
         &self,
         claims: &WikiClaims,

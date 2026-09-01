@@ -188,7 +188,7 @@ API является единственным контрактом backend. UI �
 
 - `GET /api/v1/search`
 - `GET /api/v1/templates`
-- `POST /api/v1/templates`
+- `POST /api/v1/templates` (system admin only)
 - `GET /api/v1/settings`
 - `GET /api/v1/audit-log`
 

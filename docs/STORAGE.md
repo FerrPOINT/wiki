@@ -2,15 +2,15 @@
 
 ## 1. Overview
 
-Wiki хранит вложения документов и материалы evidence. Backend абстрагирует хранилище через `FileStore` trait. MVP начинает с локальной файловой системы; S3-compatible storage или MinIO остаются расширением за тем же trait.
+Wiki хранит вложения документов и материалы evidence. Backend абстрагирует хранилище через `domain::wiki::WikiAttachmentStorage`. MVP начинает с локальной файловой системы; S3-compatible storage или MinIO остаются расширением за тем же port.
 
 ## 2. Supported Backends
 
-| Backend | Use Case |
-|---|---|
-| `filesystem` | MVP local dev and single-node deploy |
-| `s3` | Future production scalable storage |
-| `minio` | Future self-hosted S3-compatible setup |
+| Backend      | Use Case                               |
+| ------------ | -------------------------------------- |
+| `filesystem` | MVP local dev and single-node deploy   |
+| `s3`         | Future production scalable storage     |
+| `minio`      | Future self-hosted S3-compatible setup |
 
 ## 3. Configuration
 
@@ -19,16 +19,14 @@ WIKI_STORAGE__DIR=/var/lib/wiki/uploads
 WIKI_STORAGE__MAX_UPLOAD_BYTES=26214400
 ```
 
-## 4. FileStore Trait
+## 4. WikiAttachmentStorage Port
 
 ```rust
 #[async_trait]
-pub trait FileStore: Send + Sync {
-    async fn put(&self, key: &str, content: Bytes, content_type: &str) -> Result<(), FileStoreError>;
-    async fn get(&self, key: &str) -> Result<Bytes, FileStoreError>;
-    async fn delete(&self, key: &str) -> Result<(), FileStoreError>;
-    async fn exists(&self, key: &str) -> Result<bool, FileStoreError>;
-    fn public_url(&self, key: &str) -> Option<String>;
+pub trait WikiAttachmentStorage: Send + Sync {
+    async fn put(&self, storage_key: &str, bytes: &[u8]) -> Result<(), AppError>;
+    async fn get(&self, storage_key: &str) -> Result<Vec<u8>, AppError>;
+    async fn delete(&self, storage_key: &str) -> Result<(), AppError>;
 }
 ```
 
@@ -80,22 +78,22 @@ pub struct Attachment {
 
 ## 9. API Endpoints
 
-| Method | Endpoint | Description |
-|---|---|---|
-| `POST` | `/api/v1/attachments` | Upload attachment metadata and bytes |
-| `GET` | `/api/v1/attachments/{attachment_id}` | Read attachment metadata |
-| `GET` | `/api/v1/attachments/{attachment_id}/download` | Download attachment bytes |
+| Method | Endpoint                                       | Description                          |
+| ------ | ---------------------------------------------- | ------------------------------------ |
+| `POST` | `/api/v1/attachments`                          | Upload attachment metadata and bytes |
+| `GET`  | `/api/v1/attachments/{attachment_id}`          | Read attachment metadata             |
+| `GET`  | `/api/v1/attachments/{attachment_id}/download` | Download attachment bytes            |
 
 Attachment delete, preview generation and document attachment listing are deferred until after the base document/evidence lifecycle is implemented.
 
 ## 10. Quotas
 
-| Entity | Default Limit |
-|---|---|
-| Per attachment | 50 MiB |
-| Per document | 500 MiB |
-| Per task dossier | 2 GiB |
-| Per space | 50 GiB |
+| Entity           | Default Limit |
+| ---------------- | ------------- |
+| Per attachment   | 50 MiB        |
+| Per document     | 500 MiB       |
+| Per task dossier | 2 GiB         |
+| Per space        | 50 GiB        |
 
 ## 11. Backup
 

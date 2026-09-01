@@ -10,13 +10,13 @@ This file is kept for documentation parity and future planning only.
 
 MVP evidence can store source metadata as ordinary fields:
 
-| Field | Purpose |
-|---|---|
+| Field         | Purpose                                                                                               |
+| ------------- | ----------------------------------------------------------------------------------------------------- |
 | `source_type` | Human-readable source category such as `ci_pipeline`, `deployment`, `pull_request` or `test_artifact` |
-| `source_url` | External URL if the material lives outside Wiki |
-| `checksum` | Optional checksum for uploaded files or stable artifacts |
-| `task_key` | Optional external task key |
-| `phase_key` | Optional workflow phase key |
+| `source_url`  | External URL if the material lives outside Wiki                                                       |
+| `checksum`    | File checksum produced by staged attachment upload                                                    |
+| `task_key`    | Optional external task key                                                                            |
+| `phase_key`   | Optional workflow phase key                                                                           |
 
 The API treats these fields as metadata. Wiki does not call the external system, execute a workflow or mutate external state.
 
@@ -26,7 +26,7 @@ MVP authentication is the standard user/session/JWT mechanism defined in `docs/A
 
 ## 4. Idempotency
 
-Write calls that can be retried use the normal `Idempotency-Key` header. For evidence created from external URLs, clients should choose a stable key from source URL, task key, phase key and artifact checksum when available.
+Write calls that can be retried use the normal `Idempotency-Key` header. For evidence created from external URLs, clients should choose a stable key from source URL, task key and phase key. File checksums belong to staged attachments and are stored when `uploaded_file` evidence claims the attachment.
 
 ## 5. Deferred Protocol
 

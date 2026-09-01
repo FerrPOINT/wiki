@@ -1,4 +1,8 @@
-use app::wiki::{checksum, safe_download_filename, slugify, snippet};
+use app::wiki::{
+    WikiSpaceAccess, checksum, normalize_document_type, normalize_evidence_type,
+    normalize_phase_key, normalize_required, normalize_space_key, normalize_space_role,
+    normalize_task_key, safe_download_filename, slugify, snippet, space_role_allows,
+};
 use axum::{
     Extension, Json,
     body::Body,
@@ -297,6 +301,94 @@ fn ensure_system_admin(store: &WikiStore, user_id: &str) -> Result<(), shared::A
         .filter(|user| user.active)
         .ok_or(shared::AppError::Unauthorized)?;
     if user.is_system_admin {
+        Ok(())
+    } else {
+        Err(shared::AppError::Forbidden)
+    }
+}
+
+fn is_system_admin(store: &WikiStore, user_id: &str) -> Result<bool, shared::AppError> {
+    let user = store
+        .users
+        .get(user_id)
+        .filter(|user| user.active)
+        .ok_or(shared::AppError::Unauthorized)?;
+    Ok(user.is_system_admin)
+}
+
+fn ensure_space_access(
+    store: &WikiStore,
+    space_key: &str,
+    user_id: &str,
+    required: WikiSpaceAccess,
+) -> Result<(), shared::AppError> {
+    if !store.spaces.contains_key(space_key) {
+        return Err(shared::AppError::not_found("space", space_key));
+    }
+    if is_system_admin(store, user_id)? {
+        return Ok(());
+    }
+    let role = store
+        .members
+        .get(space_key)
+        .and_then(|members| members.get(user_id))
+        .map(String::as_str);
+    if space_role_allows(role, required) {
+        Ok(())
+    } else {
+        Err(shared::AppError::Forbidden)
+    }
+}
+
+fn ensure_space_accepts_writes(store: &WikiStore, space_key: &str) -> Result<(), shared::AppError> {
+    let space = store
+        .spaces
+        .get(space_key)
+        .ok_or_else(|| shared::AppError::not_found("space", space_key))?;
+    if space.status == "archived" {
+        Err(shared::AppError::invalid_input(
+            "archived space does not accept new documents or evidence",
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+fn can_view_space(store: &WikiStore, space_key: &str, user_id: &str) -> bool {
+    ensure_space_access(store, space_key, user_id, WikiSpaceAccess::View).is_ok()
+}
+
+fn ensure_document_access(
+    store: &WikiStore,
+    document_id: &str,
+    user_id: &str,
+    required: WikiSpaceAccess,
+) -> Result<String, shared::AppError> {
+    let document = store
+        .documents
+        .get(document_id)
+        .ok_or_else(|| shared::AppError::not_found("document", document_id))?;
+    ensure_space_access(store, &document.space_key, user_id, required)?;
+    Ok(document.space_key.clone())
+}
+
+fn ensure_attachment_access(
+    store: &WikiStore,
+    attachment_id: &str,
+    user_id: &str,
+) -> Result<(), shared::AppError> {
+    let attachment = store
+        .attachments
+        .get(attachment_id)
+        .ok_or_else(|| shared::AppError::not_found("attachment", attachment_id))?;
+    if let Some(evidence) = store
+        .evidence
+        .values()
+        .find(|item| item.attachment_id.as_deref() == Some(attachment_id))
+    {
+        return ensure_space_access(store, &evidence.space_key, user_id, WikiSpaceAccess::View);
+    }
+    if is_system_admin(store, user_id)? || attachment.metadata.uploaded_by == user_id {
         Ok(())
     } else {
         Err(shared::AppError::Forbidden)
@@ -623,9 +715,17 @@ pub async fn list_spaces(
     }
 
     let store = store().lock().expect("wiki store lock");
-    Ok(Json(SpaceListResponse {
-        spaces: store.spaces.values().cloned().collect(),
-    }))
+    let spaces = if is_system_admin(&store, &claims.user_id)? {
+        store.spaces.values().cloned().collect()
+    } else {
+        store
+            .spaces
+            .values()
+            .filter(|space| can_view_space(&store, &space.key, &claims.user_id))
+            .cloned()
+            .collect()
+    };
+    Ok(Json(SpaceListResponse { spaces }))
 }
 
 #[utoipa::path(
@@ -646,11 +746,10 @@ pub async fn create_space(
         return Ok((StatusCode::CREATED, Json(response)));
     }
 
-    let key = body.key.trim().to_ascii_uppercase();
-    if key.is_empty() {
-        return Err(shared::AppError::invalid_input("space key is required"));
-    }
+    let key = normalize_space_key(&body.key)?;
+    let name = normalize_required(&body.name, "space name")?;
     let mut store = store().lock().expect("wiki store lock");
+    ensure_system_admin(&store, &claims.user_id)?;
     if store.spaces.contains_key(&key) {
         return Err(shared::AppError::conflict("space already exists"));
     }
@@ -658,7 +757,7 @@ pub async fn create_space(
     let space = SpaceResponse {
         id: new_id(),
         key: key.clone(),
-        name: body.name,
+        name,
         description: body.description,
         owner_id: claims.user_id.clone(),
         status: "active".to_string(),
@@ -694,9 +793,11 @@ pub async fn get_space(
     }
 
     let store = store().lock().expect("wiki store lock");
+    let key = normalize_space_key(&space_key)?;
+    ensure_space_access(&store, &key, &claims.user_id, WikiSpaceAccess::View)?;
     let space = store
         .spaces
-        .get(&space_key.to_ascii_uppercase())
+        .get(&key)
         .cloned()
         .ok_or_else(|| shared::AppError::not_found("space", &space_key))?;
     Ok(Json(space))
@@ -723,17 +824,21 @@ pub async fn update_space(
         ));
     }
 
-    let key = space_key.to_ascii_uppercase();
+    let key = normalize_space_key(&space_key)?;
     let mut store = store().lock().expect("wiki store lock");
+    ensure_space_access(&store, &key, &claims.user_id, WikiSpaceAccess::Admin)?;
     let space = store
         .spaces
         .get_mut(&key)
         .ok_or_else(|| shared::AppError::not_found("space", &space_key))?;
     if let Some(name) = body.name {
-        space.name = name;
+        let name = name.trim().to_string();
+        if !name.is_empty() {
+            space.name = name;
+        }
     }
     if body.description.is_some() {
-        space.description = body.description;
+        space.description = body.description.map(|value| value.trim().to_string());
     }
     space.updated_at = now_iso();
     let response = space.clone();
@@ -758,8 +863,9 @@ pub async fn archive_space(
         return Ok(Json(persistent.archive_space(&claims, &space_key).await?));
     }
 
-    let key = space_key.to_ascii_uppercase();
+    let key = normalize_space_key(&space_key)?;
     let mut store = store().lock().expect("wiki store lock");
+    ensure_space_access(&store, &key, &claims.user_id, WikiSpaceAccess::Admin)?;
     let space = store
         .spaces
         .get_mut(&key)
@@ -791,9 +897,11 @@ pub async fn list_space_members(
     }
 
     let store = store().lock().expect("wiki store lock");
+    let key = normalize_space_key(&space_key)?;
+    ensure_space_access(&store, &key, &claims.user_id, WikiSpaceAccess::Admin)?;
     let members = store
         .members
-        .get(&space_key.to_ascii_uppercase())
+        .get(&key)
         .ok_or_else(|| shared::AppError::not_found("space", &space_key))?
         .iter()
         .filter_map(|(user_id, role)| {
@@ -832,18 +940,20 @@ pub async fn upsert_space_member(
         ));
     }
 
-    let key = space_key.to_ascii_uppercase();
+    let key = normalize_space_key(&space_key)?;
     let mut store = store().lock().expect("wiki store lock");
+    ensure_space_access(&store, &key, &claims.user_id, WikiSpaceAccess::Admin)?;
     let user = store
         .users
         .get(&user_id)
         .cloned()
         .ok_or_else(|| shared::AppError::not_found("user", &user_id))?;
+    let role = normalize_space_role(&body.role)?.to_string();
     let members = store
         .members
         .get_mut(&key)
         .ok_or_else(|| shared::AppError::not_found("space", &space_key))?;
-    members.insert(user_id.clone(), body.role.clone());
+    members.insert(user_id.clone(), role.clone());
     let member_count = members.len();
     if let Some(space) = store.spaces.get_mut(&key) {
         space.member_count = member_count;
@@ -854,7 +964,7 @@ pub async fn upsert_space_member(
         user_id,
         email: user.email,
         display_name: user.display_name,
-        role: body.role,
+        role,
         joined_at: now_iso(),
     }))
 }
@@ -879,8 +989,9 @@ pub async fn delete_space_member(
         return Ok(StatusCode::NO_CONTENT);
     }
 
-    let key = space_key.to_ascii_uppercase();
+    let key = normalize_space_key(&space_key)?;
     let mut store = store().lock().expect("wiki store lock");
+    ensure_space_access(&store, &key, &claims.user_id, WikiSpaceAccess::Admin)?;
     let members = store
         .members
         .get_mut(&key)
@@ -913,10 +1024,8 @@ pub async fn get_space_tree(
     }
 
     let store = store().lock().expect("wiki store lock");
-    let key = space_key.to_ascii_uppercase();
-    if !store.spaces.contains_key(&key) {
-        return Err(shared::AppError::not_found("space", &space_key));
-    }
+    let key = normalize_space_key(&space_key)?;
+    ensure_space_access(&store, &key, &claims.user_id, WikiSpaceAccess::View)?;
     let documents = build_tree(&store, &key, None);
     Ok(Json(SpaceTreeResponse {
         space_key: key,
@@ -946,11 +1055,12 @@ pub async fn create_document(
         return Ok((StatusCode::CREATED, Json(response)));
     }
 
-    let key = space_key.to_ascii_uppercase();
+    let key = normalize_space_key(&space_key)?;
     let mut store = store().lock().expect("wiki store lock");
-    if !store.spaces.contains_key(&key) {
-        return Err(shared::AppError::not_found("space", &space_key));
-    }
+    ensure_space_access(&store, &key, &claims.user_id, WikiSpaceAccess::Edit)?;
+    ensure_space_accepts_writes(&store, &key)?;
+    let title = normalize_required(&body.title, "document title")?;
+    let document_type = normalize_document_type(&body.document_type, true)?.to_string();
     let parent_id = match body.parent_id {
         Some(parent_id) => {
             let resolved_parent_id = resolve_document_id(&store, &parent_id)?;
@@ -968,7 +1078,7 @@ pub async fn create_document(
         None => None,
     };
     let id = new_id();
-    let mut slug = body.slug.unwrap_or_else(|| slugify(&body.title));
+    let mut slug = body.slug.unwrap_or_else(|| slugify(&title));
     slug = slugify(&slug);
     if slug.is_empty() {
         slug = format!("document-{}", &id[..8]);
@@ -984,19 +1094,19 @@ pub async fn create_document(
     let now = now_iso();
     let mut task_keys = BTreeSet::new();
     if let Some(task_key) = body.task_key {
-        task_keys.insert(task_key);
+        task_keys.insert(normalize_task_key(&task_key)?);
     }
     let mut phase_keys = BTreeSet::new();
     if let Some(phase_key) = body.phase_key {
-        phase_keys.insert(phase_key);
+        phase_keys.insert(normalize_phase_key(&phase_key)?);
     }
     let document = DocumentRecord {
         id: id.clone(),
         space_key: key.clone(),
         parent_id,
         slug,
-        title: body.title,
-        document_type: body.document_type,
+        title,
+        document_type,
         status: "draft".to_string(),
         draft_markdown: body.content_markdown,
         current_revision_id: None,
@@ -1041,6 +1151,7 @@ pub async fn get_document(
 
     let store = store().lock().expect("wiki store lock");
     let id = resolve_document_id(&store, &document_id)?;
+    ensure_document_access(&store, &id, &claims.user_id, WikiSpaceAccess::View)?;
     Ok(Json(document_response(&store, &id)?))
 }
 
@@ -1069,11 +1180,18 @@ pub async fn update_document_draft(
 
     let mut store = store().lock().expect("wiki store lock");
     let id = resolve_document_id(&store, &document_id)?;
+    ensure_document_access(&store, &id, &claims.user_id, WikiSpaceAccess::Edit)?;
     let document = store
         .documents
         .get_mut(&id)
         .ok_or_else(|| shared::AppError::not_found("document", &document_id))?;
     if let Some(title) = body.title {
+        let title = title.trim().to_string();
+        if title.is_empty() {
+            return Err(shared::AppError::invalid_input(
+                "document title is required",
+            ));
+        }
         document.title = title;
     }
     document.draft_markdown = body.content_markdown;
@@ -1109,6 +1227,7 @@ pub async fn publish_document(
 
     let mut store = store().lock().expect("wiki store lock");
     let id = resolve_document_id(&store, &document_id)?;
+    ensure_document_access(&store, &id, &claims.user_id, WikiSpaceAccess::Edit)?;
     let version = store
         .revisions
         .get(&id)
@@ -1118,6 +1237,11 @@ pub async fn publish_document(
         .documents
         .get_mut(&id)
         .ok_or_else(|| shared::AppError::not_found("document", &document_id))?;
+    if document.draft_markdown.trim().is_empty() {
+        return Err(shared::AppError::invalid_input(
+            "published content is required",
+        ));
+    }
     let revision = DocumentRevisionResponse {
         id: revision_id.clone(),
         document_id: id.clone(),
@@ -1162,6 +1286,7 @@ pub async fn archive_document(
 
     let mut store = store().lock().expect("wiki store lock");
     let id = resolve_document_id(&store, &document_id)?;
+    ensure_document_access(&store, &id, &claims.user_id, WikiSpaceAccess::Edit)?;
     let document = store
         .documents
         .get_mut(&id)
@@ -1198,11 +1323,8 @@ pub async fn move_document(
 
     let mut store = store().lock().expect("wiki store lock");
     let id = resolve_document_id(&store, &document_id)?;
-    let document_space = store
-        .documents
-        .get(&id)
-        .map(|document| document.space_key.clone())
-        .ok_or_else(|| shared::AppError::not_found("document", &document_id))?;
+    let document_space =
+        ensure_document_access(&store, &id, &claims.user_id, WikiSpaceAccess::Edit)?;
     let parent_id = match body.parent_id {
         Some(parent_id) => {
             let resolved_parent_id = resolve_document_id(&store, &parent_id)?;
@@ -1263,6 +1385,7 @@ pub async fn list_document_revisions(
 
     let store = store().lock().expect("wiki store lock");
     let id = resolve_document_id(&store, &document_id)?;
+    ensure_document_access(&store, &id, &claims.user_id, WikiSpaceAccess::View)?;
     Ok(Json(DocumentRevisionListResponse {
         revisions: store.revisions.get(&id).cloned().unwrap_or_default(),
     }))
@@ -1291,6 +1414,7 @@ pub async fn get_document_revision(
 
     let store = store().lock().expect("wiki store lock");
     let id = resolve_document_id(&store, &document_id)?;
+    ensure_document_access(&store, &id, &claims.user_id, WikiSpaceAccess::View)?;
     let revision = store
         .revisions
         .get(&id)
@@ -1318,10 +1442,8 @@ pub async fn list_tasks(
     }
 
     let store = store().lock().expect("wiki store lock");
-    let key = space_key.to_ascii_uppercase();
-    if !store.spaces.contains_key(&key) {
-        return Err(shared::AppError::not_found("space", &space_key));
-    }
+    let key = normalize_space_key(&space_key)?;
+    ensure_space_access(&store, &key, &claims.user_id, WikiSpaceAccess::View)?;
     let mut task_keys = BTreeSet::new();
     for document in store
         .documents
@@ -1362,10 +1484,9 @@ pub async fn get_task(
     }
 
     let store = store().lock().expect("wiki store lock");
-    let key = space_key.to_ascii_uppercase();
-    if !store.spaces.contains_key(&key) {
-        return Err(shared::AppError::not_found("space", &space_key));
-    }
+    let key = normalize_space_key(&space_key)?;
+    let task_key = normalize_task_key(&task_key)?;
+    ensure_space_access(&store, &key, &claims.user_id, WikiSpaceAccess::View)?;
     Ok(Json(task_page(&store, &key, &task_key)))
 }
 
@@ -1393,10 +1514,9 @@ pub async fn link_task_document(
     }
 
     let mut store = store().lock().expect("wiki store lock");
-    let key = space_key.to_ascii_uppercase();
-    if !store.spaces.contains_key(&key) {
-        return Err(shared::AppError::not_found("space", &space_key));
-    }
+    let key = normalize_space_key(&space_key)?;
+    let task_key = normalize_task_key(&task_key)?;
+    ensure_space_access(&store, &key, &claims.user_id, WikiSpaceAccess::Edit)?;
     let document_id = resolve_document_id(&store, &body.document_id)?;
     let document = store
         .documents
@@ -1435,10 +1555,9 @@ pub async fn list_task_documents(
     }
 
     let store = store().lock().expect("wiki store lock");
-    let key = space_key.to_ascii_uppercase();
-    if !store.spaces.contains_key(&key) {
-        return Err(shared::AppError::not_found("space", &space_key));
-    }
+    let key = normalize_space_key(&space_key)?;
+    let task_key = normalize_task_key(&task_key)?;
+    ensure_space_access(&store, &key, &claims.user_id, WikiSpaceAccess::View)?;
     let documents = task_page(&store, &key, &task_key)
         .documents
         .into_iter()
@@ -1469,10 +1588,9 @@ pub async fn list_task_evidence(
     }
 
     let store = store().lock().expect("wiki store lock");
-    let key = space_key.to_ascii_uppercase();
-    if !store.spaces.contains_key(&key) {
-        return Err(shared::AppError::not_found("space", &space_key));
-    }
+    let key = normalize_space_key(&space_key)?;
+    let task_key = normalize_task_key(&task_key)?;
+    ensure_space_access(&store, &key, &claims.user_id, WikiSpaceAccess::View)?;
     Ok(Json(EvidenceListResponse {
         evidence: evidence_for_task(&store, &key, &task_key),
     }))
@@ -1496,10 +1614,8 @@ pub async fn list_phases(
     }
 
     let store = store().lock().expect("wiki store lock");
-    let key = space_key.to_ascii_uppercase();
-    if !store.spaces.contains_key(&key) {
-        return Err(shared::AppError::not_found("space", &space_key));
-    }
+    let key = normalize_space_key(&space_key)?;
+    ensure_space_access(&store, &key, &claims.user_id, WikiSpaceAccess::View)?;
     let mut phase_keys = BTreeSet::new();
     for document in store
         .documents
@@ -1542,10 +1658,9 @@ pub async fn get_phase(
     }
 
     let store = store().lock().expect("wiki store lock");
-    let key = space_key.to_ascii_uppercase();
-    if !store.spaces.contains_key(&key) {
-        return Err(shared::AppError::not_found("space", &space_key));
-    }
+    let key = normalize_space_key(&space_key)?;
+    let phase_key = normalize_phase_key(&phase_key)?;
+    ensure_space_access(&store, &key, &claims.user_id, WikiSpaceAccess::View)?;
     Ok(Json(phase_page(&store, &key, &phase_key)))
 }
 
@@ -1573,10 +1688,9 @@ pub async fn link_phase_document(
     }
 
     let mut store = store().lock().expect("wiki store lock");
-    let key = space_key.to_ascii_uppercase();
-    if !store.spaces.contains_key(&key) {
-        return Err(shared::AppError::not_found("space", &space_key));
-    }
+    let key = normalize_space_key(&space_key)?;
+    let phase_key = normalize_phase_key(&phase_key)?;
+    ensure_space_access(&store, &key, &claims.user_id, WikiSpaceAccess::Edit)?;
     let document_id = resolve_document_id(&store, &body.document_id)?;
     let document = store
         .documents
@@ -1615,10 +1729,9 @@ pub async fn list_phase_documents(
     }
 
     let store = store().lock().expect("wiki store lock");
-    let key = space_key.to_ascii_uppercase();
-    if !store.spaces.contains_key(&key) {
-        return Err(shared::AppError::not_found("space", &space_key));
-    }
+    let key = normalize_space_key(&space_key)?;
+    let phase_key = normalize_phase_key(&phase_key)?;
+    ensure_space_access(&store, &key, &claims.user_id, WikiSpaceAccess::View)?;
     let documents = phase_page(&store, &key, &phase_key)
         .documents
         .into_iter()
@@ -1649,10 +1762,9 @@ pub async fn list_phase_evidence(
     }
 
     let store = store().lock().expect("wiki store lock");
-    let key = space_key.to_ascii_uppercase();
-    if !store.spaces.contains_key(&key) {
-        return Err(shared::AppError::not_found("space", &space_key));
-    }
+    let key = normalize_space_key(&space_key)?;
+    let phase_key = normalize_phase_key(&phase_key)?;
+    ensure_space_access(&store, &key, &claims.user_id, WikiSpaceAccess::View)?;
     Ok(Json(EvidenceListResponse {
         evidence: evidence_for_phase(&store, &key, &phase_key),
     }))
@@ -1676,11 +1788,6 @@ pub async fn create_evidence(
         return Ok((StatusCode::CREATED, Json(response)));
     }
 
-    if body.url.is_none() && body.attachment_id.is_none() {
-        return Err(shared::AppError::invalid_input(
-            "url or attachment_id is required",
-        ));
-    }
     let mut store = store().lock().expect("wiki store lock");
     let CreateEvidenceRequest {
         space,
@@ -1693,13 +1800,23 @@ pub async fn create_evidence(
         attachment_id,
         checksum,
     } = body;
-    match evidence_type.as_str() {
-        "external_url" if url.is_none() || attachment_id.is_some() => {
+    let title = normalize_required(&title, "evidence title")?;
+    let evidence_type = normalize_evidence_type(&evidence_type)?;
+    let url_supplied = url.is_some();
+    let checksum_supplied = checksum.is_some();
+    let url = url
+        .map(|value| normalize_required(&value, "evidence url"))
+        .transpose()?;
+    let checksum = checksum
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    match evidence_type {
+        "external_url" if url.is_none() || attachment_id.is_some() || checksum_supplied => {
             return Err(shared::AppError::invalid_input(
                 "external_url evidence requires url only",
             ));
         }
-        "uploaded_file" if attachment_id.is_none() || url.is_some() => {
+        "uploaded_file" if attachment_id.is_none() || url_supplied => {
             return Err(shared::AppError::invalid_input(
                 "uploaded_file evidence requires attachment_id only",
             ));
@@ -1709,11 +1826,6 @@ pub async fn create_evidence(
             return Err(shared::AppError::invalid_input(
                 "evidence_type must be external_url or uploaded_file",
             ));
-        }
-    }
-    if let Some(attachment_id) = &attachment_id {
-        if !store.attachments.contains_key(attachment_id) {
-            return Err(shared::AppError::not_found("attachment", attachment_id));
         }
     }
     let document_id = match document_id {
@@ -1726,28 +1838,57 @@ pub async fn create_evidence(
         .map(|document| document.space_key.clone());
     let space_key = space
         .or(document_space.clone())
-        .unwrap_or_else(|| "SDLC".to_string())
-        .to_ascii_uppercase();
+        .map(|value| normalize_space_key(&value))
+        .transpose()?
+        .unwrap_or_else(|| "SDLC".to_string());
     if !store.spaces.contains_key(&space_key) {
         return Err(shared::AppError::not_found("space", &space_key));
     }
+    ensure_space_access(&store, &space_key, &claims.user_id, WikiSpaceAccess::Edit)?;
+    ensure_space_accepts_writes(&store, &space_key)?;
     if document_space.is_some_and(|document_space| document_space != space_key) {
         return Err(shared::AppError::invalid_input(
             "document belongs to another space",
         ));
     }
+    if document_id.is_none() && task_key.is_none() && phase_key.is_none() {
+        return Err(shared::AppError::invalid_input(
+            "evidence must target a document, task or phase",
+        ));
+    }
+    let stored_checksum = if let Some(attachment_id) = &attachment_id {
+        let attachment = store
+            .attachments
+            .get(attachment_id)
+            .ok_or_else(|| shared::AppError::not_found("attachment", attachment_id))?;
+        if attachment.metadata.uploaded_by != claims.user_id
+            || store
+                .evidence
+                .values()
+                .any(|item| item.attachment_id.as_deref() == Some(attachment_id))
+        {
+            return Err(shared::AppError::not_found("attachment", attachment_id));
+        }
+        Some(attachment.metadata.checksum.clone())
+    } else {
+        checksum
+    };
     let id = new_id();
     let evidence = EvidenceResponse {
         id: id.clone(),
         space_key,
         document_id,
-        task_key,
-        phase_key,
+        task_key: task_key
+            .map(|value| normalize_task_key(&value))
+            .transpose()?,
+        phase_key: phase_key
+            .map(|value| normalize_phase_key(&value))
+            .transpose()?,
         title,
-        evidence_type,
+        evidence_type: evidence_type.to_string(),
         url,
         attachment_id,
-        checksum,
+        checksum: stored_checksum,
         created_by: claims.user_id.clone(),
         created_at: now_iso(),
     };
@@ -1773,15 +1914,33 @@ pub async fn list_evidence(
         return Ok(Json(persistent.list_evidence(Some(&claims), query).await?));
     }
 
+    let requested_space = query
+        .space
+        .as_deref()
+        .map(normalize_space_key)
+        .transpose()?;
+    let requested_task_key = query
+        .task_key
+        .as_deref()
+        .map(normalize_task_key)
+        .transpose()?;
+    let requested_phase_key = query
+        .phase_key
+        .as_deref()
+        .map(normalize_phase_key)
+        .transpose()?;
     let store = store().lock().expect("wiki store lock");
+    if let Some(key) = &requested_space {
+        ensure_space_access(&store, key, &claims.user_id, WikiSpaceAccess::View)?;
+    }
     let mut items: Vec<_> = store
         .evidence
         .values()
+        .filter(|item| can_view_space(&store, &item.space_key, &claims.user_id))
         .filter(|item| {
-            query
-                .space
+            requested_space
                 .as_ref()
-                .is_none_or(|space| item.space_key == space.to_ascii_uppercase())
+                .is_none_or(|space| item.space_key == space.as_str())
         })
         .filter(|item| {
             query
@@ -1790,14 +1949,12 @@ pub async fn list_evidence(
                 .is_none_or(|id| item.document_id.as_ref() == Some(id))
         })
         .filter(|item| {
-            query
-                .task_key
+            requested_task_key
                 .as_ref()
                 .is_none_or(|key| item.task_key.as_ref() == Some(key))
         })
         .filter(|item| {
-            query
-                .phase_key
+            requested_phase_key
                 .as_ref()
                 .is_none_or(|key| item.phase_key.as_ref() == Some(key))
         })
@@ -1833,6 +1990,12 @@ pub async fn get_evidence(
         .get(&evidence_id)
         .cloned()
         .ok_or_else(|| shared::AppError::not_found("evidence", &evidence_id))?;
+    ensure_space_access(
+        &store,
+        &evidence.space_key,
+        &claims.user_id,
+        WikiSpaceAccess::View,
+    )?;
     Ok(Json(evidence))
 }
 
@@ -1924,6 +2087,7 @@ pub async fn get_attachment(
     }
 
     let store = store().lock().expect("wiki store lock");
+    ensure_attachment_access(&store, &attachment_id, &claims.user_id)?;
     let attachment = store
         .attachments
         .get(&attachment_id)
@@ -1953,6 +2117,7 @@ pub async fn download_attachment(
     }
 
     let store = store().lock().expect("wiki store lock");
+    ensure_attachment_access(&store, &attachment_id, &claims.user_id)?;
     let attachment = store
         .attachments
         .get(&attachment_id)
@@ -2024,12 +2189,16 @@ pub async fn create_template(
     }
 
     let mut store = store().lock().expect("wiki store lock");
-    let id = slugify(&body.name);
+    ensure_system_admin(&store, &claims.user_id)?;
+    let name = normalize_required(&body.name, "template name")?;
+    let document_type = normalize_document_type(&body.document_type, false)?.to_string();
+    let body_markdown = normalize_required(&body.body_markdown, "template body_markdown")?;
+    let id = slugify(&name);
     let template = TemplateResponse {
         id: id.clone(),
-        name: body.name,
-        document_type: body.document_type,
-        body_markdown: body.body_markdown,
+        name,
+        document_type,
+        body_markdown,
     };
     store.templates.insert(id.clone(), template.clone());
     store.audit(&claims.user_id, "template.create", "template", &id);
@@ -2075,38 +2244,59 @@ pub async fn search(
         return Ok(Json(persistent.search(&claims, query).await?));
     }
 
+    let requested_space = query
+        .space
+        .as_deref()
+        .map(normalize_space_key)
+        .transpose()?;
+    let requested_task_key = query
+        .task_key
+        .as_deref()
+        .map(normalize_task_key)
+        .transpose()?;
+    let requested_phase_key = query
+        .phase_key
+        .as_deref()
+        .map(normalize_phase_key)
+        .transpose()?;
+    let requested_document_type = query
+        .document_type
+        .as_deref()
+        .map(|value| normalize_document_type(value, true))
+        .transpose()?;
     let store = store().lock().expect("wiki store lock");
+    if let Some(key) = &requested_space {
+        ensure_space_access(&store, key, &claims.user_id, WikiSpaceAccess::View)?;
+    }
     let needle = query.q.unwrap_or_default().to_lowercase();
     let include_archived = query.include_archived.unwrap_or(false);
     let mut results = Vec::new();
 
     for document in store.documents.values() {
+        if !can_view_space(&store, &document.space_key, &claims.user_id) {
+            continue;
+        }
         if !include_archived && document.status == "archived" {
             continue;
         }
-        if query
-            .space
+        if requested_space
             .as_ref()
-            .is_some_and(|space| document.space_key != space.to_ascii_uppercase())
+            .is_some_and(|space| document.space_key != space.as_str())
         {
             continue;
         }
-        if query
-            .document_type
-            .as_ref()
-            .is_some_and(|document_type| document.document_type != *document_type)
+        if requested_document_type
+            .is_some_and(|document_type| document.document_type != document_type)
         {
             continue;
         }
-        if query
-            .task_key
+        if requested_task_key
             .as_ref()
             .is_some_and(|task_key| !document.task_keys.contains(task_key))
         {
             continue;
         }
-        if query
-            .phase_key
+        if requested_phase_key
             .as_ref()
             .is_some_and(|phase_key| !document.phase_keys.contains(phase_key))
         {
@@ -2127,22 +2317,22 @@ pub async fn search(
     }
 
     for item in store.evidence.values() {
-        if query
-            .space
+        if !can_view_space(&store, &item.space_key, &claims.user_id) {
+            continue;
+        }
+        if requested_space
             .as_ref()
-            .is_some_and(|space| item.space_key != space.to_ascii_uppercase())
+            .is_some_and(|space| item.space_key != space.as_str())
         {
             continue;
         }
-        if query
-            .task_key
+        if requested_task_key
             .as_ref()
             .is_some_and(|task_key| item.task_key.as_ref() != Some(task_key))
         {
             continue;
         }
-        if query
-            .phase_key
+        if requested_phase_key
             .as_ref()
             .is_some_and(|phase_key| item.phase_key.as_ref() != Some(phase_key))
         {

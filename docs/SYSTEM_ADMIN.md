@@ -28,7 +28,7 @@ MVP user management supports:
 | Role           | Scope    | Description                                          |
 | -------------- | -------- | ---------------------------------------------------- |
 | `system_admin` | instance | Full administrative access                           |
-| `admin`        | space    | Manage members, templates and space metadata         |
+| `admin`        | space    | Manage members and space metadata                    |
 | `editor`       | space    | Create drafts, publish documents and attach evidence |
 | `viewer`       | space    | Read published documents and permitted evidence      |
 

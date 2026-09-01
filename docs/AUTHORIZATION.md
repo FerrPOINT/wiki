@@ -9,7 +9,7 @@ Authorization is space-first. A user receives permissions through space membersh
 | Role         | Scope  | Description                                   |
 | ------------ | ------ | --------------------------------------------- |
 | System admin | global | Full instance administration                  |
-| Space admin  | space  | Manage space metadata, members and templates  |
+| Space admin  | space  | Manage space metadata and members             |
 | Editor       | space  | Create/edit/publish documents and evidence    |
 | Viewer       | space  | Read published documents and allowed evidence |
 
@@ -24,7 +24,8 @@ Authorization is space-first. A user receives permissions through space membersh
 | `document.publish`      | yes   | yes    | no     |
 | `document.archive`      | yes   | yes    | no     |
 | `evidence.add`          | yes   | yes    | no     |
-| `attachment.upload`     | yes   | yes    | no     |
+| `attachment.stage`      | yes   | yes    | yes    |
+| `attachment.claim`      | yes   | yes    | no     |
 | `audit.read`            | yes   | no     | no     |
 
 ## 4. Rules
@@ -39,4 +40,5 @@ Authorization is space-first. A user receives permissions through space membersh
 - Viewer cannot publish.
 - Editor cannot manage members.
 - User from another space cannot read document.
-- A user from another space cannot write evidence or attachments into an inaccessible space.
+- Viewer can stage attachment upload but cannot claim it as file evidence without edit rights.
+- User from another space cannot read documents, evidence, search results or claimed attachments from an inaccessible space.

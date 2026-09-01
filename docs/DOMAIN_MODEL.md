@@ -89,8 +89,8 @@
 - Инварианты:
   - `title` обязателен;
   - evidence связано минимум с document, task dossier или phase dossier;
-  - `uploaded_file` evidence имеет attachment и checksum, но не имеет url;
-  - `external_url` evidence имеет непустой url и не имеет attachment;
+  - `uploaded_file` evidence имеет attachment и checksum из staged attachment, но не имеет url;
+  - `external_url` evidence имеет непустой url и не имеет attachment/checksum;
   - evidence другого space недоступно через связи текущего space.
 
 ### Attachment

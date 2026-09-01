@@ -13,16 +13,17 @@ Authorization scope is `space_id` first. Entity permissions resolve through the 
 
 ## 3. Required Checks
 
-| Operation | Permission |
-|---|---|
-| read document | `space.read` |
-| create document | `document.create` |
-| publish document | `document.publish` |
-| archive document | `document.archive` |
-| add evidence | `evidence.add` |
-| upload attachment | `attachment.upload` |
-| manage members | `space.manage` |
-| read audit | `audit.read` |
+| Operation                                | Permission         |
+| ---------------------------------------- | ------------------ |
+| read document                            | `space.read`       |
+| create document                          | `document.create`  |
+| publish document                         | `document.publish` |
+| archive document                         | `document.archive` |
+| add URL evidence                         | `evidence.add`     |
+| stage attachment upload                  | `attachment.stage` |
+| claim staged attachment as file evidence | `attachment.claim` |
+| manage members                           | `space.manage`     |
+| read audit                               | `audit.read`       |
 
 ## 4. Failure Semantics
 

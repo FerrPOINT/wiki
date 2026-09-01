@@ -97,7 +97,7 @@ Phase dossier в MVP - это представление документов/ev
 | `GET`  | `/attachments/{attachment_id}`          | Metadata файла              |
 | `GET`  | `/attachments/{attachment_id}/download` | Скачать файл                |
 
-Canonical `evidence_type` values for MVP are `external_url` and `uploaded_file`. `external_url` accepts `url` without `attachment_id`; `uploaded_file` accepts `attachment_id` without `url`. Evidence can be linked to `document_id`, `task_key`, `phase_key` or their combination inside one space. `GET /evidence` supports `space`, `document_id`, `task_key` and `phase_key` filters. Specific source categories such as CI job, pull request, deployment or test artifact are metadata, not separate evidence types.
+Canonical `evidence_type` values for MVP are `external_url` and `uploaded_file`. `external_url` accepts a non-empty `url` and must not include `attachment_id` or `checksum`; `uploaded_file` accepts `attachment_id` without `url` and stores checksum from the staged attachment. Evidence can be linked to `document_id`, `task_key`, `phase_key` or their combination inside one space. `GET /evidence` supports `space`, `document_id`, `task_key` and `phase_key` filters and returns only spaces visible to the caller. Specific source categories such as CI job, pull request, deployment or test artifact are metadata, not separate evidence types.
 
 ## 10. Search
 
@@ -112,7 +112,7 @@ Canonical `evidence_type` values for MVP are `external_url` and `uploaded_file`.
 | Method | Path         | Назначение                                                         |
 | ------ | ------------ | ------------------------------------------------------------------ |
 | `GET`  | `/templates` | Список шаблонов                                                    |
-| `POST` | `/templates` | Создать шаблон                                                     |
+| `POST` | `/templates` | Создать шаблон, system admin only                                  |
 | `GET`  | `/settings`  | Admin-only read-only snapshot безопасных runtime настроек инстанса |
 | `GET`  | `/audit-log` | Audit log для admin UI                                             |
 

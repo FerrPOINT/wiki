@@ -23,6 +23,7 @@ impl PostgresWikiBackend {
         let space_id = self
             .ensure_space_access(claims, &key, SpaceAccess::Edit)
             .await?;
+        self.ensure_space_accepts_writes(space_id).await?;
         let actor_id = parse_uuid(&claims.user_id, "user")?;
         let title = normalize_required(&body.title, "document title")?;
         let document_type = normalize_document_type(&body.document_type, true)?;

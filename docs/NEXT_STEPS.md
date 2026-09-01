@@ -20,7 +20,7 @@ The documentation, screenshots, API-backed frontend MVP pages and SQLx-backed MV
 - inherited task-tracker app modules are excluded from the default `app` crate build and quarantined behind feature `legacy-tracker`;
 - inherited task-tracker infra modules are excluded from the default `infra` crate build and quarantined behind feature `legacy-tracker`;
 - public registration is guarded by `WIKI_AUTH__REGISTRATION_ENABLED` in both explicit memory test/dev backend and PostgreSQL runtime;
-- PostgreSQL runtime enforces the basic global-admin, space-role and attachment-download boundaries for core read/write paths;
+- PostgreSQL runtime enforces global-admin, space-role, archived-space write and attachment-download boundaries for core read/write paths; the explicit memory test/dev backend mirrors the same MVP boundaries for smoke coverage;
 - attachment bytes are behind `domain::wiki::WikiAttachmentStorage`, with `infra::LocalWikiAttachmentStorage` wired by `server`;
 - shared Wiki normalization, access predicates, content helpers, storage-name helpers, password hashing, Wiki JWT/session token helpers and access/refresh token-pair TTL assembly are in `app::wiki`; safe runtime settings snapshot is in `shared::wiki_contract`;
 - search q/filter/limit normalization is in `app::wiki`; the PostgreSQL adapter still owns the SQL query and ranking details;
@@ -83,12 +83,12 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 - Tune current PostgreSQL FTS with ranking, query plans and language decisions; q/filter/limit normalization already lives in `app::wiki`, so the remaining work is SQL/repository behavior.
 - Expand current local filesystem storage coverage behind the dedicated Wiki storage port; add S3/MinIO later behind the same abstraction.
 - Expand attachment tests beyond the current staged upload, claim, download and missing-file smoke for less common storage edge cases.
-- Expand audit tests for document publish/archive, evidence writes, user changes and permission changes.
+- Continue expanding audit tests beyond the current memory smoke for document archive, user updates and PostgreSQL-backed permission changes.
 
 ## 7. Tests And Release Readiness
 
 - Continue expanding backend unit tests for less common domain invariant combinations.
-- Add repository/API tests beyond the current persistence, permission and file-evidence smoke for spaces, documents, revisions, task/phase links, evidence, attachments, search and audit.
+- Add repository/API tests beyond the current persistence, permission, audit and file-evidence smoke for spaces, documents, revisions, task/phase links, evidence, attachments and search.
 - Rerun PostgreSQL-backed API smoke with `WIKI_TEST_DATABASE_URL` set, including production backend construction, persistence across router rebuilds and disabled public registration.
 - Add frontend component tests for editor/tree/revision/evidence states.
 - Keep screenshot evidence regenerated after route or UI changes.
@@ -122,5 +122,5 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 - Production server refuses to start without `WIKI_DATABASE__URL`; memory runtime is available only through the explicit test/dev builder.
 - Route handlers do not depend on the concrete PostgreSQL implementation.
 - Postgres persistence smoke passes across router rebuilds.
-- Non-member/viewer/editor/admin access boundaries are enforced by the PostgreSQL runtime.
+- Non-member/viewer/editor/admin access boundaries are enforced by the PostgreSQL runtime and mirrored by explicit memory smoke tests.
 - Static frontend data is limited to deterministic test/screenshot fixtures.

@@ -328,6 +328,426 @@ async fn wiki_settings_are_admin_only_and_config_backed() {
 }
 
 #[tokio::test]
+async fn wiki_memory_authz_and_audit_align_with_mvp_contract() {
+    let app = test_app();
+    let (status, login) = call(
+        &app,
+        Method::POST,
+        "/api/v1/auth/login",
+        None,
+        Some(json!({ "email": "demo@example.com", "password": "demo" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let admin_token = login["access_token"].as_str().unwrap();
+    let suffix = Uuid::now_v7().simple().to_string();
+    let short = &suffix[..12];
+
+    let (status, regular) = call(
+        &app,
+        Method::POST,
+        "/api/v1/auth/register",
+        None,
+        Some(json!({
+            "email": format!("viewer-{short}@example.com"),
+            "username": format!("viewer-{short}"),
+            "password": "viewer-password",
+            "name": "Viewer"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let viewer_token = regular["access_token"].as_str().unwrap();
+    let viewer_id = regular["user_id"].as_str().unwrap();
+
+    let (status, spaces) = call(
+        &app,
+        Method::GET,
+        "/api/v1/spaces",
+        Some(viewer_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(spaces["spaces"].as_array().unwrap().len(), 0);
+
+    let (status, _) = call(
+        &app,
+        Method::GET,
+        "/api/v1/spaces/SDLC",
+        Some(viewer_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, search) = call(
+        &app,
+        Method::GET,
+        "/api/v1/search?q=Wiki",
+        Some(viewer_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(search["results"].as_array().unwrap().len(), 0);
+
+    let (status, _) = call(
+        &app,
+        Method::GET,
+        "/api/v1/search?q=Wiki&space=SDLC",
+        Some(viewer_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, _) = call(
+        &app,
+        Method::GET,
+        "/api/v1/audit-log",
+        Some(viewer_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces",
+        Some(viewer_token),
+        Some(json!({
+            "key": format!("NOPE-{short}"),
+            "name": "Viewer must not create spaces"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, member) = call(
+        &app,
+        Method::PUT,
+        &format!("/api/v1/spaces/SDLC/members/{viewer_id}"),
+        Some(admin_token),
+        Some(json!({ "role": "viewer" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(member["role"], "viewer");
+
+    let (status, space) = call(
+        &app,
+        Method::GET,
+        "/api/v1/spaces/SDLC",
+        Some(viewer_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(space["key"], "SDLC");
+
+    let (status, document) = call(
+        &app,
+        Method::GET,
+        "/api/v1/documents/product-requirements",
+        Some(viewer_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(document["slug"], "product-requirements");
+
+    let (status, _) = call(
+        &app,
+        Method::PUT,
+        "/api/v1/documents/product-requirements/draft",
+        Some(viewer_token),
+        Some(json!({
+            "title": "Viewer must not edit",
+            "content_markdown": "# Viewer must not edit"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, _) = call(
+        &app,
+        Method::GET,
+        "/api/v1/spaces/SDLC/members",
+        Some(viewer_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(viewer_token),
+        Some(json!({
+            "space": "SDLC",
+            "document_id": "product-requirements",
+            "title": "Viewer must not add evidence",
+            "evidence_type": "external_url",
+            "url": "https://ci.local/jobs/forbidden"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, writable_space) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces",
+        Some(admin_token),
+        Some(json!({
+            "key": format!("ARCH-{short}"),
+            "name": "Archived write check"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let archived_space_key = writable_space["key"].as_str().unwrap();
+
+    let (status, archived_space) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/spaces/{archived_space_key}/archive"),
+        Some(admin_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(archived_space["status"], "archived");
+
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/spaces/{archived_space_key}/documents"),
+        Some(admin_token),
+        Some(json!({
+            "title": "Archived space document",
+            "slug": format!("archived-space-document-{short}"),
+            "document_type": "page",
+            "content_markdown": "# Should not be created"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(admin_token),
+        Some(json!({
+            "space": archived_space_key,
+            "task_key": format!("ARCH-{short}"),
+            "title": "Archived space evidence",
+            "evidence_type": "external_url",
+            "url": "https://ci.local/jobs/archived"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    let (status, document) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces/SDLC/documents",
+        Some(admin_token),
+        Some(json!({
+            "title": format!("Audit document {short}"),
+            "slug": format!("audit-document-{short}"),
+            "document_type": "requirements",
+            "content_markdown": "# Audit document\n\nRecords should appear in audit log."
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let document_id = document["id"].as_str().unwrap();
+
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/documents/{document_id}/publish"),
+        Some(admin_token),
+        Some(json!({ "summary": "Audit publish" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let attachment_bytes = b"memory file evidence bytes";
+    let (status, attachment) = upload_test_file(
+        &app,
+        admin_token,
+        &format!("memory-evidence-{short}.txt"),
+        "text/plain",
+        attachment_bytes,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let attachment_id = attachment["id"].as_str().unwrap();
+
+    let (status, file_evidence) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(admin_token),
+        Some(json!({
+            "space": "SDLC",
+            "document_id": document_id,
+            "title": "Audit file evidence",
+            "evidence_type": "uploaded_file",
+            "attachment_id": attachment_id
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(file_evidence["attachment_id"], attachment_id);
+    assert_eq!(file_evidence["checksum"], attachment["checksum"]);
+
+    let (status, _, downloaded) = call_binary(
+        &app,
+        Method::GET,
+        &format!("/api/v1/attachments/{attachment_id}/download"),
+        Some(viewer_token),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(downloaded, attachment_bytes);
+
+    let (status, member) = call(
+        &app,
+        Method::PUT,
+        &format!("/api/v1/spaces/SDLC/members/{viewer_id}"),
+        Some(admin_token),
+        Some(json!({ "role": "editor" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(member["role"], "editor");
+
+    let revoked_attachment_bytes = b"claimed attachment should follow space access";
+    let (status, revoked_attachment) = upload_test_file(
+        &app,
+        viewer_token,
+        &format!("revoked-editor-evidence-{short}.txt"),
+        "text/plain",
+        revoked_attachment_bytes,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let revoked_attachment_id = revoked_attachment["id"].as_str().unwrap();
+
+    let (status, revoked_file_evidence) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(viewer_token),
+        Some(json!({
+            "space": "SDLC",
+            "document_id": document_id,
+            "title": "Claimed attachment access check",
+            "evidence_type": "uploaded_file",
+            "attachment_id": revoked_attachment_id
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(
+        revoked_file_evidence["checksum"],
+        revoked_attachment["checksum"]
+    );
+    let revoked_evidence_id = revoked_file_evidence["id"].as_str().unwrap();
+
+    let (status, _) = call(
+        &app,
+        Method::DELETE,
+        &format!("/api/v1/spaces/SDLC/members/{viewer_id}"),
+        Some(admin_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let (status, _, _) = call_binary(
+        &app,
+        Method::GET,
+        &format!("/api/v1/attachments/{revoked_attachment_id}/download"),
+        Some(viewer_token),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, _, admin_downloaded) = call_binary(
+        &app,
+        Method::GET,
+        &format!("/api/v1/attachments/{revoked_attachment_id}/download"),
+        Some(admin_token),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(admin_downloaded, revoked_attachment_bytes);
+
+    let (status, evidence) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(admin_token),
+        Some(json!({
+            "space": "SDLC",
+            "document_id": document_id,
+            "task_key": format!("AUD-{short}"),
+            "title": "Audit evidence",
+            "evidence_type": "external_url",
+            "url": "https://ci.local/jobs/audit"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let evidence_id = evidence["id"].as_str().unwrap();
+
+    let (status, audit) = call(
+        &app,
+        Method::GET,
+        "/api/v1/audit-log",
+        Some(admin_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let entries = audit["entries"].as_array().unwrap();
+    assert!(
+        entries.iter().any(|entry| {
+            entry["action"] == "space.member_upsert" && entry["entity_id"] == "SDLC"
+        })
+    );
+    assert!(entries.iter().any(|entry| {
+        entry["action"] == "document.create" && entry["entity_id"] == document_id
+    }));
+    assert!(entries.iter().any(|entry| {
+        entry["action"] == "document.publish" && entry["entity_id"] == document_id
+    }));
+    assert!(entries.iter().any(|entry| {
+        entry["action"] == "attachment.upload" && entry["entity_id"] == attachment_id
+    }));
+    assert!(entries.iter().any(|entry| {
+        entry["action"] == "evidence.create" && entry["entity_id"] == evidence_id
+    }));
+    assert!(
+        entries.iter().any(|entry| {
+            entry["action"] == "space.member_delete" && entry["entity_id"] == "SDLC"
+        })
+    );
+    assert!(entries.iter().any(|entry| {
+        entry["action"] == "evidence.create" && entry["entity_id"] == revoked_evidence_id
+    }));
+}
+
+#[tokio::test]
 async fn wiki_document_move_rejects_descendant_parent() {
     let app = test_app();
     let (status, login) = call(
@@ -464,7 +884,13 @@ async fn wiki_mvp_routes_cover_public_contract() {
 
     let (status, spaces) = call(&app, Method::GET, "/api/v1/spaces", Some(token), None).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(spaces["spaces"][0]["key"], "SDLC");
+    assert!(
+        spaces["spaces"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|space| space["key"] == "SDLC")
+    );
 
     let (status, document) = call(
         &app,
@@ -605,6 +1031,23 @@ async fn wiki_mvp_routes_cover_public_contract() {
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(token),
+        Some(json!({
+            "space": "SDLC",
+            "task_key": "SDLC-99",
+            "title": "External checksum must not be accepted",
+            "evidence_type": "external_url",
+            "url": "https://ci.local/jobs/wiki-smoke",
+            "checksum": "sha256:external"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
     let (status, phase) = call(
         &app,
         Method::GET,
@@ -644,10 +1087,69 @@ async fn wiki_postgres_routes_persist_across_router_rebuilds() {
     let storage_dir = env::temp_dir().join(format!("wiki-api-test-{}", Uuid::now_v7()));
     let (app, _) = postgres_test_app(database_url.clone(), storage_dir.clone()).await;
     let token = login_admin(&app).await;
+    let suffix = Uuid::now_v7().simple().to_string();
+    let short = &suffix[..12];
 
     let (status, spaces) = call(&app, Method::GET, "/api/v1/spaces", Some(&token), None).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(spaces["spaces"][0]["key"], "SDLC");
+
+    let archived_key = format!("PGARCH-{short}");
+    let (status, archived_space) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces",
+        Some(&token),
+        Some(json!({
+            "key": archived_key,
+            "name": "Postgres archived write check"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let archived_key = archived_space["key"].as_str().unwrap();
+
+    let (status, archived_space) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/spaces/{archived_key}/archive"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(archived_space["status"], "archived");
+
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/spaces/{archived_key}/documents"),
+        Some(&token),
+        Some(json!({
+            "title": "Postgres archived space document",
+            "slug": format!("postgres-archived-space-document-{short}"),
+            "document_type": "page",
+            "content_markdown": "# Should not be created"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(&token),
+        Some(json!({
+            "space": archived_key,
+            "task_key": format!("PGARCH-{short}"),
+            "title": "Postgres archived space evidence",
+            "evidence_type": "external_url",
+            "url": "https://ci.local/jobs/postgres-archived"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
 
     let (status, document) = call(
         &app,
