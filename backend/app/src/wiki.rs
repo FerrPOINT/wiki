@@ -50,6 +50,257 @@ pub struct WikiTokenPair {
     pub expires_in: u64,
 }
 
+pub type WikiAuthRepositoryFuture<'a, T> =
+    Pin<Box<dyn Future<Output = Result<T, AppError>> + Send + 'a>>;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiAuthUserRecord {
+    pub id: Uuid,
+    pub email: String,
+    pub username: String,
+    pub display_name: String,
+    pub password_hash: String,
+    pub global_role: String,
+    pub is_active: bool,
+}
+
+impl WikiAuthUserRecord {
+    pub fn user_response(&self) -> shared::WikiUserResponse {
+        shared::WikiUserResponse {
+            id: self.id.to_string(),
+            email: self.email.clone(),
+            username: self.username.clone(),
+            display_name: self.display_name.clone(),
+            role: self.global_role.clone(),
+            is_system_admin: self.global_role == GlobalRole::Admin.as_str(),
+            active: self.is_active,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiSessionCommand {
+    pub session_id: Uuid,
+    pub user_id: Uuid,
+    pub access_token_hash: String,
+    pub refresh_token_hash: String,
+    pub access_expires_at: DateTime<Utc>,
+    pub refresh_expires_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiRegisterAuthCommand {
+    pub user_id: Uuid,
+    pub email: String,
+    pub username: String,
+    pub display_name: String,
+    pub password_hash: String,
+    pub session: WikiSessionCommand,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiAccessSessionCommand {
+    pub user_id: Uuid,
+    pub session_id: Uuid,
+    pub access_token_hash: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiRefreshSessionCommand {
+    pub user_id: Uuid,
+    pub session_id: Uuid,
+    pub refresh_token_hash: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiLogoutCommand {
+    pub user_id: Uuid,
+    pub session_id: Option<Uuid>,
+}
+
+pub trait WikiAuthRepository {
+    fn authenticate_access_session<'a>(
+        &'a self,
+        command: WikiAccessSessionCommand,
+    ) -> WikiAuthRepositoryFuture<'a, bool>;
+
+    fn register_user<'a>(
+        &'a self,
+        command: WikiRegisterAuthCommand,
+    ) -> WikiAuthRepositoryFuture<'a, WikiAuthUserRecord>;
+
+    fn find_user_by_email<'a>(
+        &'a self,
+        email: &'a str,
+    ) -> WikiAuthRepositoryFuture<'a, Option<WikiAuthUserRecord>>;
+
+    fn create_login_session<'a>(
+        &'a self,
+        session: WikiSessionCommand,
+    ) -> WikiAuthRepositoryFuture<'a, ()>;
+
+    fn find_refresh_session<'a>(
+        &'a self,
+        command: WikiRefreshSessionCommand,
+    ) -> WikiAuthRepositoryFuture<'a, Option<WikiAuthUserRecord>>;
+
+    fn rotate_session<'a>(
+        &'a self,
+        session: WikiSessionCommand,
+    ) -> WikiAuthRepositoryFuture<'a, ()>;
+
+    fn revoke_sessions<'a>(
+        &'a self,
+        command: WikiLogoutCommand,
+    ) -> WikiAuthRepositoryFuture<'a, ()>;
+
+    fn get_current_user<'a>(
+        &'a self,
+        user_id: Uuid,
+    ) -> WikiAuthRepositoryFuture<'a, WikiAuthUserRecord>;
+}
+
+pub struct WikiAuthUseCase<'a, R: WikiAuthRepository + ?Sized> {
+    repository: &'a R,
+    config: &'a AuthConfig,
+}
+
+impl<'a, R: WikiAuthRepository + ?Sized> WikiAuthUseCase<'a, R> {
+    pub fn new(repository: &'a R, config: &'a AuthConfig) -> Self {
+        Self { repository, config }
+    }
+
+    pub async fn authenticate_access_token(
+        &self,
+        token: &str,
+    ) -> Result<shared::WikiClaims, AppError> {
+        let claims = decode_token(self.config, token, "access")?;
+        let user_id = parse_token_uuid(&claims.sub)?;
+        let session_id = parse_token_uuid(&claims.jti)?;
+        let authenticated = self
+            .repository
+            .authenticate_access_session(WikiAccessSessionCommand {
+                user_id,
+                session_id,
+                access_token_hash: hash_token(token),
+            })
+            .await?;
+
+        if !authenticated {
+            return Err(AppError::Unauthorized);
+        }
+
+        Ok(shared::WikiClaims {
+            user_id: user_id.to_string(),
+            session_id: Some(session_id.to_string()),
+        })
+    }
+
+    pub async fn register(
+        &self,
+        body: shared::WikiRegisterRequest,
+    ) -> Result<shared::WikiAuthResponse, AppError> {
+        if !self.config.registration_enabled {
+            return Err(AppError::Forbidden);
+        }
+
+        let email = normalize_required(&body.email, "email")?;
+        let username = normalize_required(&body.username, "username")?;
+        let password = normalize_required(&body.password, "password")?;
+        let display_name = body
+            .name
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or(username.as_str())
+            .to_string();
+        let user_id = Uuid::now_v7();
+        let token_pair = create_wiki_session_token_pair(self.config, user_id)?;
+        let command = WikiRegisterAuthCommand {
+            user_id,
+            email,
+            username,
+            display_name,
+            password_hash: hash_password(&password)?,
+            session: session_command(user_id, &token_pair),
+        };
+        let user = self.repository.register_user(command).await?;
+        Ok(auth_response(&user, token_pair))
+    }
+
+    pub async fn login(
+        &self,
+        body: shared::WikiLoginRequest,
+    ) -> Result<shared::WikiAuthResponse, AppError> {
+        let email = normalize_required(&body.email, "email")?;
+        let password = normalize_required(&body.password, "password")?;
+        let user = self
+            .repository
+            .find_user_by_email(&email)
+            .await?
+            .ok_or(AppError::Unauthorized)?;
+
+        if !user.is_active || !verify_password(&password, &user.password_hash)? {
+            return Err(AppError::Unauthorized);
+        }
+
+        let token_pair = create_wiki_session_token_pair(self.config, user.id)?;
+        self.repository
+            .create_login_session(session_command(user.id, &token_pair))
+            .await?;
+        Ok(auth_response(&user, token_pair))
+    }
+
+    pub async fn refresh(
+        &self,
+        body: shared::WikiRefreshRequest,
+    ) -> Result<shared::WikiAuthResponse, AppError> {
+        let refresh_token = normalize_required(&body.refresh_token, "refresh_token")?;
+        let claims = decode_token(self.config, &refresh_token, "refresh")?;
+        let user_id = parse_token_uuid(&claims.sub)?;
+        let session_id = parse_token_uuid(&claims.jti)?;
+        let user = self
+            .repository
+            .find_refresh_session(WikiRefreshSessionCommand {
+                user_id,
+                session_id,
+                refresh_token_hash: hash_token(&refresh_token),
+            })
+            .await?
+            .ok_or(AppError::Unauthorized)?;
+
+        let token_pair = create_wiki_token_pair(self.config, user_id, session_id)?;
+        self.repository
+            .rotate_session(session_command(user_id, &token_pair))
+            .await?;
+        Ok(auth_response(&user, token_pair))
+    }
+
+    pub async fn logout(&self, claims: &shared::WikiClaims) -> Result<(), AppError> {
+        let command = WikiLogoutCommand {
+            user_id: parse_claim_uuid(&claims.user_id, "user")?,
+            session_id: claims
+                .session_id
+                .as_deref()
+                .map(|value| parse_claim_uuid(value, "session"))
+                .transpose()?,
+        };
+        self.repository.revoke_sessions(command).await
+    }
+
+    pub async fn current_user(
+        &self,
+        claims: &shared::WikiClaims,
+    ) -> Result<shared::WikiUserResponse, AppError> {
+        let user_id = parse_claim_uuid(&claims.user_id, "user")?;
+        Ok(self
+            .repository
+            .get_current_user(user_id)
+            .await?
+            .user_response())
+    }
+}
+
 pub type WikiUserRepositoryFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, AppError>> + Send + 'a>>;
 
@@ -348,6 +599,38 @@ fn normalize_optional_update_value(value: Option<&str>) -> Option<String> {
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(str::to_string)
+}
+
+fn parse_token_uuid(value: &str) -> Result<Uuid, AppError> {
+    Uuid::parse_str(value).map_err(|_| AppError::Unauthorized)
+}
+
+fn parse_claim_uuid(value: &str, entity: &str) -> Result<Uuid, AppError> {
+    Uuid::parse_str(value).map_err(|_| AppError::not_found(entity, value))
+}
+
+fn session_command(user_id: Uuid, token_pair: &WikiTokenPair) -> WikiSessionCommand {
+    WikiSessionCommand {
+        session_id: token_pair.session_id,
+        user_id,
+        access_token_hash: hash_token(&token_pair.access_token),
+        refresh_token_hash: hash_token(&token_pair.refresh_token),
+        access_expires_at: token_pair.access_expires_at,
+        refresh_expires_at: token_pair.refresh_expires_at,
+    }
+}
+
+fn auth_response(user: &WikiAuthUserRecord, token_pair: WikiTokenPair) -> shared::WikiAuthResponse {
+    shared::WikiAuthResponse {
+        access_token: token_pair.access_token,
+        refresh_token: token_pair.refresh_token,
+        token_type: "Bearer".to_string(),
+        user_id: user.id.to_string(),
+        email: user.email.clone(),
+        username: user.username.clone(),
+        display_name: user.display_name.clone(),
+        expires_in: token_pair.expires_in,
+    }
 }
 
 pub fn normalize_space_key(value: &str) -> Result<String, AppError> {
@@ -672,6 +955,21 @@ mod tests {
         recorded: std::sync::Mutex<Vec<WikiAuditCommand>>,
     }
 
+    struct RecordingAuthRepository {
+        user_by_email: Option<WikiAuthUserRecord>,
+        refresh_user: Option<WikiAuthUserRecord>,
+        current_user: Option<WikiAuthUserRecord>,
+        access_authenticated: bool,
+        registered: std::sync::Mutex<Vec<WikiRegisterAuthCommand>>,
+        email_lookups: std::sync::Mutex<Vec<String>>,
+        login_sessions: std::sync::Mutex<Vec<WikiSessionCommand>>,
+        refresh_lookups: std::sync::Mutex<Vec<WikiRefreshSessionCommand>>,
+        rotated_sessions: std::sync::Mutex<Vec<WikiSessionCommand>>,
+        revoked_sessions: std::sync::Mutex<Vec<WikiLogoutCommand>>,
+        current_user_lookups: std::sync::Mutex<Vec<Uuid>>,
+        access_lookups: std::sync::Mutex<Vec<WikiAccessSessionCommand>>,
+    }
+
     impl WikiSearchRepository for StaticSearchRepository {
         fn search_documents<'a>(
             &'a self,
@@ -817,6 +1115,122 @@ mod tests {
         }
     }
 
+    impl WikiAuthRepository for RecordingAuthRepository {
+        fn authenticate_access_session<'a>(
+            &'a self,
+            command: WikiAccessSessionCommand,
+        ) -> WikiAuthRepositoryFuture<'a, bool> {
+            Box::pin(async move {
+                self.access_lookups
+                    .lock()
+                    .expect("access lookups should be lockable")
+                    .push(command);
+                Ok(self.access_authenticated)
+            })
+        }
+
+        fn register_user<'a>(
+            &'a self,
+            command: WikiRegisterAuthCommand,
+        ) -> WikiAuthRepositoryFuture<'a, WikiAuthUserRecord> {
+            Box::pin(async move {
+                self.registered
+                    .lock()
+                    .expect("register commands should be lockable")
+                    .push(command.clone());
+                Ok(WikiAuthUserRecord {
+                    id: command.user_id,
+                    email: command.email,
+                    username: command.username,
+                    display_name: command.display_name,
+                    password_hash: command.password_hash,
+                    global_role: GlobalRole::User.as_str().to_string(),
+                    is_active: true,
+                })
+            })
+        }
+
+        fn find_user_by_email<'a>(
+            &'a self,
+            email: &'a str,
+        ) -> WikiAuthRepositoryFuture<'a, Option<WikiAuthUserRecord>> {
+            Box::pin(async move {
+                self.email_lookups
+                    .lock()
+                    .expect("email lookups should be lockable")
+                    .push(email.to_string());
+                Ok(self.user_by_email.clone())
+            })
+        }
+
+        fn create_login_session<'a>(
+            &'a self,
+            session: WikiSessionCommand,
+        ) -> WikiAuthRepositoryFuture<'a, ()> {
+            Box::pin(async move {
+                self.login_sessions
+                    .lock()
+                    .expect("login sessions should be lockable")
+                    .push(session);
+                Ok(())
+            })
+        }
+
+        fn find_refresh_session<'a>(
+            &'a self,
+            command: WikiRefreshSessionCommand,
+        ) -> WikiAuthRepositoryFuture<'a, Option<WikiAuthUserRecord>> {
+            Box::pin(async move {
+                self.refresh_lookups
+                    .lock()
+                    .expect("refresh lookups should be lockable")
+                    .push(command);
+                Ok(self.refresh_user.clone())
+            })
+        }
+
+        fn rotate_session<'a>(
+            &'a self,
+            session: WikiSessionCommand,
+        ) -> WikiAuthRepositoryFuture<'a, ()> {
+            Box::pin(async move {
+                self.rotated_sessions
+                    .lock()
+                    .expect("rotated sessions should be lockable")
+                    .push(session);
+                Ok(())
+            })
+        }
+
+        fn revoke_sessions<'a>(
+            &'a self,
+            command: WikiLogoutCommand,
+        ) -> WikiAuthRepositoryFuture<'a, ()> {
+            Box::pin(async move {
+                self.revoked_sessions
+                    .lock()
+                    .expect("revoked sessions should be lockable")
+                    .push(command);
+                Ok(())
+            })
+        }
+
+        fn get_current_user<'a>(
+            &'a self,
+            user_id: Uuid,
+        ) -> WikiAuthRepositoryFuture<'a, WikiAuthUserRecord> {
+            Box::pin(async move {
+                self.current_user_lookups
+                    .lock()
+                    .expect("current user lookups should be lockable")
+                    .push(user_id);
+                self.current_user
+                    .clone()
+                    .ok_or_else(|| AppError::not_found("user", user_id))
+            })
+        }
+    }
+
     fn audit_entry(action: &str) -> shared::AuditEntryResponse {
         shared::AuditEntryResponse {
             id: Uuid::now_v7().to_string(),
@@ -837,6 +1251,40 @@ mod tests {
             role: role.to_string(),
             is_system_admin: role == GlobalRole::Admin.as_str(),
             active: true,
+        }
+    }
+
+    fn auth_user(
+        email: &str,
+        password: &str,
+        global_role: &str,
+        is_active: bool,
+    ) -> WikiAuthUserRecord {
+        WikiAuthUserRecord {
+            id: Uuid::now_v7(),
+            email: email.to_string(),
+            username: default_username(email),
+            display_name: email.to_string(),
+            password_hash: hash_password(password).expect("test password should hash"),
+            global_role: global_role.to_string(),
+            is_active,
+        }
+    }
+
+    fn recording_auth_repository(user: Option<WikiAuthUserRecord>) -> RecordingAuthRepository {
+        RecordingAuthRepository {
+            user_by_email: user.clone(),
+            refresh_user: user.clone(),
+            current_user: user,
+            access_authenticated: true,
+            registered: std::sync::Mutex::new(Vec::new()),
+            email_lookups: std::sync::Mutex::new(Vec::new()),
+            login_sessions: std::sync::Mutex::new(Vec::new()),
+            refresh_lookups: std::sync::Mutex::new(Vec::new()),
+            rotated_sessions: std::sync::Mutex::new(Vec::new()),
+            revoked_sessions: std::sync::Mutex::new(Vec::new()),
+            current_user_lookups: std::sync::Mutex::new(Vec::new()),
+            access_lookups: std::sync::Mutex::new(Vec::new()),
         }
     }
 
@@ -1277,6 +1725,239 @@ mod tests {
         assert_eq!(
             WikiSettingsUseCase::new(&repository).get().await.unwrap(),
             snapshot
+        );
+    }
+
+    #[tokio::test]
+    async fn wiki_auth_use_case_registers_user_with_session_command() {
+        let config = test_auth_config();
+        let repository = recording_auth_repository(None);
+
+        let response = WikiAuthUseCase::new(&repository, &config)
+            .register(shared::WikiRegisterRequest {
+                email: "  new@example.test  ".to_string(),
+                username: "  new-user  ".to_string(),
+                password: "  secret-password  ".to_string(),
+                name: Some("  New User  ".to_string()),
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(response.email, "new@example.test");
+        assert_eq!(response.username, "new-user");
+        assert_eq!(response.display_name, "New User");
+        assert_eq!(response.token_type, "Bearer");
+        assert_eq!(response.expires_in, 900);
+
+        let registered = repository
+            .registered
+            .lock()
+            .expect("register commands should be lockable");
+        assert_eq!(registered.len(), 1);
+        let command = &registered[0];
+        assert_eq!(response.user_id, command.user_id.to_string());
+        assert_eq!(command.email, "new@example.test");
+        assert_eq!(command.username, "new-user");
+        assert_eq!(command.display_name, "New User");
+        assert_ne!(command.password_hash, "secret-password");
+        assert!(verify_password("secret-password", &command.password_hash).unwrap());
+
+        let access = decode_token(&config, &response.access_token, "access").unwrap();
+        let refresh = decode_token(&config, &response.refresh_token, "refresh").unwrap();
+        assert_eq!(access.sub, command.user_id.to_string());
+        assert_eq!(refresh.sub, command.user_id.to_string());
+        assert_eq!(access.jti, command.session.session_id.to_string());
+        assert_eq!(refresh.jti, command.session.session_id.to_string());
+        assert_eq!(
+            command.session.access_token_hash,
+            hash_token(&response.access_token)
+        );
+        assert_eq!(
+            command.session.refresh_token_hash,
+            hash_token(&response.refresh_token)
+        );
+    }
+
+    #[tokio::test]
+    async fn wiki_auth_use_case_rejects_disabled_registration_and_bad_login() {
+        let mut disabled_config = test_auth_config();
+        disabled_config.registration_enabled = false;
+        let repository = recording_auth_repository(None);
+
+        assert!(matches!(
+            WikiAuthUseCase::new(&repository, &disabled_config)
+                .register(shared::WikiRegisterRequest {
+                    email: "new@example.test".to_string(),
+                    username: "new-user".to_string(),
+                    password: "secret-password".to_string(),
+                    name: None,
+                })
+                .await,
+            Err(AppError::Forbidden)
+        ));
+        assert!(
+            repository
+                .registered
+                .lock()
+                .expect("register commands should be lockable")
+                .is_empty()
+        );
+
+        let config = test_auth_config();
+        let inactive_repository = recording_auth_repository(Some(auth_user(
+            "editor@example.test",
+            "secret-password",
+            GlobalRole::User.as_str(),
+            false,
+        )));
+        assert!(matches!(
+            WikiAuthUseCase::new(&inactive_repository, &config)
+                .login(shared::WikiLoginRequest {
+                    email: " editor@example.test ".to_string(),
+                    password: "secret-password".to_string(),
+                })
+                .await,
+            Err(AppError::Unauthorized)
+        ));
+
+        let active_repository = recording_auth_repository(Some(auth_user(
+            "editor@example.test",
+            "secret-password",
+            GlobalRole::User.as_str(),
+            true,
+        )));
+        assert!(matches!(
+            WikiAuthUseCase::new(&active_repository, &config)
+                .login(shared::WikiLoginRequest {
+                    email: "editor@example.test".to_string(),
+                    password: "wrong-password".to_string(),
+                })
+                .await,
+            Err(AppError::Unauthorized)
+        ));
+        assert!(
+            active_repository
+                .login_sessions
+                .lock()
+                .expect("login sessions should be lockable")
+                .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn wiki_auth_use_case_handles_session_lifecycle_and_current_user() {
+        let config = test_auth_config();
+        let user = auth_user(
+            "admin@example.test",
+            "secret-password",
+            GlobalRole::Admin.as_str(),
+            true,
+        );
+        let repository = recording_auth_repository(Some(user.clone()));
+        let use_case = WikiAuthUseCase::new(&repository, &config);
+
+        let login = use_case
+            .login(shared::WikiLoginRequest {
+                email: "  admin@example.test  ".to_string(),
+                password: "secret-password".to_string(),
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(login.email, "admin@example.test");
+        assert_eq!(
+            repository
+                .email_lookups
+                .lock()
+                .expect("email lookups should be lockable")
+                .as_slice(),
+            ["admin@example.test"]
+        );
+        let session = {
+            let login_sessions = repository
+                .login_sessions
+                .lock()
+                .expect("login sessions should be lockable");
+            assert_eq!(login_sessions.len(), 1);
+            login_sessions[0].clone()
+        };
+        assert_eq!(session.user_id, user.id);
+        assert_eq!(session.access_token_hash, hash_token(&login.access_token));
+        assert_eq!(session.refresh_token_hash, hash_token(&login.refresh_token));
+
+        let claims = use_case
+            .authenticate_access_token(&login.access_token)
+            .await
+            .unwrap();
+        assert_eq!(claims.user_id, user.id.to_string());
+        let session_id = session.session_id.to_string();
+        assert_eq!(claims.session_id.as_deref(), Some(session_id.as_str()));
+        assert_eq!(
+            repository
+                .access_lookups
+                .lock()
+                .expect("access lookups should be lockable")
+                .as_slice(),
+            [WikiAccessSessionCommand {
+                user_id: user.id,
+                session_id: session.session_id,
+                access_token_hash: hash_token(&login.access_token),
+            }]
+        );
+
+        let refreshed = use_case
+            .refresh(shared::WikiRefreshRequest {
+                refresh_token: login.refresh_token.clone(),
+            })
+            .await
+            .unwrap();
+        assert_eq!(refreshed.user_id, user.id.to_string());
+        assert_eq!(
+            repository
+                .refresh_lookups
+                .lock()
+                .expect("refresh lookups should be lockable")
+                .as_slice(),
+            [WikiRefreshSessionCommand {
+                user_id: user.id,
+                session_id: session.session_id,
+                refresh_token_hash: hash_token(&login.refresh_token),
+            }]
+        );
+        {
+            let rotated_sessions = repository
+                .rotated_sessions
+                .lock()
+                .expect("rotated sessions should be lockable");
+            assert_eq!(rotated_sessions.len(), 1);
+            assert_eq!(rotated_sessions[0].session_id, session.session_id);
+            assert_eq!(rotated_sessions[0].user_id, user.id);
+        }
+
+        let me = use_case.current_user(&claims).await.unwrap();
+        assert_eq!(me.id, user.id.to_string());
+        assert_eq!(me.email, "admin@example.test");
+        assert!(me.is_system_admin);
+        assert_eq!(
+            repository
+                .current_user_lookups
+                .lock()
+                .expect("current user lookups should be lockable")
+                .as_slice(),
+            [user.id]
+        );
+
+        use_case.logout(&claims).await.unwrap();
+        assert_eq!(
+            repository
+                .revoked_sessions
+                .lock()
+                .expect("revoked sessions should be lockable")
+                .as_slice(),
+            [WikiLogoutCommand {
+                user_id: user.id,
+                session_id: Some(session.session_id),
+            }]
         );
     }
 
