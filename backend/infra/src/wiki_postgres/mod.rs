@@ -1,3 +1,4 @@
+mod audit;
 mod connection;
 mod documents;
 mod dossiers;
@@ -5,15 +6,13 @@ mod evidence;
 mod identity;
 mod mapping;
 mod queries;
+mod search;
 mod spaces;
+mod templates;
 pub use connection::connect_postgres_wiki_backend;
 
-use app::wiki::{
-    WikiSpaceAccess as SpaceAccess, build_wiki_search_criteria, normalize_document_type,
-    normalize_required, normalize_space_key, space_role_allows,
-};
-use mapping::*;
-use queries::*;
+use app::wiki::{WikiSpaceAccess as SpaceAccess, normalize_space_key, space_role_allows};
+use mapping::{parse_uuid, user_response_from_row};
 use shared::wiki_contract::*;
 use sqlx::{PgPool, Row};
 use std::sync::Arc;
@@ -29,128 +28,6 @@ struct PostgresWikiBackend {
 }
 
 impl PostgresWikiBackend {
-    async fn list_templates(&self) -> Result<TemplateListResponse, shared::AppError> {
-        let rows = sqlx::query(
-            r#"
-            SELECT id, name, document_type, content_markdown
-            FROM document_templates
-            WHERE is_active = true
-            ORDER BY lower(name)
-            "#,
-        )
-        .fetch_all(&self.pool)
-        .await
-        .map_err(shared::AppError::database)?;
-        Ok(TemplateListResponse {
-            templates: rows.iter().map(template_response_from_row).collect(),
-        })
-    }
-
-    async fn create_template(
-        &self,
-        claims: &WikiClaims,
-        body: CreateTemplateRequest,
-    ) -> Result<TemplateResponse, shared::AppError> {
-        let actor_id = self.ensure_admin(claims).await?;
-        let name = normalize_required(&body.name, "template name")?;
-        let document_type = normalize_document_type(&body.document_type, false)?;
-        let body_markdown = normalize_required(&body.body_markdown, "template body_markdown")?;
-        let id = Uuid::now_v7();
-        let row = sqlx::query(
-            r#"
-            INSERT INTO document_templates (
-                id, name, document_type, content_markdown, is_active, created_at, updated_at
-            )
-            VALUES ($1, $2, $3, $4, true, now(), now())
-            RETURNING id, name, document_type, content_markdown
-            "#,
-        )
-        .bind(id)
-        .bind(name)
-        .bind(document_type)
-        .bind(body_markdown)
-        .fetch_one(&self.pool)
-        .await
-        .map_err(shared::AppError::database)?;
-        self.audit(Some(actor_id), "template.create", "template", id)
-            .await?;
-        Ok(template_response_from_row(&row))
-    }
-
-    async fn list_audit_log(
-        &self,
-        claims: &WikiClaims,
-    ) -> Result<AuditLogResponse, shared::AppError> {
-        self.ensure_admin(claims).await?;
-        let rows = sqlx::query(
-            r#"
-            SELECT id, actor_id, action, entity_type, entity_id, created_at
-            FROM audit_log
-            ORDER BY created_at DESC
-            LIMIT 200
-            "#,
-        )
-        .fetch_all(&self.pool)
-        .await
-        .map_err(shared::AppError::database)?;
-        Ok(AuditLogResponse {
-            entries: rows.iter().map(audit_entry_from_row).collect(),
-        })
-    }
-
-    async fn search(
-        &self,
-        claims: &WikiClaims,
-        query: SearchQuery,
-    ) -> Result<SearchResponse, shared::AppError> {
-        let criteria = build_wiki_search_criteria(
-            query.q.as_deref(),
-            query.space.as_deref(),
-            query.task_key.as_deref(),
-            query.phase_key.as_deref(),
-            query.document_type.as_deref(),
-            query.include_archived,
-            query.limit,
-        )?;
-        if let Some(space_key) = criteria.space_key.as_deref() {
-            self.ensure_space_access(claims, space_key, SpaceAccess::View)
-                .await?;
-        }
-        let access_user_id = self.restricted_user_id(claims).await?;
-
-        let document_rows = sqlx::query(SEARCH_DOCUMENTS_SQL)
-            .bind(&criteria.needle)
-            .bind(criteria.space_key.as_deref())
-            .bind(criteria.task_key.as_deref())
-            .bind(criteria.phase_key.as_deref())
-            .bind(criteria.document_type)
-            .bind(criteria.include_archived)
-            .bind(access_user_id)
-            .bind(criteria.limit)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(shared::AppError::database)?;
-        let evidence_rows = sqlx::query(SEARCH_EVIDENCE_SQL)
-            .bind(&criteria.evidence_like_pattern)
-            .bind(criteria.space_key.as_deref())
-            .bind(criteria.task_key.as_deref())
-            .bind(criteria.phase_key.as_deref())
-            .bind(access_user_id)
-            .bind(criteria.limit)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(shared::AppError::database)?;
-
-        let mut results = document_rows
-            .iter()
-            .map(search_result_from_row)
-            .chain(evidence_rows.iter().map(search_result_from_row))
-            .collect::<Vec<_>>();
-        results.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
-        results.truncate(criteria.limit as usize);
-        Ok(SearchResponse { results })
-    }
-
     async fn ensure_admin(&self, claims: &WikiClaims) -> Result<Uuid, shared::AppError> {
         let user_id = parse_uuid(&claims.user_id, "user")?;
         let role = self.active_global_role(user_id).await?;
@@ -262,61 +139,6 @@ impl PostgresWikiBackend {
             .await
             .map_err(shared::AppError::database)?
             .ok_or_else(|| shared::AppError::not_found("space", space_key))
-    }
-
-    async fn audit(
-        &self,
-        actor_id: Option<Uuid>,
-        action: &str,
-        entity_type: &str,
-        entity_id: Uuid,
-    ) -> Result<(), shared::AppError> {
-        sqlx::query(
-            r#"
-            INSERT INTO audit_log (
-                id, actor_id, action, entity_type, entity_id, request_id, created_at
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, now())
-            "#,
-        )
-        .bind(Uuid::now_v7())
-        .bind(actor_id)
-        .bind(action)
-        .bind(entity_type)
-        .bind(entity_id)
-        .bind(format!("api-{}", Uuid::now_v7()))
-        .execute(&self.pool)
-        .await
-        .map_err(shared::AppError::database)?;
-        Ok(())
-    }
-
-    async fn insert_audit(
-        &self,
-        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-        actor_id: Option<Uuid>,
-        action: &str,
-        entity_type: &str,
-        entity_id: Uuid,
-    ) -> Result<(), shared::AppError> {
-        sqlx::query(
-            r#"
-            INSERT INTO audit_log (
-                id, actor_id, action, entity_type, entity_id, request_id, created_at
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, now())
-            "#,
-        )
-        .bind(Uuid::now_v7())
-        .bind(actor_id)
-        .bind(action)
-        .bind(entity_type)
-        .bind(entity_id)
-        .bind(format!("api-{}", Uuid::now_v7()))
-        .execute(&mut **tx)
-        .await
-        .map_err(shared::AppError::database)?;
-        Ok(())
     }
 }
 

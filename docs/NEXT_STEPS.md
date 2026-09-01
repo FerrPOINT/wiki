@@ -14,7 +14,7 @@ The documentation, screenshots, API-backed frontend MVP pages and SQLx-backed MV
 - a fresh SQLx MVP schema baseline exists in `backend/migrations/202608310001_create_wiki_mvp.*.sql`;
 - frontend MVP pages read from the public Wiki API; create document, edit/publish/archive/move document, create user, evidence, settings/admin overview and search flows call the same API;
 - production server runtime stores users, sessions, spaces, documents, revisions, task/phase links, evidence, attachments, templates, audit and search in PostgreSQL and refuses to start without `WIKI_DATABASE__URL`;
-- PostgreSQL runtime persistence is behind `shared::wiki_contract::WikiBackendPort`; public Wiki DTOs, `WikiSettingsSnapshot` and the port live in `shared::wiki_contract`; the concrete SQLx adapter is private in `infra::wiki_postgres`, with connection/bootstrap, SQL constants, row mapping, identity/auth/users/settings, spaces/space_members/tree, document/revision, task/phase dossier and evidence/attachment operations separated from the remaining operation methods, while the main Wiki route module keeps HTTP/OpenAPI responsibilities and an explicit memory test/dev backend;
+- PostgreSQL runtime persistence is behind `shared::wiki_contract::WikiBackendPort`; public Wiki DTOs, `WikiSettingsSnapshot` and the port live in `shared::wiki_contract`; the concrete SQLx adapter is private in `infra::wiki_postgres`, with connection/bootstrap, SQL constants, row mapping and all transition operation slices separated into focused modules, while the main Wiki route module keeps HTTP/OpenAPI responsibilities and an explicit memory test/dev backend;
 - API/server runtime uses `app::WikiAppContext` and no longer constructs the inherited task-tracker `AppContext`, repository bundle or report/notification/issue service graph;
 - inherited task-tracker domain modules are excluded from the default `domain` crate build and quarantined behind feature `legacy-tracker`;
 - inherited task-tracker app modules are excluded from the default `app` crate build and quarantined behind feature `legacy-tracker`;
@@ -32,11 +32,12 @@ The remaining work is hardening and architecture cleanup, not product-scope expa
 
 ## 1. Backend Domain Migration
 
-The public API/router is now a Wiki MVP runtime with memory test fallback and SQLx/PostgreSQL persistence owned by `infra`. Identity/auth/users/settings, spaces/space_members/tree, document/revision, task/phase dossier and evidence/attachment operations have been isolated into transition adapter modules. Split the remaining operation methods into modules first, then turn the transition modules into Wiki-owned application use cases/repositories:
+The public API/router is now a Wiki MVP runtime with memory test fallback and SQLx/PostgreSQL persistence owned by `infra`. The transition SQLx adapter has been split into focused modules. Turn those modules into Wiki-owned application use cases/repositories:
 
-- templates;
-- audit log;
-- PostgreSQL full-text search for document title/body.
+- identity/auth/users/settings;
+- spaces, members and page tree;
+- documents, revisions and dossier links;
+- evidence, attachments, templates, audit and search.
 
 Keep the inherited tracker compatibility surface outside default builds, then remove it after Wiki repositories no longer need transitional scaffolding:
 
@@ -45,7 +46,7 @@ Keep the inherited tracker compatibility surface outside default builds, then re
 - custom fields, components and versions;
 - reports and notifications legacy modules outside default builds.
 
-Current status: runtime router, OpenAPI, API route files and default API tests are reduced to Wiki MVP; a Wiki domain baseline exists; SQLx runtime persistence is implemented as a transition adapter behind `shared::wiki_contract::WikiBackendPort` in `infra::wiki_postgres`; connection/bootstrap, SQL constants, row mapping, identity/auth/users/settings, spaces/space_members/tree, document/revision, task/phase dossier and evidence/attachment operations are split into submodules, while the remaining operations still need to move into dedicated app use cases and infra repositories. Production `server::run` is PostgreSQL-only and memory mode is explicit test/dev composition; attachment bytes now use a dedicated storage port; shared Wiki validation/auth helpers and the Wiki runtime context live in the app layer; public Wiki DTOs/settings/port live in `shared::wiki_contract`; inherited task-tracker domain/app/infra modules are feature-gated as compatibility code.
+Current status: runtime router, OpenAPI, API route files and default API tests are reduced to Wiki MVP; a Wiki domain baseline exists; SQLx runtime persistence is implemented as a transition adapter behind `shared::wiki_contract::WikiBackendPort` in `infra::wiki_postgres`; connection/bootstrap, SQL constants, row mapping and all operation slices are split into submodules, while the transition modules still need to move into dedicated app use cases and infra repositories. Production `server::run` is PostgreSQL-only and memory mode is explicit test/dev composition; attachment bytes now use a dedicated storage port; shared Wiki validation/auth helpers and the Wiki runtime context live in the app layer; public Wiki DTOs/settings/port live in `shared::wiki_contract`; inherited task-tracker domain/app/infra modules are feature-gated as compatibility code.
 
 ## 2. Database And Migrations
 
@@ -57,7 +58,7 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 
 ## 3. API And OpenAPI
 
-- Split the remaining template/audit/search `infra::wiki_postgres::mod` operation methods into transition modules, then into application use cases backed by Wiki repositories.
+- Replace the focused `infra::wiki_postgres::*` transition operation modules with application use cases backed by Wiki repositories.
 - Keep inherited tracker routes out of the runtime router.
 - Regenerate `openapi/openapi.json` after any handler DTO/route change.
 - Keep generated frontend DTO types in sync with OpenAPI; replace handwritten endpoint wrappers with a generated operation client after the app/infra boundary stabilizes.
@@ -103,13 +104,12 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 
 ## 9. Recommended Implementation Order
 
-1. Extract template, audit and search operation methods from `infra::wiki_postgres::mod` into transition modules, then introduce app/infra repository interfaces/implementations using `domain::wiki`; the identity/auth/users/settings, spaces/space_members/tree, document/revision, task/phase dossier and evidence/attachment transition modules are already separated.
-2. Introduce Wiki repository traits/use cases and wire them behind the existing shared API contract.
-3. Add focused repository/API tests for document draft/publish/history, task/phase links, evidence and attachments.
-4. Tune PostgreSQL FTS ranking/search filters and capture query-plan evidence for the expected MVP dataset size.
-5. Bring CLI smoke tests to parity with the public API.
-6. Remove remaining inherited tracker compatibility modules and the SeaORM migration compatibility layer.
-7. Replace handwritten frontend endpoint wrappers with a generated operation client after the PostgreSQL-backed contract stabilizes.
+1. Introduce Wiki repository traits/use cases for the focused transition modules and wire them behind the existing shared API contract.
+2. Add focused repository/API tests for document draft/publish/history, task/phase links, evidence and attachments.
+3. Tune PostgreSQL FTS ranking/search filters and capture query-plan evidence for the expected MVP dataset size.
+4. Bring CLI smoke tests to parity with the public API.
+5. Remove remaining inherited tracker compatibility modules and the SeaORM migration compatibility layer.
+6. Replace handwritten frontend endpoint wrappers with a generated operation client after the PostgreSQL-backed contract stabilizes.
 
 ## 10. Done Criteria For Backend Start
 
