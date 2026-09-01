@@ -157,9 +157,13 @@ async function installWikiApiMocks(page: Page) {
   let currentDocument = { ...document }
   let currentRevisions = [document.current_revision]
   let currentTemplates = [template]
+  let currentTask = { ...task, documents: [...task.documents], evidence: [...task.evidence] }
+  let currentPhase = { ...phase, documents: [...phase.documents], evidence: [...phase.evidence] }
   let currentUsers = [user, editorUser]
   const documentDraftRequests: Array<{ title?: string; content_markdown: string }> = []
   const documentPublishRequests: Array<{ summary?: string | null }> = []
+  const taskDocumentLinkRequests: Array<{ document_id: string }> = []
+  const phaseDocumentLinkRequests: Array<{ document_id: string }> = []
   const templateCreateRequests: Array<{
     name: string
     document_type: string
@@ -305,13 +309,42 @@ async function installWikiApiMocks(page: Page) {
       return routeJson(route, currentDocument)
     }
     if (method === 'GET' && path === '/spaces/SDLC/tasks')
-      return routeJson(route, { tasks: [task] })
-    if (method === 'GET' && path === '/spaces/SDLC/tasks/SDLC-42') return routeJson(route, task)
+      return routeJson(route, { tasks: [currentTask] })
+    if (method === 'GET' && path === '/spaces/SDLC/tasks/SDLC-42')
+      return routeJson(route, currentTask)
+    if (method === 'POST' && path === '/spaces/SDLC/tasks/SDLC-42/links/documents') {
+      const body = request.postDataJSON() as { document_id: string }
+      taskDocumentLinkRequests.push(body)
+      currentTask = {
+        ...currentTask,
+        documents: currentTask.documents.some((item) => item.id === body.document_id)
+          ? currentTask.documents
+          : [documentSummary, ...currentTask.documents],
+        document_count: currentTask.documents.some((item) => item.id === body.document_id)
+          ? currentTask.document_count
+          : currentTask.document_count + 1,
+      }
+      return routeJson(route, currentTask)
+    }
     if (method === 'GET' && path === '/spaces/SDLC/phases') {
-      return routeJson(route, { phases: [phase] })
+      return routeJson(route, { phases: [currentPhase] })
     }
     if (method === 'GET' && path === '/spaces/SDLC/phases/implementation') {
-      return routeJson(route, phase)
+      return routeJson(route, currentPhase)
+    }
+    if (method === 'POST' && path === '/spaces/SDLC/phases/implementation/links/documents') {
+      const body = request.postDataJSON() as { document_id: string }
+      phaseDocumentLinkRequests.push(body)
+      currentPhase = {
+        ...currentPhase,
+        documents: currentPhase.documents.some((item) => item.id === body.document_id)
+          ? currentPhase.documents
+          : [documentSummary, ...currentPhase.documents],
+        document_count: currentPhase.documents.some((item) => item.id === body.document_id)
+          ? currentPhase.document_count
+          : currentPhase.document_count + 1,
+      }
+      return routeJson(route, currentPhase)
     }
     if (method === 'GET' && path === '/evidence') {
       evidenceRequests.push(url.search)
@@ -398,7 +431,9 @@ async function installWikiApiMocks(page: Page) {
     documentDraftRequests,
     documentPublishRequests,
     evidenceRequests,
+    phaseDocumentLinkRequests,
     searchRequests,
+    taskDocumentLinkRequests,
     templateCreateRequests,
     userUpdateRequests,
   }
@@ -442,9 +477,29 @@ test.describe('wiki smoke', () => {
 
     await page.goto(`${baseURL}/tasks/SDLC-42`)
     await expect(page.getByRole('heading', { name: 'SDLC-42' })).toBeVisible()
+    await page.getByLabel('Документ для задачи').fill('product-requirements')
+    await page.getByRole('button', { name: 'Привязать' }).click()
+    await expect
+      .poll(() =>
+        apiMocks.taskDocumentLinkRequests.some(
+          (request) => request.document_id === 'product-requirements',
+        ),
+      )
+      .toBe(true)
+    await expect(page.getByText('Документ привязан к задаче')).toBeVisible()
 
     await page.goto(`${baseURL}/phases/implementation`)
     await expect(page.getByRole('heading', { name: 'implementation' })).toBeVisible()
+    await page.getByLabel('Документ для фазы').fill('product-requirements')
+    await page.getByRole('button', { name: 'Привязать' }).click()
+    await expect
+      .poll(() =>
+        apiMocks.phaseDocumentLinkRequests.some(
+          (request) => request.document_id === 'product-requirements',
+        ),
+      )
+      .toBe(true)
+    await expect(page.getByText('Документ привязан к фазе')).toBeVisible()
 
     await page.goto(`${baseURL}/evidence`)
     await expect(page.getByRole('heading', { name: 'Материалы' })).toBeVisible()

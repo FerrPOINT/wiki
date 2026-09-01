@@ -18,6 +18,8 @@ import {
   getPhase,
   getSpaceTree,
   getTask,
+  linkPhaseDocument,
+  linkTaskDocument,
   listSpaceMembers,
   listAuditLog,
   listDocumentRevisions,
@@ -35,6 +37,7 @@ import {
   type CreateEvidenceRequest,
   type Document,
   type EvidenceListParams,
+  type LinkDocumentRequest,
   type MoveDocumentRequest,
   type PublishDocumentRequest,
   type SearchParams,
@@ -293,6 +296,29 @@ export function useTask(taskKey: string, spaceKey = defaultSpaceKey) {
   })
 }
 
+export function useLinkTaskDocument() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      spaceKey,
+      taskKey,
+      body,
+    }: {
+      spaceKey: string
+      taskKey: string
+      body: LinkDocumentRequest
+    }) => linkTaskDocument(spaceKey, taskKey, body),
+    onSuccess: (task, variables) => {
+      queryClient.setQueryData(wikiKeys.task(variables.spaceKey, variables.taskKey), task)
+      queryClient.invalidateQueries({ queryKey: wikiKeys.tasks(variables.spaceKey) })
+      queryClient.invalidateQueries({ queryKey: ['wiki', 'documents'] })
+      queryClient.invalidateQueries({ queryKey: ['wiki', 'search'] })
+      queryClient.invalidateQueries({ queryKey: wikiKeys.auditLog })
+    },
+  })
+}
+
 export function usePhases(spaceKey = defaultSpaceKey) {
   return useQuery({
     queryKey: wikiKeys.phases(spaceKey),
@@ -305,6 +331,29 @@ export function usePhase(phaseKey: string, spaceKey = defaultSpaceKey) {
     queryKey: wikiKeys.phase(spaceKey, phaseKey),
     queryFn: () => getPhase(spaceKey, phaseKey),
     enabled: Boolean(phaseKey),
+  })
+}
+
+export function useLinkPhaseDocument() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      spaceKey,
+      phaseKey,
+      body,
+    }: {
+      spaceKey: string
+      phaseKey: string
+      body: LinkDocumentRequest
+    }) => linkPhaseDocument(spaceKey, phaseKey, body),
+    onSuccess: (phase, variables) => {
+      queryClient.setQueryData(wikiKeys.phase(variables.spaceKey, variables.phaseKey), phase)
+      queryClient.invalidateQueries({ queryKey: wikiKeys.phases(variables.spaceKey) })
+      queryClient.invalidateQueries({ queryKey: ['wiki', 'documents'] })
+      queryClient.invalidateQueries({ queryKey: ['wiki', 'search'] })
+      queryClient.invalidateQueries({ queryKey: wikiKeys.auditLog })
+    },
   })
 }
 

@@ -13,6 +13,7 @@ import type {
   DocumentSummaryResponse,
   EvidenceListResponse,
   EvidenceResponse,
+  LinkDocumentRequest as GeneratedLinkDocumentRequest,
   MoveDocumentRequest as GeneratedMoveDocumentRequest,
   PhasePageListResponse,
   PhasePageResponse,
@@ -55,6 +56,7 @@ export type CreateDocumentRequest = GeneratedCreateDocumentRequest
 export type UpdateDocumentDraftRequest = GeneratedUpdateDocumentDraftRequest
 export type PublishDocumentRequest = GeneratedPublishDocumentRequest
 export type MoveDocumentRequest = GeneratedMoveDocumentRequest
+export type LinkDocumentRequest = GeneratedLinkDocumentRequest
 export type TaskPage = TaskPageResponse
 export type PhasePage = PhasePageResponse
 export type Template = TemplateResponse
@@ -224,6 +226,20 @@ export function getTask(spaceKey: string, taskKey: string): Promise<TaskPage> {
   )
 }
 
+export function linkTaskDocument(
+  spaceKey: string,
+  taskKey: string,
+  body: LinkDocumentRequest,
+): Promise<TaskPage> {
+  return apiRequest<TaskPage>(
+    `/api/v1/spaces/${encodeURIComponent(spaceKey)}/tasks/${encodeURIComponent(taskKey)}/links/documents`,
+    {
+      method: 'POST',
+      body,
+    },
+  )
+}
+
 export function listPhases(spaceKey: string): Promise<PhasePageListResponse> {
   return apiRequest<PhasePageListResponse>(`/api/v1/spaces/${encodeURIComponent(spaceKey)}/phases`)
 }
@@ -231,6 +247,20 @@ export function listPhases(spaceKey: string): Promise<PhasePageListResponse> {
 export function getPhase(spaceKey: string, phaseKey: string): Promise<PhasePage> {
   return apiRequest<PhasePage>(
     `/api/v1/spaces/${encodeURIComponent(spaceKey)}/phases/${encodeURIComponent(phaseKey)}`,
+  )
+}
+
+export function linkPhaseDocument(
+  spaceKey: string,
+  phaseKey: string,
+  body: LinkDocumentRequest,
+): Promise<PhasePage> {
+  return apiRequest<PhasePage>(
+    `/api/v1/spaces/${encodeURIComponent(spaceKey)}/phases/${encodeURIComponent(phaseKey)}/links/documents`,
+    {
+      method: 'POST',
+      body,
+    },
   )
 }
 

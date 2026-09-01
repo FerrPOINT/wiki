@@ -43,7 +43,7 @@
 | [m-dashboard.png](../../screenshots/m-dashboard.png)         | `/`                               | Dashboard mobile layout     | 375x1000 |
 | [m-spaces.png](../../screenshots/m-spaces.png)               | `/spaces`                         | Spaces mobile layout        | 375x1404 |
 | [m-document-view.png](../../screenshots/m-document-view.png) | `/documents/product-requirements` | Document view mobile layout | 375x2034 |
-| [m-task-dossier.png](../../screenshots/m-task-dossier.png)   | `/tasks/SDLC-42`                  | Task page mobile layout     | 375x869  |
+| [m-task-dossier.png](../../screenshots/m-task-dossier.png)   | `/tasks/SDLC-42`                  | Task page mobile layout     | 375x1017 |
 | [m-search.png](../../screenshots/m-search.png)               | `/search`                         | Search mobile layout        | 375x1066 |
 
 ## Review checklist

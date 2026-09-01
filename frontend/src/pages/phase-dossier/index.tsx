@@ -1,8 +1,12 @@
+import { type FormEvent, useState } from 'react'
 import { Link, useParams } from 'react-router'
-import { CheckCircle2, CircleDashed, FileCheck2, FileText, GitBranch } from 'lucide-react'
-import { defaultSpaceKey, usePhase, usePhases } from '@/shared/api/hooks'
+import { CheckCircle2, CircleDashed, FileCheck2, FileText, GitBranch, Link2 } from 'lucide-react'
+import { defaultSpaceKey, useLinkPhaseDocument, usePhase, usePhases } from '@/shared/api/hooks'
 import { EmptyState, ErrorState, LoadingState } from '@/shared/ui/async-states'
+import { Button } from '@/shared/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
+import { Input } from '@/shared/ui/input'
+import { Label } from '@/shared/ui/label'
 import { Progress } from '@/shared/ui/progress'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import {
@@ -84,8 +88,31 @@ export function PhaseDossiersPage() {
 export function PhaseDossierPage() {
   const { phaseId = 'implementation' } = useParams()
   const phaseQuery = usePhase(phaseId, defaultSpaceKey)
+  const linkDocument = useLinkPhaseDocument()
+  const [documentId, setDocumentId] = useState('')
+  const [linkMessage, setLinkMessage] = useState('')
   const phase = phaseQuery.data
   const value = phase ? readiness(phase) : 0
+
+  function handleLinkDocument(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const trimmedDocumentId = documentId.trim()
+    if (!trimmedDocumentId) return
+    setLinkMessage('')
+    linkDocument.mutate(
+      {
+        spaceKey: defaultSpaceKey,
+        phaseKey: phaseId,
+        body: { document_id: trimmedDocumentId },
+      },
+      {
+        onSuccess: () => {
+          setDocumentId('')
+          setLinkMessage('Документ привязан к фазе')
+        },
+      },
+    )
+  }
 
   if (phaseQuery.isLoading) return <LoadingState message="Загружаем фазу" />
   if (phaseQuery.isError || !phase) {
@@ -128,6 +155,36 @@ export function PhaseDossierPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
+            <form
+              onSubmit={handleLinkDocument}
+              className="rounded-md bg-surface-raised p-3"
+              aria-label="Привязать документ к фазе"
+            >
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                <div className="space-y-1.5">
+                  <Label htmlFor="phase-document-link">Документ для фазы</Label>
+                  <Input
+                    id="phase-document-link"
+                    value={documentId}
+                    onChange={(event) => setDocumentId(event.target.value)}
+                    placeholder="product-requirements"
+                    disabled={linkDocument.isPending}
+                  />
+                </div>
+                <Button type="submit" disabled={linkDocument.isPending || !documentId.trim()}>
+                  <Link2 className="h-4 w-4" />
+                  {linkDocument.isPending ? 'Привязываем' : 'Привязать'}
+                </Button>
+              </div>
+              {linkDocument.isError && (
+                <p className="mt-2 text-sm text-danger" role="alert">
+                  {formatApiErrorForUser(linkDocument.error, 'Не удалось привязать документ')}
+                </p>
+              )}
+              {linkMessage && !linkDocument.isError && (
+                <p className="mt-2 text-sm text-success">{linkMessage}</p>
+              )}
+            </form>
             {phase.documents.length === 0 && (
               <EmptyState message="С фазой пока не связан ни один документ" />
             )}
