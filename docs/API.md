@@ -17,7 +17,16 @@ REST API Wiki предоставляет базовые операции про�
 - Protected endpoints требуют session/JWT.
 - API не раскрывает секреты, bearer tokens, private storage keys и stack traces.
 
-## 3. Auth
+## 3. Health and Readiness
+
+Operational endpoints are part of the public API surface but do not create Wiki domain data and do not require a frontend route.
+
+| Method | Path            | Назначение                                                    |
+| ------ | --------------- | ------------------------------------------------------------- |
+| `GET`  | `/health`       | Liveness check для процесса API                               |
+| `GET`  | `/health/ready` | Readiness check после инициализации runtime dependencies      |
+
+## 4. Auth
 
 | Method | Path             | Назначение                                                                               |
 | ------ | ---------------- | ---------------------------------------------------------------------------------------- |
@@ -27,7 +36,7 @@ REST API Wiki предоставляет базовые операции про�
 | `POST` | `/auth/logout`   | Завершение сессии                                                                        |
 | `GET`  | `/users/me`      | Текущий пользователь                                                                     |
 
-## 4. Users and Access
+## 5. Users and Access
 
 | Method   | Path                                    | Назначение                        |
 | -------- | --------------------------------------- | --------------------------------- |
@@ -40,7 +49,7 @@ REST API Wiki предоставляет базовые операции про�
 
 `DELETE /spaces/{space_key}/members/{user_id}` возвращает `404 NOT_FOUND`, если такой membership уже отсутствует. Успешный `204` означает, что membership реально был удалён; обычный пользователь без другой роли больше не проходит проверки чтения/поиска для этого space.
 
-## 5. Spaces
+## 6. Spaces
 
 | Method | Path                          | Назначение              |
 | ------ | ----------------------------- | ----------------------- |
@@ -51,7 +60,7 @@ REST API Wiki предоставляет базовые операции про�
 | `POST` | `/spaces/{space_key}/archive` | Архивировать space      |
 | `GET`  | `/spaces/{space_key}/tree`    | Page tree               |
 
-## 6. Documents
+## 7. Documents
 
 | Method | Path                                               | Назначение                 |
 | ------ | -------------------------------------------------- | -------------------------- |
@@ -68,7 +77,7 @@ REST API Wiki предоставляет базовые операции про�
 
 `GET /documents/{document_id}/revisions` возвращает историю в порядке от последней опубликованной ревизии к первой. Опубликованные ревизии immutable: новый draft или повторная публикация не меняют тело, заголовок и summary уже созданных ревизий.
 
-## 7. Task Links
+## 8. Task Links
 
 Task dossier в MVP - это представление документов/evidence, связанных одним внешним `task_key`. Wiki не владеет статусом задачи.
 
@@ -80,7 +89,7 @@ Task dossier в MVP - это представление документов/evi
 | `GET`  | `/spaces/{space_key}/tasks/{task_key}/documents`       | Документы task key               |
 | `GET`  | `/spaces/{space_key}/tasks/{task_key}/evidence`        | Evidence task key                |
 
-## 8. Phase Links
+## 9. Phase Links
 
 Phase dossier в MVP - это представление документов/evidence по `phase_key`. Wiki не управляет переходами фаз.
 
@@ -92,7 +101,7 @@ Phase dossier в MVP - это представление документов/ev
 | `GET`  | `/spaces/{space_key}/phases/{phase_key}/documents`       | Документы phase key               |
 | `GET`  | `/spaces/{space_key}/phases/{phase_key}/evidence`        | Evidence phase key                |
 
-## 9. Evidence and Attachments
+## 10. Evidence and Attachments
 
 | Method | Path                                    | Назначение                  |
 | ------ | --------------------------------------- | --------------------------- |
@@ -105,7 +114,7 @@ Phase dossier в MVP - это представление документов/ev
 
 Canonical `evidence_type` values for MVP are `external_url` and `uploaded_file`. `external_url` accepts a non-empty `url` and must not include `attachment_id` or `checksum`; `uploaded_file` accepts `attachment_id` without `url` and stores checksum from the staged attachment. Evidence can be linked to `document_id`, `task_key`, `phase_key` or their combination inside one space. If `document_id` is present and `space` is omitted, API uses the document's space; if explicit `space` conflicts with the document's space, API returns `400 VALIDATION_ERROR`. `GET /evidence` supports `space`, `document_id`, `task_key` and `phase_key` filters and returns only spaces visible to the caller. Specific source categories such as CI job, pull request, deployment or test artifact are metadata, not separate evidence types.
 
-## 10. Search
+## 11. Search
 
 | Method | Path      | Назначение       |
 | ------ | --------- | ---------------- |
@@ -115,7 +124,7 @@ Canonical `evidence_type` values for MVP are `external_url` and `uploaded_file`.
 
 Для опубликованных документов поиск использует текущую опубликованную ревизию. Если у опубликованного документа есть новый непубликованный draft, его текст не попадает в общий search response до следующей публикации.
 
-## 11. Templates, Settings and Audit
+## 12. Templates, Settings and Audit
 
 | Method | Path         | Назначение                                                         |
 | ------ | ------------ | ------------------------------------------------------------------ |
@@ -126,7 +135,7 @@ Canonical `evidence_type` values for MVP are `external_url` and `uploaded_file`.
 
 `GET /settings` не возвращает секреты, connection strings, storage paths или bootstrap credentials. MVP endpoint показывает только значения, нужные UI/CLI: API path, регистрацию, storage/search backend, лимит загрузки, язык и timezone.
 
-## 12. Deferred API Areas
+## 13. Deferred API Areas
 
 - Comments.
 - Advanced reports.

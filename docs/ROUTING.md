@@ -66,6 +66,7 @@ Frontend-роуты объявлены в `frontend/src/app/router.tsx`. На п
 - Create action opens `/documents/new`.
 - Document pages must keep title, breadcrumbs, revision status and linked task/phase visible above the fold.
 - Task and phase pages must show linked documents and materials.
+- Operational `/api/v1/health` and `/api/v1/health/ready` probes are API-only and do not have frontend routes or screenshots.
 
 ## 8. References
 

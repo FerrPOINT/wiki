@@ -56,7 +56,7 @@ The repository is now reduced to the Wiki MVP runtime: public API/OpenAPI, CLI s
 | Document lifecycle   | Create/view/edit/publish/archive/move flows, revision-aware backend endpoints and generated frontend API types. |
 | SDLC dossiers        | Task and phase dossiers linked to evidence and SDLC workflow context.                                           |
 | Evidence registry    | External links and uploaded files attached to documents, tasks or phases.                                       |
-| Operations           | Templates, audit log, users/settings/admin pages and global search.                                             |
+| Operations           | Templates, audit log, users/settings/admin pages, global search and API health/readiness probes.                |
 | CLI                  | HTTP-only `wiki` binary for the same public API operations as UI.                                               |
 | Documentation        | Architecture, operations, threat model, traceability and visual screenshot evidence.                            |
 
@@ -119,11 +119,47 @@ pwsh -File scripts/postgres-smoke-wsl.ps1
 | `/users`, `/settings`, `/admin`                       | Administration          |
 | `/search`                                             | Global search           |
 
+Operational `/api/v1/health` and `/api/v1/health/ready` probes are API-only and do not have frontend screenshots.
+
 <a name="screenshots"></a>
 
 ## 🖼️ Screenshots
 
 Recapture parameters and full evidence are tracked in [docs/assets/screens/manifest.md](docs/assets/screens/manifest.md).
+
+### Desktop Gallery
+
+| Route | Preview |
+| ----- | ------- |
+| `/login` | <img src="docs/screenshots/01-login.png" alt="Login page" width="420" /> |
+| `/register` | <img src="docs/screenshots/02-register.png" alt="Register page" width="420" /> |
+| `/` | <img src="docs/screenshots/03-dashboard.png" alt="Dashboard page" width="420" /> |
+| `/spaces` | <img src="docs/screenshots/04-spaces.png" alt="Spaces page" width="420" /> |
+| `/documents/new` | <img src="docs/screenshots/05-document-compose.png" alt="Document compose page" width="420" /> |
+| `/documents/:documentId` | <img src="docs/screenshots/06-document-view.png" alt="Document view page" width="420" /> |
+| `/tasks` | <img src="docs/screenshots/07-task-dossiers.png" alt="Task dossiers page" width="420" /> |
+| `/tasks/:taskKey` | <img src="docs/screenshots/08-task-dossier-detail.png" alt="Task dossier detail page" width="420" /> |
+| `/phases` | <img src="docs/screenshots/09-phase-dossiers.png" alt="Phase dossiers page" width="420" /> |
+| `/phases/:phaseId` | <img src="docs/screenshots/10-phase-dossier-detail.png" alt="Phase dossier detail page" width="420" /> |
+| `/evidence` | <img src="docs/screenshots/11-evidence.png" alt="Evidence page" width="420" /> |
+| `/templates` | <img src="docs/screenshots/12-templates.png" alt="Templates page" width="420" /> |
+| `/audit-log` | <img src="docs/screenshots/13-audit-log.png" alt="Audit log page" width="420" /> |
+| `/users` | <img src="docs/screenshots/14-users.png" alt="Users page" width="420" /> |
+| `/settings` | <img src="docs/screenshots/15-settings.png" alt="Settings page" width="420" /> |
+| `/search` | <img src="docs/screenshots/16-search.png" alt="Search page" width="420" /> |
+| `/admin` | <img src="docs/screenshots/17-admin.png" alt="Admin page" width="420" /> |
+
+### Mobile Smoke
+
+| Route | Preview |
+| ----- | ------- |
+| `/` | <img src="docs/screenshots/m-dashboard.png" alt="Dashboard mobile page" width="180" /> |
+| `/spaces` | <img src="docs/screenshots/m-spaces.png" alt="Spaces mobile page" width="180" /> |
+| `/documents/:documentId` | <img src="docs/screenshots/m-document-view.png" alt="Document mobile page" width="180" /> |
+| `/tasks/:taskKey` | <img src="docs/screenshots/m-task-dossier.png" alt="Task dossier mobile page" width="180" /> |
+| `/search` | <img src="docs/screenshots/m-search.png" alt="Search mobile page" width="180" /> |
+
+### Files
 
 | Route                    | Screenshot                                                                  |
 | ------------------------ | --------------------------------------------------------------------------- |

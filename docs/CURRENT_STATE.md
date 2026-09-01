@@ -6,7 +6,7 @@
 
 | Capability | Status | Notes |
 | ---------- | ------ | ----- |
-| Product scope | Current | `docs/PRODUCT_REQUIREMENTS.md` defines the base Wiki MVP: auth/users/roles, spaces, documents/tree/revisions, task/phase links, evidence, search, templates, audit, API, UI and CLI. |
+| Product scope | Current | `docs/PRODUCT_REQUIREMENTS.md` defines the base Wiki MVP: auth/users/roles, spaces, documents/tree/revisions, task/phase links, evidence, search, templates, audit, runtime health/readiness, API, UI and CLI. |
 | Frontend page set | Current | The router, README gallery and screenshot manifest cover only the approved MVP routes: `/login`, `/register`, `/`, `/spaces`, `/documents/new`, `/documents/:documentId`, `/tasks`, `/tasks/:taskKey`, `/phases`, `/phases/:phaseId`, `/evidence`, `/templates`, `/audit-log`, `/users`, `/settings`, `/search`, `/admin`. |
 | Removed non-MVP screens | Current | `/integrations`, `/reports` and `/notifications` are absent from frontend routing, navigation, screenshot generation, README gallery and OpenAPI mocks. |
 | Removed copied tracker backend | Current | Copied task-tracker domain/app/infra modules for issues, boards, sprints, worklogs, reports, notifications, email, cache, old repositories and old ORM entities have been removed from the backend workspace. |
@@ -20,7 +20,7 @@
 | Attachments | Current | Attachment uploads reject empty files, unsafe names and runtime size-limit violations; bytes are behind `domain::wiki::WikiAttachmentStorage`, and server wires `infra::LocalWikiAttachmentStorage`, which rejects unsafe or platform-ambiguous storage keys. |
 | CLI | Current | `wiki` CLI covers the MVP public API groups for auth, users, spaces/member management, documents/revisions, task/phase dossiers, evidence, attachments, templates, audit, search and settings. |
 | Frontend API-backed pages | Current | Dashboard, spaces, documents, tasks, phases, evidence, templates, users, settings, admin overview, audit and search read from the public Wiki API; create/edit/publish/archive/move document, create user, URL evidence and file evidence forms call the same API. |
-| Screenshot evidence | Current | 17 desktop and 5 mobile screenshots exist for the MVP page set; README and `docs/assets/screens/manifest.md` reference the same files. |
+| Screenshot evidence | Current | 17 desktop and 5 mobile screenshots exist for the MVP page set; README renders the gallery inline and `docs/assets/screens/manifest.md` references the same files. |
 | Documentation set | Current | CI/CD-style documentation filename parity is preserved and docs describe the Wiki MVP rather than task-tracker behavior. |
 
 ## Functional Coverage
@@ -44,7 +44,7 @@
 - Docker PostgreSQL smoke runner syntax check passed; `pwsh -File scripts/postgres-smoke.ps1` currently stops with a clear Docker-daemon unavailable message on this host because `com.docker.service` cannot be started from this process.
 - `docker compose config` and `docker compose -f backend/docker-compose.test.yml config` render the MVP service set without extra cache/worker services.
 - Screenshot script passed against `vite preview`: `npm run shoot:evidence` captured 17 desktop and 5 mobile MVP screenshots.
-- Static checks confirmed no active references to removed `/integrations`, `/reports` or `/notifications` routes, no unresolved placeholder markers, no short Markdown docs, screenshot refs with `missing=0`, OpenAPI `bad_paths=0` and CI/CD docs parity `missing_from_wiki=0`.
+- Static checks confirmed no active references to removed `/integrations`, `/reports` or `/notifications` routes, no unresolved task markers, no short Markdown docs, README/manifest screenshot refs with `missing=0`, API/PRD documentation parity with all 42 OpenAPI paths and CI/CD docs parity `missing_from_wiki=0`.
 
 ## Known Local Environment Limits
 

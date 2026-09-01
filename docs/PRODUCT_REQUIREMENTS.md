@@ -33,6 +33,7 @@ MVP включает только базовую Wiki-функционально
 - шаблоны документов;
 - audit write-действий;
 - read-only runtime settings для admin UI/CLI;
+- operational health/readiness API probes;
 - API, UI и CLI.
 
 MVP не включает:
@@ -84,6 +85,7 @@ MVP не включает:
 | REQ-SRCH-002  | Search filters   | Поиск фильтруется по space, task key, phase key и document type                                                                           |
 | REQ-TPL-001   | Templates        | Editor создаёт документ из базового шаблона                                                                                               |
 | REQ-SET-001   | Settings         | Admin видит безопасный runtime snapshot настроек инстанса: API path, регистрацию, storage/search backend, лимит загрузки, язык и timezone |
+| REQ-OPS-001   | Runtime health   | API отдаёт liveness/readiness для запуска, мониторинга и деплоя; отдельная UI-страница для этого не нужна                                  |
 | REQ-AUD-001   | Audit            | Система пишет audit для login/logout, document create/edit/publish/archive, evidence add, member/role changes                             |
 | REQ-API-001   | API              | Все MVP-операции доступны через `/api/v1`                                                                                                 |
 | REQ-CLI-001   | CLI              | CLI покрывает те же базовые операции, что и API, и возвращает JSON по умолчанию                                                           |
@@ -121,6 +123,11 @@ MVP поставляет только пять шаблонов:
 ## 8. API v1 overview
 
 API является единственным контрактом backend. UI и CLI используют один и тот же API.
+
+### Health and readiness
+
+- `GET /api/v1/health`
+- `GET /api/v1/health/ready`
 
 ### Auth
 
@@ -257,6 +264,7 @@ CLI requirements:
 8. Поиск находит документ по title/body и уважает права пользователя.
 9. UI и CLI выполняют одинаковые базовые операции через `/api/v1`.
 10. README содержит актуальные скриншоты основных frontend-страниц.
+11. Runtime endpoints `/api/v1/health` и `/api/v1/health/ready` отражают liveness/readiness API процесса.
 
 ## 12. Roadmap
 
