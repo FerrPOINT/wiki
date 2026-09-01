@@ -39,6 +39,9 @@ sha2 = "0.10"
 hex = "0.4"
 # validation
 validator = { version = "0.19", features = ["derive"] }
+# content
+ammonia = "4.1"
+comrak = { version = "0.54", default-features = false }
 # errors
 thiserror = "2.0"
 anyhow = "1.0"

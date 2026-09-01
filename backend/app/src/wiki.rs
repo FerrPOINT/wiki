@@ -1692,6 +1692,11 @@ pub fn markdown_to_text(markdown: &str) -> String {
         .join(" ")
 }
 
+pub fn markdown_to_html(markdown: &str) -> String {
+    let html = comrak::markdown_to_html(markdown, &comrak::Options::default());
+    ammonia::clean(&html)
+}
+
 pub fn slugify(value: &str) -> String {
     let slug: String = value
         .chars()
@@ -4061,6 +4066,12 @@ mod tests {
         assert_eq!(normalize_required("  title  ", "title").unwrap(), "title");
         assert_eq!(clamp_limit(Some(500), 100), 100);
         assert_eq!(markdown_to_text("# Title\n\n- Item"), "Title Item");
+        let html =
+            markdown_to_html("# Title\n\n<script>alert(1)</script>\n\n[Link](https://example.com)");
+        assert!(html.contains("<h1>Title</h1>"));
+        assert!(html.contains(r#"<a href="https://example.com""#));
+        assert!(!html.contains("<script"));
+        assert!(!html.contains("alert(1)"));
         assert_eq!(slugify("Wiki MVP!"), "wiki-mvp");
         assert_eq!(snippet("a\n\nb"), "a b");
         assert_eq!(

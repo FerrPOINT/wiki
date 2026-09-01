@@ -6,7 +6,7 @@ use app::wiki::{
     WikiArchiveDocumentCommand, WikiCreateDocumentCommand, WikiDocumentRepository,
     WikiDocumentRepositoryFuture, WikiDocumentUseCase, WikiMoveDocumentCommand,
     WikiPublishDocumentCommand, WikiSpaceAccess as SpaceAccess, WikiUpdateDocumentDraftCommand,
-    checksum, markdown_to_text, normalize_space_key,
+    checksum, markdown_to_html, markdown_to_text, normalize_space_key,
 };
 use shared::wiki_contract::*;
 use sqlx::Row;
@@ -239,6 +239,7 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
             .await
             .map_err(shared::AppError::database)?;
             let content_text = markdown_to_text(&content_markdown);
+            let content_html = markdown_to_html(&content_markdown);
             let content_checksum = checksum(content_markdown.as_bytes());
 
             let revision_row = sqlx::query(
@@ -247,7 +248,7 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
                     id, document_id, version, title, content_markdown, content_html,
                     content_text, content_checksum, summary, author_id, published_at
                 )
-                VALUES ($1, $2, $3, $4, $5, $5, $6, $7, $8, $9, now())
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
                 RETURNING id, document_id, version, title, content_markdown, summary, author_id, published_at
                 "#,
             )
@@ -256,6 +257,7 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
             .bind(version)
             .bind(title)
             .bind(&content_markdown)
+            .bind(content_html)
             .bind(content_text)
             .bind(content_checksum)
             .bind(command.summary.as_deref())

@@ -16,6 +16,8 @@ argon2.workspace = true
 rand_core.workspace = true
 sha2 = "0.10"
 hex = "0.4"
+ammonia.workspace = true
+comrak.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

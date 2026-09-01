@@ -3803,7 +3803,7 @@ async fn wiki_postgres_routes_persist_across_router_rebuilds() {
             "document_type": "requirements",
             "task_key": "SDLC-777",
             "phase_key": "testing",
-            "content_markdown": "# Persistent Requirements\n\nPostgres-backed Wiki document"
+            "content_markdown": "# Persistent Requirements\n\nPostgres-backed Wiki document\n\n<script>alert('x')</script>"
         })),
     )
     .await;
@@ -3851,6 +3851,23 @@ async fn wiki_postgres_routes_persist_across_router_rebuilds() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(revision["version"], 1);
+
+    let revision_id = Uuid::parse_str(revision["id"].as_str().unwrap()).unwrap();
+    let pool = PgPoolOptions::new()
+        .max_connections(1)
+        .connect(&database_url)
+        .await
+        .unwrap();
+    let content_html: String =
+        sqlx::query_scalar("SELECT content_html FROM document_revisions WHERE id = $1")
+            .bind(revision_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    pool.close().await;
+    assert!(content_html.contains("<h1>Persistent Requirements</h1>"));
+    assert!(!content_html.contains("<script"));
+    assert!(!content_html.contains("alert('x')"));
 
     let (status, outsider) = call(
         &app,
