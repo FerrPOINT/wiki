@@ -1982,6 +1982,90 @@ async fn wiki_postgres_register_respects_instance_registration_setting() {
 }
 
 #[tokio::test]
+async fn wiki_postgres_archived_document_rejects_write_commands_when_database_available() {
+    let Ok(database_url) = env::var("WIKI_TEST_DATABASE_URL") else {
+        eprintln!(
+            "skipping postgres archived document write test: WIKI_TEST_DATABASE_URL is not set"
+        );
+        return;
+    };
+    reset_postgres(&database_url).await;
+    let storage_dir = env::temp_dir().join(format!("wiki-api-test-{}", Uuid::now_v7()));
+    let (app, _) = postgres_test_app(database_url, storage_dir).await;
+    let token = login_admin(&app).await;
+    let suffix = Uuid::now_v7().simple().to_string();
+    let short = &suffix[..12];
+
+    let (status, document) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces/SDLC/documents",
+        Some(&token),
+        Some(json!({
+            "title": format!("Postgres archived document {short}"),
+            "slug": format!("postgres-archived-document-{short}"),
+            "document_type": "page",
+            "content_markdown": "# Postgres archived document\n\nThis page will be archived."
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let document_id = document["id"].as_str().unwrap();
+
+    let (status, archived) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/documents/{document_id}/archive"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(archived["status"], "archived");
+
+    for (method, path, body) in [
+        (
+            Method::PUT,
+            format!("/api/v1/documents/{document_id}/draft"),
+            json!({
+                "title": "Postgres archived document edited",
+                "content_markdown": "# Should not save"
+            }),
+        ),
+        (
+            Method::POST,
+            format!("/api/v1/documents/{document_id}/publish"),
+            json!({ "summary": "Should not publish" }),
+        ),
+        (
+            Method::POST,
+            format!("/api/v1/documents/{document_id}/move"),
+            json!({ "parent_id": Value::Null }),
+        ),
+    ] {
+        let (status, error) = call(&app, method, &path, Some(&token), Some(body)).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(error["error"]["code"], "VALIDATION_ERROR");
+        assert_eq!(
+            error["error"]["message"],
+            "archived document does not accept writes"
+        );
+    }
+
+    let (status, after) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/documents/{document_id}"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(after["status"], "archived");
+    assert_ne!(after["title"], "Postgres archived document edited");
+}
+
+#[tokio::test]
 async fn wiki_postgres_space_member_delete_revokes_access_when_database_available() {
     let Ok(database_url) = env::var("WIKI_TEST_DATABASE_URL") else {
         eprintln!("skipping postgres space member access test: WIKI_TEST_DATABASE_URL is not set");

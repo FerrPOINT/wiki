@@ -357,6 +357,7 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
                 .begin()
                 .await
                 .map_err(shared::AppError::database)?;
+            ensure_document_accepts_writes_tx(&mut tx, command.document_id).await?;
             let row = sqlx::query(
                 r#"
                 UPDATE documents
