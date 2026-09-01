@@ -38,6 +38,13 @@ export function DashboardPage() {
     'Не удалось загрузить обзор Wiki',
   )
 
+  function retryOverview() {
+    void spacesQuery.refetch()
+    void searchQuery.refetch()
+    void tasksQuery.refetch()
+    void phasesQuery.refetch()
+  }
+
   return (
     <div className="space-y-6">
       <section className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -117,7 +124,7 @@ export function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {isLoading && <LoadingState message="Загружаем документы" />}
-            {isError && <ErrorState message={overviewError} />}
+            {isError && <ErrorState message={overviewError} onRetry={retryOverview} />}
             {!isLoading && !isError && recentDocuments.length === 0 && (
               <EmptyState
                 message="В этом пространстве пока нет документов"
@@ -158,7 +165,7 @@ export function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {isLoading && <LoadingState message="Загружаем задачи" />}
-            {isError && <ErrorState message={overviewError} />}
+            {isError && <ErrorState message={overviewError} onRetry={retryOverview} />}
             {!isLoading && !isError && focusTasks.length === 0 && (
               <EmptyState message="Документы ещё не связаны с задачами" />
             )}

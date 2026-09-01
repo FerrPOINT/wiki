@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DashboardPage } from './'
 
@@ -18,6 +18,10 @@ vi.mock('@/api/wiki', () => ({
   listEvidence,
   searchWiki,
 }))
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 function wrapper(children: React.ReactNode) {
   const queryClient = new QueryClient({
@@ -98,5 +102,25 @@ describe('DashboardPage', () => {
     )
     expect(await screen.findByText('Требования к Wiki')).toBeInTheDocument()
     expect(screen.getByText('SDLC-42')).toBeInTheDocument()
+  })
+
+  it('renders overview API errors with a retry action', async () => {
+    listSpaces.mockRejectedValue(new Error('Forbidden'))
+    searchWiki.mockRejectedValue(new Error('Forbidden'))
+    listTasks.mockRejectedValue(new Error('Forbidden'))
+    listPhases.mockRejectedValue(new Error('Forbidden'))
+    listEvidence.mockResolvedValue({ evidence: [] })
+
+    render(wrapper(<DashboardPage />))
+
+    const retryButtons = await screen.findAllByRole('button', { name: /повторить/i })
+    fireEvent.click(retryButtons[0]!)
+
+    await waitFor(() => {
+      expect(listSpaces).toHaveBeenCalledTimes(2)
+      expect(searchWiki).toHaveBeenCalledTimes(2)
+      expect(listTasks).toHaveBeenCalledTimes(2)
+      expect(listPhases).toHaveBeenCalledTimes(2)
+    })
   })
 })
