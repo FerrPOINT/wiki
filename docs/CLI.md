@@ -25,9 +25,21 @@ wiki auth whoami
 ```bash
 wiki space list
 wiki space create --key SDLC --name "SDLC Knowledge Base"
+wiki space update SDLC --name "SDLC Wiki"
+wiki space archive SDLC
 wiki space get SDLC
 wiki space tree SDLC
 wiki space members SDLC
+wiki space member-set SDLC --user <user-id> --role editor
+wiki space member-remove SDLC --user <user-id>
+```
+
+### Users
+
+```bash
+wiki user list
+wiki user create --email editor@example.com --username editor --password secret --name "Editor" --role user
+wiki user update <user-id> --name "Editor Renamed" --role admin --active true
 ```
 
 ### Documents
@@ -35,16 +47,18 @@ wiki space members SDLC
 ```bash
 wiki doc create --space SDLC --title "Requirements" --type requirements --from-file requirements.md
 wiki doc get <document-id>
-wiki doc draft <document-id> --from-file updated.md
+wiki doc draft <document-id> --title "Updated title" --from-file updated.md
 wiki doc publish <document-id> --summary "Clarified scope"
 wiki doc archive <document-id>
 wiki doc move <document-id> --parent <parent-document-id>
 wiki doc history <document-id>
+wiki doc revision <document-id> <revision-id>
 ```
 
 ### Task Pages
 
 ```bash
+wiki task list --space SDLC
 wiki task get --space SDLC --key SDLC-42
 wiki task docs --space SDLC --key SDLC-42
 wiki task evidence --space SDLC --key SDLC-42
@@ -54,6 +68,7 @@ wiki task link-doc --space SDLC --key SDLC-42 --document <document-id>
 ### Phase Pages
 
 ```bash
+wiki phase list --space SDLC
 wiki phase get --space SDLC --key implementation
 wiki phase docs --space SDLC --key implementation
 wiki phase evidence --space SDLC --key implementation
@@ -69,17 +84,27 @@ wiki evidence get <evidence-id>
 wiki evidence list --space SDLC --document <document-id>
 ```
 
+### Attachments
+
+```bash
+wiki attachment get <attachment-id>
+wiki attachment download <attachment-id> --out ./artifact.bin
+```
+
 ### Templates and Search
 
 ```bash
 wiki template list
+wiki template create --name "Release note" --type release_note --from-file release-note.md
 wiki template apply requirements --space SDLC --title "Requirements"
-wiki search query "authorization" --space SDLC --type requirements
+wiki search query "authorization" --space SDLC --type requirements --limit 20
+wiki search query "archived decision" --space SDLC --include-archived
 ```
 
-### Settings
+### Audit and Settings
 
 ```bash
+wiki audit list
 wiki settings get
 ```
 

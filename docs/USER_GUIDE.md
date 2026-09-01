@@ -1,52 +1,58 @@
-# User Guide - Wiki
+# Руководство пользователя - Wiki
 
-## 1. What Wiki Is For
+## 1. Для чего нужна Wiki
 
-Wiki stores the important materials around SDLC tasks: requirements, design notes, implementation notes, test evidence, release notes and incident notes.
+Wiki хранит важные материалы вокруг SDLC-задач: требования, проектные заметки, заметки по реализации, подтверждающие материалы, release notes и incident notes.
 
-## 2. Main Concepts
+## 2. Основные понятия
 
-| Concept       | Meaning                                              |
-| ------------- | ---------------------------------------------------- |
-| Space         | Area for a product, team or workflow context         |
-| Document      | Markdown page with revisions                         |
-| Task dossier  | Knowledge folder linked to an external task          |
-| Phase dossier | Materials for one project-workflow phase             |
-| Evidence      | Link or uploaded file proving a task or phase result |
+| Понятие       | Значение                                                       |
+| ------------- | -------------------------------------------------------------- |
+| Space         | Область для продукта, команды или workflow-контекста           |
+| Document      | Markdown-страница с версиями                                   |
+| Task dossier  | Папка знаний, связанная с внешней задачей                      |
+| Phase dossier | Материалы по одной фазе project-workflow                       |
+| Evidence      | Ссылка или загруженный файл, подтверждающий результат работы   |
 
-## 3. Daily Flow
+## 3. Ежедневный сценарий
 
-1. Open dashboard.
-2. Find the task dossier by task key.
-3. Open linked documents or create a new document.
-4. Publish a revision when the document is ready.
-5. Attach evidence to the relevant phase.
-6. Search by task key, title, tag or evidence source.
+1. Открыть dashboard.
+2. Найти task dossier по ключу задачи.
+3. Открыть связанные документы или создать новый документ.
+4. Опубликовать ревизию, когда документ готов.
+5. Прикрепить evidence к нужной фазе.
+6. Искать материалы по ключу задачи, заголовку, тегу или источнику evidence.
 
-## 4. Document States
+## 4. Состояния документов
 
-| State     | Meaning                                                     |
-| --------- | ----------------------------------------------------------- |
-| draft     | Work in progress                                            |
-| published | Stable revision visible to readers                          |
-| archived  | Hidden from normal navigation, restorable by editors/admins |
+| Состояние | Значение                                                                  |
+| --------- | ------------------------------------------------------------------------- |
+| draft     | Черновик в работе                                                         |
+| published | Стабильная ревизия, видимая читателям                                     |
+| archived  | Документ скрыт из обычной навигации и может быть восстановлен редактором  |
 
-## 5. Evidence Types
+## 5. Типы evidence
 
 - `external_url` - ссылка на CI job, PR, artifact, release check или другой внешний материал.
 - `uploaded_file` - загруженный файл со checksum и metadata.
 
-`source_type` can additionally classify URL/file evidence as CI job, pull request, deployment, test artifact or release proof without adding a separate MVP entity.
+`source_type` дополнительно классифицирует URL/file evidence как CI job, pull request, deployment, test artifact или release proof без добавления отдельной MVP-сущности.
 
-## 6. Search
+## 6. Поиск
 
-Use `/search` to find:
+Страница `/search` помогает найти:
 
-- documents by title/body;
-- task dossier by external task key;
-- phase dossier by workflow phase;
-- evidence by source type or reference.
+- документы по заголовку и тексту;
+- task dossier по внешнему ключу задачи;
+- phase dossier по workflow-фазе;
+- evidence по типу источника или ссылке.
 
-## 7. Permissions
+## 7. Права
 
-Readers can view published content. Editors can create drafts, publish revisions and attach evidence. Space owners can manage members and space metadata; system admins manage users, templates, settings and audit.
+Readers видят опубликованный контент. Editors создают черновики, публикуют ревизии и прикрепляют evidence. Space owners управляют участниками и metadata пространства. System admins управляют пользователями, шаблонами, настройками и аудитом.
+
+## 8. CLI
+
+`wiki` CLI - второй официальный клиент к тому же публичному API, который использует UI. Он нужен для scripted document creation, task/phase evidence capture, администрирования users/members, чтения audit log и скачивания attachments.
+
+CLI-команды не имеют отдельного agent context. Люди, scripts и automation вызывают одни и те же группы: `wiki auth`, `wiki space`, `wiki user`, `wiki doc`, `wiki task`, `wiki phase`, `wiki evidence`, `wiki attachment`, `wiki template`, `wiki audit`, `wiki search` и `wiki settings`.

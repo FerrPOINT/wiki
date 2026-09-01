@@ -27,7 +27,7 @@ The documentation, screenshots, API-backed frontend MVP pages and SQLx-backed MV
 - shared Wiki normalization, access predicates, content helpers, storage-name helpers, password hashing, Wiki JWT/session token helpers and access/refresh token-pair TTL assembly are in `app::wiki`; safe runtime settings snapshot is in `shared::wiki_contract`;
 - auth/session flow validation, spaces/members/tree command validation, document create/draft/publish/archive/move command validation, task/phase dossier normalization/link command assembly, evidence/list/upload payload validation, user create/update validation and password hashing are in `app::wiki`; search q/filter/limit normalization and merge/sort/limit behavior are in `app::wiki`; template create validation/normalization and pool-backed audit command/list boundaries are in `app::wiki`; the PostgreSQL adapter owns SQL/storage details behind repository ports;
 - the API crate no longer declares direct Wiki auth crypto dependencies or production SQLx adapter code after the helper and persistence-boundary extractions;
-- CLI has mocked HTTP smoke coverage for auth, spaces, documents, task/phase dossiers, templates, settings, search, URL/file evidence request flows and API error envelopes; compiled-binary smoke verifies non-zero exit for API errors, Markdown stdin input for `doc create --from-file -`, local missing-file fail-fast behavior before HTTP, env option handling and compact/table output formats;
+- CLI covers the MVP public API groups for auth, users, spaces/member management, documents/revisions, task/phase dossiers, evidence, attachments, templates, audit, search and settings; mocked HTTP smoke coverage verifies path encoding, read/write idempotency behavior, admin/lifecycle commands, URL/file evidence, attachment downloads and API error envelopes; compiled-binary smoke verifies non-zero exit for API errors, Markdown stdin input for `doc create --from-file -`, local missing-file fail-fast behavior before HTTP, env option handling and compact/table output formats;
 - focused frontend component tests cover spaces tree preview/empty state, document editor/revision/linked dossier/evidence/archive read-only states and evidence registry/filter/URL/file submission;
 - frontend API errors are formatted into safe Russian user-facing messages across MVP query/form states, with focused coverage for validation details, permission denied errors, retry actions and document-compose space-key normalization;
 - domain unit tests cover the first Wiki-owned invariants for route-safe keys, required space/document names, revision publish payload, evidence payload shape and attachment metadata;
@@ -65,6 +65,8 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 - Keep UI and CLI as ordinary clients of the same public API.
 
 ## 4. CLI Parity
+
+Current status: the CLI now exposes the MVP public API command groups for humans, scripts and automation without a separate agent model.
 
 - Keep `backend/cli/src/main.rs` aligned with `docs/CLI.md`.
 - Keep CLI edge parity current when adding or changing public API commands.
@@ -109,9 +111,8 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 1. Rerun fresh PostgreSQL smoke with `WIKI_TEST_DATABASE_URL`, including router rebuild persistence, disabled-registration coverage and the space membership delete/revocation regression.
 2. Continue focused repository/API hardening for the remaining PostgreSQL-backed permission edge cases.
 3. Tune PostgreSQL FTS ranking/search filters and capture query-plan evidence for the expected MVP dataset size.
-4. Keep CLI smoke coverage current when the public API or command surface changes.
-5. Remove remaining inherited tracker compatibility modules and the SeaORM migration compatibility layer.
-6. Replace handwritten frontend endpoint wrappers with a generated operation client after the PostgreSQL-backed contract stabilizes.
+4. Remove remaining inherited tracker compatibility modules and the SeaORM migration compatibility layer.
+5. Replace handwritten frontend endpoint wrappers with a generated operation client after the PostgreSQL-backed contract stabilizes.
 
 ## 10. Done Criteria For Backend Start
 

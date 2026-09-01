@@ -46,6 +46,10 @@ enum Commands {
         #[command(subcommand)]
         command: SpaceCommands,
     },
+    User {
+        #[command(subcommand)]
+        command: UserCommands,
+    },
     Doc {
         #[command(subcommand)]
         command: DocCommands,
@@ -62,9 +66,17 @@ enum Commands {
         #[command(subcommand)]
         command: EvidenceCommands,
     },
+    Attachment {
+        #[command(subcommand)]
+        command: AttachmentCommands,
+    },
     Template {
         #[command(subcommand)]
         command: TemplateCommands,
+    },
+    Audit {
+        #[command(subcommand)]
+        command: AuditCommands,
     },
     Search {
         #[command(subcommand)]
@@ -99,6 +111,16 @@ enum SpaceCommands {
         #[arg(long)]
         description: Option<String>,
     },
+    Update {
+        key: String,
+        #[arg(long)]
+        name: Option<String>,
+        #[arg(long)]
+        description: Option<String>,
+    },
+    Archive {
+        key: String,
+    },
     Get {
         key: String,
     },
@@ -108,6 +130,54 @@ enum SpaceCommands {
     Members {
         key: String,
     },
+    MemberSet {
+        key: String,
+        #[arg(long)]
+        user: String,
+        #[arg(long)]
+        role: String,
+    },
+    MemberRemove {
+        key: String,
+        #[arg(long)]
+        user: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum UserCommands {
+    List,
+    Create(UserCreateArgs),
+    Update(UserUpdateArgs),
+}
+
+#[derive(Args)]
+struct UserCreateArgs {
+    #[arg(long)]
+    email: String,
+    #[arg(long)]
+    username: String,
+    #[arg(long)]
+    password: String,
+    #[arg(long)]
+    name: String,
+    #[arg(long, default_value = "user")]
+    role: String,
+}
+
+#[derive(Args)]
+struct UserUpdateArgs {
+    user_id: String,
+    #[arg(long)]
+    email: Option<String>,
+    #[arg(long)]
+    username: Option<String>,
+    #[arg(long)]
+    name: Option<String>,
+    #[arg(long)]
+    role: Option<String>,
+    #[arg(long)]
+    active: Option<bool>,
 }
 
 #[derive(Subcommand)]
@@ -132,6 +202,10 @@ enum DocCommands {
     },
     History {
         document_id: String,
+    },
+    Revision {
+        document_id: String,
+        revision_id: String,
     },
 }
 
@@ -159,11 +233,17 @@ struct DocCreateArgs {
 struct DocContentArgs {
     document_id: String,
     #[arg(long)]
+    title: Option<String>,
+    #[arg(long)]
     from_file: PathBuf,
 }
 
 #[derive(Subcommand)]
 enum TaskCommands {
+    List {
+        #[arg(long)]
+        space: String,
+    },
     Get(LinkTargetArgs),
     Docs(LinkTargetArgs),
     Evidence(LinkTargetArgs),
@@ -172,6 +252,10 @@ enum TaskCommands {
 
 #[derive(Subcommand)]
 enum PhaseCommands {
+    List {
+        #[arg(long)]
+        space: String,
+    },
     Get(LinkTargetArgs),
     Docs(LinkTargetArgs),
     Evidence(LinkTargetArgs),
@@ -212,6 +296,8 @@ enum EvidenceCommands {
         task: Option<String>,
         #[arg(long)]
         phase: Option<String>,
+        #[arg(long)]
+        limit: Option<usize>,
     },
 }
 
@@ -252,9 +338,32 @@ struct EvidenceFileArgs {
 }
 
 #[derive(Subcommand)]
+enum AttachmentCommands {
+    Get {
+        attachment_id: String,
+    },
+    Download {
+        attachment_id: String,
+        #[arg(long)]
+        out: PathBuf,
+    },
+}
+
+#[derive(Subcommand)]
 enum TemplateCommands {
     List,
+    Create(TemplateCreateArgs),
     Apply(TemplateApplyArgs),
+}
+
+#[derive(Args)]
+struct TemplateCreateArgs {
+    #[arg(long)]
+    name: String,
+    #[arg(long = "type")]
+    document_type: String,
+    #[arg(long)]
+    from_file: PathBuf,
 }
 
 #[derive(Args)]
@@ -284,7 +393,16 @@ enum SearchCommands {
         phase: Option<String>,
         #[arg(long = "type")]
         document_type: Option<String>,
+        #[arg(long)]
+        include_archived: bool,
+        #[arg(long)]
+        limit: Option<usize>,
     },
+}
+
+#[derive(Subcommand)]
+enum AuditCommands {
+    List,
 }
 
 #[derive(Subcommand)]
@@ -319,12 +437,42 @@ impl ApiClient {
         self.write_json(Method::PUT, path, body).await
     }
 
+    async fn delete_json(&self, path: &str) -> Result<Value> {
+        self.request(Method::DELETE, path)
+            .header("Idempotency-Key", idempotency_key("write"))
+            .send_json()
+            .await
+    }
+
     async fn post_multipart(&self, path: &str, form: multipart::Form) -> Result<Value> {
         self.request(Method::POST, path)
             .header("Idempotency-Key", idempotency_key("upload"))
             .multipart(form)
             .send_json()
             .await
+    }
+
+    async fn get_bytes(&self, path: &str) -> Result<DownloadedBytes> {
+        let response = self
+            .request(Method::GET, path)
+            .send()
+            .await
+            .context("request failed")?;
+        let status = response.status();
+        let content_type = response
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .map(ToOwned::to_owned);
+        let bytes = response.bytes().await.context("failed to read response")?;
+        if !status.is_success() {
+            let text = String::from_utf8_lossy(&bytes);
+            bail!("{}", format_api_error(status, &text));
+        }
+        Ok(DownloadedBytes {
+            content_type,
+            bytes: bytes.to_vec(),
+        })
     }
 
     async fn write_json(&self, method: Method, path: &str, body: Value) -> Result<Value> {
@@ -343,6 +491,11 @@ impl ApiClient {
             _ => request,
         }
     }
+}
+
+struct DownloadedBytes {
+    content_type: Option<String>,
+    bytes: Vec<u8>,
 }
 
 trait SendJson {
@@ -449,11 +602,14 @@ async fn execute(api: &ApiClient, command: Commands) -> Result<Value> {
     match command {
         Commands::Auth { command } => execute_auth(api, command).await,
         Commands::Space { command } => execute_space(api, command).await,
+        Commands::User { command } => execute_user(api, command).await,
         Commands::Doc { command } => execute_doc(api, command).await,
         Commands::Task { command } => execute_task(api, command).await,
         Commands::Phase { command } => execute_phase(api, command).await,
         Commands::Evidence { command } => execute_evidence(api, command).await,
+        Commands::Attachment { command } => execute_attachment(api, command).await,
         Commands::Template { command } => execute_template(api, command).await,
+        Commands::Audit { command } => execute_audit(api, command).await,
         Commands::Search { command } => execute_search(api, command).await,
         Commands::Settings { command } => execute_settings(api, command).await,
     }
@@ -487,9 +643,67 @@ async fn execute_space(api: &ApiClient, command: SpaceCommands) -> Result<Value>
             )
             .await
         }
+        SpaceCommands::Update {
+            key,
+            name,
+            description,
+        } => {
+            api.put_json(
+                &format!("/spaces/{}", enc(&key)),
+                json!({ "name": name, "description": description }),
+            )
+            .await
+        }
+        SpaceCommands::Archive { key } => {
+            api.post_json(&format!("/spaces/{}/archive", enc(&key)), json!({}))
+                .await
+        }
         SpaceCommands::Get { key } => api.get(&format!("/spaces/{}", enc(&key))).await,
         SpaceCommands::Tree { key } => api.get(&format!("/spaces/{}/tree", enc(&key))).await,
         SpaceCommands::Members { key } => api.get(&format!("/spaces/{}/members", enc(&key))).await,
+        SpaceCommands::MemberSet { key, user, role } => {
+            api.put_json(
+                &format!("/spaces/{}/members/{}", enc(&key), enc(&user)),
+                json!({ "role": role }),
+            )
+            .await
+        }
+        SpaceCommands::MemberRemove { key, user } => {
+            api.delete_json(&format!("/spaces/{}/members/{}", enc(&key), enc(&user)))
+                .await
+        }
+    }
+}
+
+async fn execute_user(api: &ApiClient, command: UserCommands) -> Result<Value> {
+    match command {
+        UserCommands::List => api.get("/users").await,
+        UserCommands::Create(args) => {
+            api.post_json(
+                "/users",
+                json!({
+                    "email": args.email,
+                    "username": args.username,
+                    "password": args.password,
+                    "display_name": args.name,
+                    "role": args.role
+                }),
+            )
+            .await
+        }
+        UserCommands::Update(args) => {
+            api.put_json(
+                &format!("/users/{}", enc(&args.user_id)),
+                json!({
+                    "email": args.email,
+                    "username": args.username,
+                    "display_name": args.name,
+                    "role": args.role,
+                    "active": args.active
+                }),
+            )
+            .await
+        }
     }
 }
 
@@ -518,7 +732,7 @@ async fn execute_doc(api: &ApiClient, command: DocCommands) -> Result<Value> {
             let content = read_markdown(&args.from_file)?;
             api.put_json(
                 &format!("/documents/{}/draft", enc(&args.document_id)),
-                json!({ "content_markdown": content }),
+                json!({ "title": args.title, "content_markdown": content }),
             )
             .await
         }
@@ -553,11 +767,23 @@ async fn execute_doc(api: &ApiClient, command: DocCommands) -> Result<Value> {
             api.get(&format!("/documents/{}/revisions", enc(&document_id)))
                 .await
         }
+        DocCommands::Revision {
+            document_id,
+            revision_id,
+        } => {
+            api.get(&format!(
+                "/documents/{}/revisions/{}",
+                enc(&document_id),
+                enc(&revision_id)
+            ))
+            .await
+        }
     }
 }
 
 async fn execute_task(api: &ApiClient, command: TaskCommands) -> Result<Value> {
     match command {
+        TaskCommands::List { space } => api.get(&format!("/spaces/{}/tasks", enc(&space))).await,
         TaskCommands::Get(args) => api.get(&task_path(&args.space, &args.key)).await,
         TaskCommands::Docs(args) => {
             api.get(&format!("{}/documents", task_path(&args.space, &args.key)))
@@ -579,6 +805,7 @@ async fn execute_task(api: &ApiClient, command: TaskCommands) -> Result<Value> {
 
 async fn execute_phase(api: &ApiClient, command: PhaseCommands) -> Result<Value> {
     match command {
+        PhaseCommands::List { space } => api.get(&format!("/spaces/{}/phases", enc(&space))).await,
         PhaseCommands::Get(args) => api.get(&phase_path(&args.space, &args.key)).await,
         PhaseCommands::Docs(args) => {
             api.get(&format!("{}/documents", phase_path(&args.space, &args.key)))
@@ -650,14 +877,39 @@ async fn execute_evidence(api: &ApiClient, command: EvidenceCommands) -> Result<
             document,
             task,
             phase,
+            limit,
         } => {
             let query = query_string([
                 ("space", space),
                 ("document_id", document),
                 ("task_key", task),
                 ("phase_key", phase),
+                ("limit", limit.map(|value| value.to_string())),
             ]);
             api.get(&format!("/evidence{}", query)).await
+        }
+    }
+}
+
+async fn execute_attachment(api: &ApiClient, command: AttachmentCommands) -> Result<Value> {
+    match command {
+        AttachmentCommands::Get { attachment_id } => {
+            api.get(&format!("/attachments/{}", enc(&attachment_id)))
+                .await
+        }
+        AttachmentCommands::Download { attachment_id, out } => {
+            let download = api
+                .get_bytes(&format!("/attachments/{}/download", enc(&attachment_id)))
+                .await?;
+            std::fs::write(&out, &download.bytes)
+                .with_context(|| format!("failed to write {}", out.display()))?;
+            Ok(json!({
+                "status": "ok",
+                "attachment_id": attachment_id,
+                "path": out.to_string_lossy(),
+                "content_type": download.content_type,
+                "size_bytes": download.bytes.len()
+            }))
         }
     }
 }
@@ -665,6 +917,18 @@ async fn execute_evidence(api: &ApiClient, command: EvidenceCommands) -> Result<
 async fn execute_template(api: &ApiClient, command: TemplateCommands) -> Result<Value> {
     match command {
         TemplateCommands::List => api.get("/templates").await,
+        TemplateCommands::Create(args) => {
+            let body_markdown = read_markdown(&args.from_file)?;
+            api.post_json(
+                "/templates",
+                json!({
+                    "name": args.name,
+                    "document_type": args.document_type,
+                    "body_markdown": body_markdown
+                }),
+            )
+            .await
+        }
         TemplateCommands::Apply(args) => {
             let templates = api.get("/templates").await?;
             let template = find_template(&templates, &args.template)?;
@@ -698,6 +962,8 @@ async fn execute_search(api: &ApiClient, command: SearchCommands) -> Result<Valu
             task,
             phase,
             document_type,
+            include_archived,
+            limit,
         } => {
             let query = query_string([
                 ("q", Some(query)),
@@ -705,9 +971,20 @@ async fn execute_search(api: &ApiClient, command: SearchCommands) -> Result<Valu
                 ("task_key", task),
                 ("phase_key", phase),
                 ("document_type", document_type),
+                (
+                    "include_archived",
+                    include_archived.then(|| "true".to_string()),
+                ),
+                ("limit", limit.map(|value| value.to_string())),
             ]);
             api.get(&format!("/search{}", query)).await
         }
+    }
+}
+
+async fn execute_audit(api: &ApiClient, command: AuditCommands) -> Result<Value> {
+    match command {
+        AuditCommands::List => api.get("/audit-log").await,
     }
 }
 
@@ -916,6 +1193,7 @@ mod tests {
         request: Request<Body>,
     ) -> Response {
         let method = request.method().clone();
+        let is_delete = method == Method::DELETE;
         let path = request
             .uri()
             .path_and_query()
@@ -932,6 +1210,18 @@ mod tests {
             idempotency_key: header_string(&headers, "idempotency-key"),
             body: body.to_vec(),
         });
+
+        if is_delete && path_only.contains("/members/") {
+            return StatusCode::NO_CONTENT.into_response();
+        }
+
+        if path_only.ends_with("/download") {
+            return (
+                [("content-type", "text/plain")],
+                b"downloaded bytes".to_vec(),
+            )
+                .into_response();
+        }
 
         let (status, payload) = match path_only.as_str() {
             "/api/v1/error-object" => (
@@ -1035,6 +1325,8 @@ mod tests {
                     task: Some("SDLC-42".to_string()),
                     phase: Some("testing".to_string()),
                     document_type: Some("requirements".to_string()),
+                    include_archived: true,
+                    limit: Some(25),
                 },
             },
         )
@@ -1047,7 +1339,7 @@ mod tests {
         assert_eq!(requests[0].method, Method::GET);
         assert_eq!(
             requests[0].path,
-            "/api/v1/search?q=release%20gate&space=SDLC%20KB&task_key=SDLC-42&phase_key=testing&document_type=requirements"
+            "/api/v1/search?q=release%20gate&space=SDLC%20KB&task_key=SDLC-42&phase_key=testing&document_type=requirements&include_archived=true&limit=25"
         );
         assert_eq!(
             requests[0].authorization.as_deref(),
@@ -1206,6 +1498,169 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn space_lifecycle_and_member_write_commands_use_public_api_paths() {
+        let server = spawn_mock_server().await;
+        let api = ApiClient::new(server.api_url.clone(), Some("secret-token".to_string()));
+
+        let update = execute(
+            &api,
+            Commands::Space {
+                command: SpaceCommands::Update {
+                    key: "SDLC KB".to_string(),
+                    name: Some("SDLC Wiki".to_string()),
+                    description: Some("Updated description".to_string()),
+                },
+            },
+        )
+        .await
+        .unwrap();
+        let archive = execute(
+            &api,
+            Commands::Space {
+                command: SpaceCommands::Archive {
+                    key: "SDLC KB".to_string(),
+                },
+            },
+        )
+        .await
+        .unwrap();
+        let member_set = execute(
+            &api,
+            Commands::Space {
+                command: SpaceCommands::MemberSet {
+                    key: "SDLC KB".to_string(),
+                    user: "user 1".to_string(),
+                    role: "viewer".to_string(),
+                },
+            },
+        )
+        .await
+        .unwrap();
+        let member_remove = execute(
+            &api,
+            Commands::Space {
+                command: SpaceCommands::MemberRemove {
+                    key: "SDLC KB".to_string(),
+                    user: "user 1".to_string(),
+                },
+            },
+        )
+        .await
+        .unwrap();
+
+        for value in [update, archive, member_set, member_remove] {
+            assert_eq!(value["status"], "ok");
+        }
+
+        let requests = server.requests();
+        assert_eq!(requests.len(), 4);
+
+        let update = &requests[0];
+        assert_eq!(update.method, Method::PUT);
+        assert_eq!(update.path, "/api/v1/spaces/SDLC%20KB");
+        assert_write_idempotency_key(update);
+        let body: Value = serde_json::from_slice(&update.body).unwrap();
+        assert_eq!(body["name"], "SDLC Wiki");
+        assert_eq!(body["description"], "Updated description");
+
+        let archive = &requests[1];
+        assert_eq!(archive.method, Method::POST);
+        assert_eq!(archive.path, "/api/v1/spaces/SDLC%20KB/archive");
+        assert_write_idempotency_key(archive);
+
+        let member_set = &requests[2];
+        assert_eq!(member_set.method, Method::PUT);
+        assert_eq!(member_set.path, "/api/v1/spaces/SDLC%20KB/members/user%201");
+        assert_write_idempotency_key(member_set);
+        let body: Value = serde_json::from_slice(&member_set.body).unwrap();
+        assert_eq!(body["role"], "viewer");
+
+        let member_remove = &requests[3];
+        assert_eq!(member_remove.method, Method::DELETE);
+        assert_eq!(
+            member_remove.path,
+            "/api/v1/spaces/SDLC%20KB/members/user%201"
+        );
+        assert_write_idempotency_key(member_remove);
+    }
+
+    #[tokio::test]
+    async fn user_commands_use_admin_api_paths_and_write_bodies() {
+        let server = spawn_mock_server().await;
+        let api = ApiClient::new(server.api_url.clone(), Some("secret-token".to_string()));
+
+        let list = execute(
+            &api,
+            Commands::User {
+                command: UserCommands::List,
+            },
+        )
+        .await
+        .unwrap();
+        let create = execute(
+            &api,
+            Commands::User {
+                command: UserCommands::Create(UserCreateArgs {
+                    email: "editor@example.com".to_string(),
+                    username: "editor".to_string(),
+                    password: "secret".to_string(),
+                    name: "Editor".to_string(),
+                    role: "user".to_string(),
+                }),
+            },
+        )
+        .await
+        .unwrap();
+        let update = execute(
+            &api,
+            Commands::User {
+                command: UserCommands::Update(UserUpdateArgs {
+                    user_id: "user 1".to_string(),
+                    email: Some("renamed@example.com".to_string()),
+                    username: Some("renamed".to_string()),
+                    name: Some("Renamed User".to_string()),
+                    role: Some("admin".to_string()),
+                    active: Some(false),
+                }),
+            },
+        )
+        .await
+        .unwrap();
+
+        for value in [list, create, update] {
+            assert_eq!(value["status"], "ok");
+        }
+
+        let requests = server.requests();
+        assert_eq!(requests.len(), 3);
+        assert_eq!(requests[0].method, Method::GET);
+        assert_eq!(requests[0].path, "/api/v1/users");
+        assert!(requests[0].idempotency_key.is_none());
+
+        let create = &requests[1];
+        assert_eq!(create.method, Method::POST);
+        assert_eq!(create.path, "/api/v1/users");
+        assert_write_idempotency_key(create);
+        let body: Value = serde_json::from_slice(&create.body).unwrap();
+        assert_eq!(body["email"], "editor@example.com");
+        assert_eq!(body["username"], "editor");
+        assert_eq!(body["password"], "secret");
+        assert_eq!(body["display_name"], "Editor");
+        assert_eq!(body["role"], "user");
+
+        let update = &requests[2];
+        assert_eq!(update.method, Method::PUT);
+        assert_eq!(update.path, "/api/v1/users/user%201");
+        assert_write_idempotency_key(update);
+        let body: Value = serde_json::from_slice(&update.body).unwrap();
+        assert_eq!(body["email"], "renamed@example.com");
+        assert_eq!(body["username"], "renamed");
+        assert_eq!(body["display_name"], "Renamed User");
+        assert_eq!(body["role"], "admin");
+        assert_eq!(body["active"], false);
+    }
+
+    #[tokio::test]
     async fn doc_create_sends_json_body_and_idempotency_key() {
         let server = spawn_mock_server().await;
         let api = ApiClient::new(server.api_url.clone(), Some("secret-token".to_string()));
@@ -1272,6 +1727,7 @@ mod tests {
             Commands::Doc {
                 command: DocCommands::Draft(DocContentArgs {
                     document_id: "product requirements".to_string(),
+                    title: Some("Updated requirements".to_string()),
                     from_file: path.clone(),
                 }),
             },
@@ -1320,14 +1776,25 @@ mod tests {
         )
         .await
         .unwrap();
+        let revision = execute(
+            &api,
+            Commands::Doc {
+                command: DocCommands::Revision {
+                    document_id: "product requirements".to_string(),
+                    revision_id: "revision 1".to_string(),
+                },
+            },
+        )
+        .await
+        .unwrap();
         let _ = std::fs::remove_file(path);
 
-        for value in [draft, publish, archive, move_document, history] {
+        for value in [draft, publish, archive, move_document, history, revision] {
             assert_eq!(value["status"], "ok");
         }
 
         let requests = server.requests();
-        assert_eq!(requests.len(), 5);
+        assert_eq!(requests.len(), 6);
 
         let draft = &requests[0];
         assert_eq!(draft.method, Method::PUT);
@@ -1340,6 +1807,7 @@ mod tests {
                 .is_some_and(|value| value.starts_with("wiki-cli-write-"))
         );
         let body: Value = serde_json::from_slice(&draft.body).unwrap();
+        assert_eq!(body["title"], "Updated requirements");
         assert_eq!(body["content_markdown"], "# Updated\n\nDraft body");
 
         let publish = &requests[1];
@@ -1394,6 +1862,14 @@ mod tests {
             "/api/v1/documents/product%20requirements/revisions"
         );
         assert!(history.idempotency_key.is_none());
+
+        let revision = &requests[5];
+        assert_eq!(revision.method, Method::GET);
+        assert_eq!(
+            revision.path,
+            "/api/v1/documents/product%20requirements/revisions/revision%201"
+        );
+        assert!(revision.idempotency_key.is_none());
     }
 
     #[tokio::test]
@@ -1421,6 +1897,16 @@ mod tests {
         )
         .await
         .unwrap();
+        let attachment = execute(
+            &api,
+            Commands::Attachment {
+                command: AttachmentCommands::Get {
+                    attachment_id: "build log".to_string(),
+                },
+            },
+        )
+        .await
+        .unwrap();
         let templates = execute(
             &api,
             Commands::Template {
@@ -1437,14 +1923,24 @@ mod tests {
         )
         .await
         .unwrap();
+        let audit = execute(
+            &api,
+            Commands::Audit {
+                command: AuditCommands::List,
+            },
+        )
+        .await
+        .unwrap();
 
         assert_eq!(document["status"], "ok");
         assert_eq!(evidence["status"], "ok");
+        assert_eq!(attachment["status"], "ok");
         assert!(templates["templates"].is_array());
         assert_eq!(settings["instance_name"], "Wiki");
+        assert_eq!(audit["status"], "ok");
 
         let requests = server.requests();
-        assert_eq!(requests.len(), 4);
+        assert_eq!(requests.len(), 6);
         assert_eq!(requests[0].method, Method::GET);
         assert_eq!(requests[0].path, "/api/v1/documents/product%20requirements");
         assert!(requests[0].idempotency_key.is_none());
@@ -1452,15 +1948,21 @@ mod tests {
         assert_eq!(requests[1].path, "/api/v1/evidence/smoke%20evidence");
         assert!(requests[1].idempotency_key.is_none());
         assert_eq!(requests[2].method, Method::GET);
-        assert_eq!(requests[2].path, "/api/v1/templates");
+        assert_eq!(requests[2].path, "/api/v1/attachments/build%20log");
         assert!(requests[2].idempotency_key.is_none());
         assert_eq!(requests[3].method, Method::GET);
-        assert_eq!(requests[3].path, "/api/v1/settings");
+        assert_eq!(requests[3].path, "/api/v1/templates");
+        assert!(requests[3].idempotency_key.is_none());
+        assert_eq!(requests[4].method, Method::GET);
+        assert_eq!(requests[4].path, "/api/v1/settings");
         assert_eq!(
-            requests[3].authorization.as_deref(),
+            requests[4].authorization.as_deref(),
             Some("Bearer secret-token")
         );
-        assert!(requests[3].idempotency_key.is_none());
+        assert!(requests[4].idempotency_key.is_none());
+        assert_eq!(requests[5].method, Method::GET);
+        assert_eq!(requests[5].path, "/api/v1/audit-log");
+        assert!(requests[5].idempotency_key.is_none());
     }
 
     #[tokio::test]
@@ -1468,6 +1970,16 @@ mod tests {
         let server = spawn_mock_server().await;
         let api = ApiClient::new(server.api_url.clone(), Some("secret-token".to_string()));
 
+        let task_list = execute(
+            &api,
+            Commands::Task {
+                command: TaskCommands::List {
+                    space: "SDLC KB".to_string(),
+                },
+            },
+        )
+        .await
+        .unwrap();
         let task_get = execute(
             &api,
             Commands::Task {
@@ -1509,6 +2021,16 @@ mod tests {
                     key: "SDLC-42".to_string(),
                     document: "product requirements".to_string(),
                 }),
+            },
+        )
+        .await
+        .unwrap();
+        let phase_list = execute(
+            &api,
+            Commands::Phase {
+                command: PhaseCommands::List {
+                    space: "SDLC KB".to_string(),
+                },
             },
         )
         .await
@@ -1560,10 +2082,12 @@ mod tests {
         .unwrap();
 
         for value in [
+            task_list,
             task_get,
             task_docs,
             task_evidence,
             task_link,
+            phase_list,
             phase_get,
             phase_docs,
             phase_evidence,
@@ -1573,22 +2097,25 @@ mod tests {
         }
 
         let requests = server.requests();
-        assert_eq!(requests.len(), 8);
+        assert_eq!(requests.len(), 10);
         assert_eq!(requests[0].method, Method::GET);
-        assert_eq!(requests[0].path, "/api/v1/spaces/SDLC%20KB/tasks/SDLC-42");
+        assert_eq!(requests[0].path, "/api/v1/spaces/SDLC%20KB/tasks");
         assert!(requests[0].idempotency_key.is_none());
         assert_eq!(requests[1].method, Method::GET);
-        assert_eq!(
-            requests[1].path,
-            "/api/v1/spaces/SDLC%20KB/tasks/SDLC-42/documents"
-        );
+        assert_eq!(requests[1].path, "/api/v1/spaces/SDLC%20KB/tasks/SDLC-42");
+        assert!(requests[1].idempotency_key.is_none());
         assert_eq!(requests[2].method, Method::GET);
         assert_eq!(
             requests[2].path,
+            "/api/v1/spaces/SDLC%20KB/tasks/SDLC-42/documents"
+        );
+        assert_eq!(requests[3].method, Method::GET);
+        assert_eq!(
+            requests[3].path,
             "/api/v1/spaces/SDLC%20KB/tasks/SDLC-42/evidence"
         );
 
-        let task_link = &requests[3];
+        let task_link = &requests[4];
         assert_eq!(task_link.method, Method::POST);
         assert_eq!(
             task_link.path,
@@ -1598,24 +2125,27 @@ mod tests {
         let body: Value = serde_json::from_slice(&task_link.body).unwrap();
         assert_eq!(body["document_id"], "product requirements");
 
-        assert_eq!(requests[4].method, Method::GET);
-        assert_eq!(
-            requests[4].path,
-            "/api/v1/spaces/SDLC%20KB/phases/implementation"
-        );
-        assert!(requests[4].idempotency_key.is_none());
         assert_eq!(requests[5].method, Method::GET);
-        assert_eq!(
-            requests[5].path,
-            "/api/v1/spaces/SDLC%20KB/phases/implementation/documents"
-        );
+        assert_eq!(requests[5].path, "/api/v1/spaces/SDLC%20KB/phases");
+        assert!(requests[5].idempotency_key.is_none());
         assert_eq!(requests[6].method, Method::GET);
         assert_eq!(
             requests[6].path,
+            "/api/v1/spaces/SDLC%20KB/phases/implementation"
+        );
+        assert!(requests[6].idempotency_key.is_none());
+        assert_eq!(requests[7].method, Method::GET);
+        assert_eq!(
+            requests[7].path,
+            "/api/v1/spaces/SDLC%20KB/phases/implementation/documents"
+        );
+        assert_eq!(requests[8].method, Method::GET);
+        assert_eq!(
+            requests[8].path,
             "/api/v1/spaces/SDLC%20KB/phases/implementation/evidence"
         );
 
-        let phase_link = &requests[7];
+        let phase_link = &requests[9];
         assert_eq!(phase_link.method, Method::POST);
         assert_eq!(
             phase_link.path,
@@ -1747,6 +2277,7 @@ mod tests {
                     document: Some("product-requirements".to_string()),
                     task: Some("SDLC-42".to_string()),
                     phase: Some("testing".to_string()),
+                    limit: Some(50),
                 },
             },
         )
@@ -1759,13 +2290,83 @@ mod tests {
         assert_eq!(requests[0].method, Method::GET);
         assert_eq!(
             requests[0].path,
-            "/api/v1/evidence?space=SDLC%20KB&document_id=product-requirements&task_key=SDLC-42&phase_key=testing"
+            "/api/v1/evidence?space=SDLC%20KB&document_id=product-requirements&task_key=SDLC-42&phase_key=testing&limit=50"
         );
         assert_eq!(
             requests[0].authorization.as_deref(),
             Some("Bearer secret-token")
         );
         assert!(requests[0].idempotency_key.is_none());
+    }
+
+    #[tokio::test]
+    async fn attachment_download_writes_file_and_reports_metadata() {
+        let server = spawn_mock_server().await;
+        let api = ApiClient::new(server.api_url.clone(), Some("secret-token".to_string()));
+        let path =
+            std::env::temp_dir().join(format!("wiki-cli-download-{}.txt", idempotency_key("test")));
+
+        let value = execute(
+            &api,
+            Commands::Attachment {
+                command: AttachmentCommands::Download {
+                    attachment_id: "build log".to_string(),
+                    out: path.clone(),
+                },
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(value["status"], "ok");
+        assert_eq!(value["attachment_id"], "build log");
+        assert_eq!(value["content_type"], "text/plain");
+        assert_eq!(value["size_bytes"], b"downloaded bytes".len());
+        assert_eq!(std::fs::read(&path).unwrap(), b"downloaded bytes");
+        let _ = std::fs::remove_file(path);
+
+        let requests = server.requests();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].method, Method::GET);
+        assert_eq!(requests[0].path, "/api/v1/attachments/build%20log/download");
+        assert_eq!(
+            requests[0].authorization.as_deref(),
+            Some("Bearer secret-token")
+        );
+        assert!(requests[0].idempotency_key.is_none());
+    }
+
+    #[tokio::test]
+    async fn template_create_sends_template_body_from_markdown_file() {
+        let server = spawn_mock_server().await;
+        let api = ApiClient::new(server.api_url.clone(), Some("secret-token".to_string()));
+        let path = temp_file("wiki-cli-template", "# Test Plan\n\nTemplate body");
+
+        let value = execute(
+            &api,
+            Commands::Template {
+                command: TemplateCommands::Create(TemplateCreateArgs {
+                    name: "Test Plan".to_string(),
+                    document_type: "test_plan".to_string(),
+                    from_file: path.clone(),
+                }),
+            },
+        )
+        .await
+        .unwrap();
+        let _ = std::fs::remove_file(path);
+
+        assert!(value["templates"].is_array());
+        let requests = server.requests();
+        assert_eq!(requests.len(), 1);
+        let request = &requests[0];
+        assert_eq!(request.method, Method::POST);
+        assert_eq!(request.path, "/api/v1/templates");
+        assert_write_idempotency_key(request);
+        let body: Value = serde_json::from_slice(&request.body).unwrap();
+        assert_eq!(body["name"], "Test Plan");
+        assert_eq!(body["document_type"], "test_plan");
+        assert_eq!(body["body_markdown"], "# Test Plan\n\nTemplate body");
     }
 
     #[tokio::test]

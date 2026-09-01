@@ -199,12 +199,15 @@ CLI повторяет базовые группы API:
 | Группа     | Команды MVP                                                       |
 | ---------- | ----------------------------------------------------------------- |
 | `auth`     | `login`, `logout`, `whoami`                                       |
-| `space`    | `list`, `create`, `get`, `tree`, `members`                        |
-| `doc`      | `create`, `get`, `draft`, `publish`, `archive`, `move`, `history` |
-| `task`     | `get`, `docs`, `evidence`, `link-doc`                             |
-| `phase`    | `get`, `docs`, `evidence`, `link-doc`                             |
+| `user`     | `list`, `create`, `update`                                        |
+| `space`    | `list`, `create`, `update`, `archive`, `get`, `tree`, `members`, `member-set`, `member-remove` |
+| `doc`      | `create`, `get`, `draft`, `publish`, `archive`, `move`, `history`, `revision` |
+| `task`     | `list`, `get`, `docs`, `evidence`, `link-doc`                     |
+| `phase`    | `list`, `get`, `docs`, `evidence`, `link-doc`                     |
 | `evidence` | `add-link`, `add-file`, `get`, `list`                             |
-| `template` | `list`, `apply`                                                   |
+| `attachment` | `get`, `download`                                               |
+| `template` | `list`, `create`, `apply`                                         |
+| `audit`    | `list`                                                            |
 | `search`   | `query`                                                           |
 | `settings` | `get`                                                             |
 
