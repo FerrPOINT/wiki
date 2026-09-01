@@ -341,7 +341,6 @@ export function useCreateFileEvidence() {
         ...evidence,
         evidence_type: 'uploaded_file',
         attachment_id: attachment.id,
-        checksum: attachment.checksum,
       })
     },
     onSuccess: (evidence) => {

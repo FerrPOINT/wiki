@@ -637,8 +637,7 @@ async fn execute_evidence(api: &ApiClient, command: EvidenceCommands) -> Result<
                     "phase_key": args.phase,
                     "evidence_type": args.evidence_type,
                     "title": args.title,
-                    "attachment_id": attachment.get("id").cloned().unwrap_or(Value::Null),
-                    "checksum": attachment.get("checksum").cloned().unwrap_or(Value::Null)
+                    "attachment_id": attachment.get("id").cloned().unwrap_or(Value::Null)
                 }),
             )
             .await
@@ -1732,7 +1731,7 @@ mod tests {
         assert_eq!(body["evidence_type"], "uploaded_file");
         assert_eq!(body["title"], "CLI file evidence");
         assert_eq!(body["attachment_id"], "attachment-1");
-        assert_eq!(body["checksum"], "sha256-test");
+        assert!(body.get("checksum").is_none());
     }
 
     #[tokio::test]
