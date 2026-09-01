@@ -21,7 +21,7 @@
 | CLI | Current | `wiki` CLI covers the MVP public API groups for auth, users, spaces/member management, documents/revisions, task/phase dossiers, evidence, attachments, templates, audit, search and settings. |
 | Frontend API-backed pages | Current | Dashboard, spaces, documents, tasks, phases, evidence, templates, users, settings, admin overview, audit and search read from the public Wiki API; create/edit/publish/archive/move document, create user, URL evidence and file evidence forms call the same API. |
 | Screenshot evidence | Current | 17 desktop and 5 mobile screenshots exist for the MVP page set; README renders the gallery inline and `docs/assets/screens/manifest.md` references the same files. |
-| Documentation set | Current | CI/CD-style documentation filename parity is preserved and docs describe the Wiki MVP rather than task-tracker behavior. |
+| Documentation set | Current | CI/CD-style documentation filename parity is preserved. User guide, test plan and threat model now explicitly cover the MVP page map, API/CLI parity, screenshot evidence and security controls without adding deferred task-tracker scope. |
 
 ## Functional Coverage
 
