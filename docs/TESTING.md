@@ -25,14 +25,14 @@
 
 ### Coverage Priorities
 
-| Area | Target |
-|---|---|
-| Domain invariants | high |
-| Permission checks | high |
-| Publish/revision flow | high |
-| Evidence ingestion | high |
-| Search indexing | medium |
-| Admin settings | medium |
+| Area                  | Target |
+| --------------------- | ------ |
+| Domain invariants     | high   |
+| Permission checks     | high   |
+| Publish/revision flow | high   |
+| Evidence ingestion    | high   |
+| Search indexing       | medium |
+| Admin settings        | medium |
 
 ## 3. Frontend Tests
 
@@ -40,6 +40,7 @@ Unit/component tests:
 
 - app shell navigation, account menu and logout;
 - dashboard;
+- spaces and page tree preview;
 - document editor;
 - revision history;
 - evidence feed;
@@ -66,9 +67,9 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace -- --test-threads=1
 
 cd frontend
-pnpm typecheck
-pnpm test
-pnpm test:e2e
+npm run typecheck
+npm run test
+npm run test:e2e
 ```
 
 ## 5. Fixtures
@@ -88,9 +89,9 @@ Baseline test fixtures:
 - [ ] `cargo fmt --check` clean
 - [ ] `cargo clippy --workspace --all-targets` clean
 - [ ] `cargo test --workspace` green
-- [ ] `pnpm typecheck` clean
-- [ ] `pnpm test` green
-- [ ] `pnpm build` green
+- [ ] `npm run typecheck` clean
+- [ ] `npm run test` green
+- [ ] `npm run build` green
 - [ ] Playwright critical path green
 - [ ] Documentation updated
 

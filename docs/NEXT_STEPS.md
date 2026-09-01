@@ -28,6 +28,7 @@ The documentation, screenshots, API-backed frontend MVP pages and SQLx-backed MV
 - auth/session flow validation, spaces/members/tree command validation, document create/draft/publish/archive/move command validation, task/phase dossier normalization/link command assembly, evidence/list/upload payload validation, user create/update validation and password hashing are in `app::wiki`; search q/filter/limit normalization and merge/sort/limit behavior are in `app::wiki`; template create validation/normalization and pool-backed audit command/list boundaries are in `app::wiki`; the PostgreSQL adapter owns SQL/storage details behind repository ports;
 - the API crate no longer declares direct Wiki auth crypto dependencies or production SQLx adapter code after the helper and persistence-boundary extractions;
 - CLI has mocked HTTP smoke coverage for auth, spaces, documents, task/phase dossiers, templates, settings, search, URL/file evidence request flows and API error envelopes; compiled-binary smoke verifies non-zero exit for API errors, Markdown stdin input for `doc create --from-file -`, local missing-file fail-fast behavior before HTTP, env option handling and compact/table output formats;
+- focused frontend component tests cover spaces tree preview/empty state, document editor/revision/linked dossier/evidence/archive read-only states and evidence registry/filter/URL/file submission;
 - domain unit tests cover the first Wiki-owned invariants for route-safe keys, required space/document names, revision publish payload, evidence payload shape and attachment metadata;
 - deferred areas are documented as reference only.
 
@@ -71,6 +72,7 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 ## 5. Frontend Integration
 
 - Add broader permission denied and validation error coverage on API-backed pages.
+- Keep the current spaces/document/evidence component tests aligned with visible MVP page states when the UI changes.
 - Extract the current page-level document editor, document tree, revision panel and evidence feed into reusable widgets/features as the UI hardens.
 - Keep visible UI text Russian by default.
 - Keep deferred integrations, reports and notifications pages out of MVP routes.
@@ -88,7 +90,7 @@ Current status: runtime router, OpenAPI, API route files and default API tests a
 - Continue expanding backend unit tests for less common domain invariant combinations.
 - Rerun PostgreSQL-backed API smoke with `WIKI_TEST_DATABASE_URL` set, including production backend construction, persistence across router rebuilds, disabled public registration and the env-gated space membership delete/revocation regression.
 - Add repository/API tests beyond the current persistence, permission, audit, archived-document, space membership, revision/search, task/phase boundary and file-evidence smoke for the remaining PostgreSQL-backed permission edge-case combinations.
-- Add frontend component tests for editor/tree/revision/evidence states.
+- Keep frontend component tests current for changed MVP page states and add permission/validation error cases.
 - Keep screenshot evidence regenerated after route or UI changes.
 - Fix local Rust toolchain by installing MSVC Build Tools so `cargo check/test` can run on this host.
 
