@@ -26,6 +26,7 @@ fn test_config() -> Arc<AppConfig> {
             refresh_cookie_path: "/api/v1/auth".to_string(),
         },
         storage: shared::StorageConfig::default(),
+        maintenance: shared::MaintenanceConfig::default(),
         email: EmailConfig::default(),
         bootstrap: shared::BootstrapConfig::default(),
     })

@@ -29,6 +29,7 @@ fn test_config_with_registration(registration_enabled: bool) -> Arc<shared::AppC
             refresh_cookie_path: "/api/v1/auth".to_string(),
         },
         storage: shared::StorageConfig::default(),
+        maintenance: shared::MaintenanceConfig::default(),
         email: shared::EmailConfig::default(),
         bootstrap: shared::BootstrapConfig::default(),
     })
@@ -4319,6 +4320,145 @@ async fn wiki_postgres_idempotency_replays_without_duplicate_writes_when_databas
 
     assert_eq!(evidence_count, 1);
     assert_eq!(audit_count, 1);
+}
+
+#[tokio::test]
+async fn wiki_postgres_maintenance_cleans_expired_staged_attachments_when_database_available() {
+    let Ok(database_url) = env::var("WIKI_TEST_DATABASE_URL") else {
+        eprintln!("skipping postgres maintenance test: WIKI_TEST_DATABASE_URL is not set");
+        return;
+    };
+    reset_postgres(&database_url).await;
+    let storage_dir = env::temp_dir().join(format!("wiki-api-test-{}", Uuid::now_v7()));
+    let (app, config) = postgres_test_app(database_url.clone(), storage_dir.clone()).await;
+    let token = login_admin(&app).await;
+
+    let (status, expired_attachment) = upload_test_file(
+        &app,
+        &token,
+        "expired-staged.txt",
+        "text/plain",
+        b"expired staged attachment bytes",
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let expired_attachment_id = expired_attachment["id"].as_str().unwrap();
+    let expired_attachment_uuid = Uuid::parse_str(expired_attachment_id).unwrap();
+
+    let (status, claimed_attachment) = upload_test_file(
+        &app,
+        &token,
+        "claimed-staged.txt",
+        "text/plain",
+        b"claimed attachment bytes",
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let claimed_attachment_id = claimed_attachment["id"].as_str().unwrap();
+    let claimed_attachment_uuid = Uuid::parse_str(claimed_attachment_id).unwrap();
+
+    let (status, claimed_evidence) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(&token),
+        Some(json!({
+            "space": "SDLC",
+            "task_key": "MAINT-1",
+            "title": "Claimed file evidence",
+            "evidence_type": "uploaded_file",
+            "attachment_id": claimed_attachment_id
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(claimed_evidence["attachment_id"], claimed_attachment_id);
+
+    let expired_path = storage_dir
+        .join("attachments")
+        .join(expired_attachment_id)
+        .join("expired-staged.txt");
+    let claimed_path = storage_dir
+        .join("attachments")
+        .join(claimed_attachment_id)
+        .join("claimed-staged.txt");
+    assert!(expired_path.exists());
+    assert!(claimed_path.exists());
+
+    let pool = PgPoolOptions::new()
+        .max_connections(1)
+        .connect(&database_url)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE attachments SET uploaded_at = now() - interval '25 hours' WHERE id = $1")
+        .bind(expired_attachment_uuid)
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE attachments SET uploaded_at = now() - interval '25 hours' WHERE id = $1")
+        .bind(claimed_attachment_uuid)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let admin_id: Uuid = sqlx::query_scalar("SELECT id FROM users WHERE email = $1")
+        .bind("admin@example.com")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    sqlx::query(
+        r#"
+        INSERT INTO idempotency_records (
+            id, actor_id, idempotency_key, method, path, request_hash, state,
+            response_status, response_body, created_at, updated_at, expires_at
+        )
+        VALUES (
+            $1, $2, 'expired-maintenance-key', 'POST', '/api/v1/evidence',
+            'expired-hash', 'completed', 201, $3, now() - interval '25 hours',
+            now() - interval '25 hours', now() - interval '1 hour'
+        )
+        "#,
+    )
+    .bind(Uuid::now_v7())
+    .bind(admin_id)
+    .bind(Vec::<u8>::from(b"{}".as_slice()))
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let storage = Arc::new(infra::LocalWikiAttachmentStorage::new(&config.storage.dir));
+    let (backend, _) = infra::connect_postgres_wiki_backend(&config, storage)
+        .await
+        .unwrap();
+    let report = backend.run_maintenance().await.unwrap();
+
+    let expired_rows: i64 = sqlx::query_scalar("SELECT count(*) FROM attachments WHERE id = $1")
+        .bind(expired_attachment_uuid)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let claimed_rows: i64 = sqlx::query_scalar("SELECT count(*) FROM attachments WHERE id = $1")
+        .bind(claimed_attachment_uuid)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let expired_idempotency_rows: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM idempotency_records WHERE idempotency_key = $1")
+            .bind("expired-maintenance-key")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    pool.close().await;
+
+    assert_eq!(report.expired_staged_attachments_deleted, 1);
+    assert_eq!(report.expired_staged_attachment_file_delete_failures, 0);
+    assert_eq!(report.expired_idempotency_records_deleted, 1);
+    assert_eq!(expired_rows, 0);
+    assert_eq!(claimed_rows, 1);
+    assert_eq!(expired_idempotency_rows, 0);
+    assert!(!expired_path.exists());
+    assert!(claimed_path.exists());
+
+    let _ = tokio::fs::remove_dir_all(storage_dir).await;
 }
 
 #[tokio::test]

@@ -49,6 +49,8 @@ impl PostgresWikiBackend {
             auth: config.auth.clone(),
             storage,
             max_upload_bytes: config.storage.max_upload_bytes,
+            staged_attachment_ttl_hours: config.maintenance.staged_attachment_ttl_hours,
+            maintenance_batch_size: config.maintenance.batch_size,
             settings: WikiSettingsSnapshot::from_config(config),
         };
         backend.bootstrap(&config.bootstrap).await?;

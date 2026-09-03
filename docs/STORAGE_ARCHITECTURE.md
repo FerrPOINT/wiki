@@ -13,12 +13,13 @@
 
 ## 2. Object Keys
 
-Object keys include owner type and owner ID. Keys are generated server-side and never trust client paths.
+Object keys are generated server-side from the attachment ID and sanitized filename. Clients never send or receive raw storage paths.
 
 ```text
-attachments/documents/{document_id}/{attachment_id}/{filename}
-attachments/evidence/{evidence_id}/{attachment_id}/{filename}
+attachments/{attachment_id}/{filename}
 ```
+
+Owner-specific object key layouts can be introduced later if document or revision attachments become part of the public API.
 
 ## 3. Integrity
 

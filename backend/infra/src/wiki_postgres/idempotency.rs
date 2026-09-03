@@ -10,7 +10,7 @@ impl PostgresWikiBackend {
         request: WikiIdempotencyRequest,
     ) -> Result<WikiIdempotencyStatus, shared::AppError> {
         let actor_id = parse_uuid(&request.actor_id, "user")?;
-        self.delete_expired_idempotency_records().await?;
+        let _ = self.delete_expired_idempotency_records().await?;
 
         let inserted = sqlx::query_scalar::<_, Uuid>(
             r#"
@@ -170,11 +170,12 @@ impl PostgresWikiBackend {
         Ok(())
     }
 
-    async fn delete_expired_idempotency_records(&self) -> Result<(), shared::AppError> {
-        sqlx::query("DELETE FROM idempotency_records WHERE expires_at < now()")
+    pub(super) async fn delete_expired_idempotency_records(&self) -> Result<u64, shared::AppError> {
+        let rows = sqlx::query("DELETE FROM idempotency_records WHERE expires_at < now()")
             .execute(&self.pool)
             .await
-            .map_err(shared::AppError::database)?;
-        Ok(())
+            .map_err(shared::AppError::database)?
+            .rows_affected();
+        Ok(rows)
     }
 }

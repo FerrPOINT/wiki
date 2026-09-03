@@ -31,6 +31,7 @@ The remaining work is hardening and release readiness, not expansion of product 
 - Keep focused PostgreSQL-backed tests for viewer/editor/space-admin/global-admin boundary combinations, and extend them when new endpoints are added.
 - Keep negative tests for archived spaces/documents across document, evidence and task/phase link write commands.
 - Keep attachment tests covering missing bytes, runtime size limits, unsafe names, unsafe storage keys, reused staged uploads and owner-space mismatch.
+- Keep PostgreSQL maintenance coverage for expired staged uploads and expired idempotency replay rows.
 - Keep audit writes in the same transaction as the command that caused them.
 - Keep route handlers behind app use cases/repository ports; handlers should not know concrete SQL/storage details.
 

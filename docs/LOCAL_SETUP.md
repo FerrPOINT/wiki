@@ -62,7 +62,9 @@ Frontend dev-сервер доступен по `http://localhost:5173`. Docker 
 WIKI_DATABASE__URL=postgres://wiki:[CHANGE_ME]@localhost:3457/wiki
 WIKI_JWT_SECRET=[CHANGE_ME_32BYTES_MIN]
 WIKI_STORAGE__DIR=/var/lib/wiki/uploads
+# 25 MiB
 WIKI_STORAGE__MAX_UPLOAD_BYTES=26214400
+WIKI_MAINTENANCE__ENABLED=true
 WIKI_BOOTSTRAP__ADMIN_EMAIL=admin@example.com
 WIKI_BOOTSTRAP__ADMIN_PASSWORD=change-me-before-use
 VITE_API_BASE_URL=http://127.0.0.1:3456/api/v1

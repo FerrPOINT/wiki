@@ -92,7 +92,7 @@ No bulk endpoints are part of MVP. Future bulk evidence ingest or document impor
 |---|---|
 | JSON body | 10 MiB |
 | Future bulk items | 100 |
-| Single attachment | 50 MiB |
+| Single attachment | 25 MiB default, configurable |
 | Query params length | 4096 chars |
 
 ## 9. Deep Linking

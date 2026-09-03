@@ -17,6 +17,7 @@ Wiki хранит вложения документов и материалы ev
 ```env
 WIKI_STORAGE__DIR=/var/lib/wiki/uploads
 WIKI_STORAGE__MAX_UPLOAD_BYTES=26214400
+WIKI_MAINTENANCE__STAGED_ATTACHMENT_TTL_HOURS=24
 ```
 
 ## 4. WikiAttachmentStorage Port
@@ -38,16 +39,16 @@ pub trait WikiAttachmentStorage: Send + Sync {
 4. File is written to object storage.
 5. Attachment metadata is saved in PostgreSQL without owner fields yet.
 6. When `uploaded_file` evidence is created, backend atomically claims only the caller's staged attachment in the same transaction by setting `space_id`, `owner_entity_type = evidence` and `owner_entity_id`.
-7. Optional maintenance jobs may clean expired staged files after the base storage flow is stable.
+7. Backend maintenance removes unclaimed staged files after `WIKI_MAINTENANCE__STAGED_ATTACHMENT_TTL_HOURS`.
 
 ## 6. Storage Path Schema
 
 ```text
 attachments/
-  documents/{document_id}/{attachment_id}/{sanitized_filename}
-  revisions/{revision_id}/{attachment_id}/{sanitized_filename}
-  evidence/{evidence_id}/{attachment_id}/{sanitized_filename}
+  {attachment_id}/{sanitized_filename}
 ```
+
+Richer owner-specific paths for document or revision attachments are deferred until those attachment types exist in the API.
 
 ## 7. Attachment Entity
 
@@ -90,7 +91,7 @@ Attachment delete, preview generation and document attachment listing are deferr
 
 | Entity           | Default Limit |
 | ---------------- | ------------- |
-| Per attachment   | 50 MiB        |
+| Per attachment   | 25 MiB        |
 | Per document     | 500 MiB       |
 | Per task dossier | 2 GiB         |
 | Per space        | 50 GiB        |

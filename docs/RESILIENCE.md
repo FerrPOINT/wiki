@@ -56,17 +56,18 @@ Bulk evidence creation and document import are deferred. If added later, they mu
 | Limit | Value |
 |-------|-------|
 | Max request body | 10 MB |
-| Max attachments total | 50 MB |
+| Max attachment upload | 25 MiB default, configurable |
 | Max bulk items | 100 |
 | Max search result set | 1000 (paginated) |
 | Max page size | 100 |
 | Default page size | 20 |
 
-## 8. Retry for Maintenance Jobs
+## 8. Maintenance Jobs
 
-- Maintenance jobs are optional after MVP backend migration.
-- Retry: 3 attempts with exponential delay.
-- After 3 failures, record an audit/admin event for operator review.
+- Backend may run an in-process maintenance loop without a separate worker.
+- Each pass removes expired unclaimed staged attachments and expired idempotency replay records.
+- Cleanup queries are bounded and idempotent under scale-out.
+- File delete failures are logged for operator review; the public API and CLI surface do not expose maintenance routes.
 
 ## 9. Cross-Project Isolation
 

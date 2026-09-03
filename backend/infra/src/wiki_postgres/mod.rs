@@ -5,6 +5,7 @@ mod dossiers;
 mod evidence;
 mod idempotency;
 mod identity;
+mod maintenance;
 mod mapping;
 mod queries;
 mod search;
@@ -25,6 +26,8 @@ struct PostgresWikiBackend {
     auth: shared::AuthConfig,
     storage: Arc<dyn domain::wiki::WikiAttachmentStorage>,
     max_upload_bytes: usize,
+    staged_attachment_ttl_hours: u32,
+    maintenance_batch_size: u32,
     settings: WikiSettingsSnapshot,
 }
 
@@ -186,6 +189,10 @@ impl WikiBackendPort for PostgresWikiBackend {
             .await
             .map_err(shared::AppError::database)?;
         Ok(())
+    }
+
+    async fn run_maintenance(&self) -> Result<WikiMaintenanceReport, shared::AppError> {
+        PostgresWikiBackend::run_maintenance(self).await
     }
 
     async fn authenticate_access_token(&self, token: &str) -> Result<WikiClaims, shared::AppError> {

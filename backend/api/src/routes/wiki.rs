@@ -79,6 +79,13 @@ impl WikiBackend {
         Ok(())
     }
 
+    pub async fn run_maintenance(&self) -> Result<WikiMaintenanceReport, shared::AppError> {
+        if let Some(persistent) = self.persistent_backend() {
+            return persistent.run_maintenance().await;
+        }
+        Ok(WikiMaintenanceReport::default())
+    }
+
     fn registration_enabled(&self) -> bool {
         self.settings.registration_enabled
     }

@@ -74,9 +74,27 @@ pub enum WikiIdempotencyStatus {
     Replay(WikiIdempotencyReplay),
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct WikiMaintenanceReport {
+    pub expired_staged_attachments_deleted: u64,
+    pub expired_staged_attachment_file_delete_failures: u64,
+    pub expired_idempotency_records_deleted: u64,
+}
+
+impl WikiMaintenanceReport {
+    pub fn is_empty(self) -> bool {
+        self.expired_staged_attachments_deleted == 0
+            && self.expired_staged_attachment_file_delete_failures == 0
+            && self.expired_idempotency_records_deleted == 0
+    }
+}
+
 #[async_trait::async_trait]
 pub trait WikiBackendPort: Send + Sync {
     async fn readiness_check(&self) -> Result<(), AppError>;
+    async fn run_maintenance(&self) -> Result<WikiMaintenanceReport, AppError> {
+        Ok(WikiMaintenanceReport::default())
+    }
     async fn authenticate_access_token(&self, token: &str) -> Result<WikiClaims, AppError>;
     async fn begin_idempotent_request(
         &self,

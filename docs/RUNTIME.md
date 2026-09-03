@@ -69,13 +69,16 @@
 | `max_connections` PostgreSQL | 200 | connection pool |
 | Backend connection pool | 20-50 | per instance |
 | Request body | 10 MB | JSON payloads |
-| Upload file | 50 MB | attachments |
+| Upload file | 25 MiB default, configurable | attachments |
 
 ## 7. Maintenance Jobs
 
 - MVP can run without a separate worker process.
-- Optional in-process maintenance jobs may cleanup expired temporary files.
-- Retry policy: 3 attempts, then audit/admin event.
+- Backend starts an optional in-process maintenance loop when `WIKI_MAINTENANCE__ENABLED=true`.
+- Each pass removes expired unclaimed staged attachments older than `WIKI_MAINTENANCE__STAGED_ATTACHMENT_TTL_HOURS`.
+- The same pass prunes expired server-side idempotency replay records.
+- Cleanup is bounded by `WIKI_MAINTENANCE__BATCH_SIZE` and is safe under scale-out through row-level locking with `SKIP LOCKED`.
+- Physical file delete failures are logged and counted in the internal maintenance report.
 
 ## 8. Watchdogs
 

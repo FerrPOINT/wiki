@@ -6,7 +6,7 @@
 - PostgreSQL.
 - Attachment storage: filesystem in MVP, MinIO/S3-compatible adapter later if needed.
 - Frontend static app.
-- Optional in-process maintenance jobs for cleanup after backend domain migration.
+- Optional in-process maintenance loop for expired staged uploads and idempotency records.
 
 ## 2. Health Checks
 
@@ -22,7 +22,7 @@
 - Monitor search freshness and upload failures.
 - Rotate JWT/refresh secrets; rotate future API tokens only if that deferred scope is enabled.
 - Review audit logs for permission changes.
-- Clean expired temporary files.
+- Confirm maintenance logs do not show repeated staged attachment file delete failures.
 
 ## 4. Deployment Checklist
 
@@ -55,6 +55,7 @@
 | Search stale | Check PostgreSQL FTS update path |
 | Upload failure | Check storage credentials/quota |
 | Duplicate evidence | Check idempotency keys and source refs |
+| Growing staged upload storage | Check `WIKI_MAINTENANCE__*`, backend logs and storage write/delete permissions |
 | Permission leak suspicion | Disable affected user/session, inspect audit |
 
 ## 7. References

@@ -17,6 +17,8 @@ pub struct AppConfig {
     #[serde(default)]
     pub storage: StorageConfig,
     #[serde(default)]
+    pub maintenance: MaintenanceConfig,
+    #[serde(default)]
     pub email: EmailConfig,
     #[serde(default)]
     pub bootstrap: BootstrapConfig,
@@ -84,6 +86,25 @@ impl Default for StorageConfig {
         Self {
             dir: "/var/lib/wiki/uploads".to_string(),
             max_upload_bytes: 25 * 1024 * 1024,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MaintenanceConfig {
+    pub enabled: bool,
+    pub interval_seconds: u64,
+    pub staged_attachment_ttl_hours: u32,
+    pub batch_size: u32,
+}
+
+impl Default for MaintenanceConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            interval_seconds: 3600,
+            staged_attachment_ttl_hours: 24,
+            batch_size: 100,
         }
     }
 }
@@ -177,6 +198,10 @@ impl AppConfig {
             .set_default("auth.refresh_cookie_path", "/api/v1/auth")?
             .set_default("storage.dir", "/var/lib/wiki/uploads")?
             .set_default("storage.max_upload_bytes", 26214400u64)?
+            .set_default("maintenance.enabled", true)?
+            .set_default("maintenance.interval_seconds", 3600u64)?
+            .set_default("maintenance.staged_attachment_ttl_hours", 24u32)?
+            .set_default("maintenance.batch_size", 100u32)?
             .set_default("bootstrap.admin_email", Option::<String>::None)?
             .set_default("bootstrap.admin_username", Option::<String>::None)?
             .set_default("bootstrap.admin_password", Option::<String>::None)?
@@ -282,6 +307,21 @@ impl AppConfig {
         if cfg.server.auth_rate_burst == 0 || cfg.server.general_rate_burst == 0 {
             return Err(ConfigError::Message(
                 "server rate-limit bursts must be at least 1".to_string(),
+            ));
+        }
+        if cfg.maintenance.interval_seconds == 0 {
+            return Err(ConfigError::Message(
+                "maintenance.interval_seconds must be greater than zero".to_string(),
+            ));
+        }
+        if cfg.maintenance.staged_attachment_ttl_hours == 0 {
+            return Err(ConfigError::Message(
+                "maintenance.staged_attachment_ttl_hours must be greater than zero".to_string(),
+            ));
+        }
+        if cfg.maintenance.batch_size == 0 || cfg.maintenance.batch_size > 1000 {
+            return Err(ConfigError::Message(
+                "maintenance.batch_size must be between 1 and 1000".to_string(),
             ));
         }
 

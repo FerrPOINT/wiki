@@ -36,6 +36,10 @@ fn clear_env() {
         "WIKI_EMAIL__FROM_ADDRESS",
         "WIKI_EMAIL__FROM_NAME",
         "WIKI_EMAIL__STARTTLS",
+        "WIKI_MAINTENANCE__ENABLED",
+        "WIKI_MAINTENANCE__INTERVAL_SECONDS",
+        "WIKI_MAINTENANCE__STAGED_ATTACHMENT_TTL_HOURS",
+        "WIKI_MAINTENANCE__BATCH_SIZE",
         "WIKI_SERVER__AUTH_RATE_BURST",
         "WIKI_SERVER__AUTH_RATE_PERIOD_SECS",
         "WIKI_SERVER__GENERAL_RATE_BURST",
@@ -84,6 +88,10 @@ fn config_scenarios() {
     assert_eq!(cfg.database.url, "");
     assert_eq!(cfg.auth.jwt_secret, "test-secret-32-chars-long!!!!!");
     assert_eq!(cfg.bootstrap.admin_email, None);
+    assert!(cfg.maintenance.enabled);
+    assert_eq!(cfg.maintenance.interval_seconds, 3600);
+    assert_eq!(cfg.maintenance.staged_attachment_ttl_hours, 24);
+    assert_eq!(cfg.maintenance.batch_size, 100);
     set_env("WIKI_DATABASE__URL", "postgres://u:***@localhost:5432/db");
     set_env("WIKI_DATABASE__MAX_CONNECTIONS", "42");
     set_env("WIKI_DATABASE__MIN_CONNECTIONS", "3");
@@ -98,6 +106,10 @@ fn config_scenarios() {
     set_env("WIKI_AUTH__REFRESH_TOKEN_TTL_DAYS", "14");
     set_env("WIKI_AUTH__REGISTRATION_ENABLED", "false");
     set_env("WIKI_AUTH__JWT_SECRET", "test-secret-32-chars-long!!!!!");
+    set_env("WIKI_MAINTENANCE__ENABLED", "false");
+    set_env("WIKI_MAINTENANCE__INTERVAL_SECONDS", "30");
+    set_env("WIKI_MAINTENANCE__STAGED_ATTACHMENT_TTL_HOURS", "2");
+    set_env("WIKI_MAINTENANCE__BATCH_SIZE", "25");
     let cfg = AppConfig::from_path("/nonexistent.toml").unwrap();
     assert_eq!(cfg.server.port, 19876);
     assert_eq!(
@@ -117,6 +129,10 @@ fn config_scenarios() {
     assert_eq!(cfg.database.idle_timeout_seconds, 300);
     assert_eq!(cfg.database.max_connections, 42);
     assert_eq!(cfg.database.min_connections, 3);
+    assert!(!cfg.maintenance.enabled);
+    assert_eq!(cfg.maintenance.interval_seconds, 30);
+    assert_eq!(cfg.maintenance.staged_attachment_ttl_hours, 2);
+    assert_eq!(cfg.maintenance.batch_size, 25);
 
     set_env("WIKI_ADMIN_EMAIL", "admin@example.test");
     set_env("WIKI_ADMIN_USERNAME", "admin");
@@ -152,6 +168,8 @@ fn config_defaults_implemented() {
     assert_eq!(cfg.database.max_connections, 20);
     assert_eq!(cfg.auth.jwt_secret, "[CHANGE_ME]");
     assert!(cfg.auth.registration_enabled);
+    assert!(cfg.maintenance.enabled);
+    assert_eq!(cfg.maintenance.interval_seconds, 3600);
 }
 
 #[test]
@@ -257,6 +275,34 @@ fn rate_limit_zero_values_rejected() {
     unsafe { env::set_var("WIKI_SERVER__GENERAL_RATE_PERIOD_SECS", "0") };
     let err = AppConfig::from_path("/nonexistent.toml");
     assert!(err.is_err(), "zero general period must be a config error");
+}
+
+#[test]
+fn maintenance_zero_and_oversized_values_rejected() {
+    let _guard = ENV_LOCK.lock().unwrap();
+
+    clear_env();
+    set_env("WIKI_JWT_SECRET", "test-secret-32-chars-long!!!!!");
+    set_env("WIKI_MAINTENANCE__INTERVAL_SECONDS", "0");
+    let err = AppConfig::from_path("/nonexistent.toml").unwrap_err();
+    assert!(err.to_string().contains("maintenance.interval_seconds"));
+
+    clear_env();
+    set_env("WIKI_JWT_SECRET", "test-secret-32-chars-long!!!!!");
+    set_env("WIKI_MAINTENANCE__STAGED_ATTACHMENT_TTL_HOURS", "0");
+    let err = AppConfig::from_path("/nonexistent.toml").unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("maintenance.staged_attachment_ttl_hours")
+    );
+
+    clear_env();
+    set_env("WIKI_JWT_SECRET", "test-secret-32-chars-long!!!!!");
+    set_env("WIKI_MAINTENANCE__BATCH_SIZE", "1001");
+    let err = AppConfig::from_path("/nonexistent.toml").unwrap_err();
+    assert!(err.to_string().contains("maintenance.batch_size"));
+
+    clear_env();
 }
 
 #[test]

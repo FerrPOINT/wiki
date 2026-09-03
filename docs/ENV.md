@@ -44,10 +44,21 @@ Production `server` startup fails fast when `WIKI_DATABASE__URL` is empty. The i
 
 | Variable                         | Default                 | Description              |
 | -------------------------------- | ----------------------- | ------------------------ |
-| `WIKI_STORAGE__DIR`              | `/var/lib/wiki/uploads` | Local storage path       |
-| `WIKI_STORAGE__MAX_UPLOAD_BYTES` | `26214400`              | Max upload size in bytes |
+| `WIKI_STORAGE__DIR`              | `/var/lib/wiki/uploads` | Local storage path                |
+| `WIKI_STORAGE__MAX_UPLOAD_BYTES` | `26214400`              | Max upload size in bytes, 25 MiB |
 
-## 6. Bootstrap Admin
+## 6. Maintenance
+
+| Variable                                        | Default | Description                                      |
+| ----------------------------------------------- | ------- | ------------------------------------------------ |
+| `WIKI_MAINTENANCE__ENABLED`                     | `true`  | Enables in-process maintenance loop              |
+| `WIKI_MAINTENANCE__INTERVAL_SECONDS`            | `3600`  | Delay between maintenance passes                 |
+| `WIKI_MAINTENANCE__STAGED_ATTACHMENT_TTL_HOURS` | `24`    | Age after which unclaimed uploads may be removed |
+| `WIKI_MAINTENANCE__BATCH_SIZE`                  | `100`   | Max rows cleaned per maintenance pass            |
+
+Maintenance is an internal backend concern. It does not expose public API routes or CLI commands.
+
+## 7. Bootstrap Admin
 
 | Variable                             | Description                                                        |
 | ------------------------------------ | ------------------------------------------------------------------ |
@@ -60,7 +71,7 @@ Backwards-compatible aliases are also accepted: `WIKI_ADMIN_EMAIL`, `WIKI_ADMIN_
 
 When email and password are set, backend startup creates or updates that admin, ensures the `SDLC` space exists and seeds default document templates. Without these variables PostgreSQL starts with no default account.
 
-## 7. Future External Sources
+## 8. Future External Sources
 
 | Variable                    | Description                    |
 | --------------------------- | ------------------------------ |
@@ -70,13 +81,13 @@ When email and password are set, backend startup creates or updates that admin, 
 
 These variables are not required for MVP.
 
-## 8. Frontend
+## 9. Frontend
 
 | Variable            | Default                        | Description   |
 | ------------------- | ------------------------------ | ------------- |
 | `VITE_API_BASE_URL` | `http://127.0.0.1:3456/api/v1` | API base path |
 
-## 9. Security Notes
+## 10. Security Notes
 
 - Never commit real secrets.
 - Rotate secrets independently per environment.
