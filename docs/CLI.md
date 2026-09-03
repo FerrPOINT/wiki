@@ -96,6 +96,8 @@ wiki doc history <document-id> --limit 20
 wiki doc revision <document-id> <revision-id>
 ```
 
+`wiki doc get` возвращает опубликованные `body_markdown`/`body_html`; `draft_markdown` заполняется только когда API отдаёт `can_edit=true`.
+
 ### Task Pages
 
 ```bash

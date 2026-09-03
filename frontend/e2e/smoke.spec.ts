@@ -98,6 +98,7 @@ const document = {
   title: 'Требования к Wiki MVP',
   document_type: 'requirements',
   status: 'published',
+  can_edit: true,
   body_markdown: documentBodyMarkdown,
   body_html: renderMockMarkdown(documentBodyMarkdown),
   draft_markdown: documentBodyMarkdown,
@@ -324,7 +325,7 @@ async function installWikiApiMocks(page: Page) {
       return routeJson(route, revision)
     }
     if (method === 'POST' && path === '/documents/product-requirements/archive') {
-      currentDocument = { ...currentDocument, status: 'archived', updated_at: now }
+      currentDocument = { ...currentDocument, status: 'archived', can_edit: false, updated_at: now }
       return routeJson(route, currentDocument)
     }
     if (method === 'POST' && path === '/documents/product-requirements/move') {

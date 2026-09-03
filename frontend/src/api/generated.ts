@@ -61,6 +61,7 @@ export type components = {
     DocumentResponse: {
       body_html: string
       body_markdown: string
+      can_edit: boolean
       created_at: string
       created_by: string
       current_revision?: null | components['schemas']['DocumentRevisionResponse']

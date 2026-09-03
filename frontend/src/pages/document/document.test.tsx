@@ -45,6 +45,7 @@ const baseRevision: DocumentRevision = {
 const baseDocument: Document = {
   body_markdown: '# Published',
   body_html: '<h1>Published</h1><p>Approved body</p>',
+  can_edit: true,
   created_at: '2026-08-31T10:00:00Z',
   created_by: 'user-editor',
   current_revision: baseRevision,
@@ -153,6 +154,22 @@ describe('DocumentPage', () => {
     expect(screen.getByRole('link', { name: /Smoke proof/ })).toHaveAttribute('href', '/evidence')
   })
 
+  it('keeps viewer document access read-only without exposing the draft', () => {
+    setupDocument({
+      ...baseDocument,
+      can_edit: false,
+      draft_markdown: '',
+    })
+
+    expect(screen.getByRole('heading', { name: 'Требования Wiki' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Published' })).toBeInTheDocument()
+    expect(screen.getByText('Approved body')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Режим чтения' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Markdown черновика')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Родительский документ')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Архивировать' })).not.toBeInTheDocument()
+  })
+
   it('opens a specific immutable revision through the revision detail hook', () => {
     setupDocument()
 
@@ -248,6 +265,7 @@ describe('DocumentPage', () => {
       ...baseDocument,
       current_revision: null,
       body_html: '',
+      can_edit: false,
       draft_markdown: '',
       evidence: [],
       parent_id: null,
@@ -256,13 +274,14 @@ describe('DocumentPage', () => {
       task_keys: [],
     })
 
-    expect(screen.getByRole('button', { name: 'Архивировать' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Сохранить' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Опубликовать' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Сохранить место' })).toBeDisabled()
-    expect(screen.getByLabelText('Название')).toBeDisabled()
-    expect(screen.getByLabelText('Markdown черновика')).toBeDisabled()
-    expect(screen.getByLabelText('Родительский документ')).toBeDisabled()
+    expect(screen.getByRole('heading', { name: 'Режим чтения' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Архивировать' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Сохранить' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Опубликовать' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Сохранить место' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Название')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Markdown черновика')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Родительский документ')).not.toBeInTheDocument()
     expect(screen.getByText('Документ пока не связан с задачей или фазой')).toBeInTheDocument()
     expect(screen.getByText('Материалы пока не прикреплены')).toBeInTheDocument()
   })

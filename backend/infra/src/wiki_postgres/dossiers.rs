@@ -15,6 +15,7 @@ use uuid::Uuid;
 struct PostgresWikiDossierRepository<'a> {
     backend: &'a PostgresWikiBackend,
     request_id: Option<&'a str>,
+    include_document_drafts: bool,
 }
 
 impl PostgresWikiDossierRepository<'_> {
@@ -250,7 +251,10 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
             for summary in task.documents {
                 documents.push(
                     self.backend
-                        .document_response(parse_uuid(&summary.id, "document")?)
+                        .document_response(
+                            parse_uuid(&summary.id, "document")?,
+                            self.include_document_drafts,
+                        )
                         .await?,
                 );
             }
@@ -370,7 +374,10 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
             for summary in phase.documents {
                 documents.push(
                     self.backend
-                        .document_response(parse_uuid(&summary.id, "document")?)
+                        .document_response(
+                            parse_uuid(&summary.id, "document")?,
+                            self.include_document_drafts,
+                        )
                         .await?,
                 );
             }
@@ -406,6 +413,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiDossierRepository {
             backend: self,
             request_id: None,
+            include_document_drafts: false,
         };
         WikiDossierUseCase::new(&repository)
             .list_tasks(space_id, &key)
@@ -425,6 +433,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiDossierRepository {
             backend: self,
             request_id: None,
+            include_document_drafts: false,
         };
         WikiDossierUseCase::new(&repository)
             .get_task(space_id, &key, task_key)
@@ -453,6 +462,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiDossierRepository {
             backend: self,
             request_id: claims.request_id.as_deref(),
+            include_document_drafts: true,
         };
         WikiDossierUseCase::new(&repository)
             .link_task_document(actor_id, space_id, &key, task_key, document_id)
@@ -472,6 +482,10 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiDossierRepository {
             backend: self,
             request_id: None,
+            include_document_drafts: self
+                .ensure_space_id_access(claims, space_id, SpaceAccess::Edit)
+                .await
+                .is_ok(),
         };
         WikiDossierUseCase::new(&repository)
             .list_task_documents(space_id, &key, task_key)
@@ -491,6 +505,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiDossierRepository {
             backend: self,
             request_id: None,
+            include_document_drafts: false,
         };
         WikiDossierUseCase::new(&repository)
             .list_task_evidence(space_id, &key, task_key)
@@ -509,6 +524,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiDossierRepository {
             backend: self,
             request_id: None,
+            include_document_drafts: false,
         };
         WikiDossierUseCase::new(&repository)
             .list_phases(space_id, &key)
@@ -528,6 +544,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiDossierRepository {
             backend: self,
             request_id: None,
+            include_document_drafts: false,
         };
         WikiDossierUseCase::new(&repository)
             .get_phase(space_id, &key, phase_key)
@@ -556,6 +573,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiDossierRepository {
             backend: self,
             request_id: claims.request_id.as_deref(),
+            include_document_drafts: true,
         };
         WikiDossierUseCase::new(&repository)
             .link_phase_document(actor_id, space_id, &key, phase_key, document_id)
@@ -575,6 +593,10 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiDossierRepository {
             backend: self,
             request_id: None,
+            include_document_drafts: self
+                .ensure_space_id_access(claims, space_id, SpaceAccess::Edit)
+                .await
+                .is_ok(),
         };
         WikiDossierUseCase::new(&repository)
             .list_phase_documents(space_id, &key, phase_key)
@@ -594,6 +616,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiDossierRepository {
             backend: self,
             request_id: None,
+            include_document_drafts: false,
         };
         WikiDossierUseCase::new(&repository)
             .list_phase_evidence(space_id, &key, phase_key)

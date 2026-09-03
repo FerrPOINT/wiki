@@ -16,6 +16,7 @@ use uuid::Uuid;
 struct PostgresWikiDocumentRepository<'a> {
     backend: &'a PostgresWikiBackend,
     request_id: Option<&'a str>,
+    include_draft: bool,
 }
 
 impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
@@ -131,7 +132,9 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
                 )
                 .await?;
             tx.commit().await.map_err(shared::AppError::database)?;
-            self.backend.document_response(command.document_id).await
+            self.backend
+                .document_response(command.document_id, self.include_draft)
+                .await
         })
     }
 
@@ -139,7 +142,11 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
         &'a self,
         document_id: Uuid,
     ) -> WikiDocumentRepositoryFuture<'a, DocumentResponse> {
-        Box::pin(async move { self.backend.document_response(document_id).await })
+        Box::pin(async move {
+            self.backend
+                .document_response(document_id, self.include_draft)
+                .await
+        })
     }
 
     fn update_document_draft<'a>(
@@ -196,7 +203,9 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
                 )
                 .await?;
             tx.commit().await.map_err(shared::AppError::database)?;
-            self.backend.document_response(command.document_id).await
+            self.backend
+                .document_response(command.document_id, self.include_draft)
+                .await
         })
     }
 
@@ -352,7 +361,9 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
                 )
                 .await?;
             tx.commit().await.map_err(shared::AppError::database)?;
-            self.backend.document_response(document_id).await
+            self.backend
+                .document_response(document_id, self.include_draft)
+                .await
         })
     }
 
@@ -395,7 +406,9 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
                 )
                 .await?;
             tx.commit().await.map_err(shared::AppError::database)?;
-            self.backend.document_response(document_id).await
+            self.backend
+                .document_response(document_id, self.include_draft)
+                .await
         })
     }
 
@@ -478,6 +491,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiDocumentRepository {
             backend: self,
             request_id: claims.request_id.as_deref(),
+            include_draft: true,
         };
         WikiDocumentUseCase::new(&repository)
             .create(actor_id, space_id, parent_id, body)
@@ -490,11 +504,17 @@ impl PostgresWikiBackend {
         document_id: &str,
     ) -> Result<DocumentResponse, shared::AppError> {
         let document_id = self.resolve_document_id(document_id).await?;
-        self.ensure_document_access(claims, document_id, SpaceAccess::View)
+        let space_id = self
+            .ensure_document_access(claims, document_id, SpaceAccess::View)
             .await?;
+        let can_edit = self
+            .ensure_space_id_access(claims, space_id, SpaceAccess::Edit)
+            .await
+            .is_ok();
         let repository = PostgresWikiDocumentRepository {
             backend: self,
             request_id: None,
+            include_draft: can_edit,
         };
         WikiDocumentUseCase::new(&repository).get(document_id).await
     }
@@ -512,6 +532,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiDocumentRepository {
             backend: self,
             request_id: claims.request_id.as_deref(),
+            include_draft: true,
         };
         WikiDocumentUseCase::new(&repository)
             .update_draft(actor_id, document_id, body)
@@ -531,6 +552,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiDocumentRepository {
             backend: self,
             request_id: claims.request_id.as_deref(),
+            include_draft: true,
         };
         WikiDocumentUseCase::new(&repository)
             .publish(actor_id, document_id, body)
@@ -549,6 +571,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiDocumentRepository {
             backend: self,
             request_id: claims.request_id.as_deref(),
+            include_draft: true,
         };
         WikiDocumentUseCase::new(&repository)
             .archive(actor_id, document_id)
@@ -595,6 +618,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiDocumentRepository {
             backend: self,
             request_id: claims.request_id.as_deref(),
+            include_draft: true,
         };
         WikiDocumentUseCase::new(&repository)
             .move_document(actor_id, document_id, parent_id)
@@ -613,6 +637,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiDocumentRepository {
             backend: self,
             request_id: None,
+            include_draft: false,
         };
         WikiDocumentUseCase::new(&repository)
             .list_revisions(document_id, query)
@@ -632,6 +657,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiDocumentRepository {
             backend: self,
             request_id: None,
+            include_draft: false,
         };
         WikiDocumentUseCase::new(&repository)
             .get_revision(document_id, revision_id)
@@ -709,12 +735,14 @@ impl PostgresWikiBackend {
     pub(super) async fn document_response(
         &self,
         document_id: Uuid,
+        include_draft: bool,
     ) -> Result<DocumentResponse, shared::AppError> {
         let row = sqlx::query(
             r#"
             SELECT d.id, s.key AS space_key, d.parent_id, d.slug, d.title,
                    d.document_type, d.status, d.current_revision_id, d.owner_id,
                    d.created_at, d.updated_at,
+                   (s.archived_at IS NULL) AS space_active,
                    COALESCE(dd.content_markdown, '') AS draft_markdown
             FROM documents d
             JOIN spaces s ON s.id = d.space_id
@@ -749,6 +777,9 @@ impl PostgresWikiBackend {
             .await?
             .evidence;
         let owner_id: Uuid = row.get("owner_id");
+        let status: String = row.get("status");
+        let space_active: bool = row.get("space_active");
+        let can_edit = include_draft && space_active && status != "archived";
 
         Ok(DocumentResponse {
             id: row.get::<Uuid, _>("id").to_string(),
@@ -759,7 +790,8 @@ impl PostgresWikiBackend {
             slug: row.get("slug"),
             title: row.get("title"),
             document_type: row.get("document_type"),
-            status: row.get("status"),
+            status,
+            can_edit,
             body_markdown: current_revision
                 .as_ref()
                 .map(|revision| revision.body_markdown.clone())
@@ -768,7 +800,11 @@ impl PostgresWikiBackend {
                 .as_ref()
                 .map(|revision| revision.body_html.clone())
                 .unwrap_or_default(),
-            draft_markdown: row.get("draft_markdown"),
+            draft_markdown: if can_edit {
+                row.get("draft_markdown")
+            } else {
+                String::new()
+            },
             current_revision,
             task_keys,
             phase_keys,

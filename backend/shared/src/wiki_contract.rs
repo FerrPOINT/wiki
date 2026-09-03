@@ -522,6 +522,7 @@ pub struct DocumentResponse {
     pub title: String,
     pub document_type: String,
     pub status: String,
+    pub can_edit: bool,
     pub body_markdown: String,
     pub body_html: String,
     pub draft_markdown: String,

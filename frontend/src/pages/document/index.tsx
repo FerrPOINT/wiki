@@ -113,6 +113,7 @@ export function DocumentPage() {
   }
 
   const isArchived = document.status === 'archived'
+  const canEdit = document.can_edit && !isArchived
   const publishedHtml = document.body_html || document.current_revision?.body_html || ''
   const currentParentId = document.parent_id ?? null
   const nextParentId = optional(parentId)
@@ -124,6 +125,7 @@ export function DocumentPage() {
 
   function handleSaveDraft(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (!canEdit) return
     setStatusMessage('')
     updateDraft.mutate(
       {
@@ -144,7 +146,7 @@ export function DocumentPage() {
   }
 
   async function handlePublish() {
-    if (!document) return
+    if (!document || !canEdit) return
     const baseRevisionId = document.current_revision?.id
     setStatusMessage('')
     setIsPublishingFlow(true)
@@ -177,6 +179,7 @@ export function DocumentPage() {
 
   function handleMove(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (!canEdit) return
     setStatusMessage('')
     moveDocument.mutate(
       {
@@ -195,6 +198,7 @@ export function DocumentPage() {
   }
 
   function handleArchive() {
+    if (!canEdit) return
     setArchiveOpen(false)
     setStatusMessage('')
     archiveDocument.mutate(documentId, {
@@ -237,16 +241,18 @@ export function DocumentPage() {
               Материалы
             </Link>
           </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="destructive"
-            disabled={isArchived || archiveDocument.isPending}
-            onClick={() => setArchiveOpen(true)}
-          >
-            <Archive className="h-4 w-4" />
-            Архивировать
-          </Button>
+          {canEdit && (
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              disabled={archiveDocument.isPending}
+              onClick={() => setArchiveOpen(true)}
+            >
+              <Archive className="h-4 w-4" />
+              Архивировать
+            </Button>
+          )}
         </div>
       </section>
 
@@ -267,76 +273,71 @@ export function DocumentPage() {
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Черновик</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSaveDraft} className="space-y-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="document-edit-title">Название</Label>
-                  <Input
-                    id="document-edit-title"
-                    value={draftTitle}
-                    onChange={(event) => setDraftTitle(event.target.value)}
-                    disabled={isArchived}
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="document-edit-markdown">Markdown</Label>
-                  <Textarea
-                    id="document-edit-markdown"
-                    className="min-h-80 font-mono text-sm"
-                    aria-label="Markdown черновика"
-                    value={draftBody}
-                    onChange={(event) => setDraftBody(event.target.value)}
-                    disabled={isArchived}
-                    required
-                  />
-                </div>
-                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto]">
-                  <Input
-                    value={publishSummary}
-                    onChange={(event) => setPublishSummary(event.target.value)}
-                    placeholder="Комментарий к публикации"
-                    aria-label="Комментарий к публикации"
-                    disabled={isArchived}
-                  />
-                  <Button
-                    type="submit"
-                    variant="secondary"
-                    disabled={
-                      isArchived ||
-                      updateDraft.isPending ||
-                      isPublishingFlow ||
-                      draftTitle.trim().length === 0
-                    }
-                  >
-                    <Save className="h-4 w-4" />
-                    {updateDraft.isPending ? 'Сохраняем...' : 'Сохранить'}
-                  </Button>
-                  <Button
-                    type="button"
-                    disabled={
-                      isArchived ||
-                      updateDraft.isPending ||
-                      publishDocument.isPending ||
-                      isPublishingFlow ||
-                      draftTitle.trim().length === 0 ||
-                      draftBody.trim().length === 0
-                    }
-                    onClick={handlePublish}
-                  >
-                    <Send className="h-4 w-4" />
-                    {isPublishingFlow || publishDocument.isPending
-                      ? 'Публикуем...'
-                      : 'Опубликовать'}
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+          {canEdit && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Черновик</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSaveDraft} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="document-edit-title">Название</Label>
+                    <Input
+                      id="document-edit-title"
+                      value={draftTitle}
+                      onChange={(event) => setDraftTitle(event.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="document-edit-markdown">Markdown</Label>
+                    <Textarea
+                      id="document-edit-markdown"
+                      className="min-h-80 font-mono text-sm"
+                      aria-label="Markdown черновика"
+                      value={draftBody}
+                      onChange={(event) => setDraftBody(event.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto]">
+                    <Input
+                      value={publishSummary}
+                      onChange={(event) => setPublishSummary(event.target.value)}
+                      placeholder="Комментарий к публикации"
+                      aria-label="Комментарий к публикации"
+                    />
+                    <Button
+                      type="submit"
+                      variant="secondary"
+                      disabled={
+                        updateDraft.isPending || isPublishingFlow || draftTitle.trim().length === 0
+                      }
+                    >
+                      <Save className="h-4 w-4" />
+                      {updateDraft.isPending ? 'Сохраняем...' : 'Сохранить'}
+                    </Button>
+                    <Button
+                      type="button"
+                      disabled={
+                        updateDraft.isPending ||
+                        publishDocument.isPending ||
+                        isPublishingFlow ||
+                        draftTitle.trim().length === 0 ||
+                        draftBody.trim().length === 0
+                      }
+                      onClick={handlePublish}
+                    >
+                      <Send className="h-4 w-4" />
+                      {isPublishingFlow || publishDocument.isPending
+                        ? 'Публикуем...'
+                        : 'Опубликовать'}
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>
@@ -352,34 +353,47 @@ export function DocumentPage() {
         </div>
 
         <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Положение в дереве</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleMove} className="space-y-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="document-parent">Родительский документ</Label>
-                  <Input
-                    id="document-parent"
-                    value={parentId}
-                    onChange={(event) => setParentId(event.target.value)}
-                    placeholder="корень пространства"
-                    disabled={isArchived}
-                  />
-                </div>
-                <Button
-                  type="submit"
-                  size="sm"
-                  variant="secondary"
-                  disabled={isArchived || moveDocument.isPending || !parentChanged}
-                >
-                  <MoveRight className="h-4 w-4" />
-                  {moveDocument.isPending ? 'Сохраняем...' : 'Сохранить место'}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+          {!canEdit && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Режим чтения</CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm text-text-secondary">
+                Вам доступна опубликованная версия документа. Черновик и действия редактирования
+                скрыты.
+              </CardContent>
+            </Card>
+          )}
+
+          {canEdit && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Положение в дереве</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleMove} className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="document-parent">Родительский документ</Label>
+                    <Input
+                      id="document-parent"
+                      value={parentId}
+                      onChange={(event) => setParentId(event.target.value)}
+                      placeholder="корень пространства"
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    variant="secondary"
+                    disabled={moveDocument.isPending || !parentChanged}
+                  >
+                    <MoveRight className="h-4 w-4" />
+                    {moveDocument.isPending ? 'Сохраняем...' : 'Сохранить место'}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>

@@ -74,10 +74,11 @@ Document compose includes:
 Document view includes:
 
 - breadcrumb, status and current revision;
-- draft title/Markdown editor;
-- publish action with revision summary;
-- archive action with confirmation;
-- parent document field for moving within the tree;
+- read-only mode for viewers with no draft field exposure;
+- draft title/Markdown editor for users with `can_edit=true`;
+- publish action with revision summary for users with `can_edit=true`;
+- archive action with confirmation for users with `can_edit=true`;
+- parent document field for moving within the tree for users with `can_edit=true`;
 - primary body content;
 - linked task and phase;
 - revision timeline and selected immutable revision snapshot;

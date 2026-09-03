@@ -2840,6 +2840,7 @@ mod tests {
             } else {
                 "draft".to_string()
             },
+            can_edit: true,
             body_markdown: current_revision
                 .as_ref()
                 .map(|revision| revision.body_markdown.clone())

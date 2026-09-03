@@ -806,6 +806,26 @@ async fn wiki_memory_authz_and_audit_align_with_mvp_contract() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(space["key"], "SDLC");
 
+    let (status, admin_draft) = call(
+        &app,
+        Method::PUT,
+        "/api/v1/documents/product-requirements/draft",
+        Some(admin_token),
+        Some(json!({
+            "title": "Требования к Wiki MVP",
+            "content_markdown": format!("# Невидимый черновик\n\nSecret draft {short}.")
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(admin_draft["can_edit"], true);
+    assert!(
+        admin_draft["draft_markdown"]
+            .as_str()
+            .unwrap()
+            .contains("Secret draft")
+    );
+
     let (status, document) = call(
         &app,
         Method::GET,
@@ -816,6 +836,31 @@ async fn wiki_memory_authz_and_audit_align_with_mvp_contract() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(document["slug"], "product-requirements");
+    assert_eq!(document["can_edit"], false);
+    assert_eq!(document["draft_markdown"], "");
+    assert!(
+        !document["body_markdown"]
+            .as_str()
+            .unwrap()
+            .contains("Secret draft")
+    );
+
+    let (status, admin_document) = call(
+        &app,
+        Method::GET,
+        "/api/v1/documents/product-requirements",
+        Some(admin_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(admin_document["can_edit"], true);
+    assert!(
+        admin_document["draft_markdown"]
+            .as_str()
+            .unwrap()
+            .contains("Secret draft")
+    );
 
     let (status, _) = call(
         &app,
@@ -3400,6 +3445,51 @@ async fn wiki_postgres_role_matrix_enforces_space_and_global_boundaries() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(viewer_document["id"], document_id);
+    assert_eq!(viewer_document["can_edit"], false);
+
+    let (status, admin_draft) = call(
+        &app,
+        Method::PUT,
+        &format!("/api/v1/documents/{document_id}/draft"),
+        Some(&admin_token),
+        Some(json!({
+            "title": format!("Postgres role matrix document {short}"),
+            "content_markdown": format!("# Unpublished admin draft\n\nSecret draft {search_token}.")
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(admin_draft["can_edit"], true);
+    assert!(
+        admin_draft["draft_markdown"]
+            .as_str()
+            .unwrap()
+            .contains("Secret draft")
+    );
+
+    let (status, viewer_document) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/documents/{document_id}"),
+        Some(&viewer_token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(viewer_document["can_edit"], false);
+    assert_eq!(viewer_document["draft_markdown"], "");
+    assert!(
+        viewer_document["body_markdown"]
+            .as_str()
+            .unwrap()
+            .contains("Initial")
+    );
+    assert!(
+        !viewer_document["body_markdown"]
+            .as_str()
+            .unwrap()
+            .contains("Secret draft")
+    );
 
     for (method, path, body) in [
         (

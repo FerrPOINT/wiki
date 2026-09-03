@@ -97,6 +97,7 @@ function documentResponse(overrides: Record<string, unknown> = {}) {
     title: 'Product requirements',
     document_type: 'requirements',
     status: 'draft',
+    can_edit: true,
     parent_id: null,
     task_keys: [],
     phase_keys: [],

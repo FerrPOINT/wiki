@@ -67,8 +67,8 @@ MVP не включает:
 | REQ-SPC-002   | Space management | Admin создаёт, редактирует и архивирует space; archived space freezes document/evidence/dossier-link write-команды                         |
 | REQ-SPC-003   | Space members    | Admin управляет участниками space                                                                                                         |
 | REQ-DOC-001   | Documents        | Editor создаёт страницу с title, slug, type и Markdown body                                                                               |
-| REQ-DOC-002   | Document view    | Viewer открывает опубликованную страницу                                                                                                  |
-| REQ-DOC-003   | Draft edit       | Editor редактирует черновик страницы                                                                                                      |
+| REQ-DOC-002   | Document view    | Viewer открывает опубликованную страницу без доступа к неопубликованному `draft_markdown`                                                  |
+| REQ-DOC-003   | Draft edit       | Editor редактирует черновик страницы; `draft_markdown` в `DocumentResponse` заполняется только при `can_edit=true`                         |
 | REQ-DOC-004   | Publish          | Публикация создаёт неизменяемую ревизию и при переданном `base_revision_id` отклоняет устаревший черновик через `409 CONFLICT`             |
 | REQ-DOC-005   | Revision history | Пользователь видит список ревизий и открывает конкретную ревизию                                                                          |
 | REQ-DOC-006   | Archive          | Editor архивирует документ; archived pages скрыты из обычного дерева и не принимают draft/publish/move/archive/link write-команды         |
@@ -234,6 +234,7 @@ CLI requirements:
 - Все protected endpoints требуют аутентификации.
 - Markdown рендерится только через sanitizer.
 - Search не возвращает документы без прав.
+- Viewer не получает неопубликованный `draft_markdown` в document responses.
 - Attachment download проверяет права на owner entity.
 - Secrets, bearer tokens и private storage keys не попадают в ответы API, audit и logs.
 

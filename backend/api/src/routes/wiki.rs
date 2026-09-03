@@ -1558,7 +1558,7 @@ pub async fn create_document(
         &id,
         claims.request_id.as_deref(),
     );
-    let response = document_response(&store, &id)?;
+    let response = document_response(&store, &id, true)?;
     Ok((StatusCode::CREATED, Json(response)))
 }
 
@@ -1582,7 +1582,9 @@ pub async fn get_document(
     let store = store().lock().expect("wiki store lock");
     let id = resolve_document_id(&store, &document_id)?;
     ensure_document_access(&store, &id, &claims.user_id, WikiSpaceAccess::View)?;
-    Ok(Json(document_response(&store, &id)?))
+    let can_edit =
+        ensure_document_access(&store, &id, &claims.user_id, WikiSpaceAccess::Edit).is_ok();
+    Ok(Json(document_response(&store, &id, can_edit)?))
 }
 
 #[utoipa::path(
@@ -1644,7 +1646,7 @@ pub async fn update_document_draft(
         &id,
         claims.request_id.as_deref(),
     );
-    Ok(Json(document_response(&store, &id)?))
+    Ok(Json(document_response(&store, &id, true)?))
 }
 
 #[utoipa::path(
@@ -1777,7 +1779,7 @@ pub async fn archive_document(
         &id,
         claims.request_id.as_deref(),
     );
-    Ok(Json(document_response(&store, &id)?))
+    Ok(Json(document_response(&store, &id, true)?))
 }
 
 #[utoipa::path(
@@ -1856,7 +1858,7 @@ pub async fn move_document(
         &id,
         claims.request_id.as_deref(),
     );
-    Ok(Json(document_response(&store, &id)?))
+    Ok(Json(document_response(&store, &id, true)?))
 }
 
 #[utoipa::path(
@@ -2076,10 +2078,12 @@ pub async fn list_task_documents(
     let key = normalize_space_key(&space_key)?;
     let task_key = normalize_task_key(&task_key)?;
     ensure_space_access(&store, &key, &claims.user_id, WikiSpaceAccess::View)?;
+    let can_edit =
+        ensure_space_access(&store, &key, &claims.user_id, WikiSpaceAccess::Edit).is_ok();
     let documents = task_page(&store, &key, &task_key)
         .documents
         .into_iter()
-        .filter_map(|summary| document_response(&store, &summary.id).ok())
+        .filter_map(|summary| document_response(&store, &summary.id, can_edit).ok())
         .collect();
     Ok(Json(DocumentListResponse { documents }))
 }
@@ -2265,10 +2269,12 @@ pub async fn list_phase_documents(
     let key = normalize_space_key(&space_key)?;
     let phase_key = normalize_phase_key(&phase_key)?;
     ensure_space_access(&store, &key, &claims.user_id, WikiSpaceAccess::View)?;
+    let can_edit =
+        ensure_space_access(&store, &key, &claims.user_id, WikiSpaceAccess::Edit).is_ok();
     let documents = phase_page(&store, &key, &phase_key)
         .documents
         .into_iter()
-        .filter_map(|summary| document_response(&store, &summary.id).ok())
+        .filter_map(|summary| document_response(&store, &summary.id, can_edit).ok())
         .collect();
     Ok(Json(DocumentListResponse { documents }))
 }
@@ -2974,11 +2980,20 @@ fn auth_response(store: &mut WikiStore, user: &WikiUserResponse) -> WikiAuthResp
     }
 }
 
-fn document_response(store: &WikiStore, id: &str) -> Result<DocumentResponse, shared::AppError> {
+fn document_response(
+    store: &WikiStore,
+    id: &str,
+    include_draft: bool,
+) -> Result<DocumentResponse, shared::AppError> {
     let document = store
         .documents
         .get(id)
         .ok_or_else(|| shared::AppError::not_found("document", id))?;
+    let active_space = store
+        .spaces
+        .get(&document.space_key)
+        .is_some_and(|space| space.status != "archived");
+    let can_edit = include_draft && active_space && document.status != "archived";
     let current_revision = document
         .current_revision_id
         .as_ref()
@@ -2997,6 +3012,7 @@ fn document_response(store: &WikiStore, id: &str) -> Result<DocumentResponse, sh
         title: document.title.clone(),
         document_type: document.document_type.clone(),
         status: document.status.clone(),
+        can_edit,
         body_markdown: current_revision
             .as_ref()
             .map(|revision| revision.body_markdown.clone())
@@ -3005,7 +3021,11 @@ fn document_response(store: &WikiStore, id: &str) -> Result<DocumentResponse, sh
             .as_ref()
             .map(|revision| revision.body_html.clone())
             .unwrap_or_default(),
-        draft_markdown: document.draft_markdown.clone(),
+        draft_markdown: if can_edit {
+            document.draft_markdown.clone()
+        } else {
+            String::new()
+        },
         current_revision,
         task_keys: document.task_keys.iter().cloned().collect(),
         phase_keys: document.phase_keys.iter().cloned().collect(),

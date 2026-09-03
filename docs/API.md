@@ -84,7 +84,7 @@ Operational endpoints are part of the public API surface but do not create Wiki 
 
 `GET /documents/{document_id}/revisions` возвращает историю в порядке от последней опубликованной ревизии к первой. Endpoint bounded: без `limit` отдаёт последние 20 ревизий, `limit` ограничивается диапазоном `1..100`. Опубликованные ревизии immutable: новый draft или повторная публикация не меняют тело, заголовок и summary уже созданных ревизий.
 
-`DocumentResponse` and `DocumentRevisionResponse` expose both `body_markdown` and `body_html`. `body_markdown` is the canonical source for editing and CLI export; `body_html` is the sanitized HTML rendered by the backend from the published revision and is the only HTML surface the UI should render.
+`DocumentResponse` and `DocumentRevisionResponse` expose both `body_markdown` and `body_html` for published content. `body_markdown` is the canonical source for CLI export; `body_html` is the sanitized HTML rendered by the backend from the published revision and is the only HTML surface the UI should render. `DocumentResponse.can_edit` tells clients whether draft and write controls are available. `draft_markdown` is populated only when `can_edit=true`; read-only viewers receive an empty `draft_markdown` and only the published body fields.
 
 ## 8. Task Links
 
@@ -172,7 +172,7 @@ The pre-development API contract is frozen when these checks pass:
 | Area | Required behavior |
 | ---- | ----------------- |
 | Auth | Bad credentials return an auth error; disabled registration returns `403`; missing/invalid bearer tokens return the standard error envelope; refresh rotates access and refresh token paths; logout and user deactivation invalidate existing token paths. |
-| Access | No role or removed membership blocks document, tree, evidence, attachment and search reads for that space. |
+| Access | No role or removed membership blocks document, tree, evidence, attachment and search reads for that space; viewer document reads do not expose unpublished drafts. |
 | Spaces | Archived spaces reject document, evidence and task/phase link write commands while keeping read/admin visibility. |
 | Documents | Archived documents reject `draft`, `publish`, `move`, `archive` and task/phase link writes; duplicate slugs return conflict; stale `base_revision_id` returns conflict; cyclic moves return validation error. |
 | Evidence | Evidence must target at least one document/task/phase; explicit `space` cannot conflict with document space. |

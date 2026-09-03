@@ -29,6 +29,7 @@
 | Slug already exists under same space     | `409 CONFLICT`                                          |
 | Archived space content write             | `400 VALIDATION_ERROR`; document/evidence/dossier-link writes are rejected |
 | Archived document write                  | `400 VALIDATION_ERROR`; draft/publish/move/archive/link writes are rejected |
+| Viewer opens document with unpublished draft | Response keeps published `body_markdown`/`body_html`, returns `can_edit=false` and empty `draft_markdown` |
 | Parent document belongs to another space | `400 VALIDATION_ERROR`                                  |
 | Move parent under itself/descendant      | `400 VALIDATION_ERROR`; existing parent stays unchanged |
 | Markdown contains unsafe HTML            | HTML is sanitized before render/search projection       |

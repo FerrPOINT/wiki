@@ -131,6 +131,7 @@ const document = {
   title: 'Требования к Wiki MVP',
   document_type: 'requirements',
   status: 'published',
+  can_edit: true,
   body_markdown: revision.body_markdown,
   body_html: revision.body_html,
   draft_markdown: revision.body_markdown,

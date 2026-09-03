@@ -31,6 +31,7 @@ Authorization is space-first. A user receives permissions through space membersh
 ## 4. Rules
 
 - Repository queries must filter by authorized space.
+- Document read responses expose draft content only to users who can edit the document; viewers receive published body fields and `can_edit=false`.
 - Missing permission should return `404` where entity existence would leak data.
 - Scoped API tokens are deferred and must use the same space permissions as user sessions if approved later.
 - Instance admin APIs such as `/users`, `/settings` and `/audit-log` require system admin even if the user is a space admin.
@@ -38,6 +39,7 @@ Authorization is space-first. A user receives permissions through space membersh
 ## 5. Tests
 
 - Viewer cannot publish.
+- Viewer cannot read unpublished document draft content through `GET /documents/{document_id}`.
 - Editor cannot manage members.
 - User from another space cannot read document.
 - Viewer can stage attachment upload but cannot claim it as file evidence without edit rights.
