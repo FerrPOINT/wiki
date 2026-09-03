@@ -16,6 +16,7 @@ The test plan covers document lifecycle, task/phase links, evidence ingestion, p
 | Evidence       | add file/url evidence, checksum, dedup, bounded list limit                |
 | Attachments    | upload/download, filename/content-type validation, quota                  |
 | Search         | indexing, permission filtering, archived filters, bounded `1..100` limit  |
+| Idempotency    | replay successful write response, reject key reuse with changed payload, avoid duplicate evidence/audit writes |
 | Settings       | admin-only safe runtime snapshot                                         |
 | Health         | liveness, readiness before/after runtime dependency initialization       |
 | Authz          | viewer/editor/admin boundaries                                           |
@@ -30,6 +31,7 @@ The test plan covers document lifecycle, task/phase links, evidence ingestion, p
 - Upload endpoints must reject empty files, unsafe filenames and payloads over the configured size limit.
 - File evidence tests must reject staged attachments uploaded by another user even when the caller has edit rights in the target space.
 - Search endpoints must verify permission filtering before returning document, task, phase or evidence results.
+- Idempotency tests must verify successful replay, changed-payload conflict and no duplicate write/audit rows in PostgreSQL.
 
 ## 4. CLI Tests
 

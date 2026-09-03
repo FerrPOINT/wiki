@@ -28,7 +28,7 @@
 
 - Create endpoints return `201 Created`.
 - Commands return `200` or `202` with explicit result state.
-- `Idempotency-Key` is required for mutating commands that need deduplication.
+- `Idempotency-Key` is required for mutating domain/admin commands that need deduplication. The server scopes it by actor, method, path+query and request body hash, replays successful writes, and rejects changed-payload reuse with `409 CONFLICT`; auth/session endpoints are outside replay scope.
 - OpenAPI is generated from code and committed.
 - Generated frontend client must match OpenAPI.
 - CLI command groups map to this public API or explicitly document an API-only exception.

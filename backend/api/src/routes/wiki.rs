@@ -8,9 +8,9 @@ use app::wiki::{
 };
 use axum::{
     Extension, Json,
-    body::Body,
+    body::{Body, to_bytes},
     extract::{Multipart, Path, Query, State},
-    http::{HeaderMap, HeaderValue, Request, StatusCode, header},
+    http::{HeaderMap, HeaderValue, Method, Request, StatusCode, header},
     middleware::Next,
     response::{IntoResponse, Response},
 };
@@ -18,15 +18,22 @@ use chrono::Utc;
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::{Arc, Mutex, OnceLock},
+    time::{Duration, Instant},
 };
 use uuid::Uuid;
 
 pub use shared::wiki_contract::*;
 
+const IDEMPOTENCY_KEY_HEADER: &str = "idempotency-key";
+const IDEMPOTENCY_CACHE_TTL: Duration = Duration::from_secs(24 * 60 * 60);
+const IDEMPOTENCY_CACHE_MAX_ENTRIES: usize = 10_000;
+const IDEMPOTENCY_REQUEST_BODY_OVERHEAD_BYTES: usize = 64 * 1024;
+
 #[derive(Clone)]
 pub struct WikiBackend {
     persistent: Option<Arc<dyn WikiBackendPort>>,
     settings: WikiSettingsSnapshot,
+    idempotency: Arc<Mutex<BTreeMap<MemoryIdempotencyKey, MemoryIdempotencyEntry>>>,
 }
 
 impl WikiBackend {
@@ -38,6 +45,7 @@ impl WikiBackend {
         Self {
             persistent: None,
             settings: WikiSettingsSnapshot::from_config(config),
+            idempotency: Arc::new(Mutex::new(BTreeMap::new())),
         }
     }
 
@@ -48,6 +56,7 @@ impl WikiBackend {
                 registration_enabled,
                 shared::StorageConfig::default().max_upload_bytes,
             ),
+            idempotency: Arc::new(Mutex::new(BTreeMap::new())),
         }
     }
 
@@ -55,6 +64,7 @@ impl WikiBackend {
         Self {
             persistent: Some(backend),
             settings,
+            idempotency: Arc::new(Mutex::new(BTreeMap::new())),
         }
     }
 
@@ -75,6 +85,104 @@ impl WikiBackend {
 
     fn settings_snapshot(&self) -> WikiSettingsSnapshot {
         self.settings.clone()
+    }
+
+    async fn begin_idempotent_request(
+        &self,
+        request: WikiIdempotencyRequest,
+    ) -> Result<WikiIdempotencyStatus, shared::AppError> {
+        if let Some(persistent) = self.persistent_backend() {
+            return persistent.begin_idempotent_request(request).await;
+        }
+
+        let mut store = self.idempotency.lock().expect("wiki idempotency lock");
+        prune_memory_idempotency(&mut store);
+        let key = MemoryIdempotencyKey {
+            actor_id: request.actor_id.clone(),
+            key: request.key.clone(),
+        };
+
+        if let Some(entry) = store.get(&key) {
+            if entry.method != request.method
+                || entry.path != request.path
+                || entry.request_hash != request.request_hash
+            {
+                return Err(shared::AppError::conflict(
+                    "idempotency key was reused for a different request",
+                ));
+            }
+            return match &entry.state {
+                MemoryIdempotencyState::Processing => Err(shared::AppError::conflict(
+                    "idempotent request is already processing",
+                )),
+                MemoryIdempotencyState::Completed(replay) => {
+                    Ok(WikiIdempotencyStatus::Replay(replay.clone()))
+                }
+            };
+        }
+
+        store.insert(
+            key,
+            MemoryIdempotencyEntry {
+                method: request.method,
+                path: request.path,
+                request_hash: request.request_hash,
+                created_at: Instant::now(),
+                state: MemoryIdempotencyState::Processing,
+            },
+        );
+        Ok(WikiIdempotencyStatus::Started)
+    }
+
+    async fn complete_idempotent_request(
+        &self,
+        request: WikiIdempotencyRequest,
+        replay: WikiIdempotencyReplay,
+    ) -> Result<(), shared::AppError> {
+        if let Some(persistent) = self.persistent_backend() {
+            return persistent
+                .complete_idempotent_request(request, replay)
+                .await;
+        }
+
+        let mut store = self.idempotency.lock().expect("wiki idempotency lock");
+        let key = MemoryIdempotencyKey {
+            actor_id: request.actor_id.clone(),
+            key: request.key.clone(),
+        };
+        if let Some(entry) = store.get_mut(&key) {
+            if entry.method == request.method
+                && entry.path == request.path
+                && entry.request_hash == request.request_hash
+            {
+                entry.state = MemoryIdempotencyState::Completed(replay);
+            }
+        }
+        Ok(())
+    }
+
+    async fn abandon_idempotent_request(
+        &self,
+        request: WikiIdempotencyRequest,
+    ) -> Result<(), shared::AppError> {
+        if let Some(persistent) = self.persistent_backend() {
+            return persistent.abandon_idempotent_request(request).await;
+        }
+
+        let mut store = self.idempotency.lock().expect("wiki idempotency lock");
+        let key = MemoryIdempotencyKey {
+            actor_id: request.actor_id.clone(),
+            key: request.key.clone(),
+        };
+        if store.get(&key).is_some_and(|entry| {
+            entry.method == request.method
+                && entry.path == request.path
+                && entry.request_hash == request.request_hash
+                && matches!(entry.state, MemoryIdempotencyState::Processing)
+        }) {
+            store.remove(&key);
+        }
+        Ok(())
     }
 }
 
@@ -100,8 +208,9 @@ pub async fn require_wiki_auth(
     };
     claims.request_id = request_id_from_headers(req.headers());
 
+    let actor_id = claims.user_id.clone();
     req.extensions_mut().insert(claims);
-    Ok(next.run(req).await)
+    run_idempotent_request(backend, actor_id, req, next).await
 }
 
 fn request_id_from_headers(headers: &HeaderMap) -> Option<String> {
@@ -110,6 +219,184 @@ fn request_id_from_headers(headers: &HeaderMap) -> Option<String> {
         return None;
     }
     Some(value.to_string())
+}
+
+async fn run_idempotent_request(
+    backend: WikiBackend,
+    actor_id: String,
+    req: Request<Body>,
+    next: Next,
+) -> Result<Response, shared::AppError> {
+    if !idempotency_applies(req.method(), req.uri().path()) {
+        return Ok(next.run(req).await);
+    }
+
+    let Some(idempotency_key) = idempotency_key_from_headers(req.headers())? else {
+        return Ok(next.run(req).await);
+    };
+
+    let method = req.method().as_str().to_string();
+    let path = req
+        .uri()
+        .path_and_query()
+        .map_or_else(|| req.uri().path().to_string(), |value| value.to_string());
+    let (parts, body) = req.into_parts();
+    let request_body = to_bytes(body, idempotency_request_body_limit(&backend))
+        .await
+        .map_err(|err| shared::AppError::invalid_input(err.to_string()))?;
+    let request_hash =
+        idempotency_request_hash(parts.headers.get(header::CONTENT_TYPE), &request_body);
+    let idempotency_request = WikiIdempotencyRequest {
+        actor_id,
+        key: idempotency_key,
+        method,
+        path,
+        request_hash,
+    };
+
+    match backend
+        .begin_idempotent_request(idempotency_request.clone())
+        .await?
+    {
+        WikiIdempotencyStatus::Started => {}
+        WikiIdempotencyStatus::Replay(replay) => {
+            return idempotency_replay_response(replay);
+        }
+    }
+
+    let response = next
+        .run(Request::from_parts(parts, Body::from(request_body)))
+        .await;
+    let (parts, body) = response.into_parts();
+    let response_body = to_bytes(body, idempotency_body_limit(&backend))
+        .await
+        .map_err(|err| shared::AppError::internal(err.to_string()))?;
+
+    if parts.status.is_success() {
+        backend
+            .complete_idempotent_request(
+                idempotency_request,
+                WikiIdempotencyReplay {
+                    status_code: parts.status.as_u16(),
+                    content_type: header_string(&parts.headers, header::CONTENT_TYPE),
+                    body: response_body.to_vec(),
+                },
+            )
+            .await?;
+    } else {
+        backend
+            .abandon_idempotent_request(idempotency_request)
+            .await?;
+    }
+
+    Ok(Response::from_parts(parts, Body::from(response_body)))
+}
+
+fn idempotency_applies(method: &Method, path: &str) -> bool {
+    matches!(method, &Method::POST | &Method::PUT | &Method::DELETE)
+        && !path.ends_with("/auth/logout")
+}
+
+fn idempotency_key_from_headers(headers: &HeaderMap) -> Result<Option<String>, shared::AppError> {
+    let Some(value) = headers.get(IDEMPOTENCY_KEY_HEADER) else {
+        return Ok(None);
+    };
+    let value = value
+        .to_str()
+        .map_err(|_| shared::AppError::invalid_input("idempotency key must be valid ASCII"))?
+        .trim();
+    if value.is_empty() || value.len() > 128 {
+        return Err(shared::AppError::invalid_input(
+            "idempotency key must be between 1 and 128 characters",
+        ));
+    }
+    Ok(Some(value.to_string()))
+}
+
+fn idempotency_request_body_limit(backend: &WikiBackend) -> usize {
+    idempotency_body_limit(backend)
+}
+
+fn idempotency_body_limit(backend: &WikiBackend) -> usize {
+    backend
+        .settings
+        .max_upload_bytes
+        .saturating_add(IDEMPOTENCY_REQUEST_BODY_OVERHEAD_BYTES)
+}
+
+fn idempotency_request_hash(content_type: Option<&HeaderValue>, body: &[u8]) -> String {
+    let content_type = content_type
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .unwrap_or_default();
+    let mut bytes = Vec::with_capacity(content_type.len() + 1 + body.len());
+    bytes.extend_from_slice(content_type.as_bytes());
+    bytes.push(0);
+    bytes.extend_from_slice(body);
+    checksum(&bytes)
+}
+
+fn idempotency_replay_response(
+    replay: WikiIdempotencyReplay,
+) -> Result<Response, shared::AppError> {
+    let status = StatusCode::from_u16(replay.status_code)
+        .map_err(|err| shared::AppError::internal(err.to_string()))?;
+    let mut response = Response::new(Body::from(replay.body));
+    *response.status_mut() = status;
+    if let Some(content_type) = replay.content_type {
+        response.headers_mut().insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_str(&content_type)
+                .map_err(|err| shared::AppError::internal(err.to_string()))?,
+        );
+    }
+    Ok(response)
+}
+
+fn header_string(headers: &HeaderMap, name: header::HeaderName) -> Option<String> {
+    headers
+        .get(name)
+        .and_then(|value| value.to_str().ok())
+        .map(ToString::to_string)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct MemoryIdempotencyKey {
+    actor_id: String,
+    key: String,
+}
+
+#[derive(Debug)]
+struct MemoryIdempotencyEntry {
+    method: String,
+    path: String,
+    request_hash: String,
+    created_at: Instant,
+    state: MemoryIdempotencyState,
+}
+
+#[derive(Debug)]
+enum MemoryIdempotencyState {
+    Processing,
+    Completed(WikiIdempotencyReplay),
+}
+
+fn prune_memory_idempotency(store: &mut BTreeMap<MemoryIdempotencyKey, MemoryIdempotencyEntry>) {
+    let now = Instant::now();
+    store.retain(|_, entry| now.duration_since(entry.created_at) <= IDEMPOTENCY_CACHE_TTL);
+    if store.len() <= IDEMPOTENCY_CACHE_MAX_ENTRIES {
+        return;
+    }
+
+    let remove_count = store.len() - IDEMPOTENCY_CACHE_MAX_ENTRIES;
+    let mut entries = store
+        .iter()
+        .map(|(key, entry)| (entry.created_at, key.clone()))
+        .collect::<Vec<_>>();
+    entries.sort_by_key(|(created_at, _)| *created_at);
+    for (_, key) in entries.into_iter().take(remove_count) {
+        store.remove(&key);
+    }
 }
 
 #[derive(Debug, Clone)]

@@ -73,9 +73,11 @@
 
 ## 9. Idempotency
 
-- CLI может передавать `Idempotency-Key` для повторяемых write-команд.
-- Серверная дедупликация `Idempotency-Key` не является частью текущего MVP runtime и вынесена в hardening после стабилизации базового API.
-- Distributed cache не должен быть обязательной зависимостью для базовых Wiki операций.
+- CLI sends `Idempotency-Key` for retryable write commands.
+- Protected domain/admin `POST`/`PUT`/`DELETE` requests that include `Idempotency-Key` are deduplicated server-side; auth/session endpoints are outside this replay scope.
+- The key scope is `(actor, key, method, path+query, request body hash)`. The same successful request replays the stored status, content type and body for 24 hours.
+- Reusing the key for a different request, or retrying while the first request is still `processing`, returns `409 CONFLICT`.
+- PostgreSQL is the persistence backend for production idempotency records; distributed cache is not required for base Wiki operations.
 
 ## 10. Security
 

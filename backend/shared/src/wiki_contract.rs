@@ -51,10 +51,46 @@ impl WikiSettingsSnapshot {
         }
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiIdempotencyRequest {
+    pub actor_id: String,
+    pub key: String,
+    pub method: String,
+    pub path: String,
+    pub request_hash: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiIdempotencyReplay {
+    pub status_code: u16,
+    pub content_type: Option<String>,
+    pub body: Vec<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WikiIdempotencyStatus {
+    Started,
+    Replay(WikiIdempotencyReplay),
+}
+
 #[async_trait::async_trait]
 pub trait WikiBackendPort: Send + Sync {
     async fn readiness_check(&self) -> Result<(), AppError>;
     async fn authenticate_access_token(&self, token: &str) -> Result<WikiClaims, AppError>;
+    async fn begin_idempotent_request(
+        &self,
+        request: WikiIdempotencyRequest,
+    ) -> Result<WikiIdempotencyStatus, AppError>;
+    async fn complete_idempotent_request(
+        &self,
+        request: WikiIdempotencyRequest,
+        replay: WikiIdempotencyReplay,
+    ) -> Result<(), AppError>;
+    async fn abandon_idempotent_request(
+        &self,
+        request: WikiIdempotencyRequest,
+    ) -> Result<(), AppError>;
     async fn register(
         &self,
         request_id: Option<String>,

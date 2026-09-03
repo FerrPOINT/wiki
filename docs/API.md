@@ -14,7 +14,7 @@ REST API Wiki предоставляет базовые операции про�
 - Ошибки MVP возвращаются единым JSON envelope `{ "error": { "code": "CODE", "message": "message" } }`; `requestId` и `details` добавляются как опциональные поля, когда доступны.
 - Backend возвращает `X-Request-ID` на каждый ответ: echo валидного клиентского заголовка или новый `req_` UUIDv7 для запроса без request id.
 - Большие списки MVP используют bounded `limit` и стабильную сортировку: revisions, evidence, search, audit.
-- CLI может отправлять `Idempotency-Key` для повторяемых write-команд; серверная дедупликация ключей вынесена в hardening после MVP.
+- Protected domain/admin `POST`/`PUT`/`DELETE` requests may send `Idempotency-Key`; auth/session endpoints are outside this replay scope. The server stores successful responses for 24 hours by `(actor, key, method, path+query, request body hash)` and replays the same response on retry. Reusing the same key for a different request, or retrying while the first request is still processing, returns `409 CONFLICT`.
 - Protected endpoints требуют session/JWT.
 - API не раскрывает секреты, bearer tokens, private storage keys и stack traces.
 
@@ -180,3 +180,4 @@ The pre-development API contract is frozen when these checks pass:
 | Search | Results are bounded, permission-filtered and do not expose unpublished draft text. |
 | Settings | Secrets, connection strings, storage paths and bootstrap credentials are never returned. |
 | Health | `/health/ready` fails until runtime dependencies are initialized. |
+| Idempotency | Repeating a successful protected domain/admin write with the same `Idempotency-Key` replays the original response without a duplicate write; reusing the key for another payload returns `409 CONFLICT`. |

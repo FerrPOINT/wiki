@@ -9,8 +9,11 @@
 ### 2.1 Idempotency Keys
 
 - CLI отправляет `Idempotency-Key` для повторяемых mutation requests.
-- Серверная дедупликация ключей вынесена в hardening после MVP; до неё write-команды должны оставаться естественно безопасными через уникальные ограничения, архивирование вместо hard delete и явные conflict responses.
-- В первую очередь дедупликация потребуется для:
+- API дедуплицирует protected domain/admin `POST`/`PUT`/`DELETE` requests, если заголовок передан. Auth/session endpoints не входят в replay scope.
+- Scope ключа: `(actor, key, method, path+query, request body hash)`.
+- Успешный ответ хранится 24 часа и при retry возвращается без повторного domain write и audit write.
+- Повтор ключа с другим method/path/body или повтор пока первый запрос в состоянии `processing` возвращает `409 CONFLICT`.
+- Основные команды, где retry-safety особенно важна:
   - `POST /api/v1/spaces`
   - `POST /api/v1/spaces/{space_key}/documents`
   - `POST /api/v1/documents/{document_id}/publish`
@@ -19,8 +22,9 @@
 
 ### 2.2 Natural Idempotency
 
-- `PUT` обновления с ETag/If-Match.
-- `DELETE` повторный — 404 без side effects.
+- Unique constraints and explicit conflict responses still protect naturally duplicated writes.
+- Archive/soft-delete commands avoid destructive repeated deletes.
+- `ETag` / `If-Match` remains deferred; current stale draft protection for publish uses `base_revision_id`.
 
 ## 3. Circuit Breakers
 

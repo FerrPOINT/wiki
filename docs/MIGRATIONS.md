@@ -4,7 +4,7 @@
 
 Миграции управляют схемой PostgreSQL. Wiki-подход - **SQLx migrations**: plain SQL-файлы, применяемые через `sqlx migrate`, startup runner или thin `cargo run -p migration` runner.
 
-Clean Wiki baseline lives in `backend/migrations/202608310001_create_wiki_mvp.*.sql` and creates a fresh MVP schema without task-tracker tables. `202608310002_add_auth_runtime.*.sql` adds usernames and auth session storage used by the SQLx runtime adapter. `backend/migration` is a thin SQLx command wrapper over this directory, not a separate schema source.
+Clean Wiki baseline lives in `backend/migrations/202608310001_create_wiki_mvp.*.sql` and creates a fresh MVP schema without task-tracker tables. `202608310002_add_auth_runtime.*.sql` adds usernames and auth session storage used by the SQLx runtime adapter. `202609030001_add_idempotency_records.*.sql` adds server-side replay storage for protected domain/admin writes with `Idempotency-Key`. `backend/migration` is a thin SQLx command wrapper over this directory, not a separate schema source.
 
 ## 2. Tooling
 
@@ -25,6 +25,8 @@ backend/migrations/
 ├── 202608310001_create_wiki_mvp.down.sql
 ├── 202608310002_add_auth_runtime.up.sql
 ├── 202608310002_add_auth_runtime.down.sql
+├── 202609030001_add_idempotency_records.up.sql
+├── 202609030001_add_idempotency_records.down.sql
 └── seeds/
 ```
 

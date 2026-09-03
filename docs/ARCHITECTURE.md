@@ -138,6 +138,7 @@ The PostgreSQL adapter is split by operation area:
 - evidence/attachments;
 - templates;
 - audit;
+- idempotency records for protected write replay;
 - search.
 
 ## 9. API Layer
@@ -147,7 +148,7 @@ Axum API owns:
 - request extraction;
 - DTO validation;
 - auth/session extraction;
-- idempotency key extraction;
+- idempotency key extraction and replay for protected domain/admin writes;
 - use case calls through `WikiBackendPort`;
 - unified error envelope;
 - OpenAPI generation.

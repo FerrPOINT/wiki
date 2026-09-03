@@ -47,7 +47,7 @@ The remaining work is hardening and release readiness, not expansion of product 
 - Keep `backend/cli/src/main.rs` aligned with `docs/CLI.md`.
 - Keep command groups matched to public API groups: auth, user, space, doc, task, phase, evidence, attachment, template, audit, search and settings.
 - Keep JSON as the default output and non-zero exit code for API errors.
-- Preserve idempotency key behavior for write commands.
+- Preserve server-side idempotency replay behavior for write commands and expand coverage when new write endpoints are added.
 
 ## 5. Frontend Integration
 

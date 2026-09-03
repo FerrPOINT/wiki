@@ -1,6 +1,6 @@
 # Wiki MVP Readiness 100%
 
-> Snapshot date: 2026-09-02. This document defines readiness for starting main Wiki development, not production launch readiness.
+> Snapshot date: 2026-09-03. This document defines readiness for starting main Wiki development, not production launch readiness.
 
 ## 1. Purpose
 
@@ -13,7 +13,7 @@ This gate is intentionally narrower than production readiness. It confirms the b
 | Aspect | Gate for 100% pre-development readiness | Evidence | Status |
 | ------ | --------------------------------------- | -------- | ------ |
 | Product | MVP scope is stable and excludes deferred features | `docs/PRODUCT_REQUIREMENTS.md`, `docs/ROADMAP.md` | Ready |
-| API | Public `/api/v1` contract is complete and documented | `openapi/openapi.json`, `docs/API.md` | Ready |
+| API | Public `/api/v1` contract is complete, documented and retry-safe for keyed protected domain/admin writes | `openapi/openapi.json`, `docs/API.md` | Ready |
 | Backend | Layering, runtime composition, persistence and tests are defined | `docs/ARCHITECTURE.md`, `docs/CURRENT_STATE.md` | Ready |
 | Data | Tables, indexes, constraints and migration source are documented | `docs/DATA_MODEL.md`, `docs/DATABASE_INDEXES.md`, `backend/migrations` | Ready |
 | Frontend | Approved MVP route set is frozen and backed by screenshots | `docs/ROUTING.md`, `docs/PAGE_DESIGN.md`, `README.md` | Ready |
@@ -43,7 +43,7 @@ API paths in this table are relative to `/api/v1` unless marked otherwise. `/met
 | Settings | Admin видит безопасный runtime snapshot | `/settings` | `wiki settings get` | `/settings`, `/admin` | runtime config snapshot | settings tests, `15-settings.png` |
 | Audit | Admin проверяет bounded append-only write history and request correlation | `/audit-log` | `wiki audit list --limit` | `/audit-log`, `/admin` | `audit_log.request_id` | audit tests, `13-audit-log.png` |
 | Runtime probes | Operator проверяет liveness/readiness before traffic | `/health`, `/health/ready`, `/metrics` outside API v1 | curl/API-only | no route | runtime state, metrics exporter | health tests, ops docs |
-| API contract | UI/CLI and agents use the same public API | `/api/v1`, OpenAPI | all CLI groups | all MVP routes | DTO schemas | OpenAPI parity check |
+| API contract | UI/CLI and agents use the same public API with retry-safe protected domain/admin writes | `/api/v1`, OpenAPI, `Idempotency-Key` | all CLI groups | all MVP routes | DTO schemas, `idempotency_records` | OpenAPI parity check, idempotency tests |
 
 ## 4. Design Freeze
 
@@ -66,6 +66,7 @@ API paths in this table are relative to `/api/v1` unless marked otherwise. `/met
 | Attachments | empty file, unsafe filename, unsafe storage key, oversize payload, unauthorized download |
 | Search | no-role access, archived filter, task/phase filter isolation, bounded `1..100` limit |
 | Audit | write action without audit, audit diff containing secret-like values |
+| Idempotency | repeat success replay, changed payload conflict, in-flight retry conflict |
 | Ops | readiness before DB connection, migration failure, backup restore verification failure |
 
 ## 6. Go/No-Go Checklist
@@ -75,6 +76,7 @@ API paths in this table are relative to `/api/v1` unless marked otherwise. `/met
 - `docs/TRACEABILITY.md` maps every P0/P1 requirement to API/data/UI-or-API-only/test evidence.
 - `docs/PAGE_DESIGN.md` defines purpose, states and actions for every approved route.
 - `docs/DATA_MODEL.md` names every migration table and required constraint category.
+- Protected domain/admin write retry-safety is covered by server-side idempotency tests and documented in API/data/resilience docs.
 - `docs/CLI.md` documents every CLI group, output policy and API-only exception.
 - README renders all screenshot images; manifest and screenshot script cover the same files.
 - Frontend and backend verification commands are recorded in `docs/CURRENT_STATE.md`.

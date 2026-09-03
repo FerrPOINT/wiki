@@ -3969,6 +3969,79 @@ async fn wiki_api_records_request_id_in_audit_log() {
 }
 
 #[tokio::test]
+async fn wiki_api_replays_idempotent_write_responses() {
+    let app = test_app();
+    let token = login_memory_admin(&app).await;
+    let short = Uuid::now_v7().simple().to_string();
+    let task_key = format!("IDEMP-{}", &short[..12]);
+    let key = format!("wiki-test-idempotency-{short}");
+    let body = json!({
+        "space": "SDLC",
+        "task_key": task_key,
+        "title": "Idempotent evidence",
+        "evidence_type": "external_url",
+        "url": format!("https://ci.local/jobs/idempotent-{short}")
+    });
+
+    let (status, _, first) = call_with_headers(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(&token),
+        Some(body.clone()),
+        &[("idempotency-key", key.as_str())],
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let (status, _, replay) = call_with_headers(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(&token),
+        Some(body),
+        &[("idempotency-key", key.as_str())],
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(replay["id"], first["id"]);
+    assert_eq!(replay, first);
+
+    let (status, evidence) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/evidence?space=SDLC&task_key={task_key}"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(evidence["evidence"].as_array().unwrap().len(), 1);
+
+    let (status, _, conflict) = call_with_headers(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(&token),
+        Some(json!({
+            "space": "SDLC",
+            "task_key": task_key,
+            "title": "Different idempotent evidence",
+            "evidence_type": "external_url",
+            "url": format!("https://ci.local/jobs/idempotent-different-{short}")
+        })),
+        &[("idempotency-key", key.as_str())],
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(conflict["error"]["code"], "CONFLICT");
+    assert_eq!(
+        conflict["error"]["message"],
+        "idempotency key was reused for a different request"
+    );
+}
+
+#[tokio::test]
 async fn wiki_audit_log_honors_bounded_limit_query() {
     let app = test_app();
     let token = login_memory_admin(&app).await;
@@ -4058,6 +4131,104 @@ async fn wiki_postgres_audit_records_request_id_when_database_available() {
             && entry["entity_id"] == document_id
             && entry["request_id"] == document_request_id
     }));
+}
+
+#[tokio::test]
+async fn wiki_postgres_idempotency_replays_without_duplicate_writes_when_database_available() {
+    let Ok(database_url) = env::var("WIKI_TEST_DATABASE_URL") else {
+        eprintln!("skipping postgres idempotency test: WIKI_TEST_DATABASE_URL is not set");
+        return;
+    };
+    reset_postgres(&database_url).await;
+    let storage_dir = env::temp_dir().join(format!("wiki-api-test-{}", Uuid::now_v7()));
+    let (app, _) = postgres_test_app(database_url.clone(), storage_dir).await;
+    let token = login_admin(&app).await;
+    let short = Uuid::now_v7().simple().to_string();
+    let task_key = format!("PGIDEMP-{}", &short[..12]);
+    let key = format!("wiki-postgres-idempotency-{short}");
+    let body = json!({
+        "space": "SDLC",
+        "task_key": task_key,
+        "title": "Postgres idempotent evidence",
+        "evidence_type": "external_url",
+        "url": format!("https://ci.local/jobs/postgres-idempotent-{short}")
+    });
+
+    let (status, _, first) = call_with_headers(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(&token),
+        Some(body.clone()),
+        &[("idempotency-key", key.as_str())],
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let (status, _, replay) = call_with_headers(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(&token),
+        Some(body),
+        &[("idempotency-key", key.as_str())],
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(replay, first);
+
+    let (status, _, conflict) = call_with_headers(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(&token),
+        Some(json!({
+            "space": "SDLC",
+            "task_key": task_key,
+            "title": "Different Postgres idempotent evidence",
+            "evidence_type": "external_url",
+            "url": format!("https://ci.local/jobs/postgres-idempotent-different-{short}")
+        })),
+        &[("idempotency-key", key.as_str())],
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(conflict["error"]["code"], "CONFLICT");
+
+    let evidence_id = Uuid::parse_str(first["id"].as_str().unwrap()).unwrap();
+    let pool = PgPoolOptions::new()
+        .max_connections(1)
+        .connect(&database_url)
+        .await
+        .unwrap();
+    let evidence_count: i64 = sqlx::query_scalar(
+        r#"
+        SELECT count(*)
+        FROM evidence_items e
+        JOIN task_dossiers td ON td.id = e.task_dossier_id
+        JOIN spaces s ON s.id = e.space_id
+        WHERE s.key = 'SDLC' AND td.task_key = $1
+        "#,
+    )
+    .bind(&task_key)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let audit_count: i64 = sqlx::query_scalar(
+        r#"
+        SELECT count(*)
+        FROM audit_log
+        WHERE action = 'evidence.create' AND entity_id = $1
+        "#,
+    )
+    .bind(evidence_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    pool.close().await;
+
+    assert_eq!(evidence_count, 1);
+    assert_eq!(audit_count, 1);
 }
 
 #[tokio::test]

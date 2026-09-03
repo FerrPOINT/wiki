@@ -89,7 +89,18 @@
 | Unmapped database error     | `500 INTERNAL_ERROR`; infrastructure details stay in logs |
 | Serialization conflict      | `500 INTERNAL_ERROR` until retryable conflicts are mapped |
 
-## 9. Settings And Operations
+## 9. Idempotency
+
+| Scenario | Behavior |
+| -------- | -------- |
+| Protected domain/admin write without `Idempotency-Key` | Request executes normally |
+| Same actor repeats the same successful write with the same key | Stored status, content type and body are replayed without a duplicate write |
+| Same key is reused for another method, path or body | `409 CONFLICT` |
+| Same key is retried while the first request is still processing | `409 CONFLICT` |
+| Different actor uses the same key | Separate idempotency scope |
+| Auth/session write, such as `/auth/logout` | Auth/session endpoints are outside replay scope and follow normal token validation |
+
+## 10. Settings And Operations
 
 | Scenario | Behavior |
 | -------- | -------- |
@@ -98,7 +109,7 @@
 | API process is live but dependencies are not ready | `/api/v1/health` succeeds, `/api/v1/health/ready` returns not ready |
 | Metrics endpoint is unavailable behind edge proxy | API contract remains valid; operator checks deployment routing |
 
-## 10. References
+## 11. References
 
 - `docs/API.md`
 - `docs/ERROR_HANDLING.md`

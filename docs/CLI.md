@@ -49,7 +49,7 @@ CLI exit codes for MVP:
 
 Markdown input for `--from-file` accepts a filesystem path or `-` for stdin. Attachment download writes only to the path passed in `--out`.
 
-Every CLI HTTP request sends `X-Request-ID` with a `wiki-cli-request-` prefix for backend log correlation. Mutating commands additionally send `Idempotency-Key`.
+Every CLI HTTP request sends `X-Request-ID` with a `wiki-cli-request-` prefix for backend log correlation. Mutating commands additionally send `Idempotency-Key`; the API uses it to replay successful protected domain/admin writes safely on retry.
 
 ## Команды MVP
 
@@ -161,7 +161,7 @@ CLI is ready for main development when:
 - every command group maps to the public `/api/v1` API documented in `docs/API.md`;
 - JSON is the default output for every command and table/compact modes are presentation-only;
 - non-2xx API responses produce a non-zero exit code and render the API error code/message;
-- write commands preserve `Idempotency-Key` behavior for safe retries;
+- write commands preserve `Idempotency-Key` behavior so the API can replay successful domain/admin writes safely on retry;
 - Markdown input works from a path or stdin through `--from-file -`;
 - attachment download writes only to the requested local path and does not expose server storage keys.
 
@@ -194,5 +194,5 @@ Documented API-only or non-CLI MVP surfaces:
 - Ненулевой exit code для ошибок.
 - Ошибки совместимы с API error envelope.
 - Markdown можно передать из файла или stdin.
-- Повторяемые write-команды отправляют `Idempotency-Key`.
+- Повторяемые write-команды отправляют `Idempotency-Key`, а сервер дедуплицирует successful protected domain/admin writes по этому ключу.
 - CLI не зависит от PostgreSQL schema, server filesystem или internal Rust modules.

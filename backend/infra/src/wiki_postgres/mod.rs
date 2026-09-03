@@ -3,6 +3,7 @@ mod connection;
 mod documents;
 mod dossiers;
 mod evidence;
+mod idempotency;
 mod identity;
 mod mapping;
 mod queries;
@@ -189,6 +190,28 @@ impl WikiBackendPort for PostgresWikiBackend {
 
     async fn authenticate_access_token(&self, token: &str) -> Result<WikiClaims, shared::AppError> {
         PostgresWikiBackend::authenticate_access_token(self, token).await
+    }
+
+    async fn begin_idempotent_request(
+        &self,
+        request: WikiIdempotencyRequest,
+    ) -> Result<WikiIdempotencyStatus, shared::AppError> {
+        PostgresWikiBackend::begin_idempotent_request(self, request).await
+    }
+
+    async fn complete_idempotent_request(
+        &self,
+        request: WikiIdempotencyRequest,
+        replay: WikiIdempotencyReplay,
+    ) -> Result<(), shared::AppError> {
+        PostgresWikiBackend::complete_idempotent_request(self, request, replay).await
+    }
+
+    async fn abandon_idempotent_request(
+        &self,
+        request: WikiIdempotencyRequest,
+    ) -> Result<(), shared::AppError> {
+        PostgresWikiBackend::abandon_idempotent_request(self, request).await
     }
 
     async fn register(

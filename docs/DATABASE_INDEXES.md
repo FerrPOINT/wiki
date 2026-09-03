@@ -32,6 +32,8 @@
 | `attachments` | `attachments_owner_idx` | btree | Attachments by owner |
 | `attachments` | `attachments_checksum_idx` | btree | Dedup/integrity |
 | `attachments` | `attachments_staged_idx` | partial btree | Cleanup staged uploads |
+| `idempotency_records` | `idempotency_records_actor_key_idx` | unique btree | Retry lookup by actor and idempotency key |
+| `idempotency_records` | `idempotency_records_expires_idx` | btree | TTL cleanup |
 | `audit_log` | `audit_entity_idx` | btree | Entity audit trail |
 | `audit_log` | `audit_actor_time_idx` | btree | Actor audit trail |
 
@@ -42,6 +44,7 @@
 - Task dossier: `(space_id, task_key)` must be unique.
 - Phase dossier: `(space_id, phase_key)` must be unique.
 - Evidence feed: `(phase_dossier_id, created_at DESC)` and `(task_dossier_id, created_at DESC)`.
+- Idempotency replay: `(actor_id, idempotency_key)` is unique so retry lookup is one indexed row; `expires_at` supports bounded cleanup.
 - Archive filtering: partial indexes with `WHERE archived_at IS NULL`.
 
 ## 4. Full-text Search

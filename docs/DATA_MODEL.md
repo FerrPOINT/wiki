@@ -50,6 +50,28 @@ Refresh/access session storage. API отдаёт JWT пользователю, �
 | `created_at`         | timestamptz          | Создание                   |
 | `last_used_at`       | timestamptz          | Последнее использование    |
 
+### idempotency_records
+
+Техническая таблица API runtime для безопасных повторов protected write-запросов с `Idempotency-Key`.
+
+| Поле                    | Тип                  | Описание                                  |
+| ----------------------- | -------------------- | ----------------------------------------- |
+| `id`                    | uuid                 | PK                                        |
+| `actor_id`              | uuid                 | FK users; владелец idempotency scope      |
+| `idempotency_key`       | text                 | Клиентский ключ повтора                   |
+| `method`                | text                 | HTTP method                               |
+| `path`                  | text                 | Path+query запроса                        |
+| `request_hash`          | text                 | SHA-256 hash content-type и body запроса  |
+| `state`                 | text                 | `processing`, `completed`                 |
+| `response_status`       | int nullable         | HTTP status сохранённого успешного ответа |
+| `response_content_type` | text nullable        | Content-Type сохранённого ответа          |
+| `response_body`         | bytea nullable       | Body сохранённого ответа                  |
+| `created_at`            | timestamptz          | Создание записи                           |
+| `updated_at`            | timestamptz          | Последнее обновление                      |
+| `expires_at`            | timestamptz          | TTL cleanup после 24 часов                |
+
+Unique: `(actor_id, idempotency_key)`.
+
 ### spaces
 
 | Поле          | Тип                  | Описание              |
@@ -265,6 +287,7 @@ Constraint: минимум одно из `document_id`, `task_dossier_id`, `phas
 | `attachments` | attachments |
 | `evidence_items` | evidence_items |
 | `document_templates` | document_templates |
+| `idempotency_records` | idempotency_records |
 | `audit_log` | audit_log |
 
 Required constraint categories:
@@ -273,6 +296,7 @@ Required constraint categories:
 - role/status/type `CHECK` constraints for users, members, documents, templates and evidence;
 - same-space foreign keys for document/task/phase/evidence/attachment relations;
 - soft-delete/archive fields on spaces and documents;
+- idempotency uniqueness by `(actor_id, idempotency_key)` plus state/response-shape checks and TTL index;
 - immutable revision version uniqueness per document;
 - FTS index for published revision search;
 - audit indexes by entity, actor and time.
@@ -304,6 +328,7 @@ CREATE INDEX document_revisions_search_idx
 erDiagram
     USERS ||--o{ SPACES : owns
     USERS ||--o{ SPACE_MEMBERS : joins
+    USERS ||--o{ IDEMPOTENCY_RECORDS : scopes
     SPACES ||--o{ SPACE_MEMBERS : has
     SPACES ||--o{ DOCUMENTS : contains
     DOCUMENTS ||--o| DOCUMENT_DRAFTS : edits
