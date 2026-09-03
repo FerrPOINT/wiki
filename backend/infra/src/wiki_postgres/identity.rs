@@ -168,11 +168,21 @@ impl<'a> PostgresWikiAuthRepository<'a> {
         &self,
         ctx: &sdlc_auth_core::AuthContext,
     ) -> Result<WikiAuthUserRecord, String> {
-        let email = ctx.email.as_deref().unwrap_or_default().to_lowercase().trim().to_string();
+        let email = ctx
+            .email
+            .as_deref()
+            .unwrap_or_default()
+            .to_lowercase()
+            .trim()
+            .to_string();
         if email.is_empty() {
             return Err("central token carries no email claim".into());
         }
-        if let Some(existing) = self.find_user_by_email(&email).await.map_err(|e| e.to_string())? {
+        if let Some(existing) = self
+            .find_user_by_email(&email)
+            .await
+            .map_err(|e| e.to_string())?
+        {
             if !existing.is_active {
                 return Err("user is deactivated".into());
             }
@@ -561,6 +571,29 @@ impl PostgresWikiBackend {
         request_id: Option<String>,
         body: WikiLoginRequest,
     ) -> Result<WikiAuthResponse, shared::AppError> {
+        // Central fleet auth first; local password login remains the fallback
+        // (transition period, see central_login.rs).
+        if let Some(config) = crate::wiki_postgres::central_login::central_login_config() {
+            match crate::wiki_postgres::central_login::try_central_login(
+                &config,
+                &body.email,
+                &body.password,
+            )
+            .await
+            {
+                Ok(Some(pair)) => {
+                    return Ok(crate::wiki_postgres::central_login::central_response(
+                        pair,
+                        &body.email,
+                    ));
+                }
+                Ok(None) => unreachable!("config is Some"),
+                Err(Some(error)) => {
+                    tracing::warn!(%error, "central login failed; falling back to local");
+                }
+                Err(None) => { /* credentials not known centrally; local path */ }
+            }
+        }
         let repository = PostgresWikiAuthRepository {
             backend: self,
             request_id: request_id.as_deref(),

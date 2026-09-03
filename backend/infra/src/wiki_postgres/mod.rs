@@ -1,5 +1,6 @@
 mod audit;
 pub mod central_auth;
+pub mod central_login;
 mod connection;
 mod documents;
 mod dossiers;

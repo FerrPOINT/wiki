@@ -9,6 +9,9 @@ license-file.workspace = true
 # Fleet auth core: sibling services-base checkout (umbrella compose + CI).
 # In CI the repo checks out to $GITHUB_WORKSPACE/wiki and services-base to
 # $GITHUB_WORKSPACE/services-base, so the relative path matches on both.
+serde = { workspace = true }
+reqwest = { workspace = true }
+serde_json = { workspace = true }
 sdlc-auth-core = { path = "../../../services-base/crates/sdlc-auth-core" }
 shared = { path = "../shared" }
 domain = { path = "../domain" }
