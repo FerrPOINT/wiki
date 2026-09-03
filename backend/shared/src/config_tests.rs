@@ -8,6 +8,7 @@ static ENV_LOCK: Mutex<()> = Mutex::new(());
 
 fn clear_env() {
     for key in [
+        "WIKI_ENVIRONMENT",
         "WIKI_DATABASE__URL",
         "WIKI_DATABASE__MAX_CONNECTIONS",
         "WIKI_DATABASE__MIN_CONNECTIONS",
@@ -15,11 +16,13 @@ fn clear_env() {
         "WIKI_DATABASE__IDLE_TIMEOUT_SECONDS",
         "WIKI_SERVER__ADDRESS",
         "WIKI_SERVER__PORT",
+        "WIKI_SERVER__CORS_ALLOWED_ORIGINS",
         "WIKI_AUTH__JWT_SECRET",
         "WIKI_JWT_SECRET",
         "WIKI_AUTH__ACCESS_TOKEN_TTL_MINUTES",
         "WIKI_AUTH__REFRESH_TOKEN_TTL_DAYS",
         "WIKI_AUTH__REGISTRATION_ENABLED",
+        "WIKI_AUTH__REFRESH_COOKIE_NAME",
         "WIKI_AUTH__REFRESH_TOKEN_COOKIE_NAME",
         "WIKI_AUTH__REFRESH_COOKIE_SECURE",
         "WIKI_AUTH__REFRESH_COOKIE_SAME_SITE",
@@ -62,8 +65,10 @@ fn config_scenarios() {
 
     // Defaults
     let cfg = AppConfig::from_path("/nonexistent.toml").unwrap();
+    assert_eq!(cfg.environment, crate::RuntimeEnvironment::Development);
     assert_eq!(cfg.server.address, "0.0.0.0");
     assert_eq!(cfg.server.port, 3456);
+    assert_eq!(cfg.server.cors_allowed_origins, vec!["*"]);
     assert_eq!(cfg.server_addr(), "0.0.0.0:3456");
     assert_eq!(cfg.database.max_connections, 20);
     assert_eq!(cfg.database.min_connections, 5);
@@ -85,12 +90,23 @@ fn config_scenarios() {
     set_env("WIKI_DATABASE__CONNECT_TIMEOUT_SECONDS", "5");
     set_env("WIKI_DATABASE__IDLE_TIMEOUT_SECONDS", "300");
     set_env("WIKI_SERVER__PORT", "19876");
+    set_env(
+        "WIKI_SERVER__CORS_ALLOWED_ORIGINS",
+        "http://localhost:19877, https://wiki.example.test",
+    );
     set_env("WIKI_AUTH__ACCESS_TOKEN_TTL_MINUTES", "60");
     set_env("WIKI_AUTH__REFRESH_TOKEN_TTL_DAYS", "14");
     set_env("WIKI_AUTH__REGISTRATION_ENABLED", "false");
     set_env("WIKI_AUTH__JWT_SECRET", "test-secret-32-chars-long!!!!!");
     let cfg = AppConfig::from_path("/nonexistent.toml").unwrap();
     assert_eq!(cfg.server.port, 19876);
+    assert_eq!(
+        cfg.server.cors_allowed_origins,
+        vec![
+            "http://localhost:19877".to_string(),
+            "https://wiki.example.test".to_string()
+        ]
+    );
     assert_eq!(cfg.auth.jwt_secret, "test-secret-32-chars-long!!!!!");
     assert!(!cfg.auth.registration_enabled);
     assert!(cfg.database.url.contains("localhost:5432/db"));
@@ -241,6 +257,144 @@ fn rate_limit_zero_values_rejected() {
     unsafe { env::set_var("WIKI_SERVER__GENERAL_RATE_PERIOD_SECS", "0") };
     let err = AppConfig::from_path("/nonexistent.toml");
     assert!(err.is_err(), "zero general period must be a config error");
+}
+
+#[test]
+fn cors_allowed_origins_are_validated() {
+    let _guard = ENV_LOCK.lock().unwrap();
+
+    clear_env();
+    set_env("WIKI_JWT_SECRET", "test-secret-32-chars-long!!!!!");
+    set_env(
+        "WIKI_SERVER__CORS_ALLOWED_ORIGINS",
+        "https://wiki.example.test, https://wiki.example.test",
+    );
+    let cfg = AppConfig::from_path("/nonexistent.toml").unwrap();
+    assert_eq!(
+        cfg.server.cors_allowed_origins,
+        vec!["https://wiki.example.test".to_string()]
+    );
+
+    clear_env();
+    set_env("WIKI_JWT_SECRET", "test-secret-32-chars-long!!!!!");
+    set_env(
+        "WIKI_SERVER__CORS_ALLOWED_ORIGINS",
+        "ftp://wiki.example.test",
+    );
+    let err = AppConfig::from_path("/nonexistent.toml").unwrap_err();
+    assert!(err.to_string().contains("http or https scheme"));
+
+    clear_env();
+    set_env("WIKI_JWT_SECRET", "test-secret-32-chars-long!!!!!");
+    set_env(
+        "WIKI_SERVER__CORS_ALLOWED_ORIGINS",
+        "https://wiki.example.test/",
+    );
+    let err = AppConfig::from_path("/nonexistent.toml").unwrap_err();
+    assert!(err.to_string().contains("path or query"));
+
+    clear_env();
+    set_env("WIKI_JWT_SECRET", "test-secret-32-chars-long!!!!!");
+    set_env(
+        "WIKI_SERVER__CORS_ALLOWED_ORIGINS",
+        "https://wiki.example.test/api",
+    );
+    let err = AppConfig::from_path("/nonexistent.toml").unwrap_err();
+    assert!(err.to_string().contains("path or query"));
+
+    clear_env();
+}
+
+#[test]
+fn production_environment_enforces_security_config() {
+    let _guard = ENV_LOCK.lock().unwrap();
+
+    clear_env();
+    set_env("WIKI_ENVIRONMENT", "production");
+    set_env(
+        "WIKI_DATABASE__URL",
+        "postgres://wiki:secret@postgres:5432/wiki",
+    );
+    set_env("WIKI_JWT_SECRET", "test-secret-32-chars-long-production");
+    set_env("WIKI_SERVER__CORS_ALLOWED_ORIGINS", "*");
+    let err = AppConfig::from_path("/nonexistent.toml").unwrap_err();
+    assert!(err.to_string().contains("wildcard"));
+
+    clear_env();
+    set_env("WIKI_ENVIRONMENT", "production");
+    set_env("WIKI_JWT_SECRET", "test-secret-32-chars-long-production");
+    set_env(
+        "WIKI_SERVER__CORS_ALLOWED_ORIGINS",
+        "https://wiki.example.test",
+    );
+    let err = AppConfig::from_path("/nonexistent.toml").unwrap_err();
+    assert!(err.to_string().contains("database.url"));
+
+    clear_env();
+    set_env("WIKI_ENVIRONMENT", "production");
+    set_env(
+        "WIKI_DATABASE__URL",
+        "postgres://wiki:secret@postgres:5432/wiki",
+    );
+    set_env("WIKI_JWT_SECRET", "test-secret-32-chars-long-production");
+    set_env(
+        "WIKI_SERVER__CORS_ALLOWED_ORIGINS",
+        "http://wiki.example.test",
+    );
+    let err = AppConfig::from_path("/nonexistent.toml").unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("production origins must use https")
+    );
+
+    clear_env();
+    set_env("WIKI_ENVIRONMENT", "production");
+    set_env(
+        "WIKI_DATABASE__URL",
+        "postgres://wiki:secret@postgres:5432/wiki",
+    );
+    set_env("WIKI_JWT_SECRET", "short-secret");
+    set_env(
+        "WIKI_SERVER__CORS_ALLOWED_ORIGINS",
+        "https://wiki.example.test",
+    );
+    let err = AppConfig::from_path("/nonexistent.toml").unwrap_err();
+    assert!(err.to_string().contains("at least 32 characters"));
+
+    clear_env();
+    set_env("WIKI_ENVIRONMENT", "production");
+    set_env(
+        "WIKI_DATABASE__URL",
+        "postgres://wiki:secret@postgres:5432/wiki",
+    );
+    set_env("WIKI_JWT_SECRET", "test-secret-32-chars-long-production");
+    set_env(
+        "WIKI_SERVER__CORS_ALLOWED_ORIGINS",
+        "https://wiki.example.test",
+    );
+    set_env("WIKI_AUTH__REFRESH_COOKIE_SECURE", "false");
+    let err = AppConfig::from_path("/nonexistent.toml").unwrap_err();
+    assert!(err.to_string().contains("refresh_cookie_secure"));
+
+    clear_env();
+    set_env("WIKI_ENVIRONMENT", "production");
+    set_env(
+        "WIKI_DATABASE__URL",
+        "postgres://wiki:secret@postgres:5432/wiki",
+    );
+    set_env("WIKI_JWT_SECRET", "test-secret-32-chars-long-production");
+    set_env(
+        "WIKI_SERVER__CORS_ALLOWED_ORIGINS",
+        "https://wiki.example.test",
+    );
+    let cfg = AppConfig::from_path("/nonexistent.toml").unwrap();
+    assert_eq!(cfg.environment, crate::RuntimeEnvironment::Production);
+    assert_eq!(
+        cfg.server.cors_allowed_origins,
+        vec!["https://wiki.example.test".to_string()]
+    );
+
+    clear_env();
 }
 
 #[test]

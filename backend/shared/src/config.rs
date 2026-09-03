@@ -1,4 +1,5 @@
 use config::{Config, ConfigError, Environment, File};
+use http::{HeaderValue, Uri};
 use serde::{Deserialize, Serialize};
 use std::{env, path::Path};
 
@@ -8,6 +9,8 @@ mod tests;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
+    #[serde(default)]
+    pub environment: RuntimeEnvironment,
     pub database: DatabaseConfig,
     pub server: ServerConfig,
     pub auth: AuthConfig,
@@ -17,6 +20,22 @@ pub struct AppConfig {
     pub email: EmailConfig,
     #[serde(default)]
     pub bootstrap: BootstrapConfig,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum RuntimeEnvironment {
+    #[default]
+    Development,
+    Test,
+    Staging,
+    Production,
+}
+
+impl RuntimeEnvironment {
+    pub fn is_production(self) -> bool {
+        matches!(self, Self::Production)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -134,6 +153,7 @@ impl AppConfig {
 
     pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, ConfigError> {
         let defaults = Config::builder()
+            .set_default("environment", "development")?
             .set_default("database.url", "")?
             .set_default("database.max_connections", 20u64)?
             .set_default("database.min_connections", 5u64)?
@@ -178,6 +198,8 @@ impl AppConfig {
                 Environment::with_prefix("WIKI")
                     .separator("__")
                     .prefix_separator("_")
+                    .list_separator(",")
+                    .with_list_parse_key("server.cors_allowed_origins")
                     .try_parsing(true),
             )
             .build()?
@@ -204,6 +226,13 @@ impl AppConfig {
             return Err(ConfigError::Message(
                 "auth.jwt_secret must be changed from default [CHANGE_ME]".to_string(),
             ));
+        }
+
+        cfg.server.cors_allowed_origins =
+            normalize_cors_allowed_origins(&cfg.server.cors_allowed_origins, cfg.environment)?;
+
+        if cfg.environment.is_production() {
+            validate_production_config(&cfg)?;
         }
 
         let has_bootstrap_email = cfg
@@ -268,6 +297,106 @@ fn is_valid_mail_address(addr: &str) -> bool {
     }
     let (local, domain) = addr.split_once('@').unwrap();
     !local.is_empty() && domain.contains('.') && !domain.starts_with('.') && !domain.ends_with('.')
+}
+
+fn normalize_cors_allowed_origins(
+    origins: &[String],
+    environment: RuntimeEnvironment,
+) -> Result<Vec<String>, ConfigError> {
+    let mut normalized = Vec::new();
+    for raw_origin in origins {
+        let origin = raw_origin.trim();
+        if origin.is_empty() {
+            continue;
+        }
+        validate_cors_origin(origin, environment)?;
+        if !normalized.iter().any(|existing| existing == origin) {
+            normalized.push(origin.to_string());
+        }
+    }
+    if normalized.is_empty() {
+        return Err(ConfigError::Message(
+            "server.cors_allowed_origins must contain at least one origin".to_string(),
+        ));
+    }
+    Ok(normalized)
+}
+
+fn validate_cors_origin(origin: &str, environment: RuntimeEnvironment) -> Result<(), ConfigError> {
+    if origin == "*" {
+        if environment.is_production() {
+            return Err(ConfigError::Message(
+                "server.cors_allowed_origins must not include wildcard '*' when environment=production"
+                    .to_string(),
+            ));
+        }
+        return Ok(());
+    }
+    if origin.ends_with('/') {
+        return Err(ConfigError::Message(format!(
+            "server.cors_allowed_origins must not include path or query: {origin}"
+        )));
+    }
+
+    HeaderValue::from_str(origin).map_err(|_| {
+        ConfigError::Message(format!(
+            "server.cors_allowed_origins contains invalid header value: {origin}"
+        ))
+    })?;
+    let uri = origin.parse::<Uri>().map_err(|_| {
+        ConfigError::Message(format!(
+            "server.cors_allowed_origins must contain valid origins: {origin}"
+        ))
+    })?;
+    let scheme = uri.scheme_str().ok_or_else(|| {
+        ConfigError::Message(format!(
+            "server.cors_allowed_origins origin must include http or https scheme: {origin}"
+        ))
+    })?;
+    if scheme != "http" && scheme != "https" {
+        return Err(ConfigError::Message(format!(
+            "server.cors_allowed_origins origin must use http or https scheme: {origin}"
+        )));
+    }
+    if environment.is_production() && scheme != "https" {
+        return Err(ConfigError::Message(format!(
+            "server.cors_allowed_origins production origins must use https: {origin}"
+        )));
+    }
+    if uri.authority().is_none() {
+        return Err(ConfigError::Message(format!(
+            "server.cors_allowed_origins origin must include host: {origin}"
+        )));
+    }
+    if uri
+        .path_and_query()
+        .is_some_and(|path_and_query| path_and_query.as_str() != "/")
+    {
+        return Err(ConfigError::Message(format!(
+            "server.cors_allowed_origins must not include path or query: {origin}"
+        )));
+    }
+    Ok(())
+}
+
+fn validate_production_config(cfg: &AppConfig) -> Result<(), ConfigError> {
+    if cfg.database.url.trim().is_empty() {
+        return Err(ConfigError::Message(
+            "database.url must be set when environment=production".to_string(),
+        ));
+    }
+    if cfg.auth.jwt_secret.trim().len() < 32 {
+        return Err(ConfigError::Message(
+            "auth.jwt_secret must be at least 32 characters when environment=production"
+                .to_string(),
+        ));
+    }
+    if !cfg.auth.refresh_cookie_secure {
+        return Err(ConfigError::Message(
+            "auth.refresh_cookie_secure must be true when environment=production".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 impl Default for DatabaseConfig {

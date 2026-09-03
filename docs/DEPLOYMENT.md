@@ -30,6 +30,7 @@ The backend container runs as the dedicated non-root `wiki` user (`10001:10001`)
 ```bash
 cp .env.example .env
 # отредактируйте секреты и задайте bootstrap admin для fresh DB
+# для production также задайте WIKI_ENVIRONMENT=production и HTTPS CORS origins
 # Для backend в контейнере с PostgreSQL persistence используйте host `postgres:5432`.
 docker compose up -d postgres backend
 curl -sf http://localhost:3456/api/v1/health/ready
@@ -69,14 +70,26 @@ pnpm build
 
 Для PostgreSQL runtime нет demo-пароля по умолчанию. На fresh database задайте `WIKI_BOOTSTRAP__ADMIN_EMAIL` и `WIKI_BOOTSTRAP__ADMIN_PASSWORD` перед первым стартом backend; startup создаст или обновит этого admin, базовое пространство `SDLC` и стандартные шаблоны. Memory fallback в API-тестах по-прежнему использует `demo@example.com` / `demo`.
 
-## 8. Health Checks
+## 8. Production Config Gate
+
+Set `WIKI_ENVIRONMENT=production` before shared production rollout. Startup validation rejects:
+
+- empty `WIKI_DATABASE__URL`;
+- `WIKI_JWT_SECRET` / `WIKI_AUTH__JWT_SECRET` shorter than 32 characters;
+- `WIKI_AUTH__REFRESH_COOKIE_SECURE=false`;
+- `WIKI_SERVER__CORS_ALLOWED_ORIGINS=*`;
+- non-HTTPS CORS origins or origins with path/query parts.
+
+`scripts/deploy-production.sh` also checks `WIKI_ENVIRONMENT=production` in the shell environment or `.env` before running Docker Compose, so production deploys cannot accidentally use the local-development default.
+
+## 9. Health Checks
 
 | Endpoint | Service |
 |----------|---------|
 | `GET /api/v1/health` | api liveness |
 | `GET /api/v1/health/ready` | PostgreSQL-backed runtime readiness |
 
-## 9. Backup
+## 10. Backup
 
 ```bash
 ./scripts/backup.sh
@@ -85,7 +98,7 @@ pnpm build
 
 Archive format and restore procedure are described in `docs/BACKUP_RESTORE.md`.
 
-## 10. Update
+## 11. Update
 
 ```bash
 git pull origin main
@@ -93,7 +106,7 @@ docker compose down -v   # при изменениях миграций
 docker compose up -d postgres backend
 ```
 
-## 11. Reverse Proxy Example (nginx)
+## 12. Reverse Proxy Example (nginx)
 
 ```nginx
 server {

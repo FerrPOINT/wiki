@@ -12,7 +12,15 @@ For Docker Compose backend use `postgres://wiki:...@postgres:5432/wiki`. For hos
 
 Production `server` startup fails fast when `WIKI_DATABASE__URL` is empty. The in-memory backend is reserved for explicit API/server tests and local test harnesses.
 
-## 2. HTTP
+## 2. Runtime Mode
+
+| Variable           | Default       | Description                                      |
+| ------------------ | ------------- | ------------------------------------------------ |
+| `WIKI_ENVIRONMENT` | `development` | `development`, `test`, `staging` or `production` |
+
+`WIKI_ENVIRONMENT=production` enables strict startup validation: no wildcard CORS, only HTTPS CORS origins, non-empty PostgreSQL URL, JWT secret with at least 32 characters and secure refresh cookies.
+
+## 3. HTTP
 
 | Variable                                | Default           | Description                   |
 | --------------------------------------- | ----------------- | ----------------------------- |
@@ -24,20 +32,22 @@ Production `server` startup fails fast when `WIKI_DATABASE__URL` is empty. The i
 | `WIKI_SERVER__GENERAL_RATE_BURST`       | `60`              | General API rate-limit burst  |
 | `WIKI_SERVER__GENERAL_RATE_PERIOD_SECS` | `60`              | General API rate-limit period |
 
-## 3. Auth
+`WIKI_SERVER__CORS_ALLOWED_ORIGINS` accepts a comma-separated list of browser origins such as `https://wiki.example.com,https://admin.example.com`. Origins must be `scheme://host[:port]` without path or query. The wildcard `*` is accepted only outside production mode.
+
+## 4. Auth
 
 | Variable                          | Default | Description                                                                      |
 | --------------------------------- | ------- | -------------------------------------------------------------------------------- |
 | `WIKI_AUTH__REGISTRATION_ENABLED` | `true`  | Enables or disables public `/auth/register`; when disabled the API returns `403` |
 
-## 4. Storage
+## 5. Storage
 
 | Variable                         | Default                 | Description              |
 | -------------------------------- | ----------------------- | ------------------------ |
 | `WIKI_STORAGE__DIR`              | `/var/lib/wiki/uploads` | Local storage path       |
 | `WIKI_STORAGE__MAX_UPLOAD_BYTES` | `26214400`              | Max upload size in bytes |
 
-## 5. Bootstrap Admin
+## 6. Bootstrap Admin
 
 | Variable                             | Description                                                        |
 | ------------------------------------ | ------------------------------------------------------------------ |
@@ -50,7 +60,7 @@ Backwards-compatible aliases are also accepted: `WIKI_ADMIN_EMAIL`, `WIKI_ADMIN_
 
 When email and password are set, backend startup creates or updates that admin, ensures the `SDLC` space exists and seeds default document templates. Without these variables PostgreSQL starts with no default account.
 
-## 6. Future External Sources
+## 7. Future External Sources
 
 | Variable                    | Description                    |
 | --------------------------- | ------------------------------ |
@@ -60,13 +70,13 @@ When email and password are set, backend startup creates or updates that admin, 
 
 These variables are not required for MVP.
 
-## 7. Frontend
+## 8. Frontend
 
 | Variable            | Default                        | Description   |
 | ------------------- | ------------------------------ | ------------- |
 | `VITE_API_BASE_URL` | `http://127.0.0.1:3456/api/v1` | API base path |
 
-## 8. Security Notes
+## 9. Security Notes
 
 - Never commit real secrets.
 - Rotate secrets independently per environment.

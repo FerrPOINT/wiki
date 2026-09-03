@@ -26,10 +26,11 @@
 
 ## 4. Deployment Checklist
 
+- `WIKI_ENVIRONMENT=production` set for shared/production deployments.
 - `WIKI_JWT_SECRET` or `WIKI_AUTH__JWT_SECRET` set.
 - `WIKI_DATABASE__URL` points to production PostgreSQL.
 - Storage backend configured and writable.
-- CORS and public URL match deployment host.
+- `WIKI_SERVER__CORS_ALLOWED_ORIGINS` contains only the HTTPS browser origins that may call the API.
 - Backups enabled before first production traffic.
 
 ## 5. Readiness Gates

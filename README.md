@@ -229,7 +229,7 @@ flowchart TD
 
 - Current baseline is API-backed MVP, not a finished enterprise knowledge platform.
 - Reports, notifications, webhooks, import/export bundles, OCR and real-time collaboration are deferred.
-- Before shared deployments, replace all `[CHANGE_ME]` values, set `WIKI_JWT_SECRET`, configure bootstrap admin credentials and review CORS/cookie/TLS settings.
+- Before shared deployments, replace all `[CHANGE_ME]` values, set `WIKI_ENVIRONMENT=production`, set `WIKI_JWT_SECRET`, configure bootstrap admin credentials and review CORS/cookie/TLS settings.
 - PostgreSQL is the local/dev data service; treat exposed ports as intentional deployment choices.
 
 Full current-state cut: [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md).

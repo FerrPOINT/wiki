@@ -7,6 +7,20 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 cd "$PROJECT_DIR"
 
+read_dotenv_value() {
+  local key="$1"
+  if [ ! -f .env ]; then
+    return 0
+  fi
+  grep -E "^${key}=" .env | tail -n 1 | cut -d= -f2- | tr -d "\"'"
+}
+
+WIKI_ENVIRONMENT_VALUE="${WIKI_ENVIRONMENT:-$(read_dotenv_value WIKI_ENVIRONMENT)}"
+if [ "$WIKI_ENVIRONMENT_VALUE" != "production" ]; then
+  echo "Production deploy requires WIKI_ENVIRONMENT=production in the shell environment or .env." >&2
+  exit 1
+fi
+
 COMPOSE_FILES=(-f docker-compose.yml)
 if [ -f docker-compose.prod.yml ]; then
   COMPOSE_FILES+=(-f docker-compose.prod.yml)

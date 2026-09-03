@@ -63,9 +63,9 @@ Wiki — self-hosted приложение с конфиденциальными 
 
 - Strict whitelist:
   ```
-  WIKI_CORS_ALLOWED_ORIGINS=https://wiki.example.com
+  WIKI_SERVER__CORS_ALLOWED_ORIGINS=https://wiki.example.com
   ```
-- No wildcard (`*`) в production.
+- `WIKI_ENVIRONMENT=production` rejects wildcard (`*`), non-HTTPS origins and origins with paths or query strings.
 
 ## 9. Secrets Management
 

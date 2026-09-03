@@ -22,9 +22,11 @@ services:
     restart: unless-stopped
     environment:
       # config crate format: WIKI_ + SECTION__KEY (separator "__", prefix_separator "_")
+      WIKI_ENVIRONMENT: ${WIKI_ENVIRONMENT:-development}
       WIKI_DATABASE__URL: ${WIKI_DATABASE__URL}
       WIKI_SERVER__ADDRESS: 0.0.0.0
       WIKI_SERVER__PORT: 3456
+      WIKI_SERVER__CORS_ALLOWED_ORIGINS: ${WIKI_SERVER__CORS_ALLOWED_ORIGINS:-http://localhost:19877,http://localhost:5173}
       WIKI_JWT_SECRET: ${WIKI_JWT_SECRET:-[CHANGE_ME]}
       WIKI_AUTH__REGISTRATION_ENABLED: ${WIKI_AUTH__REGISTRATION_ENABLED:-true}
       # Rate limits are configurable; defaults are production-safe (auth 5/15s, api 60/60s).

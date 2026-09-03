@@ -2,10 +2,11 @@ use std::sync::Arc;
 
 use serial_test::serial;
 use server::{run, run_with_wiki_backend};
-use shared::{AppConfig, AuthConfig, EmailConfig, ServerConfig};
+use shared::{AppConfig, AuthConfig, EmailConfig, RuntimeEnvironment, ServerConfig};
 
 fn test_config() -> Arc<AppConfig> {
     Arc::new(AppConfig {
+        environment: RuntimeEnvironment::Test,
         database: shared::DatabaseConfig::default(),
         server: ServerConfig {
             address: "127.0.0.1".to_string(),

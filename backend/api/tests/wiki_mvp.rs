@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 fn test_config_with_registration(registration_enabled: bool) -> Arc<shared::AppConfig> {
     Arc::new(shared::AppConfig {
+        environment: shared::RuntimeEnvironment::Test,
         database: shared::DatabaseConfig::default(),
         server: shared::ServerConfig {
             auth_rate_burst: 100,
@@ -3848,6 +3849,33 @@ async fn wiki_api_sets_security_headers_on_responses() {
             "CSP should contain directive {directive}: {csp}"
         );
     }
+}
+
+#[tokio::test]
+async fn wiki_api_applies_configured_cors_allowlist() {
+    let mut config = (*test_config()).clone();
+    config.server.cors_allowed_origins = vec!["https://wiki.example.test".to_string()];
+    let app = test_app_with_config(Arc::new(config));
+
+    let (status, headers, _) = call_with_headers(
+        &app,
+        Method::OPTIONS,
+        "/api/v1/health",
+        None,
+        None,
+        &[
+            ("origin", "https://wiki.example.test"),
+            ("access-control-request-method", "GET"),
+        ],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        headers
+            .get("access-control-allow-origin")
+            .and_then(|value| value.to_str().ok()),
+        Some("https://wiki.example.test")
+    );
 }
 
 #[tokio::test]

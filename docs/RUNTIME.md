@@ -34,15 +34,16 @@
 
 ## 3. Startup Order
 
-1. Загрузка конфигурации (`WIKI_*`).
-2. Подключение к PostgreSQL с retry:
+1. Загрузка и validation конфигурации (`WIKI_*`).
+2. Если `WIKI_ENVIRONMENT=production`, startup fails fast on unsafe CORS, weak JWT secret, insecure refresh cookie or empty PostgreSQL URL.
+3. Подключение к PostgreSQL с retry:
    - Initial delay: 1s.
    - Max delay: 30s.
    - Max retries: 30.
-3. Применение Wiki SQLx migrations.
-4. Seed default data (admin, default spaces, document templates).
-5. Запуск HTTP сервера.
-6. Readiness probe начинает отдавать `ready`.
+4. Применение Wiki SQLx migrations.
+5. Seed default data (admin, default spaces, document templates).
+6. Запуск HTTP сервера.
+7. Readiness probe начинает отдавать `ready`.
 
 ## 4. Retry / Backoff
 
