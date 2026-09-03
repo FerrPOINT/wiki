@@ -160,6 +160,48 @@ impl WikiSettingsRepository for PostgresWikiSettingsRepository<'_> {
     }
 }
 
+impl<'a> PostgresWikiAuthRepository<'a> {
+    /// Finds a wiki user by the central identity's verified email; links
+    /// (creates) a local shadow account on first login. Central users never
+    /// have a usable local password (`!` hash — argon2 verify always fails).
+    async fn find_or_link_central_user(
+        &self,
+        ctx: &sdlc_auth_core::AuthContext,
+    ) -> Result<WikiAuthUserRecord, String> {
+        let email = ctx.email.as_deref().unwrap_or_default().to_lowercase().trim().to_string();
+        if email.is_empty() {
+            return Err("central token carries no email claim".into());
+        }
+        if let Some(existing) = self.find_user_by_email(&email).await.map_err(|e| e.to_string())? {
+            if !existing.is_active {
+                return Err("user is deactivated".into());
+            }
+            return Ok(existing);
+        }
+        let username = email.split('@').next().unwrap_or("central").to_string();
+        let display_name = username.clone();
+        let row = sqlx::query(
+            r#"
+            INSERT INTO users (
+                id, email, username, display_name, password_hash,
+                global_role, is_active, created_at, updated_at
+            )
+            VALUES ($1, $2, $3, $4, '!', 'user', true, now(), now())
+            RETURNING id, email, username, display_name, password_hash, global_role, is_active
+            "#,
+        )
+        .bind(uuid::Uuid::now_v7())
+        .bind(&email)
+        .bind(&username)
+        .bind(&display_name)
+        .fetch_one(&self.backend.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+        tracing::info!(email = %email, "linked central user to wiki");
+        Ok(auth_user_from_row(&row))
+    }
+}
+
 struct PostgresWikiAuthRepository<'a> {
     backend: &'a PostgresWikiBackend,
     request_id: Option<&'a str>,
@@ -471,6 +513,26 @@ impl PostgresWikiBackend {
         &self,
         token: &str,
     ) -> Result<WikiClaims, shared::AppError> {
+        // Central fleet auth-server first (ES256 via JWKS); the wiki user is
+        // resolved by the verified email claim, auto-linking on first login.
+        if let Some(ctx) = crate::wiki_postgres::central_auth::try_central(token).await? {
+            // Central tokens carry the verified email claim; wiki links users by it.
+            let repository = PostgresWikiAuthRepository {
+                backend: self,
+                request_id: None,
+            };
+            let record = repository
+                .find_or_link_central_user(&ctx)
+                .await
+                .map_err(|e| {
+                    tracing::warn!(error = %e, "central user link failed");
+                    shared::AppError::Unauthorized
+                })?;
+            return Ok(crate::wiki_postgres::central_auth::claims_for(
+                &ctx,
+                record.id.to_string(),
+            ));
+        }
         let repository = PostgresWikiAuthRepository {
             backend: self,
             request_id: None,

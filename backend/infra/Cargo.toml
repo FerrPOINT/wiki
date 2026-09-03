@@ -6,6 +6,7 @@ rust-version.workspace = true
 license-file.workspace = true
 
 [dependencies]
+sdlc-auth-core = { path = "../../../services-base/crates/sdlc-auth-core" }
 shared = { path = "../shared" }
 domain = { path = "../domain" }
 app = { path = "../app" }
