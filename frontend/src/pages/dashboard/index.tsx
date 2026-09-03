@@ -8,9 +8,9 @@ import {
   useTasks,
   useWikiSearch,
 } from '@/shared/api/hooks'
-import { EmptyState, ErrorState, LoadingState } from '@/shared/ui/async-states'
-import { Button } from '@/shared/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
+import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
+import { Button } from '@sdlc/ui/ui'
+import { Card, CardContent, CardHeader, CardTitle } from '@sdlc/ui/ui'
 import { formatFirstApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime } from '@/shared/lib/wiki-format'
 

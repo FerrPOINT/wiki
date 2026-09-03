@@ -20,14 +20,14 @@ import {
   Users,
   X,
 } from 'lucide-react'
-import { Button } from '@/shared/ui/button'
+import { Button } from '@sdlc/ui/ui'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/shared/ui/dropdown-menu'
-import { ThemeToggle } from '@/shared/ui/theme-toggle'
+} from '@sdlc/ui/ui'
+import { ThemeToggle } from '@sdlc/ui/ui'
 import { useCurrentUser, useLogout } from '@/shared/api/hooks'
 
 type NavItem = {

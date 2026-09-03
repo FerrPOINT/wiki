@@ -1,8 +1,8 @@
 import { Link } from 'react-router'
 import { FileCheck2, History, Library, Settings, ShieldCheck, Users } from 'lucide-react'
 import { useAuditLog, useSpaces, useUsers, useWikiSettings } from '@/shared/api/hooks'
-import { ErrorState, LoadingState } from '@/shared/ui/async-states'
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
+import { ErrorState, LoadingState } from '@sdlc/ui/ui'
+import { Card, CardContent, CardHeader, CardTitle } from '@sdlc/ui/ui'
 import { formatFirstApiErrorForUser } from '@/shared/lib/api-error'
 import { formatBytes, formatDateTime } from '@/shared/lib/wiki-format'
 
