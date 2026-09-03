@@ -59,9 +59,13 @@ pub async fn try_central(token: &str) -> Result<Option<AuthContext>, AppError> {
     // kid resolution and are reported as Jwks errors -> treat as "not ours".
     match central.validator.validate(token) {
         Ok(ctx) => Ok(Some(ctx)),
+        // kid resolution failure = legacy token, not ours
         Err(sdlc_auth_core::AuthError::Jwks(_)) => Ok(None),
         Err(sdlc_auth_core::AuthError::Expired) => Err(AppError::Unauthorized),
-        Err(_) => Ok(None),
+        Err(other) => {
+            tracing::warn!(error = %other, "central token validation failed");
+            Ok(None)
+        }
     }
 }
 

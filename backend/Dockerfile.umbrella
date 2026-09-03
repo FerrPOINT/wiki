@@ -1,0 +1,42 @@
+# Umbrella build for the SDLC fleet root compose (context = /opt/dev/sdlc).
+# The repo's own backend/Dockerfile builds with context=backend only; this
+# variant additionally stages the sibling services-base checkout so the
+# sdlc-auth-core path dependency (../../../services-base/...) resolves.
+FROM rust:1.88-slim-bookworm AS builder
+
+RUN apt-get update && apt-get install -y pkg-config libssl-dev curl && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+# infra/Cargo.toml: sdlc-auth-core = { path = "../../../services-base/..." }
+# /app/infra/../../../services-base == /services-base
+# sdlc-auth-core inherits workspace.package fields; stage a minimal root manifest.
+COPY services-base/Cargo.toml /services-base/Cargo.toml
+COPY services-base/crates/sdlc-auth-core /services-base/crates/sdlc-auth-core
+COPY wiki/backend/Cargo.toml wiki/backend/Cargo.lock* ./
+COPY wiki/backend/shared ./shared
+COPY wiki/backend/domain ./domain
+COPY wiki/backend/infra ./infra
+COPY wiki/backend/migration ./migration
+COPY wiki/backend/migrations ./migrations
+COPY wiki/backend/app ./app
+COPY wiki/backend/api ./api
+COPY wiki/backend/server ./server
+COPY wiki/backend/cli ./cli
+
+RUN cargo build --release --bin server
+
+FROM debian:bookworm-slim
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates libssl3 wget \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 10001 wiki \
+    && useradd --uid 10001 --gid wiki --home-dir /nonexistent --shell /usr/sbin/nologin --no-create-home wiki \
+    && mkdir -p /app /var/lib/wiki/uploads \
+    && chown -R wiki:wiki /app /var/lib/wiki
+WORKDIR /app
+COPY --from=builder --chown=wiki:wiki /app/target/release/server /usr/local/bin/wiki-server
+COPY --from=builder --chown=wiki:wiki /app/migrations ./migrations
+ENV WIKI_MIGRATIONS_DIR=/app/migrations
+USER wiki
+EXPOSE 3456
+CMD ["wiki-server"]
