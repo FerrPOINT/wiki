@@ -8,12 +8,12 @@ import {
   usePhases,
   useSpaces,
 } from '@/shared/api/hooks'
-import { EmptyState, ErrorState, LoadingState } from '@/shared/ui/async-states'
-import { Button } from '@/shared/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
-import { Input } from '@/shared/ui/input'
-import { Label } from '@/shared/ui/label'
-import { Progress } from '@/shared/ui/progress'
+import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
+import { Button } from '@sdlc/ui/ui'
+import { Card, CardContent, CardHeader, CardTitle } from '@sdlc/ui/ui'
+import { Input } from '@sdlc/ui/ui'
+import { Label } from '@sdlc/ui/ui'
+import { Progress } from '@sdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import {
   formatDateTime,

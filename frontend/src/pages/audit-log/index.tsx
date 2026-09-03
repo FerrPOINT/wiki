@@ -1,8 +1,8 @@
 import { FileCheck2, History, LockKeyhole, UserRound } from 'lucide-react'
 import { useAuditLog } from '@/shared/api/hooks'
-import { EmptyState, ErrorState, LoadingState } from '@/shared/ui/async-states'
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
+import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
+import { Card, CardContent, CardHeader, CardTitle } from '@sdlc/ui/ui'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@sdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime } from '@/shared/lib/wiki-format'
 

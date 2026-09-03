@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
+import { ThemeProvider } from '@sdlc/ui/lib'
 
 import { AppShell } from './app-shell'
 
@@ -12,7 +13,6 @@ vi.mock('@/shared/api/hooks', () => ({
   useCurrentUser,
   useLogout,
 }))
-vi.mock('@/shared/ui/theme-toggle', () => ({ ThemeToggle: () => null }))
 
 function mockHooks({
   isSystemAdmin = true,
@@ -33,9 +33,11 @@ function mockHooks({
 
 function renderShell(initialPath = '/') {
   return render(
-    <MemoryRouter initialEntries={[initialPath]}>
-      <AppShell />
-    </MemoryRouter>,
+    <ThemeProvider>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <AppShell />
+      </MemoryRouter>
+    </ThemeProvider>,
   )
 }
 

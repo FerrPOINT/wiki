@@ -18,12 +18,12 @@ import {
   useEvidence,
   useEvidenceItem,
 } from '@/shared/api/hooks'
-import { EmptyState, ErrorState, LoadingState } from '@/shared/ui/async-states'
-import { Button } from '@/shared/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
-import { Input } from '@/shared/ui/input'
-import { Label } from '@/shared/ui/label'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
+import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
+import { Button } from '@sdlc/ui/ui'
+import { Card, CardContent, CardHeader, CardTitle } from '@sdlc/ui/ui'
+import { Input } from '@sdlc/ui/ui'
+import { Label } from '@sdlc/ui/ui'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@sdlc/ui/ui'
 import { formatApiErrorForUser, formatFirstApiErrorForUser } from '@/shared/lib/api-error'
 import { formatBytes, formatDateTime, formatEvidenceType } from '@/shared/lib/wiki-format'
 import type { AttachmentDownload, Evidence } from '@/api/wiki'
