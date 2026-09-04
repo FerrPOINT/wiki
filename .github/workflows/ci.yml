@@ -7,31 +7,13 @@ on:
     branches: [main]
 
 jobs:
+  # fmt + clippy + test via the shared fleet gate (services-base).
   backend:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: wiki/backend
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          path: wiki
-      # Fleet shared crates live in a sibling services-base checkout
-      # (backend/infra path dep: ../../../services-base/crates/sdlc-auth-core).
-      - uses: actions/checkout@v4
-        with:
-          repository: FerrPOINT/services-base
-          path: services-base
-          ref: main
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: wiki/backend
-      - run: cargo fmt --all -- --check
-      - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: cargo test --workspace -- --test-threads=1
+    uses: FerrPOINT/services-base/.github/workflows/backend-gate.yml@main
+    with:
+      working-directory: backend
+      checkout-path: wiki
+      services-base-sibling: true
 
   openapi-check:
     runs-on: ubuntu-latest
@@ -163,80 +145,11 @@ jobs:
       # SQLx keeps optional MySQL/RSA packages in Cargo.lock; Wiki enables only PostgreSQL.
       - run: cargo audit --ignore RUSTSEC-2023-0071
 
+  # install + test + lint + build via the shared fleet gate.
   frontend:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: wiki/frontend
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          path: wiki
-      # Fleet shared crates live in a sibling services-base checkout
-      # (backend/infra path dep: ../../../services-base/crates/sdlc-auth-core).
-      - uses: actions/checkout@v4
-        with:
-          repository: FerrPOINT/services-base
-          path: services-base
-          ref: main
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: wiki/frontend/pnpm-lock.yaml
-      - run: pnpm install
-      - run: pnpm generate:api
-      - run: pnpm typecheck
-      - run: pnpm test -- --run
-      - run: pnpm lint
-      - run: pnpm format:check
-      - run: pnpm build
-
-  e2e:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          path: wiki
-      # Fleet shared crates live in a sibling services-base checkout
-      # (backend/infra path dep: ../../../services-base/crates/sdlc-auth-core).
-      - uses: actions/checkout@v4
-        with:
-          repository: FerrPOINT/services-base
-          path: services-base
-          ref: main
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: wiki/frontend/pnpm-lock.yaml
-      - run: pnpm install
-        working-directory: wiki/frontend
-      - run: pnpm build
-        working-directory: wiki/frontend
-      - run: docker compose up -d postgres backend
-        working-directory: ${{ github.workspace }}/wiki
-        env:
-          POSTGRES_USER: wiki
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: wiki
-          WIKI_DATABASE__URL: postgres://wiki:test@postgres:5432/wiki
-          WIKI_JWT_SECRET: ci-wiki-jwt-secret-change-me
-      - run: sleep 20
-        working-directory: ${{ github.workspace }}/wiki
-      - run: curl -sf http://localhost:3456/api/v1/health
-        working-directory: ${{ github.workspace }}/wiki
-      - run: pnpm exec playwright install --with-deps chromium
-        working-directory: wiki/frontend
-      - run: pnpm exec playwright test e2e/smoke.spec.ts --project=chromium
-        working-directory: wiki/frontend
-        env:
-          VITE_API_BASE_URL: http://localhost:3456/api/v1
-      - run: docker compose down -v
-        working-directory: ${{ github.workspace }}/wiki
+    uses: FerrPOINT/services-base/.github/workflows/frontend-gate.yml@main
+    with:
+      working-directory: frontend
+      checkout-path: wiki
+      services-base-sibling: true
+      pretest: "pnpm typecheck"
