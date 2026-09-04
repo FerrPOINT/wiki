@@ -1,12 +1,14 @@
 pub mod config;
-pub mod error;
 pub mod id;
 pub mod wiki_contract;
 
 pub use config::*;
-pub use error::*;
 pub use id::*;
 pub use wiki_contract::*;
+
+// Fleet-shared error lives in sdlc-shared (services-base): same structured
+// envelope {"error": {"code", "message"}} this service already emitted.
+pub use sdlc_shared::{AppError, AppResult, ErrorBody, ErrorEnvelope};
 
 use chrono::{DateTime, FixedOffset, Utc};
 

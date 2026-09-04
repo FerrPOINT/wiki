@@ -12,6 +12,7 @@ WORKDIR /app
 # sdlc-auth-core inherits workspace.package fields; stage a minimal root manifest.
 COPY services-base/Cargo.toml /services-base/Cargo.toml
 COPY services-base/crates/sdlc-auth-core /services-base/crates/sdlc-auth-core
+COPY services-base/crates/sdlc-shared /services-base/crates/sdlc-shared
 COPY wiki/backend/Cargo.toml wiki/backend/Cargo.lock* ./
 COPY wiki/backend/shared ./shared
 COPY wiki/backend/domain ./domain
