@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license-file.workspace = true
+publish = false
 
 [dependencies]
 sdlc-auth-core = { path = "../../../services-base/crates/sdlc-auth-core" }
