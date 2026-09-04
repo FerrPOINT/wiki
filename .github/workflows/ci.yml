@@ -253,7 +253,7 @@ jobs:
             sleep 1
           done
           PLAYWRIGHT_BASE_URL=http://localhost:4174 pnpm exec playwright test --project=chromium
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: wiki-playwright-traces
