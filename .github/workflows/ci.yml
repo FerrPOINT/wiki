@@ -196,3 +196,67 @@ jobs:
       - run: pnpm test -- --run
       - run: pnpm lint
       - run: pnpm build
+
+  deny:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: wiki
+      - name: Check out services-base sibling (path deps)
+        uses: actions/checkout@v4
+        with:
+          repository: FerrPOINT/services-base
+          path: services-base
+          ref: main
+          token: ${{ secrets.SERVICES_BASE_TOKEN }}
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          manifest-path: wiki/backend/Cargo.toml
+          arguments: --all-features
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: wiki/frontend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: wiki
+      - name: Check out services-base sibling (@sdlc/ui file dep)
+        uses: actions/checkout@v4
+        with:
+          repository: FerrPOINT/services-base
+          path: services-base
+          ref: main
+          token: ${{ secrets.SERVICES_BASE_TOKEN }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: wiki/frontend/pnpm-lock.yaml
+      - run: pnpm install --no-frozen-lockfile
+        env:
+          CI: "true"
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Run Playwright against vite preview
+        run: |
+          pnpm exec vite preview --port 4174 --strictPort &
+          for i in $(seq 1 30); do
+            curl -fsS http://localhost:4174/ >/dev/null 2>&1 && break
+            sleep 1
+          done
+          PLAYWRIGHT_BASE_URL=http://localhost:4174 pnpm exec playwright test --project=chromium
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: wiki-playwright-traces
+          path: wiki/frontend/test-results
+          retention-days: 5
+
