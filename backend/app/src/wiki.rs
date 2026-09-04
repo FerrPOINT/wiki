@@ -121,45 +121,34 @@ pub struct WikiLogoutCommand {
 }
 
 pub trait WikiAuthRepository {
-    fn authenticate_access_session<'a>(
-        &'a self,
+    fn authenticate_access_session(
+        &self,
         command: WikiAccessSessionCommand,
-    ) -> WikiAuthRepositoryFuture<'a, bool>;
+    ) -> WikiAuthRepositoryFuture<'_, bool>;
 
-    fn register_user<'a>(
-        &'a self,
+    fn register_user(
+        &self,
         command: WikiRegisterAuthCommand,
-    ) -> WikiAuthRepositoryFuture<'a, WikiAuthUserRecord>;
+    ) -> WikiAuthRepositoryFuture<'_, WikiAuthUserRecord>;
 
     fn find_user_by_email<'a>(
         &'a self,
         email: &'a str,
     ) -> WikiAuthRepositoryFuture<'a, Option<WikiAuthUserRecord>>;
 
-    fn create_login_session<'a>(
-        &'a self,
-        session: WikiSessionCommand,
-    ) -> WikiAuthRepositoryFuture<'a, ()>;
+    fn create_login_session(&self, session: WikiSessionCommand)
+    -> WikiAuthRepositoryFuture<'_, ()>;
 
-    fn find_refresh_session<'a>(
-        &'a self,
+    fn find_refresh_session(
+        &self,
         command: WikiRefreshSessionCommand,
-    ) -> WikiAuthRepositoryFuture<'a, Option<WikiAuthUserRecord>>;
+    ) -> WikiAuthRepositoryFuture<'_, Option<WikiAuthUserRecord>>;
 
-    fn rotate_session<'a>(
-        &'a self,
-        session: WikiSessionCommand,
-    ) -> WikiAuthRepositoryFuture<'a, ()>;
+    fn rotate_session(&self, session: WikiSessionCommand) -> WikiAuthRepositoryFuture<'_, ()>;
 
-    fn revoke_sessions<'a>(
-        &'a self,
-        command: WikiLogoutCommand,
-    ) -> WikiAuthRepositoryFuture<'a, ()>;
+    fn revoke_sessions(&self, command: WikiLogoutCommand) -> WikiAuthRepositoryFuture<'_, ()>;
 
-    fn get_current_user<'a>(
-        &'a self,
-        user_id: Uuid,
-    ) -> WikiAuthRepositoryFuture<'a, WikiAuthUserRecord>;
+    fn get_current_user(&self, user_id: Uuid) -> WikiAuthRepositoryFuture<'_, WikiAuthUserRecord>;
 }
 
 pub struct WikiAuthUseCase<'a, R: WikiAuthRepository + ?Sized> {
@@ -327,19 +316,19 @@ pub struct WikiUpdateUserCommand {
 }
 
 pub trait WikiUserRepository {
-    fn list_users<'a>(&'a self) -> WikiUserRepositoryFuture<'a, Vec<shared::WikiUserResponse>>;
+    fn list_users(&self) -> WikiUserRepositoryFuture<'_, Vec<shared::WikiUserResponse>>;
 
-    fn create_user<'a>(
-        &'a self,
+    fn create_user(
+        &self,
         actor_id: Uuid,
         command: WikiCreateUserCommand,
-    ) -> WikiUserRepositoryFuture<'a, shared::WikiUserResponse>;
+    ) -> WikiUserRepositoryFuture<'_, shared::WikiUserResponse>;
 
-    fn update_user<'a>(
-        &'a self,
+    fn update_user(
+        &self,
         actor_id: Uuid,
         command: WikiUpdateUserCommand,
-    ) -> WikiUserRepositoryFuture<'a, shared::WikiUserResponse>;
+    ) -> WikiUserRepositoryFuture<'_, shared::WikiUserResponse>;
 }
 
 pub struct WikiUserUseCase<'a, R: WikiUserRepository + ?Sized> {
@@ -443,55 +432,55 @@ pub struct WikiDeleteSpaceMemberCommand {
 }
 
 pub trait WikiSpaceRepository {
-    fn list_spaces<'a>(
-        &'a self,
+    fn list_spaces(
+        &self,
         user_id: Uuid,
-    ) -> WikiSpaceRepositoryFuture<'a, Vec<shared::SpaceResponse>>;
+    ) -> WikiSpaceRepositoryFuture<'_, Vec<shared::SpaceResponse>>;
 
-    fn create_space<'a>(
-        &'a self,
+    fn create_space(
+        &self,
         actor_id: Uuid,
         command: WikiCreateSpaceCommand,
-    ) -> WikiSpaceRepositoryFuture<'a, shared::SpaceResponse>;
+    ) -> WikiSpaceRepositoryFuture<'_, shared::SpaceResponse>;
 
     fn get_space<'a>(
         &'a self,
         key: &'a str,
     ) -> WikiSpaceRepositoryFuture<'a, shared::SpaceResponse>;
 
-    fn update_space<'a>(
-        &'a self,
+    fn update_space(
+        &self,
         actor_id: Uuid,
         command: WikiUpdateSpaceCommand,
-    ) -> WikiSpaceRepositoryFuture<'a, shared::SpaceResponse>;
+    ) -> WikiSpaceRepositoryFuture<'_, shared::SpaceResponse>;
 
-    fn archive_space<'a>(
-        &'a self,
+    fn archive_space(
+        &self,
         actor_id: Uuid,
         command: WikiArchiveSpaceCommand,
-    ) -> WikiSpaceRepositoryFuture<'a, shared::SpaceResponse>;
+    ) -> WikiSpaceRepositoryFuture<'_, shared::SpaceResponse>;
 
-    fn list_members<'a>(
-        &'a self,
+    fn list_members(
+        &self,
         space_id: Uuid,
-    ) -> WikiSpaceRepositoryFuture<'a, Vec<shared::SpaceMemberResponse>>;
+    ) -> WikiSpaceRepositoryFuture<'_, Vec<shared::SpaceMemberResponse>>;
 
-    fn upsert_member<'a>(
-        &'a self,
+    fn upsert_member(
+        &self,
         actor_id: Uuid,
         command: WikiUpsertSpaceMemberCommand,
-    ) -> WikiSpaceRepositoryFuture<'a, shared::SpaceMemberResponse>;
+    ) -> WikiSpaceRepositoryFuture<'_, shared::SpaceMemberResponse>;
 
-    fn delete_member<'a>(
-        &'a self,
+    fn delete_member(
+        &self,
         actor_id: Uuid,
         command: WikiDeleteSpaceMemberCommand,
-    ) -> WikiSpaceRepositoryFuture<'a, ()>;
+    ) -> WikiSpaceRepositoryFuture<'_, ()>;
 
-    fn get_tree<'a>(
-        &'a self,
+    fn get_tree(
+        &self,
         space_id: Uuid,
-    ) -> WikiSpaceRepositoryFuture<'a, Vec<shared::SpaceTreeNodeResponse>>;
+    ) -> WikiSpaceRepositoryFuture<'_, Vec<shared::SpaceTreeNodeResponse>>;
 }
 
 pub struct WikiSpaceUseCase<'a, R: WikiSpaceRepository + ?Sized> {
@@ -659,52 +648,52 @@ pub struct WikiMoveDocumentCommand {
 }
 
 pub trait WikiDocumentRepository {
-    fn create_document<'a>(
-        &'a self,
+    fn create_document(
+        &self,
         actor_id: Uuid,
         command: WikiCreateDocumentCommand,
-    ) -> WikiDocumentRepositoryFuture<'a, shared::DocumentResponse>;
+    ) -> WikiDocumentRepositoryFuture<'_, shared::DocumentResponse>;
 
-    fn get_document<'a>(
-        &'a self,
+    fn get_document(
+        &self,
         document_id: Uuid,
-    ) -> WikiDocumentRepositoryFuture<'a, shared::DocumentResponse>;
+    ) -> WikiDocumentRepositoryFuture<'_, shared::DocumentResponse>;
 
-    fn update_document_draft<'a>(
-        &'a self,
+    fn update_document_draft(
+        &self,
         actor_id: Uuid,
         command: WikiUpdateDocumentDraftCommand,
-    ) -> WikiDocumentRepositoryFuture<'a, shared::DocumentResponse>;
+    ) -> WikiDocumentRepositoryFuture<'_, shared::DocumentResponse>;
 
-    fn publish_document<'a>(
-        &'a self,
+    fn publish_document(
+        &self,
         actor_id: Uuid,
         command: WikiPublishDocumentCommand,
-    ) -> WikiDocumentRepositoryFuture<'a, shared::DocumentRevisionResponse>;
+    ) -> WikiDocumentRepositoryFuture<'_, shared::DocumentRevisionResponse>;
 
-    fn archive_document<'a>(
-        &'a self,
+    fn archive_document(
+        &self,
         actor_id: Uuid,
         command: WikiArchiveDocumentCommand,
-    ) -> WikiDocumentRepositoryFuture<'a, shared::DocumentResponse>;
+    ) -> WikiDocumentRepositoryFuture<'_, shared::DocumentResponse>;
 
-    fn move_document<'a>(
-        &'a self,
+    fn move_document(
+        &self,
         actor_id: Uuid,
         command: WikiMoveDocumentCommand,
-    ) -> WikiDocumentRepositoryFuture<'a, shared::DocumentResponse>;
+    ) -> WikiDocumentRepositoryFuture<'_, shared::DocumentResponse>;
 
-    fn list_revisions<'a>(
-        &'a self,
+    fn list_revisions(
+        &self,
         document_id: Uuid,
         limit: usize,
-    ) -> WikiDocumentRepositoryFuture<'a, Vec<shared::DocumentRevisionResponse>>;
+    ) -> WikiDocumentRepositoryFuture<'_, Vec<shared::DocumentRevisionResponse>>;
 
-    fn get_revision<'a>(
-        &'a self,
+    fn get_revision(
+        &self,
         document_id: Uuid,
         revision_id: Uuid,
-    ) -> WikiDocumentRepositoryFuture<'a, shared::DocumentRevisionResponse>;
+    ) -> WikiDocumentRepositoryFuture<'_, shared::DocumentRevisionResponse>;
 }
 
 pub struct WikiDocumentUseCase<'a, R: WikiDocumentRepository + ?Sized> {
@@ -882,11 +871,11 @@ pub trait WikiDossierRepository {
         task_key: &'a str,
     ) -> WikiDossierRepositoryFuture<'a, shared::TaskPageResponse>;
 
-    fn link_task_document<'a>(
-        &'a self,
+    fn link_task_document(
+        &self,
         actor_id: Uuid,
         command: WikiLinkTaskDocumentCommand,
-    ) -> WikiDossierRepositoryFuture<'a, shared::TaskPageResponse>;
+    ) -> WikiDossierRepositoryFuture<'_, shared::TaskPageResponse>;
 
     fn list_task_documents<'a>(
         &'a self,
@@ -915,11 +904,11 @@ pub trait WikiDossierRepository {
         phase_key: &'a str,
     ) -> WikiDossierRepositoryFuture<'a, shared::PhasePageResponse>;
 
-    fn link_phase_document<'a>(
-        &'a self,
+    fn link_phase_document(
+        &self,
         actor_id: Uuid,
         command: WikiLinkPhaseDocumentCommand,
-    ) -> WikiDossierRepositoryFuture<'a, shared::PhasePageResponse>;
+    ) -> WikiDossierRepositoryFuture<'_, shared::PhasePageResponse>;
 
     fn list_phase_documents<'a>(
         &'a self,
@@ -1126,37 +1115,37 @@ pub struct WikiUploadAttachmentCommand {
 }
 
 pub trait WikiEvidenceRepository {
-    fn create_evidence<'a>(
-        &'a self,
+    fn create_evidence(
+        &self,
         actor_id: Uuid,
         command: WikiCreateEvidenceCommand,
-    ) -> WikiEvidenceRepositoryFuture<'a, shared::EvidenceResponse>;
+    ) -> WikiEvidenceRepositoryFuture<'_, shared::EvidenceResponse>;
 
     fn list_evidence<'a>(
         &'a self,
         criteria: &'a WikiEvidenceQueryCriteria,
     ) -> WikiEvidenceRepositoryFuture<'a, Vec<shared::EvidenceResponse>>;
 
-    fn get_evidence<'a>(
-        &'a self,
+    fn get_evidence(
+        &self,
         evidence_id: Uuid,
-    ) -> WikiEvidenceRepositoryFuture<'a, shared::EvidenceResponse>;
+    ) -> WikiEvidenceRepositoryFuture<'_, shared::EvidenceResponse>;
 
-    fn upload_attachment<'a>(
-        &'a self,
+    fn upload_attachment(
+        &self,
         actor_id: Uuid,
         command: WikiUploadAttachmentCommand,
-    ) -> WikiEvidenceRepositoryFuture<'a, shared::AttachmentResponse>;
+    ) -> WikiEvidenceRepositoryFuture<'_, shared::AttachmentResponse>;
 
-    fn get_attachment<'a>(
-        &'a self,
+    fn get_attachment(
+        &self,
         attachment_id: Uuid,
-    ) -> WikiEvidenceRepositoryFuture<'a, shared::AttachmentResponse>;
+    ) -> WikiEvidenceRepositoryFuture<'_, shared::AttachmentResponse>;
 
-    fn download_attachment<'a>(
-        &'a self,
+    fn download_attachment(
+        &self,
         attachment_id: Uuid,
-    ) -> WikiEvidenceRepositoryFuture<'a, shared::AttachmentDownloadResponse>;
+    ) -> WikiEvidenceRepositoryFuture<'_, shared::AttachmentDownloadResponse>;
 }
 
 pub struct WikiEvidenceUseCase<'a, R: WikiEvidenceRepository + ?Sized> {
@@ -1315,7 +1304,7 @@ pub type WikiSettingsRepositoryFuture<'a> =
     Pin<Box<dyn Future<Output = Result<WikiSettingsSnapshot, AppError>> + Send + 'a>>;
 
 pub trait WikiSettingsRepository {
-    fn get_settings<'a>(&'a self) -> WikiSettingsRepositoryFuture<'a>;
+    fn get_settings(&self) -> WikiSettingsRepositoryFuture<'_>;
 }
 
 pub struct WikiSettingsUseCase<'a, R: WikiSettingsRepository + ?Sized> {
@@ -1401,15 +1390,15 @@ pub struct WikiCreateTemplateCommand {
 }
 
 pub trait WikiTemplateRepository {
-    fn list_active_templates<'a>(
-        &'a self,
-    ) -> WikiTemplateRepositoryFuture<'a, Vec<shared::TemplateResponse>>;
+    fn list_active_templates(
+        &self,
+    ) -> WikiTemplateRepositoryFuture<'_, Vec<shared::TemplateResponse>>;
 
-    fn create_template<'a>(
-        &'a self,
+    fn create_template(
+        &self,
         actor_id: Uuid,
         command: WikiCreateTemplateCommand,
-    ) -> WikiTemplateRepositoryFuture<'a, shared::TemplateResponse>;
+    ) -> WikiTemplateRepositoryFuture<'_, shared::TemplateResponse>;
 }
 
 pub struct WikiTemplateUseCase<'a, R: WikiTemplateRepository + ?Sized> {
@@ -1453,12 +1442,12 @@ pub struct WikiAuditCommand {
 }
 
 pub trait WikiAuditRepository {
-    fn list_recent_entries<'a>(
-        &'a self,
+    fn list_recent_entries(
+        &self,
         limit: usize,
-    ) -> WikiAuditRepositoryFuture<'a, Vec<shared::AuditEntryResponse>>;
+    ) -> WikiAuditRepositoryFuture<'_, Vec<shared::AuditEntryResponse>>;
 
-    fn record_entry<'a>(&'a self, command: WikiAuditCommand) -> WikiAuditRepositoryFuture<'a, ()>;
+    fn record_entry(&self, command: WikiAuditCommand) -> WikiAuditRepositoryFuture<'_, ()>;
 }
 
 pub struct WikiAuditUseCase<'a, R: WikiAuditRepository + ?Sized> {
@@ -2010,15 +1999,15 @@ mod tests {
     }
 
     impl WikiUserRepository for RecordingUserRepository {
-        fn list_users<'a>(&'a self) -> WikiUserRepositoryFuture<'a, Vec<shared::WikiUserResponse>> {
+        fn list_users(&self) -> WikiUserRepositoryFuture<'_, Vec<shared::WikiUserResponse>> {
             Box::pin(async move { Ok(self.users.clone()) })
         }
 
-        fn create_user<'a>(
-            &'a self,
+        fn create_user(
+            &self,
             actor_id: Uuid,
             command: WikiCreateUserCommand,
-        ) -> WikiUserRepositoryFuture<'a, shared::WikiUserResponse> {
+        ) -> WikiUserRepositoryFuture<'_, shared::WikiUserResponse> {
             Box::pin(async move {
                 self.created
                     .lock()
@@ -2036,11 +2025,11 @@ mod tests {
             })
         }
 
-        fn update_user<'a>(
-            &'a self,
+        fn update_user(
+            &self,
             actor_id: Uuid,
             command: WikiUpdateUserCommand,
-        ) -> WikiUserRepositoryFuture<'a, shared::WikiUserResponse> {
+        ) -> WikiUserRepositoryFuture<'_, shared::WikiUserResponse> {
             Box::pin(async move {
                 self.updated
                     .lock()
@@ -2073,10 +2062,10 @@ mod tests {
     }
 
     impl WikiSpaceRepository for RecordingSpaceRepository {
-        fn list_spaces<'a>(
-            &'a self,
+        fn list_spaces(
+            &self,
             user_id: Uuid,
-        ) -> WikiSpaceRepositoryFuture<'a, Vec<shared::SpaceResponse>> {
+        ) -> WikiSpaceRepositoryFuture<'_, Vec<shared::SpaceResponse>> {
             Box::pin(async move {
                 self.listed_users
                     .lock()
@@ -2086,11 +2075,11 @@ mod tests {
             })
         }
 
-        fn create_space<'a>(
-            &'a self,
+        fn create_space(
+            &self,
             actor_id: Uuid,
             command: WikiCreateSpaceCommand,
-        ) -> WikiSpaceRepositoryFuture<'a, shared::SpaceResponse> {
+        ) -> WikiSpaceRepositoryFuture<'_, shared::SpaceResponse> {
             Box::pin(async move {
                 self.created
                     .lock()
@@ -2113,11 +2102,11 @@ mod tests {
             })
         }
 
-        fn update_space<'a>(
-            &'a self,
+        fn update_space(
+            &self,
             actor_id: Uuid,
             command: WikiUpdateSpaceCommand,
-        ) -> WikiSpaceRepositoryFuture<'a, shared::SpaceResponse> {
+        ) -> WikiSpaceRepositoryFuture<'_, shared::SpaceResponse> {
             Box::pin(async move {
                 self.updated
                     .lock()
@@ -2131,11 +2120,11 @@ mod tests {
             })
         }
 
-        fn archive_space<'a>(
-            &'a self,
+        fn archive_space(
+            &self,
             actor_id: Uuid,
             command: WikiArchiveSpaceCommand,
-        ) -> WikiSpaceRepositoryFuture<'a, shared::SpaceResponse> {
+        ) -> WikiSpaceRepositoryFuture<'_, shared::SpaceResponse> {
             Box::pin(async move {
                 self.archived
                     .lock()
@@ -2147,10 +2136,10 @@ mod tests {
             })
         }
 
-        fn list_members<'a>(
-            &'a self,
+        fn list_members(
+            &self,
             space_id: Uuid,
-        ) -> WikiSpaceRepositoryFuture<'a, Vec<shared::SpaceMemberResponse>> {
+        ) -> WikiSpaceRepositoryFuture<'_, Vec<shared::SpaceMemberResponse>> {
             Box::pin(async move {
                 self.listed_members
                     .lock()
@@ -2160,11 +2149,11 @@ mod tests {
             })
         }
 
-        fn upsert_member<'a>(
-            &'a self,
+        fn upsert_member(
+            &self,
             actor_id: Uuid,
             command: WikiUpsertSpaceMemberCommand,
-        ) -> WikiSpaceRepositoryFuture<'a, shared::SpaceMemberResponse> {
+        ) -> WikiSpaceRepositoryFuture<'_, shared::SpaceMemberResponse> {
             Box::pin(async move {
                 self.upserted_members
                     .lock()
@@ -2174,11 +2163,11 @@ mod tests {
             })
         }
 
-        fn delete_member<'a>(
-            &'a self,
+        fn delete_member(
+            &self,
             actor_id: Uuid,
             command: WikiDeleteSpaceMemberCommand,
-        ) -> WikiSpaceRepositoryFuture<'a, ()> {
+        ) -> WikiSpaceRepositoryFuture<'_, ()> {
             Box::pin(async move {
                 self.deleted_members
                     .lock()
@@ -2188,10 +2177,10 @@ mod tests {
             })
         }
 
-        fn get_tree<'a>(
-            &'a self,
+        fn get_tree(
+            &self,
             space_id: Uuid,
-        ) -> WikiSpaceRepositoryFuture<'a, Vec<shared::SpaceTreeNodeResponse>> {
+        ) -> WikiSpaceRepositoryFuture<'_, Vec<shared::SpaceTreeNodeResponse>> {
             Box::pin(async move {
                 self.tree_requests
                     .lock()
@@ -2203,11 +2192,11 @@ mod tests {
     }
 
     impl WikiDocumentRepository for RecordingDocumentRepository {
-        fn create_document<'a>(
-            &'a self,
+        fn create_document(
+            &self,
             actor_id: Uuid,
             command: WikiCreateDocumentCommand,
-        ) -> WikiDocumentRepositoryFuture<'a, shared::DocumentResponse> {
+        ) -> WikiDocumentRepositoryFuture<'_, shared::DocumentResponse> {
             Box::pin(async move {
                 self.created
                     .lock()
@@ -2222,10 +2211,10 @@ mod tests {
             })
         }
 
-        fn get_document<'a>(
-            &'a self,
+        fn get_document(
+            &self,
             document_id: Uuid,
-        ) -> WikiDocumentRepositoryFuture<'a, shared::DocumentResponse> {
+        ) -> WikiDocumentRepositoryFuture<'_, shared::DocumentResponse> {
             Box::pin(async move {
                 self.requested_documents
                     .lock()
@@ -2235,11 +2224,11 @@ mod tests {
             })
         }
 
-        fn update_document_draft<'a>(
-            &'a self,
+        fn update_document_draft(
+            &self,
             actor_id: Uuid,
             command: WikiUpdateDocumentDraftCommand,
-        ) -> WikiDocumentRepositoryFuture<'a, shared::DocumentResponse> {
+        ) -> WikiDocumentRepositoryFuture<'_, shared::DocumentResponse> {
             Box::pin(async move {
                 self.updated_drafts
                     .lock()
@@ -2254,11 +2243,11 @@ mod tests {
             })
         }
 
-        fn publish_document<'a>(
-            &'a self,
+        fn publish_document(
+            &self,
             actor_id: Uuid,
             command: WikiPublishDocumentCommand,
-        ) -> WikiDocumentRepositoryFuture<'a, shared::DocumentRevisionResponse> {
+        ) -> WikiDocumentRepositoryFuture<'_, shared::DocumentRevisionResponse> {
             Box::pin(async move {
                 self.published
                     .lock()
@@ -2273,11 +2262,11 @@ mod tests {
             })
         }
 
-        fn archive_document<'a>(
-            &'a self,
+        fn archive_document(
+            &self,
             actor_id: Uuid,
             command: WikiArchiveDocumentCommand,
-        ) -> WikiDocumentRepositoryFuture<'a, shared::DocumentResponse> {
+        ) -> WikiDocumentRepositoryFuture<'_, shared::DocumentResponse> {
             Box::pin(async move {
                 self.archived
                     .lock()
@@ -2290,11 +2279,11 @@ mod tests {
             })
         }
 
-        fn move_document<'a>(
-            &'a self,
+        fn move_document(
+            &self,
             actor_id: Uuid,
             command: WikiMoveDocumentCommand,
-        ) -> WikiDocumentRepositoryFuture<'a, shared::DocumentResponse> {
+        ) -> WikiDocumentRepositoryFuture<'_, shared::DocumentResponse> {
             Box::pin(async move {
                 self.moved
                     .lock()
@@ -2306,11 +2295,11 @@ mod tests {
             })
         }
 
-        fn list_revisions<'a>(
-            &'a self,
+        fn list_revisions(
+            &self,
             document_id: Uuid,
             limit: usize,
-        ) -> WikiDocumentRepositoryFuture<'a, Vec<shared::DocumentRevisionResponse>> {
+        ) -> WikiDocumentRepositoryFuture<'_, Vec<shared::DocumentRevisionResponse>> {
             Box::pin(async move {
                 self.listed_revisions
                     .lock()
@@ -2320,11 +2309,11 @@ mod tests {
             })
         }
 
-        fn get_revision<'a>(
-            &'a self,
+        fn get_revision(
+            &self,
             document_id: Uuid,
             revision_id: Uuid,
-        ) -> WikiDocumentRepositoryFuture<'a, shared::DocumentRevisionResponse> {
+        ) -> WikiDocumentRepositoryFuture<'_, shared::DocumentRevisionResponse> {
             Box::pin(async move {
                 self.requested_revisions
                     .lock()
@@ -2365,11 +2354,11 @@ mod tests {
             })
         }
 
-        fn link_task_document<'a>(
-            &'a self,
+        fn link_task_document(
+            &self,
             actor_id: Uuid,
             command: WikiLinkTaskDocumentCommand,
-        ) -> WikiDossierRepositoryFuture<'a, shared::TaskPageResponse> {
+        ) -> WikiDossierRepositoryFuture<'_, shared::TaskPageResponse> {
             Box::pin(async move {
                 self.linked_tasks
                     .lock()
@@ -2438,11 +2427,11 @@ mod tests {
             })
         }
 
-        fn link_phase_document<'a>(
-            &'a self,
+        fn link_phase_document(
+            &self,
             actor_id: Uuid,
             command: WikiLinkPhaseDocumentCommand,
-        ) -> WikiDossierRepositoryFuture<'a, shared::PhasePageResponse> {
+        ) -> WikiDossierRepositoryFuture<'_, shared::PhasePageResponse> {
             Box::pin(async move {
                 self.linked_phases
                     .lock()
@@ -2484,11 +2473,11 @@ mod tests {
     }
 
     impl WikiEvidenceRepository for RecordingEvidenceRepository {
-        fn create_evidence<'a>(
-            &'a self,
+        fn create_evidence(
+            &self,
             actor_id: Uuid,
             command: WikiCreateEvidenceCommand,
-        ) -> WikiEvidenceRepositoryFuture<'a, shared::EvidenceResponse> {
+        ) -> WikiEvidenceRepositoryFuture<'_, shared::EvidenceResponse> {
             Box::pin(async move {
                 self.created
                     .lock()
@@ -2511,10 +2500,10 @@ mod tests {
             })
         }
 
-        fn get_evidence<'a>(
-            &'a self,
+        fn get_evidence(
+            &self,
             evidence_id: Uuid,
-        ) -> WikiEvidenceRepositoryFuture<'a, shared::EvidenceResponse> {
+        ) -> WikiEvidenceRepositoryFuture<'_, shared::EvidenceResponse> {
             Box::pin(async move {
                 self.requested_evidence
                     .lock()
@@ -2524,11 +2513,11 @@ mod tests {
             })
         }
 
-        fn upload_attachment<'a>(
-            &'a self,
+        fn upload_attachment(
+            &self,
             actor_id: Uuid,
             command: WikiUploadAttachmentCommand,
-        ) -> WikiEvidenceRepositoryFuture<'a, shared::AttachmentResponse> {
+        ) -> WikiEvidenceRepositoryFuture<'_, shared::AttachmentResponse> {
             Box::pin(async move {
                 self.uploaded
                     .lock()
@@ -2538,10 +2527,10 @@ mod tests {
             })
         }
 
-        fn get_attachment<'a>(
-            &'a self,
+        fn get_attachment(
+            &self,
             attachment_id: Uuid,
-        ) -> WikiEvidenceRepositoryFuture<'a, shared::AttachmentResponse> {
+        ) -> WikiEvidenceRepositoryFuture<'_, shared::AttachmentResponse> {
             Box::pin(async move {
                 self.requested_attachments
                     .lock()
@@ -2551,10 +2540,10 @@ mod tests {
             })
         }
 
-        fn download_attachment<'a>(
-            &'a self,
+        fn download_attachment(
+            &self,
             attachment_id: Uuid,
-        ) -> WikiEvidenceRepositoryFuture<'a, shared::AttachmentDownloadResponse> {
+        ) -> WikiEvidenceRepositoryFuture<'_, shared::AttachmentDownloadResponse> {
             Box::pin(async move {
                 self.downloaded_attachments
                     .lock()
@@ -2566,15 +2555,15 @@ mod tests {
     }
 
     impl WikiSettingsRepository for StaticSettingsRepository {
-        fn get_settings<'a>(&'a self) -> WikiSettingsRepositoryFuture<'a> {
+        fn get_settings(&self) -> WikiSettingsRepositoryFuture<'_> {
             Box::pin(async move { Ok(self.snapshot.clone()) })
         }
     }
 
     impl WikiTemplateRepository for RecordingTemplateRepository {
-        fn list_active_templates<'a>(
-            &'a self,
-        ) -> WikiTemplateRepositoryFuture<'a, Vec<shared::TemplateResponse>> {
+        fn list_active_templates(
+            &self,
+        ) -> WikiTemplateRepositoryFuture<'_, Vec<shared::TemplateResponse>> {
             Box::pin(async move {
                 Ok(vec![shared::TemplateResponse {
                     id: Uuid::nil().to_string(),
@@ -2585,11 +2574,11 @@ mod tests {
             })
         }
 
-        fn create_template<'a>(
-            &'a self,
+        fn create_template(
+            &self,
             actor_id: Uuid,
             command: WikiCreateTemplateCommand,
-        ) -> WikiTemplateRepositoryFuture<'a, shared::TemplateResponse> {
+        ) -> WikiTemplateRepositoryFuture<'_, shared::TemplateResponse> {
             Box::pin(async move {
                 self.created
                     .lock()
@@ -2606,17 +2595,14 @@ mod tests {
     }
 
     impl WikiAuditRepository for RecordingAuditRepository {
-        fn list_recent_entries<'a>(
-            &'a self,
+        fn list_recent_entries(
+            &self,
             limit: usize,
-        ) -> WikiAuditRepositoryFuture<'a, Vec<shared::AuditEntryResponse>> {
+        ) -> WikiAuditRepositoryFuture<'_, Vec<shared::AuditEntryResponse>> {
             Box::pin(async move { Ok(self.entries.iter().take(limit).cloned().collect()) })
         }
 
-        fn record_entry<'a>(
-            &'a self,
-            command: WikiAuditCommand,
-        ) -> WikiAuditRepositoryFuture<'a, ()> {
+        fn record_entry(&self, command: WikiAuditCommand) -> WikiAuditRepositoryFuture<'_, ()> {
             Box::pin(async move {
                 self.recorded
                     .lock()
@@ -2628,10 +2614,10 @@ mod tests {
     }
 
     impl WikiAuthRepository for RecordingAuthRepository {
-        fn authenticate_access_session<'a>(
-            &'a self,
+        fn authenticate_access_session(
+            &self,
             command: WikiAccessSessionCommand,
-        ) -> WikiAuthRepositoryFuture<'a, bool> {
+        ) -> WikiAuthRepositoryFuture<'_, bool> {
             Box::pin(async move {
                 self.access_lookups
                     .lock()
@@ -2641,10 +2627,10 @@ mod tests {
             })
         }
 
-        fn register_user<'a>(
-            &'a self,
+        fn register_user(
+            &self,
             command: WikiRegisterAuthCommand,
-        ) -> WikiAuthRepositoryFuture<'a, WikiAuthUserRecord> {
+        ) -> WikiAuthRepositoryFuture<'_, WikiAuthUserRecord> {
             Box::pin(async move {
                 self.registered
                     .lock()
@@ -2675,10 +2661,10 @@ mod tests {
             })
         }
 
-        fn create_login_session<'a>(
-            &'a self,
+        fn create_login_session(
+            &self,
             session: WikiSessionCommand,
-        ) -> WikiAuthRepositoryFuture<'a, ()> {
+        ) -> WikiAuthRepositoryFuture<'_, ()> {
             Box::pin(async move {
                 self.login_sessions
                     .lock()
@@ -2688,10 +2674,10 @@ mod tests {
             })
         }
 
-        fn find_refresh_session<'a>(
-            &'a self,
+        fn find_refresh_session(
+            &self,
             command: WikiRefreshSessionCommand,
-        ) -> WikiAuthRepositoryFuture<'a, Option<WikiAuthUserRecord>> {
+        ) -> WikiAuthRepositoryFuture<'_, Option<WikiAuthUserRecord>> {
             Box::pin(async move {
                 self.refresh_lookups
                     .lock()
@@ -2701,10 +2687,7 @@ mod tests {
             })
         }
 
-        fn rotate_session<'a>(
-            &'a self,
-            session: WikiSessionCommand,
-        ) -> WikiAuthRepositoryFuture<'a, ()> {
+        fn rotate_session(&self, session: WikiSessionCommand) -> WikiAuthRepositoryFuture<'_, ()> {
             Box::pin(async move {
                 self.rotated_sessions
                     .lock()
@@ -2714,10 +2697,7 @@ mod tests {
             })
         }
 
-        fn revoke_sessions<'a>(
-            &'a self,
-            command: WikiLogoutCommand,
-        ) -> WikiAuthRepositoryFuture<'a, ()> {
+        fn revoke_sessions(&self, command: WikiLogoutCommand) -> WikiAuthRepositoryFuture<'_, ()> {
             Box::pin(async move {
                 self.revoked_sessions
                     .lock()
@@ -2727,10 +2707,10 @@ mod tests {
             })
         }
 
-        fn get_current_user<'a>(
-            &'a self,
+        fn get_current_user(
+            &self,
             user_id: Uuid,
-        ) -> WikiAuthRepositoryFuture<'a, WikiAuthUserRecord> {
+        ) -> WikiAuthRepositoryFuture<'_, WikiAuthUserRecord> {
             Box::pin(async move {
                 self.current_user_lookups
                     .lock()

@@ -12,9 +12,7 @@ struct PostgresWikiTemplateRepository<'a> {
 }
 
 impl WikiTemplateRepository for PostgresWikiTemplateRepository<'_> {
-    fn list_active_templates<'a>(
-        &'a self,
-    ) -> WikiTemplateRepositoryFuture<'a, Vec<TemplateResponse>> {
+    fn list_active_templates(&self) -> WikiTemplateRepositoryFuture<'_, Vec<TemplateResponse>> {
         Box::pin(async move {
             let rows = sqlx::query(
                 r#"
@@ -31,11 +29,11 @@ impl WikiTemplateRepository for PostgresWikiTemplateRepository<'_> {
         })
     }
 
-    fn create_template<'a>(
-        &'a self,
+    fn create_template(
+        &self,
         actor_id: Uuid,
         command: WikiCreateTemplateCommand,
-    ) -> WikiTemplateRepositoryFuture<'a, TemplateResponse> {
+    ) -> WikiTemplateRepositoryFuture<'_, TemplateResponse> {
         Box::pin(async move {
             let mut tx = self
                 .backend

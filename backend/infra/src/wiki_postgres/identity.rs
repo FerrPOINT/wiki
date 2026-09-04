@@ -19,7 +19,7 @@ struct PostgresWikiUserRepository<'a> {
 }
 
 impl WikiUserRepository for PostgresWikiUserRepository<'_> {
-    fn list_users<'a>(&'a self) -> WikiUserRepositoryFuture<'a, Vec<WikiUserResponse>> {
+    fn list_users(&self) -> WikiUserRepositoryFuture<'_, Vec<WikiUserResponse>> {
         Box::pin(async move {
             let rows = sqlx::query(
                 r#"
@@ -36,11 +36,11 @@ impl WikiUserRepository for PostgresWikiUserRepository<'_> {
         })
     }
 
-    fn create_user<'a>(
-        &'a self,
+    fn create_user(
+        &self,
         actor_id: Uuid,
         command: WikiCreateUserCommand,
-    ) -> WikiUserRepositoryFuture<'a, WikiUserResponse> {
+    ) -> WikiUserRepositoryFuture<'_, WikiUserResponse> {
         Box::pin(async move {
             let mut tx = self
                 .backend
@@ -86,11 +86,11 @@ impl WikiUserRepository for PostgresWikiUserRepository<'_> {
         })
     }
 
-    fn update_user<'a>(
-        &'a self,
+    fn update_user(
+        &self,
         actor_id: Uuid,
         command: WikiUpdateUserCommand,
-    ) -> WikiUserRepositoryFuture<'a, WikiUserResponse> {
+    ) -> WikiUserRepositoryFuture<'_, WikiUserResponse> {
         Box::pin(async move {
             let mut tx = self
                 .backend
@@ -155,12 +155,12 @@ struct PostgresWikiSettingsRepository<'a> {
 }
 
 impl WikiSettingsRepository for PostgresWikiSettingsRepository<'_> {
-    fn get_settings<'a>(&'a self) -> WikiSettingsRepositoryFuture<'a> {
+    fn get_settings(&self) -> WikiSettingsRepositoryFuture<'_> {
         Box::pin(async move { Ok(self.backend.settings.clone()) })
     }
 }
 
-impl<'a> PostgresWikiAuthRepository<'a> {
+impl PostgresWikiAuthRepository<'_> {
     /// Finds a wiki user by the central identity's verified email; links
     /// (creates) a local shadow account on first login. Central users never
     /// have a usable local password (`!` hash — argon2 verify always fails).
@@ -255,10 +255,10 @@ async fn insert_session(
 }
 
 impl WikiAuthRepository for PostgresWikiAuthRepository<'_> {
-    fn authenticate_access_session<'a>(
-        &'a self,
+    fn authenticate_access_session(
+        &self,
         command: WikiAccessSessionCommand,
-    ) -> WikiAuthRepositoryFuture<'a, bool> {
+    ) -> WikiAuthRepositoryFuture<'_, bool> {
         Box::pin(async move {
             let found: Option<Uuid> = sqlx::query_scalar(
                 r#"
@@ -292,10 +292,10 @@ impl WikiAuthRepository for PostgresWikiAuthRepository<'_> {
         })
     }
 
-    fn register_user<'a>(
-        &'a self,
+    fn register_user(
+        &self,
         command: WikiRegisterAuthCommand,
-    ) -> WikiAuthRepositoryFuture<'a, WikiAuthUserRecord> {
+    ) -> WikiAuthRepositoryFuture<'_, WikiAuthUserRecord> {
         Box::pin(async move {
             let mut tx = self
                 .backend
@@ -361,10 +361,10 @@ impl WikiAuthRepository for PostgresWikiAuthRepository<'_> {
         })
     }
 
-    fn create_login_session<'a>(
-        &'a self,
+    fn create_login_session(
+        &self,
         session: WikiSessionCommand,
-    ) -> WikiAuthRepositoryFuture<'a, ()> {
+    ) -> WikiAuthRepositoryFuture<'_, ()> {
         Box::pin(async move {
             let mut tx = self
                 .backend
@@ -389,10 +389,10 @@ impl WikiAuthRepository for PostgresWikiAuthRepository<'_> {
         })
     }
 
-    fn find_refresh_session<'a>(
-        &'a self,
+    fn find_refresh_session(
+        &self,
         command: WikiRefreshSessionCommand,
-    ) -> WikiAuthRepositoryFuture<'a, Option<WikiAuthUserRecord>> {
+    ) -> WikiAuthRepositoryFuture<'_, Option<WikiAuthUserRecord>> {
         Box::pin(async move {
             let row = sqlx::query(
                 r#"
@@ -420,10 +420,7 @@ impl WikiAuthRepository for PostgresWikiAuthRepository<'_> {
         })
     }
 
-    fn rotate_session<'a>(
-        &'a self,
-        session: WikiSessionCommand,
-    ) -> WikiAuthRepositoryFuture<'a, ()> {
+    fn rotate_session(&self, session: WikiSessionCommand) -> WikiAuthRepositoryFuture<'_, ()> {
         Box::pin(async move {
             sqlx::query(
                 r#"
@@ -449,10 +446,7 @@ impl WikiAuthRepository for PostgresWikiAuthRepository<'_> {
         })
     }
 
-    fn revoke_sessions<'a>(
-        &'a self,
-        command: WikiLogoutCommand,
-    ) -> WikiAuthRepositoryFuture<'a, ()> {
+    fn revoke_sessions(&self, command: WikiLogoutCommand) -> WikiAuthRepositoryFuture<'_, ()> {
         Box::pin(async move {
             let mut tx = self
                 .backend
@@ -495,10 +489,7 @@ impl WikiAuthRepository for PostgresWikiAuthRepository<'_> {
         })
     }
 
-    fn get_current_user<'a>(
-        &'a self,
-        user_id: Uuid,
-    ) -> WikiAuthRepositoryFuture<'a, WikiAuthUserRecord> {
+    fn get_current_user(&self, user_id: Uuid) -> WikiAuthRepositoryFuture<'_, WikiAuthUserRecord> {
         Box::pin(async move {
             let row = sqlx::query(
                 r#"
@@ -573,26 +564,14 @@ impl PostgresWikiBackend {
     ) -> Result<WikiAuthResponse, shared::AppError> {
         // Central fleet auth first; local password login remains the fallback
         // (transition period, see central_login.rs).
-        if let Some(config) = crate::wiki_postgres::central_login::central_login_config() {
-            match crate::wiki_postgres::central_login::try_central_login(
-                &config,
+        if let Some(pair) =
+            crate::wiki_postgres::central_login::try_central_login(&body.email, &body.password)
+                .await
+        {
+            return Ok(crate::wiki_postgres::central_login::central_response(
+                pair,
                 &body.email,
-                &body.password,
-            )
-            .await
-            {
-                Ok(Some(pair)) => {
-                    return Ok(crate::wiki_postgres::central_login::central_response(
-                        pair,
-                        &body.email,
-                    ));
-                }
-                Ok(None) => unreachable!("config is Some"),
-                Err(Some(error)) => {
-                    tracing::warn!(%error, "central login failed; falling back to local");
-                }
-                Err(None) => { /* credentials not known centrally; local path */ }
-            }
+            ));
         }
         let repository = PostgresWikiAuthRepository {
             backend: self,

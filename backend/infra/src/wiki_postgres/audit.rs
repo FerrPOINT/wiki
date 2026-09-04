@@ -12,10 +12,10 @@ struct PostgresWikiAuditRepository<'a> {
 }
 
 impl WikiAuditRepository for PostgresWikiAuditRepository<'_> {
-    fn list_recent_entries<'a>(
-        &'a self,
+    fn list_recent_entries(
+        &self,
         limit: usize,
-    ) -> WikiAuditRepositoryFuture<'a, Vec<AuditEntryResponse>> {
+    ) -> WikiAuditRepositoryFuture<'_, Vec<AuditEntryResponse>> {
         Box::pin(async move {
             let rows = sqlx::query(
                 r#"
@@ -33,7 +33,7 @@ impl WikiAuditRepository for PostgresWikiAuditRepository<'_> {
         })
     }
 
-    fn record_entry<'a>(&'a self, command: WikiAuditCommand) -> WikiAuditRepositoryFuture<'a, ()> {
+    fn record_entry(&self, command: WikiAuditCommand) -> WikiAuditRepositoryFuture<'_, ()> {
         Box::pin(async move {
             sqlx::query(
                 r#"

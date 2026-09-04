@@ -20,11 +20,11 @@ struct PostgresWikiDocumentRepository<'a> {
 }
 
 impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
-    fn create_document<'a>(
-        &'a self,
+    fn create_document(
+        &self,
         actor_id: Uuid,
         command: WikiCreateDocumentCommand,
-    ) -> WikiDocumentRepositoryFuture<'a, DocumentResponse> {
+    ) -> WikiDocumentRepositoryFuture<'_, DocumentResponse> {
         Box::pin(async move {
             let mut tx = self
                 .backend
@@ -138,10 +138,10 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
         })
     }
 
-    fn get_document<'a>(
-        &'a self,
+    fn get_document(
+        &self,
         document_id: Uuid,
-    ) -> WikiDocumentRepositoryFuture<'a, DocumentResponse> {
+    ) -> WikiDocumentRepositoryFuture<'_, DocumentResponse> {
         Box::pin(async move {
             self.backend
                 .document_response(document_id, self.include_draft)
@@ -149,11 +149,11 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
         })
     }
 
-    fn update_document_draft<'a>(
-        &'a self,
+    fn update_document_draft(
+        &self,
         actor_id: Uuid,
         command: WikiUpdateDocumentDraftCommand,
-    ) -> WikiDocumentRepositoryFuture<'a, DocumentResponse> {
+    ) -> WikiDocumentRepositoryFuture<'_, DocumentResponse> {
         Box::pin(async move {
             let mut tx = self
                 .backend
@@ -209,11 +209,11 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
         })
     }
 
-    fn publish_document<'a>(
-        &'a self,
+    fn publish_document(
+        &self,
         actor_id: Uuid,
         command: WikiPublishDocumentCommand,
-    ) -> WikiDocumentRepositoryFuture<'a, DocumentRevisionResponse> {
+    ) -> WikiDocumentRepositoryFuture<'_, DocumentRevisionResponse> {
         Box::pin(async move {
             let mut tx = self
                 .backend
@@ -323,11 +323,11 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
         })
     }
 
-    fn archive_document<'a>(
-        &'a self,
+    fn archive_document(
+        &self,
         actor_id: Uuid,
         command: WikiArchiveDocumentCommand,
-    ) -> WikiDocumentRepositoryFuture<'a, DocumentResponse> {
+    ) -> WikiDocumentRepositoryFuture<'_, DocumentResponse> {
         Box::pin(async move {
             let mut tx = self
                 .backend
@@ -367,11 +367,11 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
         })
     }
 
-    fn move_document<'a>(
-        &'a self,
+    fn move_document(
+        &self,
         actor_id: Uuid,
         command: WikiMoveDocumentCommand,
-    ) -> WikiDocumentRepositoryFuture<'a, DocumentResponse> {
+    ) -> WikiDocumentRepositoryFuture<'_, DocumentResponse> {
         Box::pin(async move {
             let mut tx = self
                 .backend
@@ -412,11 +412,11 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
         })
     }
 
-    fn list_revisions<'a>(
-        &'a self,
+    fn list_revisions(
+        &self,
         document_id: Uuid,
         limit: usize,
-    ) -> WikiDocumentRepositoryFuture<'a, Vec<DocumentRevisionResponse>> {
+    ) -> WikiDocumentRepositoryFuture<'_, Vec<DocumentRevisionResponse>> {
         Box::pin(async move {
             let rows = sqlx::query(
                 r#"
@@ -436,11 +436,11 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
         })
     }
 
-    fn get_revision<'a>(
-        &'a self,
+    fn get_revision(
+        &self,
         document_id: Uuid,
         revision_id: Uuid,
-    ) -> WikiDocumentRepositoryFuture<'a, DocumentRevisionResponse> {
+    ) -> WikiDocumentRepositoryFuture<'_, DocumentRevisionResponse> {
         Box::pin(async move {
             let row = sqlx::query(
                 r#"

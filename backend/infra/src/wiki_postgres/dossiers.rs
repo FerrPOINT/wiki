@@ -190,11 +190,11 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
         Box::pin(async move { self.task_page(space_id, space_key, task_key).await })
     }
 
-    fn link_task_document<'a>(
-        &'a self,
+    fn link_task_document(
+        &self,
         actor_id: Uuid,
         command: WikiLinkTaskDocumentCommand,
-    ) -> WikiDossierRepositoryFuture<'a, TaskPageResponse> {
+    ) -> WikiDossierRepositoryFuture<'_, TaskPageResponse> {
         Box::pin(async move {
             let mut tx = self
                 .backend
@@ -313,11 +313,11 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
         Box::pin(async move { self.phase_page(space_id, space_key, phase_key).await })
     }
 
-    fn link_phase_document<'a>(
-        &'a self,
+    fn link_phase_document(
+        &self,
         actor_id: Uuid,
         command: WikiLinkPhaseDocumentCommand,
-    ) -> WikiDossierRepositoryFuture<'a, PhasePageResponse> {
+    ) -> WikiDossierRepositoryFuture<'_, PhasePageResponse> {
         Box::pin(async move {
             let mut tx = self
                 .backend

@@ -33,11 +33,11 @@ impl PostgresWikiEvidenceRepository<'_> {
 }
 
 impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
-    fn create_evidence<'a>(
-        &'a self,
+    fn create_evidence(
+        &self,
         actor_id: Uuid,
         command: WikiCreateEvidenceCommand,
-    ) -> WikiEvidenceRepositoryFuture<'a, EvidenceResponse> {
+    ) -> WikiEvidenceRepositoryFuture<'_, EvidenceResponse> {
         Box::pin(async move {
             let mut tx = self
                 .backend
@@ -151,18 +151,18 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
         })
     }
 
-    fn get_evidence<'a>(
-        &'a self,
+    fn get_evidence(
+        &self,
         evidence_id: Uuid,
-    ) -> WikiEvidenceRepositoryFuture<'a, EvidenceResponse> {
+    ) -> WikiEvidenceRepositoryFuture<'_, EvidenceResponse> {
         Box::pin(async move { self.get_evidence_by_id(evidence_id).await })
     }
 
-    fn upload_attachment<'a>(
-        &'a self,
+    fn upload_attachment(
+        &self,
         actor_id: Uuid,
         command: WikiUploadAttachmentCommand,
-    ) -> WikiEvidenceRepositoryFuture<'a, AttachmentResponse> {
+    ) -> WikiEvidenceRepositoryFuture<'_, AttachmentResponse> {
         Box::pin(async move {
             self.backend
                 .storage
@@ -223,10 +223,10 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
         })
     }
 
-    fn get_attachment<'a>(
-        &'a self,
+    fn get_attachment(
+        &self,
         attachment_id: Uuid,
-    ) -> WikiEvidenceRepositoryFuture<'a, AttachmentResponse> {
+    ) -> WikiEvidenceRepositoryFuture<'_, AttachmentResponse> {
         Box::pin(async move {
             let row = sqlx::query(ATTACHMENT_ONE_SQL)
                 .bind(attachment_id)
@@ -238,10 +238,10 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
         })
     }
 
-    fn download_attachment<'a>(
-        &'a self,
+    fn download_attachment(
+        &self,
         attachment_id: Uuid,
-    ) -> WikiEvidenceRepositoryFuture<'a, AttachmentDownloadResponse> {
+    ) -> WikiEvidenceRepositoryFuture<'_, AttachmentDownloadResponse> {
         Box::pin(async move {
             let row = sqlx::query(
                 r#"

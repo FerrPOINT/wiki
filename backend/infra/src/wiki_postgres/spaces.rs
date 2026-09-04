@@ -31,10 +31,7 @@ async fn fetch_space_by_key(
 }
 
 impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
-    fn list_spaces<'a>(
-        &'a self,
-        user_id: Uuid,
-    ) -> WikiSpaceRepositoryFuture<'a, Vec<SpaceResponse>> {
+    fn list_spaces(&self, user_id: Uuid) -> WikiSpaceRepositoryFuture<'_, Vec<SpaceResponse>> {
         Box::pin(async move {
             let rows = sqlx::query(SPACE_LIST_SQL)
                 .bind(user_id)
@@ -45,11 +42,11 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
         })
     }
 
-    fn create_space<'a>(
-        &'a self,
+    fn create_space(
+        &self,
         actor_id: Uuid,
         command: WikiCreateSpaceCommand,
-    ) -> WikiSpaceRepositoryFuture<'a, SpaceResponse> {
+    ) -> WikiSpaceRepositoryFuture<'_, SpaceResponse> {
         Box::pin(async move {
             let mut tx = self
                 .backend
@@ -105,11 +102,11 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
         Box::pin(async move { fetch_space_by_key(self.backend, key).await })
     }
 
-    fn update_space<'a>(
-        &'a self,
+    fn update_space(
+        &self,
         actor_id: Uuid,
         command: WikiUpdateSpaceCommand,
-    ) -> WikiSpaceRepositoryFuture<'a, SpaceResponse> {
+    ) -> WikiSpaceRepositoryFuture<'_, SpaceResponse> {
         Box::pin(async move {
             let mut tx = self
                 .backend
@@ -155,11 +152,11 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
         })
     }
 
-    fn archive_space<'a>(
-        &'a self,
+    fn archive_space(
+        &self,
         actor_id: Uuid,
         command: WikiArchiveSpaceCommand,
-    ) -> WikiSpaceRepositoryFuture<'a, SpaceResponse> {
+    ) -> WikiSpaceRepositoryFuture<'_, SpaceResponse> {
         Box::pin(async move {
             let mut tx = self
                 .backend
@@ -201,10 +198,10 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
         })
     }
 
-    fn list_members<'a>(
-        &'a self,
+    fn list_members(
+        &self,
         space_id: Uuid,
-    ) -> WikiSpaceRepositoryFuture<'a, Vec<SpaceMemberResponse>> {
+    ) -> WikiSpaceRepositoryFuture<'_, Vec<SpaceMemberResponse>> {
         Box::pin(async move {
             let rows = sqlx::query(
                 r#"
@@ -223,11 +220,11 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
         })
     }
 
-    fn upsert_member<'a>(
-        &'a self,
+    fn upsert_member(
+        &self,
         actor_id: Uuid,
         command: WikiUpsertSpaceMemberCommand,
-    ) -> WikiSpaceRepositoryFuture<'a, SpaceMemberResponse> {
+    ) -> WikiSpaceRepositoryFuture<'_, SpaceMemberResponse> {
         Box::pin(async move {
             let mut tx = self
                 .backend
@@ -285,11 +282,11 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
         })
     }
 
-    fn delete_member<'a>(
-        &'a self,
+    fn delete_member(
+        &self,
         actor_id: Uuid,
         command: WikiDeleteSpaceMemberCommand,
-    ) -> WikiSpaceRepositoryFuture<'a, ()> {
+    ) -> WikiSpaceRepositoryFuture<'_, ()> {
         Box::pin(async move {
             let mut tx = self
                 .backend
@@ -324,10 +321,10 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
         })
     }
 
-    fn get_tree<'a>(
-        &'a self,
+    fn get_tree(
+        &self,
         space_id: Uuid,
-    ) -> WikiSpaceRepositoryFuture<'a, Vec<SpaceTreeNodeResponse>> {
+    ) -> WikiSpaceRepositoryFuture<'_, Vec<SpaceTreeNodeResponse>> {
         Box::pin(async move {
             let rows = sqlx::query(
                 r#"
