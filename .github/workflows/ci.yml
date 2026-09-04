@@ -14,11 +14,11 @@ jobs:
       run:
         working-directory: wiki/backend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: wiki
       - name: Check out services-base sibling (path deps)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: FerrPOINT/services-base
           path: services-base
@@ -40,11 +40,11 @@ jobs:
       run:
         working-directory: wiki/backend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: wiki
       - name: Check out services-base sibling (path deps)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: FerrPOINT/services-base
           path: services-base
@@ -80,12 +80,12 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: wiki
       # Fleet shared crates live in a sibling services-base checkout
       # (backend/infra path dep: ../../../services-base/crates/sdlc-auth-core).
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: FerrPOINT/services-base
           path: services-base
@@ -110,12 +110,12 @@ jobs:
       run:
         working-directory: wiki/backend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: wiki
       # Fleet shared crates live in a sibling services-base checkout
       # (backend/infra path dep: ../../../services-base/crates/sdlc-auth-core).
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: FerrPOINT/services-base
           path: services-base
@@ -145,12 +145,12 @@ jobs:
       run:
         working-directory: wiki/backend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: wiki
       # Fleet shared crates live in a sibling services-base checkout
       # (backend/infra path dep: ../../../services-base/crates/sdlc-auth-core).
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: FerrPOINT/services-base
           path: services-base
@@ -171,11 +171,11 @@ jobs:
       run:
         working-directory: wiki/frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: wiki
       - name: Check out services-base sibling (@sdlc/ui file dep)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: FerrPOINT/services-base
           path: services-base
@@ -200,11 +200,11 @@ jobs:
   deny:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: wiki
       - name: Check out services-base sibling (path deps)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: FerrPOINT/services-base
           path: services-base
@@ -222,11 +222,11 @@ jobs:
       run:
         working-directory: wiki/frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: wiki
       - name: Check out services-base sibling (@sdlc/ui file dep)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: FerrPOINT/services-base
           path: services-base
