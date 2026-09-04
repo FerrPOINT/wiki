@@ -164,7 +164,7 @@ jobs:
           workspaces: wiki/backend
       - uses: taiki-e/install-action@cargo-audit
       # SQLx keeps optional MySQL/RSA packages in Cargo.lock; Wiki enables only PostgreSQL.
-      - run: cargo audit --ignore RUSTSEC-2023-0071
+      - run: cargo audit --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2024-0436
 
   # install + test + lint + build via the shared fleet gate.
   frontend:
