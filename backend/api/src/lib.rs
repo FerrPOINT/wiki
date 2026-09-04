@@ -1,7 +1,7 @@
 use axum::{
     Extension, Router,
     extract::Request,
-    http::{HeaderName, HeaderValue, Method},
+    http::{HeaderName, HeaderValue},
     middleware::{Next, from_fn, from_fn_with_state},
     response::Response,
     routing::{get, post, put},
@@ -11,11 +11,7 @@ use metrics_exporter_prometheus::PrometheusHandle;
 use std::sync::{Arc, OnceLock};
 use tower::ServiceBuilder;
 use tower_governor::{GovernorLayer, governor::GovernorConfigBuilder};
-use tower_http::{
-    cors::{Any, CorsLayer},
-    set_header::SetResponseHeaderLayer,
-    trace::TraceLayer,
-};
+use tower_http::{set_header::SetResponseHeaderLayer, trace::TraceLayer};
 use utoipa::{
     Modify, OpenApi,
     openapi::{
@@ -426,27 +422,8 @@ fn new_request_id() -> String {
     format!("req_{}", uuid::Uuid::now_v7().simple())
 }
 
-fn cors_layer(origins: &[String]) -> CorsLayer {
-    if origins.len() == 1 && origins[0] == "*" {
-        return CorsLayer::new()
-            .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
-            .allow_origin(Any)
-            .allow_headers(Any);
-    }
-
-    let origins: Vec<HeaderValue> = origins
-        .iter()
-        .filter(|origin| !origin.is_empty())
-        .map(|origin| {
-            origin
-                .parse::<HeaderValue>()
-                .expect("invalid cors allowed origin")
-        })
-        .collect();
-    CorsLayer::new()
-        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
-        .allow_origin(tower_http::cors::AllowOrigin::list(origins))
-        .allow_headers(Any)
+fn cors_layer(origins: &[String]) -> tower_http::cors::CorsLayer {
+    sdlc_shared::cors::cors_layer(origins)
 }
 
 fn with_security_headers<S>(router: Router<S>) -> Router<S>

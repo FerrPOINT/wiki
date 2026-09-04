@@ -6,6 +6,7 @@ rust-version.workspace = true
 license-file.workspace = true
 
 [dependencies]
+sdlc-shared = { path = "../../../services-base/crates/sdlc-shared" }
 shared = { path = "../shared" }
 domain = { path = "../domain" }
 app = { path = "../app" }
