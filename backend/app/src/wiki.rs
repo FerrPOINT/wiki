@@ -1749,26 +1749,11 @@ pub fn hash_token(token: &str) -> String {
 }
 
 pub fn hash_password(password: &str) -> Result<String, AppError> {
-    use argon2::{
-        Argon2,
-        password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
-    };
-    let salt = SaltString::generate(&mut OsRng);
-    Argon2::default()
-        .hash_password(password.as_bytes(), &salt)
-        .map(|hash| hash.to_string())
-        .map_err(AppError::internal)
+    sdlc_auth_core::password::hash_password(password).map_err(AppError::internal)
 }
 
 pub fn verify_password(password: &str, hash: &str) -> Result<bool, AppError> {
-    use argon2::{
-        Argon2,
-        password_hash::{PasswordHash, PasswordVerifier},
-    };
-    let parsed = PasswordHash::new(hash).map_err(AppError::internal)?;
-    Ok(Argon2::default()
-        .verify_password(password.as_bytes(), &parsed)
-        .is_ok())
+    sdlc_auth_core::password::verify_password(password, hash).map_err(AppError::internal)
 }
 
 pub fn create_token(
