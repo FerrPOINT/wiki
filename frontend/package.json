@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "node scripts/generate-exports.mjs && tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -19,7 +19,8 @@
     "format:check": "prettier --check .",
     "openapi:check": "node node_modules/@sdlc/ui/scripts/sdlc-openapi-check.mjs --spec ../openapi/openapi.json --schema src/api/generated.ts",
     "openapi:compat": "SPEC=openapi/openapi.json SPEC_NAME=openapi/openapi.json node node_modules/@sdlc/ui/scripts/sdlc-openapi-compat.mjs",
-    "postinstall": "openapi-typescript ../openapi/openapi.json -o src/api/generated.ts && node scripts/generate-exports.mjs"
+    "postinstall": "openapi-typescript ../openapi/openapi.json -o src/api/generated.ts",
+    "prebuild": "node scripts/generate-exports.mjs"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.13",

@@ -11,10 +11,10 @@ COPY wiki/frontend/package.json wiki/frontend/pnpm-lock.yaml wiki/frontend/pnpm-
 # @sdlc/ui is a file: dependency pointing at ../../services-base/frontend
 # relative to the wiki frontend dir (/app -> /services-base must exist).
 COPY services-base/frontend /services-base/frontend
+COPY wiki/openapi/openapi.json ../openapi/openapi.json
 RUN pnpm install --frozen-lockfile
 
 COPY wiki/frontend/ ./
-COPY wiki/openapi/openapi.json ../openapi/openapi.json
 RUN pnpm build
 
 FROM nginx:alpine
