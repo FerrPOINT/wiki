@@ -13,10 +13,12 @@
     "test:e2e": "playwright test",
     "preview": "vite preview --host 127.0.0.1 --port 4174 --strictPort",
     "shoot:evidence": "node scripts/shoot-evidence.mjs",
-    "generate:api": "node scripts/generate-api-types.mjs",
+    "generate:api": "openapi-typescript ../openapi/openapi.json -o src/api/generated.ts && node scripts/generate-exports.mjs",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "openapi:check": "node node_modules/@sdlc/ui/scripts/sdlc-openapi-check.mjs --spec ../openapi/openapi.json --schema src/api/generated.ts",
+    "openapi:compat": "SPEC=openapi/openapi.json SPEC_NAME=openapi/openapi.json node node_modules/@sdlc/ui/scripts/sdlc-openapi-compat.mjs"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.13",
@@ -61,6 +63,8 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.31.1",
     "vite": "^6.2.0",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "openapi-typescript": "^7.13.0",
+    "yaml": "^2.0.0"
   }
 }

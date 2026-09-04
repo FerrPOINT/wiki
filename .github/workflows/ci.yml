@@ -16,33 +16,12 @@ jobs:
       services-base-sibling: true
 
   openapi-check:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: wiki/backend
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          path: wiki
-      # Fleet shared crates live in a sibling services-base checkout
-      # (backend/infra path dep: ../../../services-base/crates/sdlc-auth-core).
-      - uses: actions/checkout@v4
-        with:
-          repository: FerrPOINT/services-base
-          path: services-base
-          ref: main
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: wiki/backend
-      - name: Regenerate OpenAPI
-        run: |
-          mkdir -p openapi
-          cargo run -p api --bin openapi-gen -- openapi/openapi.json
-      - name: Check committed spec matches code
-        run: diff -u ../openapi/openapi.json openapi/openapi.json
+    uses: FerrPOINT/services-base/.github/workflows/openapi-gate.yml@main
+    with:
+      checkout-path: wiki
+      bin: openapi-gen
+      spec: openapi/openapi.json
+      services-base-sibling: true
 
   migrations:
     runs-on: ubuntu-latest

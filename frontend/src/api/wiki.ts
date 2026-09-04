@@ -38,7 +38,7 @@ import type {
   WikiUpdateUserRequest,
   WikiUserListResponse,
   WikiUserResponse,
-} from './generated'
+} from './generated-exports'
 
 export type Space = SpaceResponse
 export type SpaceTreeNode = SpaceTreeNodeResponse

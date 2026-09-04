@@ -4,7 +4,7 @@ import type {
   WikiLoginRequest,
   WikiRegisterRequest,
   WikiUserResponse,
-} from './generated'
+} from './generated-exports'
 
 export type LoginRequest = WikiLoginRequest
 
