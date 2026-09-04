@@ -32,7 +32,7 @@ utoipa-swagger-ui.workspace = true
 anyhow.workspace = true
 chrono.workspace = true
 uuid.workspace = true
-time = { version = "=0.3.41", features = ["std"] }
+time = { version = "=0.3.47", features = ["std"] }
 
 [dev-dependencies]
 infra = { path = "../infra" }
