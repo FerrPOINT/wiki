@@ -57,9 +57,7 @@ jobs:
         with:
           workspaces: wiki/backend
       - name: Regenerate OpenAPI
-        run: |
-          mkdir -p ../openapi
-          cargo run -p api --bin openapi-gen > ../openapi/openapi.json.generated
+        run: cargo run -p api --bin openapi-gen ../openapi/openapi.json.generated
       - name: Check committed spec matches code
         run: diff -u ../openapi/openapi.json ../openapi/openapi.json.generated
   migrations:
