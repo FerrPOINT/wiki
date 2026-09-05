@@ -1,7 +1,6 @@
 import { useState, type ElementType } from 'react'
 import { Link, Outlet, useLocation } from 'react-router'
 import {
-  BookOpenText,
   ClipboardList,
   FileCheck2,
   FilePlus2,
@@ -20,7 +19,7 @@ import {
   Users,
   X,
 } from 'lucide-react'
-import { Button } from '@sdlc/ui/ui'
+import { Button, PlatformMark } from '@sdlc/ui/ui'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -118,7 +117,7 @@ export function AppShell() {
             )}
           </Button>
           <Link to="/" className="flex items-center gap-2 font-bold">
-            <BookOpenText className="h-[18px] w-[18px] text-accent" />
+            <PlatformMark size="sm" withName={false} />
             <span className="hidden sm:inline">Wiki</span>
           </Link>
           <Link
