@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://capsule-render.vercel.app/api?type=waving&height=190&text=Wiki&desc=SDLC%20knowledge%20base%20with%20evidence%20and%20audit&fontColor=F8FAFC&fontSize=58&fontAlignY=35&descAlignY=56&color=0:0F172A,50:7C3AED,100:0EA5E9" alt="Wiki banner" />
+  <img src="https://capsule-render.vercel.app/api?type=waving&height=190&text=Wiki&desc=Base%20knowledge%20hub%20with%20evidence%20and%20audit&fontColor=F8FAFC&fontSize=58&fontAlignY=35&descAlignY=56&color=0:0F172A,50:7C3AED,100:0EA5E9" alt="Wiki banner" />
 </p>
 
 <p align="center">
@@ -30,7 +30,7 @@
 
 ## 🎯 Позиционирование
 
-**Wiki** — self-hosted SDLC knowledge base для FerrPOINT: spaces, documents, revisions, task dossiers, workflow phases, evidence, attachments, search and audit.
+**Wiki** — self-hosted knowledge base платформы Base для FerrPOINT: spaces, documents, revisions, task dossiers, workflow phases, evidence, attachments, search and audit.
 
 The repository is now reduced to the Wiki MVP runtime: public API/OpenAPI, CLI surface, frontend shell and SQLx/PostgreSQL persistence. Copied task-tracker backend modules and old dependencies have been removed from the active workspace.
 
@@ -54,7 +54,7 @@ The repository is now reduced to the Wiki MVP runtime: public API/OpenAPI, CLI s
 | -------------------- | --------------------------------------------------------------------------------------------------------------- |
 | Spaces and documents | Spaces and document tree for requirements, architecture notes, decisions and release materials.                 |
 | Document lifecycle   | Create/view/edit/publish/archive/move flows, revision-aware backend endpoints and generated frontend API types. |
-| SDLC dossiers        | Task and phase dossiers linked to evidence and SDLC workflow context.                                           |
+| Base dossiers        | Task and phase dossiers linked to evidence and workflow context.                                           |
 | Evidence registry    | External links and uploaded files attached to documents, tasks or phases.                                       |
 | Operations           | Templates, audit log, users/settings/admin pages, global search and API health/readiness probes.                |
 | CLI                  | HTTP-only `wiki` binary for the same public API operations as UI.                                               |
@@ -202,8 +202,8 @@ set WIKI_TOKEN=<jwt_token>
 
 target\debug\wiki.exe space list
 target\debug\wiki.exe user list
-target\debug\wiki.exe doc create --space SDLC --title "Requirements" --from-file requirements.md
-target\debug\wiki.exe space member-set SDLC --user <user-id> --role editor
+target\debug\wiki.exe doc create --space BASE --title "Requirements" --from-file requirements.md
+target\debug\wiki.exe space member-set BASE --user <user-id> --role editor
 target\debug\wiki.exe attachment download <attachment-id> --out artifact.bin
 target\debug\wiki.exe audit list --limit 25
 target\debug\wiki.exe settings get
