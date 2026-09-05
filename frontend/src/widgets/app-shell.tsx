@@ -28,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from '@sdlc/ui/ui'
 import { ThemeToggle } from '@sdlc/ui/ui'
+import { ServiceSwitcher } from '@sdlc/ui/ui'
 import { useCurrentUser, useLogout } from '@/shared/api/hooks'
 
 type NavItem = {
@@ -143,6 +144,7 @@ export function AppShell() {
               <span className="hidden sm:inline">Новый документ</span>
             </Link>
           </Button>
+          <ServiceSwitcher currentKey="wiki" />
           <ThemeToggle />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
