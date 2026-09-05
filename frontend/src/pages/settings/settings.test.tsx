@@ -15,7 +15,7 @@ describe('SettingsPage', () => {
       data: {
         instance_name: 'Wiki',
         api_base_path: '/api/v1',
-        default_space_key: 'SDLC',
+        default_space_key: 'BASE',
         default_language: 'ru',
         timezone: 'Europe/Moscow',
         registration_enabled: true,

@@ -32,9 +32,9 @@ const spaceMember = {
 }
 const evidence = {
   id: 'evidence-smoke',
-  space_key: 'SDLC',
+  space_key: 'BASE',
   document_id: 'product-requirements',
-  task_key: 'SDLC-42',
+  task_key: 'BASE-42',
   phase_key: 'implementation',
   title: 'Материал smoke-проверки фронта',
   evidence_type: 'external_url',
@@ -55,9 +55,9 @@ const fileAttachment = {
 }
 const fileEvidence = {
   id: 'evidence-file-smoke',
-  space_key: 'SDLC',
+  space_key: 'BASE',
   document_id: 'product-requirements',
-  task_key: 'SDLC-42',
+  task_key: 'BASE-42',
   phase_key: 'testing',
   title: 'Лог сборки',
   evidence_type: 'uploaded_file',
@@ -92,7 +92,7 @@ function renderMockMarkdown(markdown: string) {
 }
 const document = {
   id: 'product-requirements',
-  space_key: 'SDLC',
+  space_key: 'BASE',
   parent_id: null,
   slug: 'product-requirements',
   title: 'Требования к Wiki MVP',
@@ -113,7 +113,7 @@ const document = {
     author_id: user.id,
     published_at: now,
   },
-  task_keys: ['SDLC-42'],
+  task_keys: ['BASE-42'],
   phase_keys: ['implementation'],
   evidence: [evidence, fileEvidence],
   created_by: user.id,
@@ -130,8 +130,8 @@ const documentSummary = {
   updated_at: document.updated_at,
 }
 const task = {
-  space_key: 'SDLC',
-  task_key: 'SDLC-42',
+  space_key: 'BASE',
+  task_key: 'BASE-42',
   title: document.title,
   document_count: 1,
   evidence_count: 2,
@@ -139,7 +139,7 @@ const task = {
   evidence: [evidence, fileEvidence],
 }
 const phase = {
-  space_key: 'SDLC',
+  space_key: 'BASE',
   phase_key: 'implementation',
   title: 'implementation',
   document_count: 1,
@@ -150,7 +150,7 @@ const phase = {
 const settings = {
   instance_name: 'Wiki',
   api_base_path: '/api/v1',
-  default_space_key: 'SDLC',
+  default_space_key: 'BASE',
   default_language: 'ru',
   timezone: 'Europe/Moscow',
   registration_enabled: true,
@@ -244,9 +244,9 @@ async function installWikiApiMocks(page: Page) {
         spaces: [
           {
             id: 'space-sdlc',
-            key: 'SDLC',
-            name: 'База знаний SDLC',
-            description: 'Основное пространство Wiki для документов SDLC',
+            key: 'BASE',
+            name: 'База знаний Base',
+            description: 'Основное пространство Wiki для документов платформы Base',
             owner_id: user.id,
             status: 'active',
             document_count: 1,
@@ -257,12 +257,12 @@ async function installWikiApiMocks(page: Page) {
         ],
       })
     }
-    if (method === 'GET' && path === '/spaces/SDLC/members') {
+    if (method === 'GET' && path === '/spaces/BASE/members') {
       return routeJson(route, { members: [spaceMember] })
     }
-    if (method === 'GET' && path === '/spaces/SDLC/tree') {
+    if (method === 'GET' && path === '/spaces/BASE/tree') {
       return routeJson(route, {
-        space_key: 'SDLC',
+        space_key: 'BASE',
         documents: [
           {
             id: document.id,
@@ -333,11 +333,11 @@ async function installWikiApiMocks(page: Page) {
       currentDocument = { ...currentDocument, parent_id: body.parent_id ?? null, updated_at: now }
       return routeJson(route, currentDocument)
     }
-    if (method === 'GET' && path === '/spaces/SDLC/tasks')
+    if (method === 'GET' && path === '/spaces/BASE/tasks')
       return routeJson(route, { tasks: [currentTask] })
-    if (method === 'GET' && path === '/spaces/SDLC/tasks/SDLC-42')
+    if (method === 'GET' && path === '/spaces/BASE/tasks/BASE-42')
       return routeJson(route, currentTask)
-    if (method === 'POST' && path === '/spaces/SDLC/tasks/SDLC-42/links/documents') {
+    if (method === 'POST' && path === '/spaces/BASE/tasks/BASE-42/links/documents') {
       const body = request.postDataJSON() as { document_id: string }
       taskDocumentLinkRequests.push(body)
       currentTask = {
@@ -351,13 +351,13 @@ async function installWikiApiMocks(page: Page) {
       }
       return routeJson(route, currentTask)
     }
-    if (method === 'GET' && path === '/spaces/SDLC/phases') {
+    if (method === 'GET' && path === '/spaces/BASE/phases') {
       return routeJson(route, { phases: [currentPhase] })
     }
-    if (method === 'GET' && path === '/spaces/SDLC/phases/implementation') {
+    if (method === 'GET' && path === '/spaces/BASE/phases/implementation') {
       return routeJson(route, currentPhase)
     }
-    if (method === 'POST' && path === '/spaces/SDLC/phases/implementation/links/documents') {
+    if (method === 'POST' && path === '/spaces/BASE/phases/implementation/links/documents') {
       const body = request.postDataJSON() as { document_id: string }
       phaseDocumentLinkRequests.push(body)
       currentPhase = {
@@ -424,7 +424,7 @@ async function installWikiApiMocks(page: Page) {
             actor_id: user.id,
             action: 'wiki.seeded',
             entity_type: 'space',
-            entity_id: 'SDLC',
+            entity_id: 'BASE',
             request_id: 'mock-request',
             created_at: now,
           },
@@ -485,7 +485,7 @@ test.describe('wiki smoke', () => {
 
     await page.goto(`${baseURL}/spaces`)
     await expect(page.getByRole('heading', { name: 'Пространства' })).toBeVisible()
-    await expect(page.getByText('База знаний SDLC')).toBeVisible()
+    await expect(page.getByText('База знаний Base')).toBeVisible()
 
     await page.goto(`${baseURL}/documents/new`)
     await expect(page.getByRole('heading', { name: 'Новый документ' })).toBeVisible()
@@ -518,8 +518,8 @@ test.describe('wiki smoke', () => {
     await expect(page.getByRole('heading', { name: 'Снимок ревизии' })).toBeVisible()
     await expect(page.getByText('Ревизия 2: Требования к Wiki MVP')).toBeVisible()
 
-    await page.goto(`${baseURL}/tasks/SDLC-42`)
-    await expect(page.getByRole('heading', { name: 'SDLC-42' })).toBeVisible()
+    await page.goto(`${baseURL}/tasks/BASE-42`)
+    await expect(page.getByRole('heading', { name: 'BASE-42' })).toBeVisible()
     await page.getByLabel('Документ для задачи').fill('product-requirements')
     await page.getByRole('button', { name: 'Привязать' }).click()
     await expect
@@ -560,8 +560,8 @@ test.describe('wiki smoke', () => {
     await page.goto(`${baseURL}/search`)
     await expect(page.getByRole('heading', { name: 'Поиск' })).toBeVisible()
     await page.getByLabel('Поисковый запрос').fill('релиз')
-    await page.getByLabel('Пространство поиска').fill('SDLC')
-    await page.getByLabel('Задача').fill('SDLC-42')
+    await page.getByLabel('Пространство поиска').fill('BASE')
+    await page.getByLabel('Задача').fill('BASE-42')
     await page.getByLabel('Фаза').fill('implementation')
     await page.getByRole('button', { name: 'Требования', exact: true }).click()
     await expect
@@ -569,8 +569,8 @@ test.describe('wiki smoke', () => {
         apiMocks.searchRequests.some(
           (query) =>
             query.includes('q=%D1%80%D0%B5%D0%BB%D0%B8%D0%B7') &&
-            query.includes('space=SDLC') &&
-            query.includes('task_key=SDLC-42') &&
+            query.includes('space=BASE') &&
+            query.includes('task_key=BASE-42') &&
             query.includes('phase_key=implementation') &&
             query.includes('document_type=requirements'),
         ),
@@ -580,7 +580,7 @@ test.describe('wiki smoke', () => {
     await expect(page).toHaveURL(`${baseURL}/evidence?id=${evidence.id}`)
     await expect(page.getByRole('heading', { name: 'Выбранный материал' })).toBeVisible()
     await expect(page.getByText('документ product-requirements')).toBeVisible()
-    await expect(page.getByText('задача SDLC-42')).toBeVisible()
+    await expect(page.getByText('задача BASE-42')).toBeVisible()
     await expect(page.getByText('фаза implementation')).toBeVisible()
 
     await page.goto(`${baseURL}/templates`)

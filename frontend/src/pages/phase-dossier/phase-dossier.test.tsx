@@ -12,7 +12,7 @@ const linkPhaseMutate = vi.hoisted(() => vi.fn())
 const phaseRefetch = vi.hoisted(() => vi.fn())
 
 vi.mock('@/shared/api/hooks', () => ({
-  defaultSpaceKey: 'SDLC',
+  defaultSpaceKey: 'BASE',
   useLinkPhaseDocument,
   usePhase,
   usePhases,
@@ -20,7 +20,7 @@ vi.mock('@/shared/api/hooks', () => ({
 }))
 
 const phasePage = {
-  space_key: 'SDLC',
+  space_key: 'BASE',
   phase_key: 'implementation',
   title: 'implementation',
   document_count: 0,
@@ -43,7 +43,7 @@ function renderPhasePage(
   useSpaces.mockReturnValue({
     data: {
       spaces: [
-        { key: 'SDLC', name: 'SDLC' },
+        { key: 'BASE', name: 'BASE' },
         { key: 'DOCS', name: 'Документы' },
       ],
     },
@@ -82,7 +82,7 @@ describe('PhaseDossierPage', () => {
 
     expect(linkPhaseMutate).toHaveBeenCalledWith(
       {
-        spaceKey: 'SDLC',
+        spaceKey: 'BASE',
         phaseKey: 'implementation',
         body: { document_id: 'product-requirements' },
       },

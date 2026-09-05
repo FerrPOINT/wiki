@@ -18,7 +18,7 @@ const downloadAttachmentMutate = vi.hoisted(() => vi.fn())
 const refetchEvidence = vi.hoisted(() => vi.fn())
 
 vi.mock('@/shared/api/hooks', () => ({
-  defaultSpaceKey: 'SDLC',
+  defaultSpaceKey: 'BASE',
   useAttachment,
   useCreateEvidence,
   useCreateFileEvidence,
@@ -38,8 +38,8 @@ function setupEvidence(initialRoute = '/evidence') {
       evidence_type: 'external_url',
       id: 'evidence-link',
       phase_key: 'implementation',
-      space_key: 'SDLC',
-      task_key: 'SDLC-42',
+      space_key: 'BASE',
+      task_key: 'BASE-42',
       title: 'Сборка прошла',
       url: 'https://ci.local/jobs/wiki-smoke',
     },
@@ -52,8 +52,8 @@ function setupEvidence(initialRoute = '/evidence') {
       evidence_type: 'uploaded_file',
       id: 'evidence-file',
       phase_key: 'testing',
-      space_key: 'SDLC',
-      task_key: 'SDLC-43',
+      space_key: 'BASE',
+      task_key: 'BASE-43',
       title: 'Лог сборки',
       url: null,
     },
@@ -122,7 +122,7 @@ function fillEvidenceForm() {
     target: { value: 'Проверка сборки' },
   })
   fireEvent.change(screen.getByLabelText('Задача'), {
-    target: { value: 'SDLC-42' },
+    target: { value: 'BASE-42' },
   })
   fireEvent.change(screen.getByLabelText('Фаза'), {
     target: { value: 'implementation' },
@@ -146,7 +146,7 @@ describe('EvidencePage', () => {
       'href',
       '/documents/product-requirements',
     )
-    expect(screen.getByRole('link', { name: 'SDLC-42' })).toHaveAttribute('href', '/tasks/SDLC-42')
+    expect(screen.getByRole('link', { name: 'BASE-42' })).toHaveAttribute('href', '/tasks/BASE-42')
     expect(screen.getByRole('link', { name: 'implementation' })).toHaveAttribute(
       'href',
       '/phases/implementation',
@@ -172,7 +172,7 @@ describe('EvidencePage', () => {
     expect(screen.queryByText('Сборка прошла')).not.toBeInTheDocument()
     expect(screen.getByText('Лог сборки')).toBeInTheDocument()
     expect(useEvidence).toHaveBeenCalledWith({
-      space: 'SDLC',
+      space: 'BASE',
       document_id: undefined,
       task_key: undefined,
       phase_key: undefined,
@@ -186,7 +186,7 @@ describe('EvidencePage', () => {
     expect(useEvidenceItem).toHaveBeenCalledWith('evidence-file')
     expect(screen.getByRole('heading', { name: 'Выбранный материал' })).toBeInTheDocument()
     expect(screen.getByText('документ test-plan')).toHaveAttribute('href', '/documents/test-plan')
-    expect(screen.getByText('задача SDLC-43')).toHaveAttribute('href', '/tasks/SDLC-43')
+    expect(screen.getByText('задача BASE-43')).toHaveAttribute('href', '/tasks/BASE-43')
     expect(screen.getByText('фаза testing')).toHaveAttribute('href', '/phases/testing')
 
     fireEvent.click(screen.getByRole('button', { name: 'Снять выделение' }))
@@ -224,8 +224,8 @@ describe('EvidencePage', () => {
         document_id: 'product-requirements',
         evidence_type: 'external_url',
         phase_key: 'implementation',
-        space: 'SDLC',
-        task_key: 'SDLC-42',
+        space: 'BASE',
+        task_key: 'BASE-42',
         title: 'Проверка сборки',
         url: 'https://ci.local/jobs/wiki-smoke',
       },
@@ -250,8 +250,8 @@ describe('EvidencePage', () => {
         evidence: {
           document_id: 'product-requirements',
           phase_key: 'implementation',
-          space: 'SDLC',
-          task_key: 'SDLC-42',
+          space: 'BASE',
+          task_key: 'BASE-42',
           title: 'Проверка сборки',
         },
       },

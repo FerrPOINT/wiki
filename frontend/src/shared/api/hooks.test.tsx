@@ -226,7 +226,7 @@ describe('wiki API hooks', () => {
 
     await act(async () => {
       await createDocumentHook.result.current.mutateAsync({
-        spaceKey: 'SDLC',
+        spaceKey: 'BASE',
         body: {
           title: 'Product requirements',
           document_type: 'requirements',
@@ -283,13 +283,13 @@ describe('wiki API hooks', () => {
 
     await act(async () => {
       await result.current.mutateAsync({
-        spaceKey: 'SDLC',
-        taskKey: 'SDLC-42',
+        spaceKey: 'BASE',
+        taskKey: 'BASE-42',
         body: { document_id: 'product-requirements' },
       })
     })
 
-    expect(linkTaskDocument).toHaveBeenCalledWith('SDLC', 'SDLC-42', {
+    expect(linkTaskDocument).toHaveBeenCalledWith('BASE', 'BASE-42', {
       document_id: 'product-requirements',
     })
   })
@@ -308,13 +308,13 @@ describe('wiki API hooks', () => {
 
     await act(async () => {
       await result.current.mutateAsync({
-        spaceKey: 'SDLC',
+        spaceKey: 'BASE',
         phaseKey: 'implementation',
         body: { document_id: 'product-requirements' },
       })
     })
 
-    expect(linkPhaseDocument).toHaveBeenCalledWith('SDLC', 'implementation', {
+    expect(linkPhaseDocument).toHaveBeenCalledWith('BASE', 'implementation', {
       document_id: 'product-requirements',
     })
   })

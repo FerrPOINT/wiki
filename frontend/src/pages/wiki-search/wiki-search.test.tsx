@@ -8,7 +8,7 @@ const useWikiSearch = vi.hoisted(() => vi.fn())
 const searchRefetch = vi.hoisted(() => vi.fn())
 
 vi.mock('@/shared/api/hooks', () => ({
-  defaultSpaceKey: 'SDLC',
+  defaultSpaceKey: 'BASE',
   useWikiSearch,
 }))
 
@@ -21,7 +21,7 @@ function setupSearch(overrides: Record<string, unknown> = {}) {
           result_type: 'document',
           title: 'Требования Wiki',
           snippet: 'Базовое приложение',
-          space_key: 'SDLC',
+          space_key: 'BASE',
           updated_at: '2026-08-31T12:00:00Z',
           url: '/documents/product-requirements',
         },
@@ -30,7 +30,7 @@ function setupSearch(overrides: Record<string, unknown> = {}) {
           result_type: 'evidence',
           title: 'Smoke proof',
           snippet: 'Сборка прошла',
-          space_key: 'SDLC',
+          space_key: 'BASE',
           updated_at: '2026-08-31T12:10:00Z',
           url: '/evidence',
         },
@@ -73,7 +73,7 @@ describe('WikiSearchPage', () => {
     fireEvent.change(screen.getByLabelText('Пространство поиска'), {
       target: { value: 'eng' },
     })
-    fireEvent.change(screen.getByLabelText('Задача'), { target: { value: 'SDLC-42' } })
+    fireEvent.change(screen.getByLabelText('Задача'), { target: { value: 'BASE-42' } })
     fireEvent.change(screen.getByLabelText('Фаза'), { target: { value: 'testing' } })
     fireEvent.click(screen.getByRole('button', { name: 'План проверки' }))
     expect(useWikiSearch).toHaveBeenLastCalledWith({
@@ -82,7 +82,7 @@ describe('WikiSearchPage', () => {
       phase_key: 'testing',
       q: 'релиз',
       space: 'ENG',
-      task_key: 'SDLC-42',
+      task_key: 'BASE-42',
     })
   })
 

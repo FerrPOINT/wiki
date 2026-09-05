@@ -47,9 +47,9 @@ describe('AdminPage', () => {
         spaces: [
           {
             id: 'space-sdlc',
-            key: 'SDLC',
-            name: 'База знаний SDLC',
-            description: 'Документы SDLC',
+            key: 'BASE',
+            name: 'База знаний Base',
+            description: 'Документы платформы Base',
             owner_id: 'user-1',
             status: 'active',
             document_count: 2,
@@ -68,7 +68,7 @@ describe('AdminPage', () => {
             actor_id: 'user-1',
             action: 'wiki.seeded',
             entity_type: 'space',
-            entity_id: 'SDLC',
+            entity_id: 'BASE',
             created_at: '2026-08-31T10:00:00Z',
           },
         ],
@@ -78,7 +78,7 @@ describe('AdminPage', () => {
       resolvedQuery({
         instance_name: 'Wiki',
         api_base_path: '/api/v1',
-        default_space_key: 'SDLC',
+        default_space_key: 'BASE',
         default_language: 'ru',
         timezone: 'Europe/Moscow',
         registration_enabled: true,

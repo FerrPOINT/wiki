@@ -12,7 +12,7 @@ const linkTaskMutate = vi.hoisted(() => vi.fn())
 const taskRefetch = vi.hoisted(() => vi.fn())
 
 vi.mock('@/shared/api/hooks', () => ({
-  defaultSpaceKey: 'SDLC',
+  defaultSpaceKey: 'BASE',
   useLinkTaskDocument,
   useSpaces,
   useTask,
@@ -20,8 +20,8 @@ vi.mock('@/shared/api/hooks', () => ({
 }))
 
 const taskPage = {
-  space_key: 'SDLC',
-  task_key: 'SDLC-42',
+  space_key: 'BASE',
+  task_key: 'BASE-42',
   title: 'Требования к Wiki MVP',
   document_count: 0,
   evidence_count: 0,
@@ -29,7 +29,7 @@ const taskPage = {
   evidence: [],
 }
 
-function renderTaskPage(linkState: Record<string, unknown> = {}, initialEntry = '/tasks/SDLC-42') {
+function renderTaskPage(linkState: Record<string, unknown> = {}, initialEntry = '/tasks/BASE-42') {
   useTask.mockReturnValue({
     data: taskPage,
     isLoading: false,
@@ -40,7 +40,7 @@ function renderTaskPage(linkState: Record<string, unknown> = {}, initialEntry = 
   useSpaces.mockReturnValue({
     data: {
       spaces: [
-        { key: 'SDLC', name: 'SDLC' },
+        { key: 'BASE', name: 'BASE' },
         { key: 'DOCS', name: 'Документы' },
       ],
     },
@@ -79,8 +79,8 @@ describe('TaskDossierPage', () => {
 
     expect(linkTaskMutate).toHaveBeenCalledWith(
       {
-        spaceKey: 'SDLC',
-        taskKey: 'SDLC-42',
+        spaceKey: 'BASE',
+        taskKey: 'BASE-42',
         body: { document_id: 'product-requirements' },
       },
       expect.objectContaining({ onSuccess: expect.any(Function) }),
@@ -99,9 +99,9 @@ describe('TaskDossierPage', () => {
   })
 
   it('uses the selected space from the route query', () => {
-    renderTaskPage({}, '/tasks/SDLC-42?space=DOCS')
+    renderTaskPage({}, '/tasks/BASE-42?space=DOCS')
 
-    expect(useTask).toHaveBeenCalledWith('SDLC-42', 'DOCS')
+    expect(useTask).toHaveBeenCalledWith('BASE-42', 'DOCS')
 
     fireEvent.change(screen.getByLabelText('Документ для задачи'), {
       target: { value: 'docs-requirements' },
@@ -111,7 +111,7 @@ describe('TaskDossierPage', () => {
     expect(linkTaskMutate).toHaveBeenCalledWith(
       {
         spaceKey: 'DOCS',
-        taskKey: 'SDLC-42',
+        taskKey: 'BASE-42',
         body: { document_id: 'docs-requirements' },
       },
       expect.objectContaining({ onSuccess: expect.any(Function) }),

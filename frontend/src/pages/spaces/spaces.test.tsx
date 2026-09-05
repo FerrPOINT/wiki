@@ -25,7 +25,7 @@ const refetchSpaces = vi.hoisted(() => vi.fn())
 const refetchTree = vi.hoisted(() => vi.fn())
 
 vi.mock('@/shared/api/hooks', () => ({
-  defaultSpaceKey: 'SDLC',
+  defaultSpaceKey: 'BASE',
   useArchiveSpace,
   useCreateSpace,
   useCurrentUser,
@@ -84,8 +84,8 @@ function setupSpaces({
       spaces: [
         {
           id: 'space-sdlc',
-          key: 'SDLC',
-          name: 'База знаний SDLC',
+          key: 'BASE',
+          name: 'База знаний Base',
           description: 'Основные документы продукта',
           owner_id: 'user-admin',
           status: 'active',
@@ -102,7 +102,7 @@ function setupSpaces({
   })
   useSpaceTree.mockReturnValue({
     data: {
-      space_key: 'SDLC',
+      space_key: 'BASE',
       documents: [
         {
           id: 'doc-root',
@@ -198,7 +198,7 @@ describe('SpacesPage', () => {
     setupSpaces()
 
     expect(screen.getByRole('heading', { name: 'Пространства' })).toBeInTheDocument()
-    expect(screen.getByText(/SDLC · База знаний SDLC/)).toBeInTheDocument()
+    expect(screen.getByText(/BASE · База знаний Base/)).toBeInTheDocument()
     expect(screen.getAllByText('Основные документы продукта')).toHaveLength(2)
     expect(screen.getByText('Дерево')).toBeInTheDocument()
     expect(screen.getByText('Участники')).toBeInTheDocument()
@@ -211,8 +211,8 @@ describe('SpacesPage', () => {
       'href',
       '/documents/test-plan',
     )
-    expect(useSpaceTree).toHaveBeenCalledWith('SDLC')
-    expect(useSpaceMembers).toHaveBeenCalledWith('SDLC')
+    expect(useSpaceTree).toHaveBeenCalledWith('BASE')
+    expect(useSpaceMembers).toHaveBeenCalledWith('BASE')
   })
 
   it('submits space create, update, archive and member mutations', () => {
@@ -242,7 +242,7 @@ describe('SpacesPage', () => {
     })
     fireEvent.submit(screen.getByLabelText('Название пространства').closest('form')!)
     expect(updateMutate).toHaveBeenCalledWith({
-      spaceKey: 'SDLC',
+      spaceKey: 'BASE',
       body: {
         name: 'База знаний продукта',
         description: 'Основные документы продукта',
@@ -250,7 +250,7 @@ describe('SpacesPage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Архивировать' }))
-    expect(archiveMutate).toHaveBeenCalledWith('SDLC')
+    expect(archiveMutate).toHaveBeenCalledWith('BASE')
 
     fireEvent.change(screen.getByLabelText('Пользователь'), {
       target: { value: 'user-editor' },
@@ -261,7 +261,7 @@ describe('SpacesPage', () => {
     fireEvent.submit(screen.getByLabelText('Пользователь').closest('form')!)
     expect(upsertMemberMutate).toHaveBeenCalledWith(
       {
-        spaceKey: 'SDLC',
+        spaceKey: 'BASE',
         userId: 'user-editor',
         body: { role: 'viewer' },
       },
@@ -272,7 +272,7 @@ describe('SpacesPage', () => {
     expect(removeButtons).toHaveLength(2)
     fireEvent.click(removeButtons[1]!)
     expect(deleteMemberMutate).toHaveBeenCalledWith({
-      spaceKey: 'SDLC',
+      spaceKey: 'BASE',
       userId: 'user-editor',
     })
   })
@@ -295,7 +295,7 @@ describe('SpacesPage', () => {
     fireEvent.submit(screen.getByLabelText('Пользователь').closest('form')!)
     expect(upsertMemberMutate).toHaveBeenCalledWith(
       {
-        spaceKey: 'SDLC',
+        spaceKey: 'BASE',
         userId: 'user-editor',
         body: { role: 'viewer' },
       },
@@ -350,7 +350,7 @@ describe('SpacesPage', () => {
     expect(screen.getByText('Пространства ещё не созданы')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Создать первый документ' })).toHaveAttribute(
       'href',
-      '/documents/new?space=SDLC',
+      '/documents/new?space=BASE',
     )
     expect(useSpaceTree).not.toHaveBeenCalled()
   })

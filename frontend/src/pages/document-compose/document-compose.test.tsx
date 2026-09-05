@@ -20,7 +20,7 @@ vi.mock('react-router', async (importOriginal) => {
 })
 
 vi.mock('@/shared/api/hooks', () => ({
-  defaultSpaceKey: 'SDLC',
+  defaultSpaceKey: 'BASE',
   useCreateDocument,
   useSpaces,
   useTemplates,

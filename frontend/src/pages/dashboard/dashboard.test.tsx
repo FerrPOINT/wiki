@@ -40,9 +40,9 @@ describe('DashboardPage', () => {
       spaces: [
         {
           id: 'space-sdlc',
-          key: 'SDLC',
-          name: 'База знаний SDLC',
-          description: 'Документы SDLC',
+          key: 'BASE',
+          name: 'База знаний Base',
+          description: 'Документы платформы Base',
           owner_id: 'user-1',
           status: 'active',
           document_count: 1,
@@ -58,7 +58,7 @@ describe('DashboardPage', () => {
           id: 'product-requirements',
           result_type: 'document',
           title: 'Требования к Wiki',
-          space_key: 'SDLC',
+          space_key: 'BASE',
           url: '/documents/product-requirements',
           snippet: 'Базовый документ',
           updated_at: '2026-08-31T10:00:00Z',
@@ -68,8 +68,8 @@ describe('DashboardPage', () => {
     listTasks.mockResolvedValueOnce({
       tasks: [
         {
-          space_key: 'SDLC',
-          task_key: 'SDLC-42',
+          space_key: 'BASE',
+          task_key: 'BASE-42',
           title: 'Требования к Wiki',
           document_count: 1,
           evidence_count: 1,
@@ -81,7 +81,7 @@ describe('DashboardPage', () => {
     listPhases.mockResolvedValueOnce({
       phases: [
         {
-          space_key: 'SDLC',
+          space_key: 'BASE',
           phase_key: 'implementation',
           title: 'implementation',
           document_count: 1,
@@ -101,7 +101,7 @@ describe('DashboardPage', () => {
       '/documents/new',
     )
     expect(await screen.findByText('Требования к Wiki')).toBeInTheDocument()
-    expect(screen.getByText('SDLC-42')).toBeInTheDocument()
+    expect(screen.getByText('BASE-42')).toBeInTheDocument()
   })
 
   it('renders overview API errors with a retry action', async () => {

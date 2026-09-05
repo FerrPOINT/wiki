@@ -61,8 +61,8 @@ const baseDocument: Document = {
       evidence_type: 'external_url',
       id: 'evidence-1',
       phase_key: 'implementation',
-      space_key: 'SDLC',
-      task_key: 'SDLC-42',
+      space_key: 'BASE',
+      task_key: 'BASE-42',
       title: 'Smoke proof',
       url: 'https://ci.local/jobs/wiki-smoke',
     },
@@ -71,9 +71,9 @@ const baseDocument: Document = {
   parent_id: 'parent-doc',
   phase_keys: ['implementation'],
   slug: 'product-requirements',
-  space_key: 'SDLC',
+  space_key: 'BASE',
   status: 'published',
-  task_keys: ['SDLC-42'],
+  task_keys: ['BASE-42'],
   title: 'Требования Wiki',
   updated_at: '2026-08-31T12:00:00Z',
   updated_by: 'user-editor',
@@ -146,7 +146,7 @@ describe('DocumentPage', () => {
     expect(screen.getByText('Approved body')).toBeInTheDocument()
     expect(screen.getByText('Ревизия 2')).toBeInTheDocument()
     expect(screen.getByText('Утверждён MVP scope')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'SDLC-42' })).toHaveAttribute('href', '/tasks/SDLC-42')
+    expect(screen.getByRole('link', { name: 'BASE-42' })).toHaveAttribute('href', '/tasks/BASE-42')
     expect(screen.getByRole('link', { name: 'implementation' })).toHaveAttribute(
       'href',
       '/phases/implementation',
