@@ -93,7 +93,7 @@ function documentResponse(overrides: Record<string, unknown> = {}) {
   return {
     id: 'product-requirements',
     slug: 'product-requirements',
-    space_key: 'SDLC',
+    space_key: 'BASE',
     title: 'Product requirements',
     document_type: 'requirements',
     status: 'draft',
@@ -124,7 +124,7 @@ describe('wiki API hooks', () => {
     })
     createEvidence.mockResolvedValueOnce({
       id: 'evidence-1',
-      space_key: 'SDLC',
+      space_key: 'BASE',
       evidence_type: 'uploaded_file',
       attachment_id: 'attachment-1',
       checksum: 'sha256-test',
@@ -136,9 +136,9 @@ describe('wiki API hooks', () => {
       await result.current.mutateAsync({
         file: new File(['file body'], 'evidence.txt', { type: 'text/plain' }),
         evidence: {
-          space: 'SDLC',
+          space: 'BASE',
           document_id: 'product-requirements',
-          task_key: 'SDLC-42',
+          task_key: 'BASE-42',
           phase_key: 'testing',
           title: 'File evidence',
         },
@@ -147,9 +147,9 @@ describe('wiki API hooks', () => {
 
     expect(uploadAttachment).toHaveBeenCalledWith(expect.any(File))
     expect(createEvidence).toHaveBeenCalledWith({
-      space: 'SDLC',
+      space: 'BASE',
       document_id: 'product-requirements',
-      task_key: 'SDLC-42',
+      task_key: 'BASE-42',
       phase_key: 'testing',
       title: 'File evidence',
       evidence_type: 'uploaded_file',
@@ -192,7 +192,7 @@ describe('wiki API hooks', () => {
     archiveDocument.mockResolvedValueOnce(documentResponse({ status: 'archived' }))
     createEvidence.mockResolvedValueOnce({
       id: 'evidence-1',
-      space_key: 'SDLC',
+      space_key: 'BASE',
       evidence_type: 'external_url',
       title: 'Smoke proof',
       url: 'https://ci.local/jobs/wiki-smoke',
@@ -204,7 +204,7 @@ describe('wiki API hooks', () => {
     })
     createEvidence.mockResolvedValueOnce({
       id: 'evidence-2',
-      space_key: 'SDLC',
+      space_key: 'BASE',
       evidence_type: 'uploaded_file',
       attachment_id: 'attachment-1',
       checksum: 'sha256-test',
@@ -247,7 +247,7 @@ describe('wiki API hooks', () => {
       })
       await archiveHook.result.current.mutateAsync('product-requirements')
       await createLinkHook.result.current.mutateAsync({
-        space: 'SDLC',
+        space: 'BASE',
         document_id: 'product-requirements',
         title: 'Smoke proof',
         evidence_type: 'external_url',
@@ -256,7 +256,7 @@ describe('wiki API hooks', () => {
       await createFileHook.result.current.mutateAsync({
         file: new File(['file body'], 'evidence.txt', { type: 'text/plain' }),
         evidence: {
-          space: 'SDLC',
+          space: 'BASE',
           document_id: 'product-requirements',
           title: 'File evidence',
         },
@@ -271,8 +271,8 @@ describe('wiki API hooks', () => {
 
   it('links task documents through the public API wrapper', async () => {
     linkTaskDocument.mockResolvedValueOnce({
-      space_key: 'SDLC',
-      task_key: 'SDLC-42',
+      space_key: 'BASE',
+      task_key: 'BASE-42',
       document_count: 1,
       evidence_count: 0,
       documents: [],
@@ -296,7 +296,7 @@ describe('wiki API hooks', () => {
 
   it('links phase documents through the public API wrapper', async () => {
     linkPhaseDocument.mockResolvedValueOnce({
-      space_key: 'SDLC',
+      space_key: 'BASE',
       phase_key: 'implementation',
       document_count: 1,
       evidence_count: 0,
@@ -322,7 +322,7 @@ describe('wiki API hooks', () => {
   it('reads a selected evidence item through the public API wrapper', async () => {
     getEvidence.mockResolvedValueOnce({
       id: 'evidence-1',
-      space_key: 'SDLC',
+      space_key: 'BASE',
       evidence_type: 'external_url',
       title: 'Smoke proof',
       url: 'https://ci.local/jobs/wiki-smoke',

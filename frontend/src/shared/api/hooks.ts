@@ -62,7 +62,7 @@ const authKeys = {
   me: ['me'] as const,
 }
 
-export const defaultSpaceKey = 'SDLC'
+export const defaultSpaceKey = 'BASE'
 const defaultDocumentRevisionListParams: DocumentRevisionListParams = { limit: 20 }
 const defaultEvidenceListParams: EvidenceListParams = { limit: 30 }
 const defaultAuditLogParams: AuditLogParams = { limit: 50 }

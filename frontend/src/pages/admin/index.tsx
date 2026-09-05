@@ -92,7 +92,7 @@ export function AdminPage() {
       <section>
         <h1 className="text-2xl font-bold">Администрирование</h1>
         <p className="mt-1 max-w-3xl text-sm text-text-muted">
-          Центр управления Wiki: доступы, настройки и аудит для базы знаний SDLC.
+          Центр управления Wiki: доступы, настройки и аудит для базы знаний Base.
         </p>
       </section>
 

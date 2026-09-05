@@ -89,7 +89,7 @@ export function WikiSearchPage() {
             className="pl-9"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="релиз, SDLC-42, требования..."
+            placeholder="релиз, BASE-42, требования..."
           />
         </div>
         <div className="grid gap-3 md:grid-cols-3">
@@ -99,7 +99,7 @@ export function WikiSearchPage() {
               id="search-space"
               value={spaceFilter}
               onChange={(event) => setSpaceFilter(event.target.value.toUpperCase())}
-              placeholder="SDLC"
+              placeholder="BASE"
             />
           </div>
           <div className="space-y-1.5">
@@ -108,7 +108,7 @@ export function WikiSearchPage() {
               id="search-task"
               value={taskFilter}
               onChange={(event) => setTaskFilter(event.target.value)}
-              placeholder="SDLC-42"
+              placeholder="BASE-42"
             />
           </div>
           <div className="space-y-1.5">

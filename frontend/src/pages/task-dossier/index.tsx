@@ -171,7 +171,7 @@ export function TaskDossiersPage() {
 }
 
 export function TaskDossierPage() {
-  const { taskKey = 'SDLC-42' } = useParams()
+  const { taskKey = 'BASE-42' } = useParams()
   const [selectedSpaceKey, setSelectedSpaceKey] = useSelectedSpaceKey()
   const taskQuery = useTask(taskKey, selectedSpaceKey)
   const linkDocument = useLinkTaskDocument()

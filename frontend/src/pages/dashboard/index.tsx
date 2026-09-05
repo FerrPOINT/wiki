@@ -51,7 +51,7 @@ export function DashboardPage() {
         <div>
           <h1 className="text-2xl font-bold">Wiki</h1>
           <p className="mt-1 max-w-3xl text-sm text-text-muted">
-            База знаний для документов по задачам SDLC и фазам выполненного процесса.
+            База знаний для документов по задачам и фазам выполненного процесса.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

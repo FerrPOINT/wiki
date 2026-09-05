@@ -357,7 +357,7 @@ export function EvidencePage() {
         <Input
           value={filterSpace}
           onChange={(event) => setFilterSpace(event.target.value.toUpperCase())}
-          placeholder="SDLC"
+          placeholder="BASE"
           aria-label="Фильтр пространства"
         />
         <Input
