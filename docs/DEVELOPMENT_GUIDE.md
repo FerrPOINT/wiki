@@ -82,6 +82,8 @@ pnpm typecheck
 pnpm test -- --run
 pnpm lint
 pnpm format:check
+pnpm openapi:check
+pnpm openapi:compat
 pnpm build
 pnpm test:e2e -- --project=chromium
 ```

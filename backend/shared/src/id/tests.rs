@@ -52,7 +52,7 @@ fn all_uuid_ids_roundtrip_and_nil() {
     ];
     for (maker, parse) in cases {
         let s = maker();
-        assert!(parse(&s), "roundtrip failed for {}", s);
+        assert!(parse(&s), "roundtrip failed for {s}");
     }
     assert_eq!(
         UserId::nil().to_string(),

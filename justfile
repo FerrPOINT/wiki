@@ -108,8 +108,12 @@ backup-restore-smoke-wsl:
 e2e:
     cd frontend && pnpm exec playwright test
 
+# Check frontend OpenAPI compatibility against origin/main
+openapi-compat:
+    cd frontend && pnpm openapi:compat
+
 # Full quality gate (CI-like)
-gate: fmt-check-rust clippy typecheck lint test-frontend test-backend
+gate: fmt-check-rust clippy typecheck lint fmt-frontend openapi-compat test-frontend test-backend
 
 # Lint frontend
 lint:

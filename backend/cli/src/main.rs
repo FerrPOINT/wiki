@@ -902,7 +902,7 @@ async fn execute_evidence(api: &ApiClient, command: EvidenceCommands) -> Result<
                 ("phase_key", phase),
                 ("limit", limit.map(|value| value.to_string())),
             ]);
-            api.get(&format!("/evidence{}", query)).await
+            api.get(&format!("/evidence{query}")).await
         }
     }
 }
@@ -993,7 +993,7 @@ async fn execute_search(api: &ApiClient, command: SearchCommands) -> Result<Valu
                 ),
                 ("limit", limit.map(|value| value.to_string())),
             ]);
-            api.get(&format!("/search{}", query)).await
+            api.get(&format!("/search{query}")).await
         }
     }
 }
@@ -1002,7 +1002,7 @@ async fn execute_audit(api: &ApiClient, command: AuditCommands) -> Result<Value>
     match command {
         AuditCommands::List { limit } => {
             let query = query_string([("limit", limit.map(|value| value.to_string()))]);
-            api.get(&format!("/audit-log{}", query)).await
+            api.get(&format!("/audit-log{query}")).await
         }
     }
 }

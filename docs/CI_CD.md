@@ -24,7 +24,7 @@ The active workflow is `.github/workflows/ci.yml` and runs on pushes and pull re
 | `migrations` | Apply SQLx migrations to a clean PostgreSQL database and print status | Yes |
 | `coverage` | Run backend tests through `cargo llvm-cov` and enforce 60% summary coverage | Yes |
 | `audit` | Run `cargo audit` with the documented SQLx optional MySQL/RSA ignore | Yes |
-| `frontend` | Generate API DTOs, typecheck, run Vitest, lint, format-check and build Vite app | Yes |
+| `frontend` | Generate API DTOs, verify backward OpenAPI compatibility, typecheck, run Vitest, lint, format-check and build Vite app | Yes |
 | `e2e` | Build frontend, start Docker PostgreSQL + backend, then run Chromium Playwright smoke | Yes |
 
 ## 4. Backend Gate
@@ -91,6 +91,8 @@ The frontend job runs from `frontend/`:
 ```bash
 pnpm install
 pnpm generate:api
+pnpm openapi:check
+pnpm openapi:compat
 pnpm typecheck
 pnpm test -- --run
 pnpm lint
@@ -98,7 +100,7 @@ pnpm format:check
 pnpm build
 ```
 
-`pnpm generate:api` must keep `frontend/src/api/generated.ts` aligned with `openapi/openapi.json`.
+`pnpm generate:api` must keep `frontend/src/api/generated.ts` aligned with `openapi/openapi.json`. `pnpm openapi:compat` compares the current public contract with `origin/main`; checkout uses complete Git history so removing an existing path, operation, response, parameter or compatible schema surface blocks the workflow.
 
 ## 10. E2E Gate
 

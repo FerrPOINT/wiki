@@ -81,7 +81,7 @@ async fn server_starts_and_serves_health() {
         .await
         .expect("server did not become ready")
         .expect("ready channel closed");
-    let url = format!("http://{}/api/v1/health", addr);
+    let url = format!("http://{addr}/api/v1/health");
 
     let client = reqwest::Client::new();
     let res = client
@@ -93,7 +93,7 @@ async fn server_starts_and_serves_health() {
     assert_eq!(res.text().await.unwrap(), "ok");
 
     let readiness = client
-        .get(format!("http://{}/api/v1/health/ready", addr))
+        .get(format!("http://{addr}/api/v1/health/ready"))
         .send()
         .await
         .expect("readiness request failed");
@@ -127,11 +127,11 @@ async fn full_smoke_with_wiki_api_shell() {
         .await
         .expect("server did not become ready")
         .expect("ready channel closed");
-    let url = format!("http://{}", addr);
+    let url = format!("http://{addr}");
     let client = reqwest::Client::new();
 
     let login = client
-        .post(format!("{}/api/v1/auth/login", url))
+        .post(format!("{url}/api/v1/auth/login"))
         .json(&serde_json::json!({"email":"demo@example.com","password":"demo"}))
         .send()
         .await
@@ -143,7 +143,7 @@ async fn full_smoke_with_wiki_api_shell() {
         .to_string();
 
     let spaces = client
-        .get(format!("{}/api/v1/spaces", url))
+        .get(format!("{url}/api/v1/spaces"))
         .bearer_auth(&token)
         .send()
         .await
@@ -153,7 +153,7 @@ async fn full_smoke_with_wiki_api_shell() {
     assert_eq!(body["spaces"][0]["key"], "SDLC");
 
     let task = client
-        .get(format!("{}/api/v1/spaces/SDLC/tasks/SDLC-42", url))
+        .get(format!("{url}/api/v1/spaces/SDLC/tasks/SDLC-42"))
         .bearer_auth(&token)
         .send()
         .await
