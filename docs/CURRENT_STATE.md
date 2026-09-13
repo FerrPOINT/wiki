@@ -64,6 +64,18 @@
 
 No known blockers remain for starting main Wiki development.
 
+Docker-backed backup/restore drill completed 2026-09-13 on this host
+(previously blocked on a Windows/Docker Desktop host):
+
+- `pg_dump -Fc` of the live compose PostgreSQL, `pg_restore --no-owner`
+  into a disposable `postgres:17.6-alpine` container.
+- All 17 public tables match row counts between source and restored
+  database; users checksum (`md5(string_agg(email))`) identical.
+- `_sqlx_migrations` row count identical after restore (no migration
+  state drift).
+- The disposable container was removed after the drill; the live stack
+  was not modified.
+
 Production/release gates still remain:
 
 - Run the Docker-backed PostgreSQL smoke on a host where Docker Desktop is available, in addition to the already passing WSL PostgreSQL smoke.
