@@ -227,9 +227,10 @@ pub fn router_with_wiki(
         .finish()
         .expect("valid general rate limit config");
 
+    // Keep operational probes outside the general API rate bucket.
     let public = Router::<Arc<app::WikiAppContext>>::new()
-        .route("/health", get(routes::health::health))
-        .route("/health/ready", get(routes::health::readiness))
+        .route("/api/v1/health", get(routes::health::health))
+        .route("/api/v1/health/ready", get(routes::health::readiness))
         .layer(Extension(wiki_backend.clone()));
 
     let auth_routes = Router::<Arc<app::WikiAppContext>>::new()
@@ -361,7 +362,8 @@ pub fn router_with_wiki(
         ))
         .layer(Extension(wiki_backend));
 
-    let api = public.merge(auth_routes).merge(protected);
+    // Health probes must stay available while the general API bucket is exhausted.
+    let api = auth_routes.merge(protected);
     let handle = metric_handle();
     let prometheus_layer: PrometheusMetricLayer = GenericMetricLayer::new();
     let trace_layer = TraceLayer::new_for_http().make_span_with(|request: &Request| {
@@ -380,6 +382,7 @@ pub fn router_with_wiki(
 
     let app = Router::<Arc<app::WikiAppContext>>::new()
         .route("/metrics", get(move || std::future::ready(handle.render())))
+        .merge(public)
         .nest("/api/v1", api.layer(GovernorLayer::new(general_limiter)))
         .merge(SwaggerUi::new("/swagger-ui").url("/api/v1/openapi.json", ApiDoc::openapi()));
 

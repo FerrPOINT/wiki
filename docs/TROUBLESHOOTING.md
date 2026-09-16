@@ -6,7 +6,7 @@
 
 - Linux: убедиться, что установлены dev-зависимости `libssl-dev pkg-config`.
 - Windows MSVC: установить Visual Studio Build Tools / Windows SDK, чтобы был доступен `link.exe`.
-- Проверить версию Rust: `rustc --version` ≥ 1.86.
+- Проверить версию Rust: `rustc --version` ≥ 1.88.
 
 ### Frontend dev-сервер не стартует
 

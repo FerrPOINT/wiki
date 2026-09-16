@@ -20,6 +20,8 @@
 | `search_index_updates_total` | counter | document search projection updates |
 | `rate_limited_requests_total` | counter | rate-limited requests |
 
+Operational probes `GET /api/v1/health` and `GET /api/v1/health/ready` bypass the general API rate limiter so Docker and monitoring can distinguish liveness/readiness during client traffic bursts.
+
 ### 2.2 Frontend Metrics
 
 - Core Web Vitals (LCP, INP, CLS) — `web-vitals` library.

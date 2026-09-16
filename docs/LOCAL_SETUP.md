@@ -5,8 +5,8 @@
 | Инструмент | Минимальная версия | Примечание |
 |---|---|---|
 | Docker + Compose | 24.x | для Postgres, backend/frontend containers and optional Traefik |
-| Rust | 1.86+ | backend workspace |
-| cargo | 1.86+ | backend workspace |
+| Rust | 1.88+ | backend workspace |
+| cargo | 1.88+ | backend workspace |
 | Node.js | 22 LTS | frontend |
 | pnpm | 9.x | frontend package manager |
 | just | — | task runner (опционально) |

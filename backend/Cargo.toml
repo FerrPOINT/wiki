@@ -5,7 +5,7 @@ resolver = "3"
 [workspace.package]
 version = "0.2.0"
 edition = "2024"
-rust-version = "1.86"
+rust-version = "1.88"
 authors = ["FerrPOINT <https://github.com/FerrPOINT>"]
 license-file = "LICENSE"
 repository = "https://github.com/FerrPOINT/wiki"
@@ -20,7 +20,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 config = "0.15"
 tower = "0.5"
-tower-http = { version = "0.6", features = ["trace", "cors", "fs", "set-header"] }
+tower-http = { version = "0.7", features = ["trace", "cors", "fs", "set-header"] }
 tower_governor = "0.8"
 governor = "0.10"
 axum-prometheus = "0.10"
@@ -35,7 +35,7 @@ argon2 = "0.5"
 # rand_core OsRng for salt generation (argon2 re-exports password_hash::rand_core)
 rand_core = { version = "0.6", features = ["getrandom"] }
 jsonwebtoken = "=9.3.0"
-# time pinned: 0.3.42+ requires rustc 1.88; fleet toolchain is 1.86
+# time pinned: 0.3.42+ requires rustc 1.88; fleet toolchain is 1.88
 time = "=0.3.47"
 sha2 = "0.10"
 hex = "0.4"
