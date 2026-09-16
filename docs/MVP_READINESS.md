@@ -42,7 +42,7 @@ API paths in this table are relative to `/api/v1` unless marked otherwise. `/met
 | Templates | Editor стартует документ из базового шаблона | `/templates` | `wiki template` | `/templates`, `/documents/new` | `document_templates` | template tests, `12-templates.png` |
 | Settings | Admin видит безопасный runtime snapshot | `/settings` | `wiki settings get` | `/settings`, `/admin` | runtime config snapshot | settings tests, `15-settings.png` |
 | Audit | Admin проверяет bounded append-only write history and request correlation | `/audit-log` | `wiki audit list --limit` | `/audit-log`, `/admin` | `audit_log.request_id` | audit tests, `13-audit-log.png` |
-| Runtime probes | Operator проверяет liveness/readiness before traffic | `/health`, `/health/ready`, `/metrics` outside API v1 | curl/API-only | no route | runtime state, metrics exporter | health tests, ops docs |
+| Runtime probes | Operator проверяет liveness/readiness before traffic | `/api/v1/health`, `/api/v1/health/ready` и `/metrics`; health routes bypass general rate limit | curl/API-only | no route | runtime state, metrics exporter | health tests, ops docs |
 | API contract | UI/CLI and agents use the same public API with retry-safe protected domain/admin writes | `/api/v1`, OpenAPI, `Idempotency-Key` | all CLI groups | all MVP routes | DTO schemas, `idempotency_records` | OpenAPI parity check, idempotency tests |
 
 ## 4. Design Freeze

@@ -157,13 +157,12 @@ impl WikiBackend {
             actor_id: request.actor_id.clone(),
             key: request.key.clone(),
         };
-        if let Some(entry) = store.get_mut(&key) {
-            if entry.method == request.method
-                && entry.path == request.path
-                && entry.request_hash == request.request_hash
-            {
-                entry.state = MemoryIdempotencyState::Completed(replay);
-            }
+        if let Some(entry) = store.get_mut(&key)
+            && entry.method == request.method
+            && entry.path == request.path
+            && entry.request_hash == request.request_hash
+        {
+            entry.state = MemoryIdempotencyState::Completed(replay);
         }
         Ok(())
     }
@@ -1047,14 +1046,13 @@ pub async fn update_user(
 
     let mut store = store().lock().expect("wiki store lock");
     ensure_system_admin(&store, &claims.user_id)?;
-    if let Some(email) = &body.email {
-        if store
+    if let Some(email) = &body.email
+        && store
             .users
             .values()
             .any(|user| user.id != user_id && user.email == *email)
-        {
-            return Err(shared::AppError::conflict("email already exists"));
-        }
+    {
+        return Err(shared::AppError::conflict("email already exists"));
     }
     let user = store
         .users
