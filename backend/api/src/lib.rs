@@ -229,6 +229,7 @@ pub fn router_with_wiki(
 
     // Keep operational probes outside the general API rate bucket.
     let public = Router::<Arc<app::WikiAppContext>>::new()
+        .route("/health", get(routes::health::health))
         .route("/api/v1/health", get(routes::health::health))
         .route("/api/v1/health/ready", get(routes::health::readiness))
         .layer(Extension(wiki_backend.clone()));
