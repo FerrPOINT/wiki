@@ -58,14 +58,17 @@ These jobs are future work and must not be required for MVP request latency.
 
 ## 7. Monitoring
 
-Key metrics:
+Implemented MVP metrics:
 
-- `http_request_duration_seconds`
-- `db_query_duration_seconds`
-- `document_open_duration_seconds`
-- `search_query_duration_seconds`
-- `storage_operation_duration_seconds`
-- `frontend_query_cache_refetch_total`
+- `axum_http_requests_duration_seconds`
+- `axum_http_requests_total`
+- `axum_http_requests_pending`
+- `wiki_document_revisions_published_total`
+- `wiki_evidence_added_total`
+- `wiki_attachment_upload_bytes_total`
+- `wiki_search_queries_total`
+
+Detailed DB/storage/frontend duration metrics are hardening backlog items in `docs/METRICS.md`.
 
 ## 8. Load Testing
 

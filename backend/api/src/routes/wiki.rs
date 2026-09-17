@@ -29,6 +29,80 @@ const IDEMPOTENCY_CACHE_TTL: Duration = Duration::from_secs(24 * 60 * 60);
 const IDEMPOTENCY_CACHE_MAX_ENTRIES: usize = 10_000;
 const IDEMPOTENCY_REQUEST_BODY_OVERHEAD_BYTES: usize = 64 * 1024;
 
+fn record_space_created() {
+    metrics::counter!("wiki_spaces_created_total").increment(1);
+}
+
+fn record_user_created() {
+    metrics::counter!("wiki_users_created_total").increment(1);
+}
+
+fn record_document_created(document_type: &str) {
+    metrics::counter!(
+        "wiki_documents_created_total",
+        "document_type" => document_type.to_string()
+    )
+    .increment(1);
+}
+
+fn record_document_published() {
+    metrics::counter!("wiki_document_revisions_published_total").increment(1);
+}
+
+fn record_document_archived() {
+    metrics::counter!("wiki_documents_archived_total").increment(1);
+}
+
+fn record_task_document_linked() {
+    metrics::counter!("wiki_task_document_links_total").increment(1);
+}
+
+fn record_phase_document_linked() {
+    metrics::counter!("wiki_phase_document_links_total").increment(1);
+}
+
+fn record_evidence_added(evidence_type: &str) {
+    metrics::counter!(
+        "wiki_evidence_added_total",
+        "source_type" => evidence_type.to_string()
+    )
+    .increment(1);
+}
+
+fn record_attachment_uploaded(size_bytes: usize) {
+    metrics::counter!("wiki_attachments_uploaded_total").increment(1);
+    metrics::counter!("wiki_attachment_upload_bytes_total").increment(size_bytes as u64);
+}
+
+fn record_template_created() {
+    metrics::counter!("wiki_templates_created_total").increment(1);
+}
+
+fn search_metric_scope(query: &SearchQuery) -> &'static str {
+    if query.task_key.is_some() {
+        "task"
+    } else if query.phase_key.is_some() {
+        "phase"
+    } else if query.space.is_some() {
+        "space"
+    } else {
+        "global"
+    }
+}
+
+fn record_search_query(scope: &'static str) {
+    metrics::counter!("wiki_search_queries_total", "scope" => scope).increment(1);
+}
+
+fn record_auth_login_attempt(result: &Result<WikiAuthResponse, shared::AppError>) {
+    let status = match result {
+        Ok(_) => "success",
+        Err(shared::AppError::Unauthorized) => "failure",
+        Err(_) => "error",
+    };
+    metrics::counter!("wiki_auth_login_attempts_total", "result" => status).increment(1);
+}
+
 #[derive(Clone)]
 pub struct WikiBackend {
     persistent: Option<Arc<dyn WikiBackendPort>>,
@@ -813,32 +887,33 @@ pub async fn login(
     headers: HeaderMap,
     Json(body): Json<WikiLoginRequest>,
 ) -> Result<Json<WikiAuthResponse>, shared::AppError> {
-    if let Some(persistent) = backend.persistent_backend() {
-        return Ok(Json(
-            persistent
-                .login(request_id_from_headers(&headers), body)
-                .await?,
-        ));
-    }
-
-    let mut store = store().lock().expect("wiki store lock");
-    let user = store
-        .users
-        .values()
-        .find(|user| user.email == body.email && user.active)
-        .cloned()
-        .ok_or(shared::AppError::Unauthorized)?;
-    if store.passwords.get(&user.id) != Some(&body.password) {
-        return Err(shared::AppError::Unauthorized);
-    }
-    store.audit(
-        &user.id,
-        "auth.login",
-        "user",
-        &user.id,
-        request_id_from_headers(&headers).as_deref(),
-    );
-    Ok(Json(auth_response(&mut store, &user)))
+    let result = if let Some(persistent) = backend.persistent_backend() {
+        persistent
+            .login(request_id_from_headers(&headers), body)
+            .await
+    } else {
+        let mut store = store().lock().expect("wiki store lock");
+        let user = store
+            .users
+            .values()
+            .find(|user| user.email == body.email && user.active)
+            .cloned();
+        match user {
+            Some(user) if store.passwords.get(&user.id) == Some(&body.password) => {
+                store.audit(
+                    &user.id,
+                    "auth.login",
+                    "user",
+                    &user.id,
+                    request_id_from_headers(&headers).as_deref(),
+                );
+                Ok(auth_response(&mut store, &user))
+            }
+            _ => Err(shared::AppError::Unauthorized),
+        }
+    };
+    record_auth_login_attempt(&result);
+    result.map(Json)
 }
 
 #[utoipa::path(
@@ -1007,6 +1082,7 @@ pub async fn create_user(
     }
     if let Some(persistent) = backend.persistent_backend() {
         let response = persistent.create_user(&claims, body).await?;
+        record_user_created();
         return Ok((StatusCode::CREATED, Json(response)));
     }
 
@@ -1043,6 +1119,7 @@ pub async fn create_user(
         &user_id,
         claims.request_id.as_deref(),
     );
+    record_user_created();
     Ok((StatusCode::CREATED, Json(user)))
 }
 
@@ -1164,6 +1241,7 @@ pub async fn create_space(
 ) -> Result<impl IntoResponse, shared::AppError> {
     if let Some(persistent) = backend.persistent_backend() {
         let response = persistent.create_space(&claims, body).await?;
+        record_space_created();
         return Ok((StatusCode::CREATED, Json(response)));
     }
 
@@ -1199,6 +1277,7 @@ pub async fn create_space(
         &key,
         claims.request_id.as_deref(),
     );
+    record_space_created();
     Ok((StatusCode::CREATED, Json(space)))
 }
 
@@ -1505,6 +1584,7 @@ pub async fn create_document(
         let response = persistent
             .create_document(&claims, &space_key, body)
             .await?;
+        record_document_created(&response.document_type);
         return Ok((StatusCode::CREATED, Json(response)));
     }
 
@@ -1588,6 +1668,7 @@ pub async fn create_document(
         claims.request_id.as_deref(),
     );
     let response = document_response(&store, &id, true)?;
+    record_document_created(&response.document_type);
     Ok((StatusCode::CREATED, Json(response)))
 }
 
@@ -1699,11 +1780,11 @@ pub async fn publish_document(
     Json(body): Json<PublishDocumentRequest>,
 ) -> Result<Json<DocumentRevisionResponse>, shared::AppError> {
     if let Some(persistent) = backend.persistent_backend() {
-        return Ok(Json(
-            persistent
-                .publish_document(&claims, &document_id, body)
-                .await?,
-        ));
+        let response = persistent
+            .publish_document(&claims, &document_id, body)
+            .await?;
+        record_document_published();
+        return Ok(Json(response));
     }
 
     let mut store = store().lock().expect("wiki store lock");
@@ -1764,6 +1845,7 @@ pub async fn publish_document(
         &id,
         claims.request_id.as_deref(),
     );
+    record_document_published();
     Ok(Json(revision))
 }
 
@@ -1781,9 +1863,9 @@ pub async fn archive_document(
     Extension(claims): Extension<WikiClaims>,
 ) -> Result<Json<DocumentResponse>, shared::AppError> {
     if let Some(persistent) = backend.persistent_backend() {
-        return Ok(Json(
-            persistent.archive_document(&claims, &document_id).await?,
-        ));
+        let response = persistent.archive_document(&claims, &document_id).await?;
+        record_document_archived();
+        return Ok(Json(response));
     }
 
     let mut store = store().lock().expect("wiki store lock");
@@ -1808,6 +1890,7 @@ pub async fn archive_document(
         &id,
         claims.request_id.as_deref(),
     );
+    record_document_archived();
     Ok(Json(document_response(&store, &id, true)?))
 }
 
@@ -2044,11 +2127,11 @@ pub async fn link_task_document(
     Json(body): Json<LinkDocumentRequest>,
 ) -> Result<Json<TaskPageResponse>, shared::AppError> {
     if let Some(persistent) = backend.persistent_backend() {
-        return Ok(Json(
-            persistent
-                .link_task_document(&claims, &space_key, &task_key, body)
-                .await?,
-        ));
+        let response = persistent
+            .link_task_document(&claims, &space_key, &task_key, body)
+            .await?;
+        record_task_document_linked();
+        return Ok(Json(response));
     }
 
     let mut store = store().lock().expect("wiki store lock");
@@ -2079,6 +2162,7 @@ pub async fn link_task_document(
         &task_key,
         claims.request_id.as_deref(),
     );
+    record_task_document_linked();
     Ok(Json(task_page(&store, &key, &task_key)))
 }
 
@@ -2235,11 +2319,11 @@ pub async fn link_phase_document(
     Json(body): Json<LinkDocumentRequest>,
 ) -> Result<Json<PhasePageResponse>, shared::AppError> {
     if let Some(persistent) = backend.persistent_backend() {
-        return Ok(Json(
-            persistent
-                .link_phase_document(&claims, &space_key, &phase_key, body)
-                .await?,
-        ));
+        let response = persistent
+            .link_phase_document(&claims, &space_key, &phase_key, body)
+            .await?;
+        record_phase_document_linked();
+        return Ok(Json(response));
     }
 
     let mut store = store().lock().expect("wiki store lock");
@@ -2270,6 +2354,7 @@ pub async fn link_phase_document(
         &phase_key,
         claims.request_id.as_deref(),
     );
+    record_phase_document_linked();
     Ok(Json(phase_page(&store, &key, &phase_key)))
 }
 
@@ -2357,6 +2442,7 @@ pub async fn create_evidence(
 ) -> Result<impl IntoResponse, shared::AppError> {
     if let Some(persistent) = backend.persistent_backend() {
         let response = persistent.create_evidence(&claims, body).await?;
+        record_evidence_added(&response.evidence_type);
         return Ok((StatusCode::CREATED, Json(response)));
     }
 
@@ -2479,6 +2565,7 @@ pub async fn create_evidence(
         &id,
         claims.request_id.as_deref(),
     );
+    record_evidence_added(&evidence.evidence_type);
     Ok((StatusCode::CREATED, Json(evidence)))
 }
 
@@ -2630,6 +2717,7 @@ pub async fn upload_attachment(
     if bytes.len() > backend.settings.max_upload_bytes {
         return Err(shared::AppError::invalid_input("file is too large"));
     }
+    let size_bytes = bytes.len();
     let file_name = normalize_attachment_file_name(&file_name)?;
     let content_type = normalize_required(&content_type, "attachment content type")?;
 
@@ -2637,6 +2725,7 @@ pub async fn upload_attachment(
         let response = persistent
             .upload_attachment(&claims, file_name, content_type, bytes)
             .await?;
+        record_attachment_uploaded(size_bytes);
         return Ok((StatusCode::CREATED, Json(response)));
     }
 
@@ -2665,6 +2754,7 @@ pub async fn upload_attachment(
         &id,
         claims.request_id.as_deref(),
     );
+    record_attachment_uploaded(size_bytes);
     Ok((StatusCode::CREATED, Json(metadata)))
 }
 
@@ -2786,6 +2876,7 @@ pub async fn create_template(
 ) -> Result<impl IntoResponse, shared::AppError> {
     if let Some(persistent) = backend.persistent_backend() {
         let response = persistent.create_template(&claims, body).await?;
+        record_template_created();
         return Ok((StatusCode::CREATED, Json(response)));
     }
 
@@ -2809,6 +2900,7 @@ pub async fn create_template(
         &id,
         claims.request_id.as_deref(),
     );
+    record_template_created();
     Ok((StatusCode::CREATED, Json(template)))
 }
 
@@ -2850,8 +2942,11 @@ pub async fn search(
     Extension(claims): Extension<WikiClaims>,
     Query(query): Query<SearchQuery>,
 ) -> Result<Json<SearchResponse>, shared::AppError> {
+    let metric_scope = search_metric_scope(&query);
     if let Some(persistent) = backend.persistent_backend() {
-        return Ok(Json(persistent.search(&claims, query).await?));
+        let response = persistent.search(&claims, query).await?;
+        record_search_query(metric_scope);
+        return Ok(Json(response));
     }
 
     let requested_space = query
@@ -2987,6 +3082,7 @@ pub async fn search(
         DEFAULT_SEARCH_LIMIT,
         MAX_SEARCH_LIMIT,
     ));
+    record_search_query(metric_scope);
     Ok(Json(SearchResponse { results }))
 }
 

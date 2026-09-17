@@ -107,7 +107,7 @@ The PostgreSQL smoke suite must include an API-level matrix for outsider, viewer
 
 - `/api/v1/health` returns liveness for a started API process.
 - `/api/v1/health/ready` reflects runtime dependency readiness.
-- `/metrics` renders Prometheus text outside the versioned API contract.
+- `/metrics` renders Prometheus HTTP metrics plus Wiki product/security counters outside the versioned API contract.
 - Backup and restore instructions cover PostgreSQL plus attachments.
 - Docker PostgreSQL smoke is run on Docker hosts; WSL PostgreSQL smoke is the accepted Windows fallback when Docker daemon is unavailable.
 - `scripts/backup-restore-smoke-wsl.ps1` verifies logical PostgreSQL dump/restore plus attachment archive checksum on Windows/WSL fallback hosts.
