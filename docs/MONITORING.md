@@ -6,36 +6,56 @@
 
 ## 2. Metrics
 
-### 2.1 Backend Metrics (Prometheus)
+### 2.1 Implemented Backend Metrics (Prometheus)
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `http_requests_total` | counter | total requests by method, route, status |
-| `http_request_duration_seconds` | histogram | request latency |
-| `http_request_size_bytes` | histogram | request body size |
-| `http_response_size_bytes` | histogram | response body size |
-| `db_pool_connections` | gauge | active/idle DB connections |
-| `db_query_duration_seconds` | histogram | query latency |
-| `attachment_upload_bytes_total` | counter | uploaded attachment bytes |
-| `search_index_updates_total` | counter | document search projection updates |
-| `rate_limited_requests_total` | counter | rate-limited requests |
+| `axum_http_requests_total` | counter | total requests by method, endpoint and status |
+| `axum_http_requests_duration_seconds` | histogram | request latency by method, endpoint and status |
+| `axum_http_requests_pending` | gauge | in-flight requests by method and endpoint |
+| `wiki_auth_login_attempts_total` | counter | login attempts by result |
+| `wiki_users_created_total` | counter | users created by admins |
+| `wiki_spaces_created_total` | counter | spaces created by admins |
+| `wiki_documents_created_total` | counter | documents created by document type |
+| `wiki_document_revisions_published_total` | counter | published document revisions |
+| `wiki_documents_archived_total` | counter | archived documents |
+| `wiki_task_document_links_total` | counter | document links added to task dossiers |
+| `wiki_phase_document_links_total` | counter | document links added to phase dossiers |
+| `wiki_evidence_added_total` | counter | evidence records added by source type |
+| `wiki_attachments_uploaded_total` | counter | uploaded attachment files |
+| `wiki_attachment_upload_bytes_total` | counter | uploaded attachment bytes |
+| `wiki_templates_created_total` | counter | templates created by admins |
+| `wiki_search_queries_total` | counter | search queries by scope |
+| `wiki_permission_denied_total` | counter | 403 responses by API scope |
 
 Operational probes `GET /api/v1/health` and `GET /api/v1/health/ready` bypass the general API rate limiter so Docker and monitoring can distinguish liveness/readiness during client traffic bursts.
 
-### 2.2 Frontend Metrics
+### 2.2 Backend Hardening Backlog
+
+The following metrics are planned hardening items and are not required before MVP development starts:
+
+- database pool gauges;
+- database query duration histograms;
+- storage operation duration/error histograms;
+- search index lag gauges;
+- rate-limit counters when the selected runtime layer does not expose them.
+
+### 2.3 Frontend Metrics
 
 - Core Web Vitals (LCP, INP, CLS) — `web-vitals` library.
 - API error rate.
 - Query cache hit/miss (TanStack Query devtools).
 
-### 2.3 Business Metrics
+Frontend metric export is a hardening item after the MVP UI/API flows stabilize.
+
+### 2.4 Business Metrics
 
 | Metric | Description |
 |--------|-------------|
-| `documents_published_total` | published document revisions |
-| `evidence_added_total` | added evidence records |
-| `active_spaces` | spaces with activity |
-| `active_users` | DAU/MAU |
+| `wiki_document_revisions_published_total` | published document revisions |
+| `wiki_evidence_added_total` | added evidence records |
+| `active_spaces` | spaces with activity; derived in analytics later |
+| `active_users` | DAU/MAU; derived in analytics later |
 
 ## 3. Logging
 

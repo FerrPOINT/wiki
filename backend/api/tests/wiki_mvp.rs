@@ -3970,11 +3970,107 @@ async fn wiki_api_applies_configured_cors_allowlist() {
 }
 
 #[tokio::test]
-async fn wiki_metrics_endpoint_exposes_prometheus_http_metrics() {
+async fn wiki_metrics_endpoint_exposes_prometheus_http_and_wiki_metrics() {
     let app = test_app();
 
     let (status, _) = call(&app, Method::GET, "/api/v1/health", None, None).await;
     assert_eq!(status, StatusCode::OK);
+    let token = login_memory_admin(&app).await;
+
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        "/api/v1/auth/login",
+        None,
+        Some(json!({ "email": "demo@example.com", "password": "wrong-password" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+    let suffix = Uuid::now_v7().simple().to_string();
+    let (status, document) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces/SDLC/documents",
+        Some(&token),
+        Some(json!({
+            "title": format!("Metrics requirements {suffix}"),
+            "slug": format!("metrics-requirements-{suffix}"),
+            "document_type": "requirements",
+            "content_markdown": format!("# Metrics requirements {suffix}\n\nMetrics search token {suffix}.")
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let document_id = document["id"].as_str().unwrap();
+
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/documents/{document_id}/publish"),
+        Some(&token),
+        Some(json!({ "summary": "Prometheus metrics smoke" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let upload_bytes = b"wiki metrics file evidence";
+    let (status, attachment) = upload_test_file(
+        &app,
+        &token,
+        &format!("metrics-{suffix}.txt"),
+        "text/plain",
+        upload_bytes,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let attachment_id = attachment["id"].as_str().unwrap();
+
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(&token),
+        Some(json!({
+            "document_id": document_id,
+            "title": format!("Metrics file evidence {suffix}"),
+            "evidence_type": "uploaded_file",
+            "attachment_id": attachment_id
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let (status, _) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/search?q={suffix}&space=SDLC"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (viewer_token, _) = register_test_user(
+        &app,
+        format!("metrics-viewer-{suffix}@example.com"),
+        format!("metrics-viewer-{suffix}"),
+        "viewer-password",
+        "Metrics viewer",
+    )
+    .await;
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces",
+        Some(&viewer_token),
+        Some(json!({
+            "key": format!("M{}", &suffix[..8]),
+            "name": "Viewer forbidden space"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
 
     let (status, headers, metrics) =
         call_with_headers(&app, Method::GET, "/metrics", None, None, &[]).await;
@@ -3997,6 +4093,27 @@ async fn wiki_metrics_endpoint_exposes_prometheus_http_metrics() {
         raw.contains(r#"endpoint="/api/v1/health""#) || raw.contains(r#"endpoint="/metrics""#),
         "metrics endpoint should expose route labels:\n{raw}"
     );
+    for expected in [
+        "wiki_auth_login_attempts_total",
+        r#"result="success""#,
+        r#"result="failure""#,
+        "wiki_documents_created_total",
+        r#"document_type="requirements""#,
+        "wiki_document_revisions_published_total",
+        "wiki_evidence_added_total",
+        r#"source_type="uploaded_file""#,
+        "wiki_attachments_uploaded_total",
+        "wiki_attachment_upload_bytes_total",
+        "wiki_search_queries_total",
+        r#"scope="space""#,
+        "wiki_permission_denied_total",
+        r#"scope="spaces""#,
+    ] {
+        assert!(
+            raw.contains(expected),
+            "metrics endpoint should expose {expected}:\n{raw}"
+        );
+    }
 }
 
 #[tokio::test]

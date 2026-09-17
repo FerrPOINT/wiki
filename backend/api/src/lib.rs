@@ -1,7 +1,7 @@
 use axum::{
     Extension, Router,
     extract::Request,
-    http::{HeaderName, HeaderValue},
+    http::{HeaderName, HeaderValue, StatusCode},
     middleware::{Next, from_fn, from_fn_with_state},
     response::Response,
     routing::{get, post, put},
@@ -34,9 +34,61 @@ fn metric_handle() -> PrometheusHandle {
             let handle = recorder.handle();
             metrics::set_global_recorder(Box::new(recorder))
                 .expect("failed to set global metrics recorder");
+            describe_wiki_metrics();
             handle
         })
         .clone()
+}
+
+fn describe_wiki_metrics() {
+    metrics::describe_counter!(
+        "wiki_spaces_created_total",
+        "Wiki spaces created successfully"
+    );
+    metrics::describe_counter!("wiki_users_created_total", "Wiki users created by admins");
+    metrics::describe_counter!(
+        "wiki_documents_created_total",
+        "Wiki documents created successfully"
+    );
+    metrics::describe_counter!(
+        "wiki_document_revisions_published_total",
+        "Wiki document revisions published successfully"
+    );
+    metrics::describe_counter!(
+        "wiki_documents_archived_total",
+        "Wiki documents archived successfully"
+    );
+    metrics::describe_counter!(
+        "wiki_task_document_links_total",
+        "Wiki document links added to task dossiers"
+    );
+    metrics::describe_counter!(
+        "wiki_phase_document_links_total",
+        "Wiki document links added to phase dossiers"
+    );
+    metrics::describe_counter!("wiki_evidence_added_total", "Wiki evidence records added");
+    metrics::describe_counter!(
+        "wiki_attachments_uploaded_total",
+        "Wiki attachments uploaded successfully"
+    );
+    metrics::describe_counter!(
+        "wiki_attachment_upload_bytes_total",
+        metrics::Unit::Bytes,
+        "Wiki attachment bytes uploaded successfully"
+    );
+    metrics::describe_counter!(
+        "wiki_templates_created_total",
+        "Wiki templates created by admins"
+    );
+    metrics::describe_counter!("wiki_search_queries_total", "Wiki search queries served");
+    metrics::describe_counter!(
+        "wiki_auth_login_attempts_total",
+        "Wiki login attempts by result"
+    );
+    metrics::describe_counter!(
+        "wiki_permission_denied_total",
+        "Wiki requests rejected with 403 by API scope"
+    );
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -403,7 +455,38 @@ pub fn router_with_wiki(
         .layer(prometheus_layer)
         .layer(cors)
         .layer(trace_layer)
+        .layer(from_fn(wiki_metrics_middleware))
         .layer(from_fn(request_id_middleware))
+}
+
+async fn wiki_metrics_middleware(request: Request, next: Next) -> Response {
+    let scope = api_metrics_scope(request.uri().path());
+    let response = next.run(request).await;
+    if response.status() == StatusCode::FORBIDDEN {
+        metrics::counter!("wiki_permission_denied_total", "scope" => scope).increment(1);
+    }
+    response
+}
+
+fn api_metrics_scope(path: &str) -> &'static str {
+    let Some(path) = path.strip_prefix("/api/v1/") else {
+        return "other";
+    };
+    match path.split('/').next().unwrap_or_default() {
+        "attachments" => "attachments",
+        "audit-log" => "audit",
+        "auth" => "auth",
+        "documents" => "documents",
+        "evidence" => "evidence",
+        "health" => "health",
+        "phases" => "phases",
+        "search" => "search",
+        "settings" => "settings",
+        "spaces" => "spaces",
+        "templates" => "templates",
+        "users" => "users",
+        _ => "other",
+    }
 }
 
 async fn request_id_middleware(mut request: Request, next: Next) -> Response {

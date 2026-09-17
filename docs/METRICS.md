@@ -1,34 +1,45 @@
 # Metrics - Wiki
 
-## 1. HTTP
+## 1. Implemented MVP Metrics
 
-- `http_requests_total{method,route,status}`
-- `http_request_duration_seconds{method,route}`
-- `http_request_body_bytes`
-- `http_response_body_bytes`
+`GET /metrics` exposes Prometheus text outside the versioned `/api/v1` OpenAPI contract.
 
-## 2. Product
+### 1.1 HTTP
 
-- `spaces_total`
-- `documents_total{status}`
-- `document_revisions_total`
-- `task_dossiers_total`
-- `phase_dossiers_total`
-- `evidence_items_total{source_type}`
-- `attachments_total`
+The API uses `axum-prometheus` for route-level HTTP metrics:
 
-## 3. Indexing And Maintenance
+- `axum_http_requests_total{method,endpoint,status}`
+- `axum_http_requests_duration_seconds{method,endpoint,status}`
+- `axum_http_requests_pending{method,endpoint}`
 
-- `search_index_lag_seconds`
-- `search_index_updates_total{status}`
+### 1.2 Product And Security Counters
 
-## 4. Storage
+The API records successful MVP write/search operations and 403 responses:
 
-- `storage_operation_duration_seconds{operation,backend}`
-- `storage_errors_total{operation,backend}`
-- `attachment_bytes_total`
+- `wiki_auth_login_attempts_total{result}` where `result` is `success`, `failure` or `error`.
+- `wiki_users_created_total`.
+- `wiki_spaces_created_total`.
+- `wiki_documents_created_total{document_type}`.
+- `wiki_document_revisions_published_total`.
+- `wiki_documents_archived_total`.
+- `wiki_task_document_links_total`.
+- `wiki_phase_document_links_total`.
+- `wiki_evidence_added_total{source_type}`.
+- `wiki_attachments_uploaded_total`.
+- `wiki_attachment_upload_bytes_total`.
+- `wiki_templates_created_total`.
+- `wiki_search_queries_total{scope}` where `scope` is `global`, `space`, `task` or `phase`.
+- `wiki_permission_denied_total{scope}` for API requests returned as 403.
 
-## 5. Security
+Counters are process-local and are persisted by the Prometheus scrape/storage layer, not by Wiki itself.
 
-- `auth_login_attempts_total{result}`
-- `permission_denied_total{entity_type}`
+## 2. Hardening Backlog
+
+These metrics are planned after MVP runtime patterns settle and must not be treated as shipped MVP contracts:
+
+- database pool gauges;
+- per-query database duration histograms;
+- per-storage-backend duration/error histograms;
+- search index lag gauges;
+- frontend Core Web Vitals export;
+- rate-limit counters if the selected gateway/runtime does not already expose them.
