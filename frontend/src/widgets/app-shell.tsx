@@ -116,7 +116,7 @@ export function AppShell() {
               <Menu className="h-[18px] w-[18px]" />
             )}
           </Button>
-          <Link to="/" className="flex items-center gap-2 font-bold">
+          <Link to="/" className="flex items-center gap-2 font-bold" aria-label="Wiki">
             <PlatformMark size="sm" withName={false} />
             <span className="hidden sm:inline">Wiki</span>
           </Link>
@@ -138,7 +138,7 @@ export function AppShell() {
 
         <div className="flex items-center gap-2 md:gap-3">
           <Button asChild size="sm" className="h-7 gap-1 px-2.5 text-xs">
-            <Link to="/documents/new">
+            <Link to="/documents/new" aria-label="Новый документ">
               <FilePlus2 className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Новый документ</span>
             </Link>
