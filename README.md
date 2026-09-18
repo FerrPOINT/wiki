@@ -130,10 +130,6 @@ pwsh -File scripts/backup-restore-smoke-wsl.ps1
 
 Скриншоты — реальные страницы продукта. Desktop full-page. Полный реестр и параметры пересъёмки: [docs/assets/screens/manifest.md](docs/assets/screens/manifest.md).
 
-### Регистрация
-
-![Регистрация](docs/screenshots/02-register.png)
-
 ### Дашборд
 
 ![Дашборд](docs/screenshots/03-dashboard.png)
