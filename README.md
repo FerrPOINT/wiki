@@ -200,11 +200,11 @@ pwsh -File scripts/backup-restore-smoke-wsl.ps1
 
 ### Мобильный интерфейс (375×812)
 
-![Дашборд на мобильном](docs/screenshots/m-dashboard.png) ![Вход на мобильном](docs/screenshots/m-login.png)
+<img src="docs/screenshots/m-dashboard.png" alt="Дашборд на мобильном" width="49.5%" /> <img src="docs/screenshots/m-login.png" alt="Вход на мобильном" width="49.5%" />
 
-![Документ на мобильном](docs/screenshots/m-document-view.png) ![Поиск на мобильном](docs/screenshots/m-search.png)
+<img src="docs/screenshots/m-document-view.png" alt="Документ на мобильном" width="49.5%" /> <img src="docs/screenshots/m-search.png" alt="Поиск на мобильном" width="49.5%" />
 
-![Пространства на мобильном](docs/screenshots/m-spaces.png) ![Досье задачи на мобильном](docs/screenshots/m-task-dossier.png)
+<img src="docs/screenshots/m-spaces.png" alt="Пространства на мобильном" width="49.5%" /> <img src="docs/screenshots/m-task-dossier.png" alt="Досье задачи на мобильном" width="49.5%" />
 
 <a name="cli"></a>
 
