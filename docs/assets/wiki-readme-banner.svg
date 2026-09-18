@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="420" viewBox="0 0 1600 420" role="img" aria-labelledby="title desc">
+  <title id="title">Base Wiki</title>
+  <desc id="desc">Knowledge documents, revisions, evidence and audit for Base.</desc>
+  <defs>
+    <linearGradient id="field" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#17112b"/><stop offset=".55" stop-color="#31216b"/><stop offset="1" stop-color="#075985"/></linearGradient>
+    <linearGradient id="ink" x1="0" x2="1"><stop stop-color="#c4b5fd"/><stop offset="1" stop-color="#7dd3fc"/></linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="7" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <rect width="1600" height="420" fill="url(#field)"/>
+  <path d="M0 355C225 264 350 430 535 330S735 272 844 326" fill="none" stroke="#7dd3fc" stroke-opacity=".2" stroke-width="2"/>
+  <path d="M0 94C200 170 345 46 520 106s281 54 420-18 360-17 660 74" fill="none" stroke="#c4b5fd" stroke-opacity=".2" stroke-width="2"/>
+  <g transform="translate(132 93)" fill="none" stroke="url(#ink)" stroke-width="5" filter="url(#glow)">
+    <path d="M0 18h175v180H0z"/>
+    <path d="M28 61h120M28 102h120M28 143h76"/>
+    <path d="M175 18l53 51v180H53"/>
+    <path d="M175 18v51h53"/>
+  </g>
+  <g fill="#e0e7ff"><circle cx="132" cy="111" r="10"/><circle cx="307" cy="291" r="10"/><circle cx="360" cy="162" r="10"/></g>
+  <text x="640" y="182" fill="#f8fafc" font-family="Georgia, serif" font-size="76" font-weight="700" letter-spacing="-2">Base Wiki</text>
+  <text x="645" y="239" fill="#c4b5fd" font-family="ui-monospace, monospace" font-size="31" letter-spacing="2">KNOWLEDGE / REVISIONS / EVIDENCE</text>
+  <rect x="645" y="274" width="460" height="5" rx="2.5" fill="url(#ink)"/>
+  <text x="645" y="325" fill="#bae6fd" font-family="ui-monospace, monospace" font-size="27">SELF-HOSTED KNOWLEDGE HUB</text>
+</svg>

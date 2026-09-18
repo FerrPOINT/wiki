@@ -41,6 +41,7 @@
 | Файл                                                         | Route                             | Назначение                  | Размер   |
 | ------------------------------------------------------------ | --------------------------------- | --------------------------- | -------- |
 | [m-dashboard.png](../../screenshots/m-dashboard.png)         | `/`                               | Dashboard mobile layout     | 375x1000 |
+| [m-login.png](../../screenshots/m-login.png)                 | `/login`                          | Blank login mobile evidence | 375x812  |
 | [m-spaces.png](../../screenshots/m-spaces.png)               | `/spaces`                         | Spaces mobile layout        | 375x1404 |
 | [m-document-view.png](../../screenshots/m-document-view.png) | `/documents/product-requirements` | Document view mobile layout | 375x2035 |
 | [m-task-dossier.png](../../screenshots/m-task-dossier.png)   | `/tasks/SDLC-42`                  | Task page mobile layout     | 375x1109 |
