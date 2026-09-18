@@ -266,7 +266,7 @@ flowchart TD
 | Compose contract | `docker compose config -q` |
 | Runtime probes | `curl -fsS http://127.0.0.1:3456/api/v1/health` и `.../health/ready` |
 
-GitHub Actions прогоняет backend, OpenAPI, migration, coverage, dependency-audit, frontend и browser-E2E gates; независимый README job не пускает в `main` битые anchors, отсутствующее reviewed evidence и утечки путей/плейсхолдеров.
+GitHub Actions прогоняет docs-гейт, backend fmt/clippy/tests, OpenAPI drift и frontend gates; тяжёлые проверки (coverage, dependency-audit, browser E2E) выполняются локально по необходимости.
 
 ## 🗂️ Карта проекта
 
