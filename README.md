@@ -3,118 +3,309 @@
 </p>
 
 <p align="center">
-  <a href="#capabilities"><img src="https://img.shields.io/badge/Capabilities-312e81?style=for-the-badge" alt="Capabilities" /></a>
-  <a href="#quick-start"><img src="https://img.shields.io/badge/Quick_Start-4c1d95?style=for-the-badge" alt="Quick start" /></a>
-  <a href="#visual-proof"><img src="https://img.shields.io/badge/Visual_Proof-075985?style=for-the-badge" alt="Visual proof" /></a>
-  <a href="#safety"><img src="https://img.shields.io/badge/Safety-155e75?style=for-the-badge" alt="Safety" /></a>
-  <a href="#quality"><img src="https://img.shields.io/badge/Quality-334155?style=for-the-badge" alt="Quality" /></a>
+  <a href="#overview"><img src="https://img.shields.io/badge/Overview-312e81?style=for-the-badge" alt="Overview" /></a>
+  <a href="#capabilities"><img src="https://img.shields.io/badge/Capabilities-4c1d95?style=for-the-badge" alt="Capabilities" /></a>
+  <a href="#routes"><img src="https://img.shields.io/badge/Routes-075985?style=for-the-badge" alt="Routes" /></a>
+  <a href="#quick-start"><img src="https://img.shields.io/badge/Quick_Start-155e75?style=for-the-badge" alt="Quick start" /></a>
+  <a href="#visual-proof"><img src="https://img.shields.io/badge/Visual_Proof-0f766e?style=for-the-badge" alt="Visual proof" /></a>
+  <a href="#cli"><img src="https://img.shields.io/badge/CLI-334155?style=for-the-badge" alt="CLI" /></a>
+  <a href="#quality"><img src="https://img.shields.io/badge/Quality-52525b?style=for-the-badge" alt="Quality" /></a>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Rust-2024-000000?style=flat-square&logo=rust&logoColor=white" alt="Rust 2024" />
   <img src="https://img.shields.io/badge/Axum-Rest_API-312e81?style=flat-square" alt="Axum REST API" />
+  <img src="https://img.shields.io/badge/SQLx-1D4ED8?style=flat-square" alt="SQLx" />
   <img src="https://img.shields.io/badge/PostgreSQL-17-4169e1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL 17" />
   <img src="https://img.shields.io/badge/React-19-38bdf8?style=flat-square&logo=react&logoColor=0f172a" alt="React 19" />
-  <img src="https://img.shields.io/badge/CI-.github%2Fworkflows%2Fci.yml-15803d?style=flat-square" alt="Repository CI" />
+  <img src="https://img.shields.io/badge/OpenAPI-6BA539?style=flat-square&logo=openapiinitiative&logoColor=white" alt="OpenAPI" />
+  <img src="https://img.shields.io/badge/source--available-not%20open%20source-7F1D1D?style=flat-square" alt="Not open source" />
 </p>
 
-> **Base Wiki** is a self-hosted knowledge hub for documents, immutable published revisions, evidence and audit. It links knowledge to external task and phase keys without owning those workflows, Git hosting or CI execution.
+---
+
+## 🎯 Позиционирование
+
+**Wiki** — self-hosted knowledge base платформы Base для FerrPOINT: spaces, documents, revisions, task dossiers, workflow phases, evidence, attachments, search и audit.
+
+Репозиторий сокращён до Wiki MVP runtime: public API/OpenAPI, CLI surface, frontend shell и SQLx/PostgreSQL persistence. Скопированные task-tracker backend-модули и старые зависимости удалены из активного workspace.
 
 <a name="overview"></a>
-## Overview
 
-Wiki has one public REST API and two official clients: the React interface and the HTTP-only `wiki` CLI. The current MVP is intentionally bounded: it is a knowledge system, not a replacement for a task tracker, workflow engine or Forge CI/CD.
+## 📌 Snapshot
 
-| Surface | Current behavior | Boundary |
-|---|---|---|
-| Spaces | Create, update, archive and manage membership; each space owns its page tree. | Archived spaces reject document, evidence and dossier-link writes. |
-| Documents | Markdown drafts, publish, archive, move and immutable revision history. | A stale `base_revision_id` is rejected rather than overwriting a newer revision. |
-| Evidence | Attach links or uploaded files to documents, external task keys or phase keys. | Local attachment storage; binary OCR/indexing is deferred. |
-| Discovery | Search, templates, task/phase dossiers and bounded audit reads. | Wiki stores links to external work; it does not mutate external tasks or phases. |
-| Interfaces | React UI, CLI, OpenAPI contract, health/readiness and Prometheus metrics. | UI and CLI use the same `/api/v1` contract. |
-
-`Current` means implemented in source and covered by the repository's tests or runtime checks. The exhaustive cut is [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md); scope and deferred capabilities are in [docs/PRODUCT_REQUIREMENTS.md](docs/PRODUCT_REQUIREMENTS.md).
+| Поле | Значение |
+|---|---|
+| Статус | MVP baseline: Wiki API/OpenAPI, CLI surface, frontend shell и SQLx persistence на месте |
+| Backend | Rust 2024, Axum, SQLx runtime persistence |
+| Data | PostgreSQL 17 и filesystem attachment storage |
+| Frontend | React 19, Vite, Tailwind CSS |
+| API | Canonical Wiki MVP contract: [openapi/openapi.json](openapi/openapi.json) |
+| Порты | repository-local: frontend `19877`, backend `3456`, PostgreSQL `3457`; Base umbrella: frontend `7732`, API `7731`, PostgreSQL loopback `7733` |
+| License | FerrPOINT Proprietary Source-Available Evaluation License v1.0 |
 
 <a name="capabilities"></a>
-## Capabilities
 
-- **Knowledge lifecycle.** Create spaces and documents, edit Markdown drafts, publish immutable revisions, archive pages and move them inside a space tree.
-- **Evidence without workflow ownership.** Link URL/file evidence to a document, task key or phase key, then retrieve metadata and authorized attachment downloads through the public API.
-- **Access and accountability.** User, global-role and space-membership checks guard content; protected writes support idempotent retry and core mutations produce append-only audit entries with request correlation.
-- **Shared identity integration.** In the Base umbrella runtime, Wiki can validate configured central-auth tokens and proxy configured central login. Local Wiki session behavior remains available where that bridge is not configured.
-- **Operational interface.** `GET /api/v1/health` is liveness; `GET /api/v1/health/ready` additionally confirms runtime readiness. The CLI, OpenAPI artifact and React client share the same API boundary.
+## ✨ Возможности
+
+| Feature | Описание |
+|---|---|
+| Spaces and documents | Spaces и document tree для requirements, architecture notes, decisions и release materials. |
+| Document lifecycle | Create/view/edit/publish/archive/move flows, revision-aware backend endpoints и generated frontend API types. |
+| Base dossiers | Task и phase dossiers, связанные с evidence и workflow context. |
+| Evidence registry | External links и uploaded files, прикреплённые к documents, tasks или phases. |
+| Operations | Templates, audit log, users/settings/admin pages, global search и API health/readiness probes. |
+| CLI | HTTP-only `wiki` binary для тех же public API операций, что и UI. |
+| Documentation | Architecture, operations, threat model, traceability и visual screenshot evidence. |
+
+## 🔧 Стек
+
+| Zone | Tech | Роль |
+|---|---|---|
+| API | Rust + Axum | Wiki MVP routes и public API |
+| Persistence | SQLx + PostgreSQL | runtime data и migrations |
+| Attachment storage | local filesystem | uploaded evidence files |
+| Frontend | React + Vite + Tailwind | Wiki shell и API-backed MVP pages |
+| Contract | OpenAPI | generated frontend types |
+| Docs | contracts, security, traceability | source of truth для scope |
 
 <a name="quick-start"></a>
-## Quick Start
 
-For the repository-local Compose profile, start with the checked-in template and replace its sentinel values with operator-owned secrets before starting anything. Do not commit `.env`.
+## ⚡ Быстрый старт
 
 ```bash
 cp .env.example .env
-# Edit .env: set database credentials and a unique WIKI_JWT_SECRET.
+# Заменить [CHANGE_ME] значения и задать WIKI_BOOTSTRAP__ADMIN_EMAIL/PASSWORD
 docker compose up --build -d
 curl -fsS http://127.0.0.1:3456/api/v1/health
 curl -fsS http://127.0.0.1:3456/api/v1/health/ready
 ```
 
-Repository-local defaults are frontend `19877`, API `3456` and PostgreSQL `3457`. In the Base umbrella runtime, the same surfaces are published at frontend `7732`, API `7731` and loopback PostgreSQL `7733`; those are deployment-local coordinates, not public endpoints.
+Frontend dev:
 
-For source development and operational details, use [docs/DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md), [docs/ENV.md](docs/ENV.md), [docs/OPERATIONS.md](docs/OPERATIONS.md) and [docs/CLI.md](docs/CLI.md).
+```bash
+cd frontend
+pnpm install
+pnpm dev
+```
+
+PostgreSQL API smoke (disposable test DB + env-gated `wiki_postgres_` API tests, включая persistence, membership revocation и FTS index-plan evidence):
+
+```powershell
+pwsh -File scripts/postgres-smoke.ps1
+```
+
+Если Docker Desktop недоступен, но в WSL есть локальный PostgreSQL — тот же smoke против изолированной временной БД:
+
+```powershell
+pwsh -File scripts/postgres-smoke-wsl.ps1
+```
+
+Backup/restore drill на том же Windows/WSL fallback-пути:
+
+```powershell
+pwsh -File scripts/backup-restore-smoke-wsl.ps1
+```
+
+<a name="routes"></a>
+
+## 🧭 Фронтенд-роуты
+
+| Route | Назначение |
+|---|---|
+| `/login`, `/register` | Auth |
+| `/` | Dashboard |
+| `/spaces`, `/documents/new`, `/documents/:documentId` | Spaces и documents |
+| `/tasks`, `/tasks/:taskKey` | Task dossiers |
+| `/phases`, `/phases/:phaseId` | Workflow phase dossiers |
+| `/evidence`, `/templates`, `/audit-log` | Evidence и operations |
+| `/users`, `/settings`, `/admin` | Administration |
+| `/search` | Global search |
+
+Операционные probe `/api/v1/health` и `/api/v1/health/ready` — API-only, без frontend-скриншотов.
 
 <a name="visual-proof"></a>
-## Visual Proof
 
-The root README uses only reviewed blank-state or generic template evidence. It intentionally excludes document, space, dashboard, audit and user screens because their deterministic test fixtures show workflow identifiers, test account-like values or timeline metadata. The complete route inventory remains in [docs/assets/screens/manifest.md](docs/assets/screens/manifest.md).
+## 🖼️ Визуальные доказательства
 
-### Login boundary
+Скриншоты — реальные страницы продукта. Desktop full-page, mobile `375x812`. Полный реестр и параметры пересъёмки: [docs/assets/screens/manifest.md](docs/assets/screens/manifest.md).
 
-![Wiki login](docs/screenshots/01-login.png)
+### Вход
 
-### Reusable document structures
+![Вход](docs/screenshots/01-login.png)
 
-![Wiki templates](docs/screenshots/12-templates.png)
+### Регистрация
 
-### Login on mobile
+![Регистрация](docs/screenshots/02-register.png)
 
-![Wiki login on mobile](docs/screenshots/m-login.png)
+### Дашборд
 
-The mobile proof is captured at `375x812`; the form has blank credentials and no browser or deployment chrome.
+![Дашборд](docs/screenshots/03-dashboard.png)
+
+### Пространства
+
+![Пространства](docs/screenshots/04-spaces.png)
+
+### Создание документа
+
+![Создание документа](docs/screenshots/05-document-compose.png)
+
+### Просмотр документа
+
+![Просмотр документа](docs/screenshots/06-document-view.png)
+
+### Task-досье
+
+![Task-досье](docs/screenshots/07-task-dossiers.png)
+
+### Карточка task-досье
+
+![Карточка task-досье](docs/screenshots/08-task-dossier-detail.png)
+
+### Phase-досье
+
+![Phase-досье](docs/screenshots/09-phase-dossiers.png)
+
+### Карточка phase-досье
+
+![Карточка phase-досье](docs/screenshots/10-phase-dossier-detail.png)
+
+### Evidence
+
+![Evidence](docs/screenshots/11-evidence.png)
+
+### Шаблоны
+
+![Шаблоны](docs/screenshots/12-templates.png)
+
+### Журнал аудита
+
+![Журнал аудита](docs/screenshots/13-audit-log.png)
+
+### Пользователи
+
+![Пользователи](docs/screenshots/14-users.png)
+
+### Настройки
+
+![Настройки](docs/screenshots/15-settings.png)
+
+### Поиск
+
+![Поиск](docs/screenshots/16-search.png)
+
+### Администрирование
+
+![Администрирование](docs/screenshots/17-admin.png)
+
+### Дашборд на мобильном
+
+![Дашборд на мобильном](docs/screenshots/m-dashboard.png)
+
+### Вход на мобильном
+
+![Вход на мобильном](docs/screenshots/m-login.png)
+
+### Документ на мобильном
+
+![Документ на мобильном](docs/screenshots/m-document-view.png)
+
+### Поиск на мобильном
+
+![Поиск на мобильном](docs/screenshots/m-search.png)
+
+<a name="cli"></a>
+
+## 🖥️ CLI
+
+```bash
+cd backend
+cargo build --bin wiki
+
+export WIKI_API_URL=http://localhost:3456/api/v1
+export WIKI_TOKEN=<jwt_token>
+
+./target/debug/wiki space list
+./target/debug/wiki user list
+./target/debug/wiki doc create --space BASE --title "Requirements" --from-file requirements.md
+./target/debug/wiki space member-set BASE --user <user-id> --role editor
+./target/debug/wiki attachment download <attachment-id> --out artifact.bin
+./target/debug/wiki audit list --limit 25
+./target/debug/wiki settings get
+```
+
+## 🏗️ Архитектура
+
+```mermaid
+flowchart TD
+    UI[React Wiki shell] --> API[Axum Wiki API]
+    CLI[wiki CLI] --> API
+    API --> Services[Wiki application services]
+    Services --> Store[SQLx persistence]
+    Store --> DB[(PostgreSQL)]
+    Services --> Evidence[Evidence + audit]
+    OpenAPI[OpenAPI contract] --> Gen[Generated frontend types]
+    API --> OpenAPI
+```
 
 <a name="safety"></a>
-## Safety Boundaries
 
-- **Knowledge boundary.** Wiki stores pages, revisions, links and evidence. It does not execute pipelines, host Git repositories or advance external task/phase state.
-- **Access boundary.** Permissions are checked before documents, evidence, attachments, trees and search results are read. Archived spaces/documents reject further protected writes.
-- **Content boundary.** Published Markdown is rendered to sanitized HTML. Attachment names and storage keys are validated; secrets and tokens are excluded from search, audit and rendered user HTML.
-- **Deployment boundary.** Production startup rejects weak auth configuration, wildcard or non-HTTPS CORS origins, insecure refresh cookies and an empty database URL. TLS, ingress, backups and network policy remain operator responsibilities.
-- **Operational boundary.** Liveness and readiness are distinct probes. Readiness confirms the Wiki runtime dependencies, not every external identity, mail or future integration provider.
+## 🧱 Границы
 
-Read [docs/SECURITY.md](docs/SECURITY.md) and [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) before a shared deployment.
+- Текущий baseline — API-backed MVP, не готовая enterprise knowledge platform.
+- Reports, notifications, webhooks, import/export bundles, OCR и real-time collaboration отложены.
+- Перед shared deployments замените все `[CHANGE_ME]`, задайте `WIKI_ENVIRONMENT=production`, `WIKI_JWT_SECRET`, bootstrap-admin credentials и проверьте CORS/cookie/TLS.
+- Опубликованный Markdown рендерится в sanitized HTML; имена и storage-ключи вложений валидируются.
+- Production startup отклоняет слабую auth-конфигурацию, wildcard/non-HTTPS CORS, insecure refresh cookies и пустой database URL.
+
+Полный current-state срез: [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md).
 
 <a name="quality"></a>
-## Quality and Verification
 
-| Gate | Command |
+## 🛡️ Качество и проверки
+
+| Проверка | Команда |
 |---|---|
 | README contract tests | `python3 -m unittest scripts.tests.test_verify_readme -v` |
-| README assets and anchors | `python3 scripts/verify_readme.py` |
-| Backend format, lint and tests | `cd backend && cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace -- --test-threads=1` |
-| Frontend API/type/test/lint/build | `cd frontend && pnpm openapi:check && pnpm typecheck && pnpm test -- --run && pnpm lint && pnpm format:check && pnpm build` |
+| README assets и anchors | `python3 scripts/verify_readme.py` |
+| Backend | `cd backend && cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace -- --test-threads=1` |
+| Frontend | `cd frontend && pnpm openapi:check && pnpm typecheck && pnpm test -- --run && pnpm lint && pnpm build` |
 | Browser route smoke | `cd frontend && pnpm test:e2e -- --project=chromium` |
 | Compose contract | `docker compose config -q` |
-| Runtime probes | `curl -fsS http://127.0.0.1:3456/api/v1/health` and `curl -fsS http://127.0.0.1:3456/api/v1/health/ready` |
+| Runtime probes | `curl -fsS http://127.0.0.1:3456/api/v1/health` и `.../health/ready` |
 
-GitHub Actions runs backend, OpenAPI, migration, coverage, dependency-audit, frontend and browser-E2E gates. The independent README job prevents broken anchors, missing reviewed evidence and local-path/placeholder leaks from reaching `main`.
+GitHub Actions прогоняет backend, OpenAPI, migration, coverage, dependency-audit, frontend и browser-E2E gates; независимый README job не пускает в `main` битые anchors, отсутствующее reviewed evidence и утечки путей/плейсхолдеров.
 
-## Documentation Map
+## 🗂️ Карта проекта
 
-- **Current scope:** [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md), [docs/PRODUCT_REQUIREMENTS.md](docs/PRODUCT_REQUIREMENTS.md)
-- **Architecture and contracts:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/API.md](docs/API.md), [docs/DATA_MODEL.md](docs/DATA_MODEL.md)
-- **Operators:** [docs/OPERATIONS.md](docs/OPERATIONS.md), [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md), [docs/ENV.md](docs/ENV.md)
-- **Engineering:** [docs/DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md), [docs/TEST_PLAN.md](docs/TEST_PLAN.md), [docs/TRACEABILITY.md](docs/TRACEABILITY.md)
-- **Security:** [docs/SECURITY.md](docs/SECURITY.md), [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md)
+```text
+wiki/
+├── backend/     # Rust workspace: public Wiki API, SQLx persistence, CLI
+├── frontend/    # React/Vite Wiki shell и API-backed MVP pages
+├── cli/         # helper skill notes
+├── docs/        # requirements, architecture, contracts, operations, quality
+├── openapi/     # Wiki MVP API artifact
+├── scripts/     # helper scripts
+└── docker-compose.yml
+```
+
+## 📚 Документы
+
+- [docs/USER_GUIDE.md](docs/USER_GUIDE.md) — пользовательские сценарии.
+- [docs/MVP_READINESS.md](docs/MVP_READINESS.md) — 100% readiness gate перед main development.
+- [docs/DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md) — разработка.
+- [docs/OPERATIONS.md](docs/OPERATIONS.md), [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — эксплуатация.
+- [docs/SECURITY.md](docs/SECURITY.md), [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) — безопасность.
+- [docs/ARCHITECTURE_INDEX.md](docs/ARCHITECTURE_INDEX.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/contracts](docs/contracts) — архитектура и контракты.
+- [docs/API.md](docs/API.md), [docs/DATA_MODEL.md](docs/DATA_MODEL.md), [docs/ENV.md](docs/ENV.md), [docs/CLI.md](docs/CLI.md) — справочники.
+- [docs/TEST_PLAN.md](docs/TEST_PLAN.md), [docs/TRACEABILITY.md](docs/TRACEABILITY.md), [docs/RISK_REGISTER.md](docs/RISK_REGISTER.md) — качество.
+
+Скриншоты и параметры пересъёмки: [docs/assets/screens/manifest.md](docs/assets/screens/manifest.md).
 
 <a name="license"></a>
-## License
 
-FerrPOINT Proprietary Source-Available Evaluation License v1.0. This repository is not open source. Viewing and evaluation are allowed under [LICENSE](LICENSE); commercial, production, resale, redistribution and SaaS/hosting use require a written FerrPOINT license. See [NOTICE](NOTICE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+## 🔒 Лицензия
+
+Proprietary source-available. Not open source. Viewing/evaluation only.
+
+Commercial, production, resale, redistribution, SaaS/hosting use require written license from FerrPOINT. См. [LICENSE](LICENSE), [NOTICE](NOTICE) и [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
