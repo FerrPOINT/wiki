@@ -200,7 +200,10 @@ pwsh -File scripts/backup-restore-smoke-wsl.ps1
 
 ### Мобильный интерфейс (375×812)
 
-<img src="docs/screenshots/m-dashboard.png" alt="Дашборд на мобильном" width="44%" align="left" /> <img src="docs/screenshots/m-login.png" alt="Вход на мобильном" width="44%" align="right" /> <img src="docs/screenshots/m-document-view.png" alt="Документ на мобильном" width="44%" align="left" /> <img src="docs/screenshots/m-search.png" alt="Поиск на мобильном" width="44%" align="right" /> <img src="docs/screenshots/m-spaces.png" alt="Пространства на мобильном" width="44%" align="left" /> <img src="docs/screenshots/m-task-dossier.png" alt="Досье задачи на мобильном" width="44%" align="right" />
+<table><tr>
+<td valign="top" width="50%"><img src="docs/screenshots/m-dashboard.png" alt="Дашборд на мобильном" width="100%" /><br/><img src="docs/screenshots/m-document-view.png" alt="Документ на мобильном" width="100%" /><br/><img src="docs/screenshots/m-spaces.png" alt="Пространства на мобильном" width="100%" /></td>
+<td valign="top" width="50%"><img src="docs/screenshots/m-login.png" alt="Вход на мобильном" width="100%" /><br/><img src="docs/screenshots/m-search.png" alt="Поиск на мобильном" width="100%" /><br/><img src="docs/screenshots/m-task-dossier.png" alt="Досье задачи на мобильном" width="100%" /></td>
+</tr></table>
 
 <a name="cli"></a>
 
