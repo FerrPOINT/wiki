@@ -6,10 +6,15 @@ import { Toaster } from 'sonner'
 import i18n from './shared/i18n/config'
 import { RouterProvider } from 'react-router'
 import { router } from './app/router'
-import { ThemeProvider, PlatformProvider, PlatformServicesProvider } from '@sdlc/ui/lib'
+import { ThemeProvider, useTheme, PlatformProvider, PlatformServicesProvider } from '@sdlc/ui/lib'
 import './index.css'
 
 const queryClient = new QueryClient()
+
+function AppToaster() {
+  const { theme } = useTheme()
+  return <Toaster theme={theme === 'light' ? 'light' : 'dark'} />
+}
 
 function Boot() {
   const [ready, setReady] = useState(i18n.isInitialized)
@@ -36,7 +41,7 @@ function Boot() {
               <RouterProvider router={router} />
             </PlatformServicesProvider>
           </PlatformProvider>
-          <Toaster theme="dark" />
+          <AppToaster />
         </ThemeProvider>
       </QueryClientProvider>
     </I18nextProvider>
