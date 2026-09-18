@@ -128,11 +128,7 @@ pwsh -File scripts/backup-restore-smoke-wsl.ps1
 
 ## 🖼️ Визуальные доказательства
 
-Скриншоты — реальные страницы продукта. Desktop full-page, mobile `375x812`. Полный реестр и параметры пересъёмки: [docs/assets/screens/manifest.md](docs/assets/screens/manifest.md).
-
-### Вход
-
-![Вход](docs/screenshots/01-login.png)
+Скриншоты — реальные страницы продукта. Desktop full-page. Полный реестр и параметры пересъёмки: [docs/assets/screens/manifest.md](docs/assets/screens/manifest.md).
 
 ### Регистрация
 
@@ -197,16 +193,6 @@ pwsh -File scripts/backup-restore-smoke-wsl.ps1
 ### Администрирование
 
 ![Администрирование](docs/screenshots/17-admin.png)
-
-### Мобильный интерфейс (375×812)
-
-![Мобильный интерфейс: колонка 1](docs/screenshots/m-col-left.png) ![Мобильный интерфейс: колонка 2](docs/screenshots/m-col-right.png)
-
-<details><summary>Исходные кадры (375×812)</summary>
-
-![Вход на мобильном](docs/screenshots/m-login.png)
-
-</details>
 
 <a name="cli"></a>
 

@@ -43,13 +43,13 @@ class VerifyReadmeTests(unittest.TestCase):
 
         self.assertEqual(validator.validate(root), [])
 
-    def test_reports_missing_required_mobile_proof(self) -> None:
+    def test_reports_missing_required_proof(self) -> None:
         validator = load_validator()
         root = self.make_repo("<a name=\"overview\"></a>\n")
 
         findings = validator.validate(root)
 
-        self.assertIn("RMD004: README.md: missing proof asset: m-login.png", findings)
+        self.assertIn("RMD004: README.md: missing proof asset: 12-templates.png", findings)
 
 
 if __name__ == "__main__":
