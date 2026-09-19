@@ -1,6 +1,19 @@
 import { useState } from 'react'
 import { ExternalLink, Search } from 'lucide-react'
-import { Button, EmptyState, ErrorState, Input, LoadingState, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, usePlatformServices } from '@sdlc/ui/ui'
+import {
+  Button,
+  EmptyState,
+  ErrorState,
+  Input,
+  LoadingState,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  usePlatformServices,
+} from '@sdlc/ui/ui'
 import { useUsers } from '@/shared/api/hooks'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 
@@ -39,7 +52,10 @@ export function UsersPage() {
       </div>
 
       <div className="relative max-w-xl">
-        <Search aria-hidden className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+        <Search
+          aria-hidden
+          className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
+        />
         <Input
           aria-label="Поиск пользователей"
           placeholder="Имя или email"

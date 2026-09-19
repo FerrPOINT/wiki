@@ -42,7 +42,9 @@ const SettingsPage = lazy(() =>
   import('@/pages/settings').then((m) => ({ default: m.SettingsPage })),
 )
 const LoginPage = lazy(() => import('@/pages/login').then((m) => ({ default: m.LoginPage })))
-const SsoCallbackPage = lazy(() => import('@/pages/sso-callback').then((m) => ({ default: m.SsoCallbackPage })))
+const SsoCallbackPage = lazy(() =>
+  import('@/pages/sso-callback').then((m) => ({ default: m.SsoCallbackPage })),
+)
 const AdminPage = lazy(() => import('@/pages/admin').then((m) => ({ default: m.AdminPage })))
 
 function PageLoader() {

@@ -9,10 +9,24 @@ vi.mock('@/shared/api/hooks', () => ({ useUsers }))
 
 function setupUsers(overrides: Record<string, unknown> = {}) {
   useUsers.mockReturnValue({
-    data: { users: [
-      { id: 'u1', email: 'admin@example.test', display_name: 'Анна', username: 'anna', active: true },
-      { id: 'u2', email: 'editor@example.test', display_name: 'Редактор', username: 'editor', active: false },
-    ] },
+    data: {
+      users: [
+        {
+          id: 'u1',
+          email: 'admin@example.test',
+          display_name: 'Анна',
+          username: 'anna',
+          active: true,
+        },
+        {
+          id: 'u2',
+          email: 'editor@example.test',
+          display_name: 'Редактор',
+          username: 'editor',
+          active: false,
+        },
+      ],
+    },
     isLoading: false,
     isError: false,
     refetch: usersRefetch,
@@ -28,7 +42,8 @@ describe('UsersPage', () => {
     setupUsers()
     expect(screen.getByRole('heading', { name: 'Пользователи' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Управление пользователями' })).toHaveAttribute(
-      'href', 'http://localhost:7772/users',
+      'href',
+      'http://localhost:7772/users',
     )
     expect(screen.getAllByText('Редактор')).toHaveLength(2)
     expect(screen.getAllByText('Неактивен')).toHaveLength(2)
@@ -50,7 +65,11 @@ describe('UsersPage', () => {
   })
 
   it('renders an error with retry and keeps search available', () => {
-    setupUsers({ data: undefined, isError: true, error: { code: 'FORBIDDEN', message: 'Forbidden' } })
+    setupUsers({
+      data: undefined,
+      isError: true,
+      error: { code: 'FORBIDDEN', message: 'Forbidden' },
+    })
     expect(screen.getByRole('alert')).toHaveTextContent('Недостаточно прав для действия')
     fireEvent.click(screen.getByRole('button', { name: 'Повторить' }))
     expect(usersRefetch).toHaveBeenCalled()

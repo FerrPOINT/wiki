@@ -157,7 +157,9 @@ describe('apiRequest error handling', () => {
 
   it('does not retry revoked SSO tokens through local refresh', async () => {
     useAuthStore.setState({ token: 'expired-token' })
-    const fetchMock = mockFetchResponse(new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }))
+    const fetchMock = mockFetchResponse(
+      new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }),
+    )
     const assign = vi.fn()
     vi.stubGlobal('window', { location: { assign } })
     await expectApiError(apiRequest('/api/v1/spaces'))

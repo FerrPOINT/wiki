@@ -2,7 +2,10 @@
 import { createAuthStore } from '@sdlc/ui/auth'
 import { getSafeBrowserStorage } from '@/shared/lib/browser-storage'
 
-export const ssoConfig = { issuer: import.meta.env.VITE_AUTH_ISSUER ?? 'http://localhost:7701', clientId: 'wiki' }
+export const ssoConfig = {
+  issuer: import.meta.env.VITE_AUTH_ISSUER ?? 'http://localhost:7701',
+  clientId: 'wiki',
+}
 
 export const useAuthStore = createAuthStore({
   storageKey: 'wiki-auth',
