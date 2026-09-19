@@ -16,9 +16,12 @@ pub async fn try_central(token: &str) -> Result<Option<sdlc_auth_core::AuthConte
         BridgeOutcome::NotOurs | BridgeOutcome::NotConfigured => Ok(None),
         BridgeOutcome::Expired => Err(AppError::Unauthorized),
         BridgeOutcome::Invalid(reason) => {
-            tracing::debug!(reason, "bearer is not a valid central token; legacy path");
-            Ok(None)
+            tracing::debug!(reason, "central token rejected");
+            Err(AppError::Unauthorized)
         }
+        BridgeOutcome::Unavailable => Err(AppError::Unavailable(
+            "Central Auth is temporarily unavailable".into(),
+        )),
     }
 }
 

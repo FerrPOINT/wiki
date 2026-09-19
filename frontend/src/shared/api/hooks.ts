@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router'
-import { getCurrentUser, login, logout, register } from '@/api/auth'
+import { endSso } from '@sdlc/ui/sso'
+import { getCurrentUser, login, register } from '@/api/auth'
 import {
   archiveSpace,
   archiveDocument,
@@ -8,7 +8,6 @@ import {
   createEvidence,
   createSpace,
   createTemplate,
-  createUser,
   deleteSpaceMember,
   downloadAttachment,
   getDocument,
@@ -46,17 +45,14 @@ import {
   type SearchParams,
   updateDocumentDraft,
   updateSpace,
-  updateUser,
   type UpdateDocumentDraftRequest,
   type UpdateSpaceRequest,
-  type UpdateUserRequest,
   uploadAttachment,
   upsertSpaceMember,
   type CreateTemplateRequest,
-  type CreateUserRequest,
   type UpsertSpaceMemberRequest,
 } from '@/api/wiki'
-import { storeRefreshToken, useAuthStore } from '@/shared/auth/store'
+import { ssoConfig, storeRefreshToken, useAuthStore } from '@/shared/auth/store'
 
 const authKeys = {
   me: ['me'] as const,
@@ -112,7 +108,6 @@ export function useLogin() {
     },
   })
 }
-
 export function useRegister() {
   const setAuth = useAuthStore((state) => state.setAuth)
   const queryClient = useQueryClient()
@@ -146,14 +141,13 @@ export function useCurrentUser() {
 export function useLogout() {
   const clearAuth = useAuthStore((state) => state.logout)
   const queryClient = useQueryClient()
-  const navigate = useNavigate()
 
   return useMutation({
-    mutationFn: logout,
+    mutationFn: async () => {},
     onSettled: () => {
       clearAuth()
       queryClient.clear()
-      navigate('/login')
+      endSso(ssoConfig)
     },
   })
 }
@@ -177,7 +171,6 @@ export function useCreateSpace() {
     },
   })
 }
-
 export function useUpdateSpace() {
   const queryClient = useQueryClient()
 
@@ -561,32 +554,6 @@ export function useCreateFileEvidence() {
       queryClient.invalidateQueries({ queryKey: wikiKeys.phases(evidence.space_key) })
       queryClient.invalidateQueries({ queryKey: ['wiki', 'search'] })
       queryClient.invalidateQueries({ queryKey: wikiKeys.auditLog })
-    },
-  })
-}
-
-export function useCreateUser() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: (body: CreateUserRequest) => createUser(body),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: wikiKeys.users })
-      queryClient.invalidateQueries({ queryKey: wikiKeys.auditLog })
-    },
-  })
-}
-
-export function useUpdateUser() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: ({ userId, body }: { userId: string; body: UpdateUserRequest }) =>
-      updateUser(userId, body),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: wikiKeys.users })
-      queryClient.invalidateQueries({ queryKey: wikiKeys.auditLog })
-      queryClient.invalidateQueries({ queryKey: authKeys.me })
     },
   })
 }

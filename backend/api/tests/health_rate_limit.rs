@@ -50,3 +50,40 @@ async fn health_probes_are_not_consumed_by_the_general_api_rate_limit() {
         );
     }
 }
+
+#[tokio::test]
+async fn general_limit_replenishes_its_burst_within_the_configured_window() {
+    let mut config = (*test_config()).clone();
+    config.server.general_rate_burst = 2;
+    config.server.general_rate_period_secs = 1;
+    let ctx = Arc::new(app::WikiAppContext::new(Arc::new(config)));
+    let app = api::router_for_memory_tests(ctx.clone()).with_state(ctx);
+
+    for expected in [
+        StatusCode::UNAUTHORIZED,
+        StatusCode::UNAUTHORIZED,
+        StatusCode::TOO_MANY_REQUESTS,
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get("/api/v1/users/me")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), expected);
+    }
+
+    tokio::time::sleep(std::time::Duration::from_millis(750)).await;
+    let response = app
+        .oneshot(
+            Request::get("/api/v1/users/me")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}

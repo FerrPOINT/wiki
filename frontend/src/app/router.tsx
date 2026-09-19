@@ -42,9 +42,7 @@ const SettingsPage = lazy(() =>
   import('@/pages/settings').then((m) => ({ default: m.SettingsPage })),
 )
 const LoginPage = lazy(() => import('@/pages/login').then((m) => ({ default: m.LoginPage })))
-const RegisterPage = lazy(() =>
-  import('@/pages/register').then((m) => ({ default: m.RegisterPage })),
-)
+const SsoCallbackPage = lazy(() => import('@/pages/sso-callback').then((m) => ({ default: m.SsoCallbackPage })))
 const AdminPage = lazy(() => import('@/pages/admin').then((m) => ({ default: m.AdminPage })))
 
 function PageLoader() {
@@ -86,6 +84,7 @@ export const router = createBrowserRouter([
     ],
   },
   { path: '/login', element: withSuspense(<LoginPage />) },
-  { path: '/register', element: withSuspense(<RegisterPage />) },
+  { path: '/sso/callback', element: withSuspense(<SsoCallbackPage />) },
+  { path: '/register', element: <Navigate to="/login" replace /> },
   { path: '*', element: <Navigate to="/" replace /> },
 ])

@@ -123,6 +123,7 @@ pub trait WikiBackendPort: Send + Sync {
     async fn logout(&self, claims: &WikiClaims) -> Result<(), AppError>;
     async fn get_current_user(&self, claims: &WikiClaims) -> Result<WikiUserResponse, AppError>;
     async fn list_users(&self, claims: &WikiClaims) -> Result<WikiUserListResponse, AppError>;
+    async fn sync_central_users(&self, token: &str) -> Result<(), AppError>;
     async fn create_user(
         &self,
         claims: &WikiClaims,

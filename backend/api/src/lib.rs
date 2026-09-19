@@ -203,6 +203,11 @@ pub fn router_for_memory_tests(ctx: Arc<app::WikiAppContext>) -> Router<Arc<app:
     router_with_wiki(ctx, wiki_backend)
 }
 
+// Governor's period replenishes one token, while our config describes a full burst window.
+fn replenishment_period(window_secs: u64, burst: u32) -> std::time::Duration {
+    (std::time::Duration::from_secs(window_secs) / burst).max(std::time::Duration::from_nanos(1))
+}
+
 pub fn router_with_wiki(
     ctx: Arc<app::WikiAppContext>,
     wiki_backend: routes::wiki::WikiBackend,
@@ -211,8 +216,9 @@ pub fn router_with_wiki(
 
     let auth_limiter = GovernorConfigBuilder::default()
         .key_extractor(FallbackIpKeyExtractor)
-        .period(std::time::Duration::from_secs(
+        .period(replenishment_period(
             ctx.config.server.auth_rate_period_secs,
+            ctx.config.server.auth_rate_burst,
         ))
         .burst_size(ctx.config.server.auth_rate_burst)
         .finish()
@@ -220,8 +226,9 @@ pub fn router_with_wiki(
 
     let general_limiter = GovernorConfigBuilder::default()
         .key_extractor(FallbackIpKeyExtractor)
-        .period(std::time::Duration::from_secs(
+        .period(replenishment_period(
             ctx.config.server.general_rate_period_secs,
+            ctx.config.server.general_rate_burst,
         ))
         .burst_size(ctx.config.server.general_rate_burst)
         .finish()
@@ -240,6 +247,11 @@ pub fn router_with_wiki(
         .route("/auth/refresh", post(routes::wiki::refresh))
         .layer(Extension(wiki_backend.clone()))
         .layer(GovernorLayer::new(auth_limiter));
+    let auth_routes = if std::env::var_os("WIKI_AUTH__CENTRAL_JWKS_URI").is_some() {
+        Router::new()
+    } else {
+        auth_routes
+    };
 
     let protected = Router::<Arc<app::WikiAppContext>>::new()
         .route("/auth/logout", post(routes::wiki::logout))
@@ -467,4 +479,17 @@ where
                 HeaderValue::from_static("max-age=31536000; includeSubDomains"),
             )),
     )
+}
+
+#[cfg(test)]
+mod rate_period_tests {
+    use super::replenishment_period;
+    use std::time::Duration;
+
+    #[test]
+    fn replenishes_the_configured_burst_within_its_window() {
+        assert_eq!(replenishment_period(60, 60), Duration::from_secs(1));
+        assert_eq!(replenishment_period(60, 240), Duration::from_millis(250));
+        assert_eq!(replenishment_period(15, 100), Duration::from_millis(150));
+    }
 }

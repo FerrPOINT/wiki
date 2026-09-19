@@ -25,7 +25,8 @@ Wiki хранит документы, связанные с задачами SDL
 | Поле            | Тип         | Описание                        |
 | --------------- | ----------- | ------------------------------- |
 | `id`            | uuid        | PK                              |
-| `email`         | text        | unique                          |
+| `email`         | text        | unique только для legacy rows  |
+| `central_sub`   | text null   | unique subject Central Auth     |
 | `username`      | text        | unique, короткое имя для UI/CLI |
 | `display_name`  | text        | Отображаемое имя                |
 | `password_hash` | text        | Argon2id                        |
@@ -33,6 +34,11 @@ Wiki хранит документы, связанные с задачами SDL
 | `is_active`     | bool        | Активная учётная запись         |
 | `created_at`    | timestamptz | Создание                        |
 | `updated_at`    | timestamptz | Обновление                      |
+
+Центральный профиль определяется только по `central_sub`. Частичный индекс
+`users_legacy_email_idx` сохраняет уникальность email среди legacy rows, но
+разрешает историческому и центральному профилям иметь одинаковый email без
+автоматического связывания.
 
 ### auth_sessions
 

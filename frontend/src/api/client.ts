@@ -1,4 +1,4 @@
-import { readRefreshToken, storeRefreshToken, useAuthStore } from '@/shared/auth/store'
+import { useAuthStore } from '@/shared/auth/store'
 
 const rawBaseUrl = import.meta.env.VITE_API_BASE_URL ?? ''
 export const apiBaseUrl = rawBaseUrl.replace(/\/api\/v1\/?$/, '')
@@ -52,8 +52,6 @@ export class ApiError extends Error {
     this.details = details
   }
 }
-
-let refreshPromise: Promise<boolean> | null = null
 
 function buildUrl(path: string): string {
   if (path.startsWith('http://') || path.startsWith('https://')) return path
@@ -195,43 +193,9 @@ function defaultCodeForStatus(status: number): string {
 }
 
 export async function refreshAccessToken(): Promise<boolean> {
-  if (refreshPromise) return refreshPromise
-
-  refreshPromise = (async () => {
-    try {
-      const refreshToken = readRefreshToken()
-      const headers = new Headers({ 'Content-Type': 'application/json' })
-      ensureRequestId(headers)
-      const response = await fetch(buildUrl('/api/v1/auth/refresh'), {
-        method: 'POST',
-        credentials: 'include',
-        headers,
-        body: JSON.stringify(refreshToken ? { refresh_token: refreshToken } : {}),
-      })
-
-      if (!response.ok) {
-        useAuthStore.getState().logout()
-        window.location.href = '/login'
-        return false
-      }
-
-      const data = (await response.json()) as {
-        access_token?: string
-        refresh_token?: string | null
-      }
-      if (data.refresh_token !== undefined) storeRefreshToken(data.refresh_token)
-      if (data.access_token) useAuthStore.setState({ token: data.access_token })
-      return Boolean(data.access_token)
-    } catch {
-      useAuthStore.getState().logout()
-      window.location.href = '/login'
-      return false
-    } finally {
-      refreshPromise = null
-    }
-  })()
-
-  return refreshPromise
+  useAuthStore.getState().logout()
+  window.location.assign('/login')
+  return false
 }
 
 function shouldRefresh(path: string, response: Response): boolean {
@@ -260,11 +224,8 @@ async function send(path: string, options: ApiRequestOptions): Promise<Response>
 }
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
-  let response = await send(path, options)
-  if (shouldRefresh(path, response)) {
-    const refreshed = await refreshAccessToken()
-    if (refreshed) response = await send(path, options)
-  }
+  const response = await send(path, options)
+  if (shouldRefresh(path, response)) void refreshAccessToken()
 
   if (!response.ok) {
     const error = await readApiError(response)
@@ -278,11 +239,8 @@ export async function apiBlobRequest(
   path: string,
   options: ApiRequestOptions = {},
 ): Promise<ApiBlobResponse> {
-  let response = await send(path, options)
-  if (shouldRefresh(path, response)) {
-    const refreshed = await refreshAccessToken()
-    if (refreshed) response = await send(path, options)
-  }
+  const response = await send(path, options)
+  if (shouldRefresh(path, response)) void refreshAccessToken()
 
   if (!response.ok) {
     const error = await readApiError(response)

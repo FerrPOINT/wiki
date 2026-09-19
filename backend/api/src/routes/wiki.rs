@@ -208,10 +208,15 @@ pub async fn require_wiki_auth(
         })
         .ok_or(shared::AppError::Unauthorized)?;
 
-    let mut claims = match backend.authenticate_access_token(token).await {
-        Ok(claims) => claims,
-        Err(_) => return Err(shared::AppError::Unauthorized),
-    };
+    if token.starts_with("sdlc_pat_") {
+        let central = infra::wiki_postgres::central_auth::try_central(token)
+            .await?
+            .ok_or(shared::AppError::Unauthorized)?;
+        if !central.allows_service("wiki", req.method().as_str()) {
+            return Err(shared::AppError::Forbidden);
+        }
+    }
+    let mut claims = backend.authenticate_access_token(token).await?;
     claims.request_id = request_id_from_headers(req.headers());
 
     let actor_id = claims.user_id.clone();
@@ -959,8 +964,21 @@ pub async fn get_settings(
 pub async fn list_users(
     Extension(backend): Extension<WikiBackend>,
     Extension(claims): Extension<WikiClaims>,
+    headers: HeaderMap,
 ) -> Result<Json<WikiUserListResponse>, shared::AppError> {
     if let Some(persistent) = backend.persistent_backend() {
+        if std::env::var_os("WIKI_AUTH__CENTRAL_JWKS_URI").is_some() {
+            let bearer = headers
+                .get(header::AUTHORIZATION)
+                .and_then(|value| value.to_str().ok())
+                .and_then(|value| {
+                    value
+                        .strip_prefix("Bearer ")
+                        .or_else(|| value.strip_prefix("bearer "))
+                })
+                .ok_or(shared::AppError::Unauthorized)?;
+            persistent.sync_central_users(bearer).await?;
+        }
         return Ok(Json(persistent.list_users(&claims).await?));
     }
 
@@ -984,6 +1002,9 @@ pub async fn create_user(
     Extension(claims): Extension<WikiClaims>,
     Json(body): Json<WikiCreateUserRequest>,
 ) -> Result<impl IntoResponse, shared::AppError> {
+    if std::env::var_os("WIKI_AUTH__CENTRAL_JWKS_URI").is_some() {
+        return Err(shared::AppError::Forbidden);
+    }
     if let Some(persistent) = backend.persistent_backend() {
         let response = persistent.create_user(&claims, body).await?;
         return Ok((StatusCode::CREATED, Json(response)));
@@ -1040,6 +1061,9 @@ pub async fn update_user(
     Extension(claims): Extension<WikiClaims>,
     Json(body): Json<WikiUpdateUserRequest>,
 ) -> Result<Json<WikiUserResponse>, shared::AppError> {
+    if std::env::var_os("WIKI_AUTH__CENTRAL_JWKS_URI").is_some() {
+        return Err(shared::AppError::Forbidden);
+    }
     if let Some(persistent) = backend.persistent_backend() {
         return Ok(Json(persistent.update_user(&claims, &user_id, body).await?));
     }

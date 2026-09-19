@@ -11,6 +11,7 @@ sdlc-shared = { path = "../../../services-base/crates/sdlc-shared" }
 shared = { path = "../shared" }
 domain = { path = "../domain" }
 app = { path = "../app" }
+infra = { path = "../infra" }
 axum.workspace = true
 axum-extra = { version = "0.10", features = ["cookie"] }
 tokio.workspace = true
@@ -36,7 +37,6 @@ uuid.workspace = true
 time = { version = "=0.3.47", features = ["std"] }
 
 [dev-dependencies]
-infra = { path = "../infra" }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tower.workspace = true
 serde_json.workspace = true
