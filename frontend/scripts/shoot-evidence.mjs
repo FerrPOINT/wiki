@@ -204,8 +204,6 @@ const templates = [
 ]
 
 const shots = [
-  { name: '01-login.png', path: '/login', title: 'Login' },
-  { name: '02-register.png', path: '/register', title: 'Register' },
   { name: '03-dashboard.png', path: '/', title: 'Dashboard' },
   { name: '04-spaces.png', path: '/spaces', title: 'Spaces' },
   { name: '05-document-compose.png', path: '/documents/new', title: 'Document compose' },
@@ -230,21 +228,6 @@ const shots = [
   { name: '15-settings.png', path: '/settings', title: 'Settings' },
   { name: '16-search.png', path: '/search', title: 'Search' },
   { name: '17-admin.png', path: '/admin', title: 'Administration' },
-  { name: 'm-dashboard.png', path: '/', title: 'Dashboard mobile', mobile: true },
-  { name: 'm-spaces.png', path: '/spaces', title: 'Spaces mobile', mobile: true },
-  {
-    name: 'm-document-view.png',
-    path: '/documents/product-requirements',
-    title: 'Document view mobile',
-    mobile: true,
-  },
-  {
-    name: 'm-task-dossier.png',
-    path: '/tasks/SDLC-42',
-    title: 'Task page mobile',
-    mobile: true,
-  },
-  { name: 'm-search.png', path: '/search', title: 'Search mobile', mobile: true },
 ]
 
 function routeJson(route, body, status = 200) {

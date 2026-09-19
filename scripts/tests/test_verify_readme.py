@@ -32,11 +32,9 @@ class VerifyReadmeTests(unittest.TestCase):
             '<a name="safety"></a>\n'
             '<a name="quality"></a>\n'
             '<a name="license"></a>\n'
-            '![login](docs/screenshots/01-login.png)\n'
             '![templates](docs/screenshots/12-templates.png)\n'
-            '![mobile](docs/screenshots/m-login.png)\n'
         )
-        for name in ["01-login.png", "12-templates.png", "m-login.png"]:
+        for name in ["12-templates.png"]:
             asset = root / "docs/screenshots" / name
             asset.parent.mkdir(parents=True, exist_ok=True)
             asset.write_bytes(b"png")

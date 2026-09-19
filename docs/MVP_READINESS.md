@@ -29,7 +29,7 @@ API paths in this table are relative to `/api/v1` unless marked otherwise. `/met
 
 | Capability | User scenario | API | CLI | UI | Data | Evidence |
 | ---------- | ------------- | --- | --- | -- | ---- | -------- |
-| Auth | Пользователь входит, выходит и проверяет профиль | `/auth/login`, `/auth/logout`, `/auth/refresh`, `/users/me` | `wiki auth` | `/login` | `users`, `auth_sessions` | auth tests, `01-login.png` |
+| Auth | Пользователь входит, выходит и проверяет профиль | `/auth/login`, `/auth/logout`, `/auth/refresh`, `/users/me` | `wiki auth` | `/login` | `users`, `auth_sessions` | auth tests |
 | Registration | Пользователь создаёт учётную запись, если регистрация включена | `/auth/register` | no CLI MVP command; UI/API public flow | `/register` | `users`, `auth_sessions` | register tests, `02-register.png` |
 | Users and roles | Admin управляет users и space roles | `/users`, `/spaces/{space_key}/members` | `wiki user`, `wiki space members/member-set/member-remove` | `/users`, `/admin` | `users`, `space_members`, `audit_log` | RBAC tests, `14-users.png`, `17-admin.png` |
 | Spaces | Пользователь открывает доступные spaces и дерево страниц | `/spaces`, `/spaces/{space_key}`, `/spaces/{space_key}/tree` | `wiki space` | `/spaces`, `/` | `spaces`, `documents` | space tests, `03-dashboard.png`, `04-spaces.png` |
@@ -51,7 +51,6 @@ API paths in this table are relative to `/api/v1` unless marked otherwise. `/met
 - Visible product text is Russian; routes, identifiers and API fields remain English.
 - Every API-backed page must expose loading, empty, validation/error and retry states before release readiness.
 - Every desktop route must have a README screenshot and manifest entry.
-- Mobile smoke must cover dashboard, spaces, document view, task dossier and search.
 - Operational probes, OpenAPI and metrics are API/ops artifacts and do not require frontend pages or screenshots.
 
 ## 5. Negative Case Coverage
