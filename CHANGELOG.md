@@ -7,6 +7,10 @@
 ## [Unreleased]
 
 ### Added
+- Streamlined поиск по Wiki (#13); searchable/compact каталог шаблонов (#12).
+### Fixed
+- Удалён неиспользуемый LHCI, патч аудита зависимостей (#14).
+### Added
 - Управление пространствами: streamlined UX (#10).
 - Обзор wiki стал space-aware — контекст активного пространства (#11).
 - Product-metrics counters (PR #5).
