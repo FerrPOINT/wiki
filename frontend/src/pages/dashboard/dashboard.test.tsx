@@ -100,8 +100,11 @@ describe('DashboardPage', () => {
       'href',
       '/documents/new',
     )
-    expect(await screen.findByText('Требования к Wiki')).toBeInTheDocument()
-    expect(screen.getByText('BASE-42')).toBeInTheDocument()
+    expect(await screen.findAllByText('Требования к Wiki')).toHaveLength(2)
+    expect(screen.getByRole('link', { name: /BASE-42/ })).toHaveAttribute(
+      'href',
+      '/tasks/BASE-42?space=BASE',
+    )
   })
 
   it('renders overview API errors with a retry action', async () => {
@@ -113,14 +116,90 @@ describe('DashboardPage', () => {
 
     render(wrapper(<DashboardPage />))
 
-    const retryButtons = await screen.findAllByRole('button', { name: /повторить/i })
-    fireEvent.click(retryButtons[0]!)
+    const retryButton = await screen.findByRole('button', { name: /повторить/i })
+    fireEvent.click(retryButton)
 
     await waitFor(() => {
       expect(listSpaces).toHaveBeenCalledTimes(2)
-      expect(searchWiki).toHaveBeenCalledTimes(2)
+      expect(searchWiki).not.toHaveBeenCalled()
       expect(listTasks).not.toHaveBeenCalled()
       expect(listPhases).not.toHaveBeenCalled()
     })
+  })
+
+  it('keeps the task list usable when document search fails', async () => {
+    listSpaces.mockResolvedValue({
+      spaces: [{ key: 'BASE', name: 'Base', document_count: 1 }],
+    })
+    searchWiki.mockRejectedValue(new Error('Search unavailable'))
+    listTasks.mockResolvedValue({
+      tasks: [{ task_key: 'BASE-42', title: 'Проверить релиз', document_count: 1 }],
+    })
+    listPhases.mockResolvedValue({ phases: [] })
+
+    render(wrapper(<DashboardPage />))
+
+    expect(await screen.findByText('Проверить релиз')).toBeInTheDocument()
+    expect(await screen.findByText('Search unavailable')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /BASE-42/ })).toBeInTheDocument()
+  })
+
+  it('shows a separate retry for the phase count', async () => {
+    listSpaces.mockResolvedValue({
+      spaces: [{ key: 'BASE', name: 'Base', document_count: 1 }],
+    })
+    searchWiki.mockResolvedValue({ results: [] })
+    listTasks.mockResolvedValue({ tasks: [] })
+    listPhases.mockRejectedValueOnce(new Error('Phases unavailable'))
+    listPhases.mockResolvedValue({ phases: [] })
+
+    render(wrapper(<DashboardPage />))
+
+    expect(await screen.findByText('Phases unavailable')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /повторить/i }))
+    await waitFor(() => expect(listPhases).toHaveBeenCalledTimes(2))
+    expect(listSpaces).toHaveBeenCalledTimes(1)
+    expect(searchWiki).toHaveBeenCalledTimes(1)
+    expect(listTasks).toHaveBeenCalledTimes(1)
+  })
+
+  it('switches the scoped overview between spaces', async () => {
+    listSpaces.mockResolvedValue({
+      spaces: [
+        { key: 'BASE', name: 'Base', document_count: 1 },
+        { key: 'TEAM', name: 'Team', document_count: 2 },
+      ],
+    })
+    searchWiki.mockImplementation(async ({ space }: { space?: string }) => ({
+      results:
+        space === 'TEAM'
+          ? [
+              {
+                id: 'team-doc',
+                result_type: 'document',
+                title: 'Документ команды',
+                url: '/documents/team-doc',
+                updated_at: '2026-09-19T10:00:00Z',
+              },
+            ]
+          : [],
+    }))
+    listTasks.mockImplementation(async (space: string) => ({
+      tasks:
+        space === 'TEAM'
+          ? [{ task_key: 'TEAM-1', title: 'Задача команды', document_count: 1 }]
+          : [],
+    }))
+    listPhases.mockResolvedValue({ phases: [] })
+
+    render(wrapper(<DashboardPage />))
+    const spaceSelect = await screen.findByLabelText('Пространство')
+    await waitFor(() => expect(screen.getByRole('option', { name: 'Team' })).toBeInTheDocument())
+    fireEvent.change(spaceSelect, { target: { value: 'TEAM' } })
+
+    expect(await screen.findByText('Документ команды')).toBeInTheDocument()
+    expect(await screen.findByText('Задача команды')).toBeInTheDocument()
+    expect(listTasks).toHaveBeenCalledWith('TEAM')
+    expect(searchWiki).toHaveBeenCalledWith(expect.objectContaining({ space: 'TEAM' }))
   })
 })
