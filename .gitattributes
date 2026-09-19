@@ -1,3 +1,4 @@
 /.gitattributes text eol=lf
 *.sh text eol=lf
 *.ps1 text eol=crlf
+backend/migrations/*.sql text eol=lf
