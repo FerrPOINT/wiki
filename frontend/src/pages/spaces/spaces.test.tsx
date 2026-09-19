@@ -62,10 +62,12 @@ function setupSpaces({
   membersOverrides = {},
   userOverrides = {},
   usersOverrides = {},
+  spaceList,
 }: {
   membersOverrides?: Record<string, unknown>
   userOverrides?: Record<string, unknown>
   usersOverrides?: Record<string, unknown>
+  spaceList?: Array<Record<string, unknown>>
 } = {}) {
   useCurrentUser.mockReturnValue({
     data: adminUser,
@@ -81,7 +83,7 @@ function setupSpaces({
   })
   useSpaces.mockReturnValue({
     data: {
-      spaces: [
+      spaces: spaceList ?? [
         {
           id: 'space-sdlc',
           key: 'BASE',
@@ -198,7 +200,10 @@ describe('SpacesPage', () => {
     setupSpaces()
 
     expect(screen.getByRole('heading', { name: 'Пространства' })).toBeInTheDocument()
-    expect(screen.getByText(/BASE · База знаний Base/)).toBeInTheDocument()
+    expect(screen.getByText('База знаний Base')).toBeInTheDocument()
+    expect(useSpaceTree).not.toHaveBeenCalled()
+    expect(useSpaceMembers).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: /База знаний Base/ }))
     expect(screen.getAllByText('Основные документы продукта')).toHaveLength(2)
     expect(screen.getByText('Дерево')).toBeInTheDocument()
     expect(screen.getByText('Участники')).toBeInTheDocument()
@@ -217,6 +222,8 @@ describe('SpacesPage', () => {
 
   it('submits space create, update, archive and member mutations', () => {
     setupSpaces()
+    fireEvent.click(screen.getByRole('button', { name: 'Создать пространство' }))
+    fireEvent.click(screen.getByRole('button', { name: /База знаний Base/ }))
 
     fireEvent.change(screen.getByLabelText('Ключ'), {
       target: { value: 'TEAM' },
@@ -288,6 +295,7 @@ describe('SpacesPage', () => {
     })
 
     expect(screen.queryByRole('button', { name: 'Создать пространство' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /База знаний Base/ }))
 
     fireEvent.change(screen.getByLabelText('Пользователь'), {
       target: { value: 'user-editor' },
@@ -312,6 +320,7 @@ describe('SpacesPage', () => {
       },
     })
 
+    fireEvent.click(screen.getByRole('button', { name: /База знаний Base/ }))
     expect(screen.getByRole('alert')).toHaveTextContent('Недостаточно прав для действия')
     fireEvent.click(screen.getByRole('button', { name: 'Повторить' }))
     expect(refetchMembers).toHaveBeenCalled()
@@ -353,5 +362,38 @@ describe('SpacesPage', () => {
       '/documents/new?space=BASE',
     )
     expect(useSpaceTree).not.toHaveBeenCalled()
+  })
+
+  it('paginates and searches spaces without eager detail requests', () => {
+    const spaceList = Array.from({ length: 25 }, (_, index) => ({
+      id: `space-${index + 1}`,
+      key: `S${index + 1}`,
+      name: `Space ${index + 1}`,
+      description: `Description ${index + 1}`,
+      owner_id: 'user-admin',
+      status: 'active',
+      document_count: 1,
+      member_count: 1,
+      created_at: '2026-08-31T10:00:00Z',
+      updated_at: '2026-08-31T11:00:00Z',
+    }))
+    setupSpaces({ spaceList })
+
+    expect(screen.getByText('Space 1')).toBeInTheDocument()
+    expect(screen.queryByText('Space 13')).not.toBeInTheDocument()
+    expect(useSpaceTree).not.toHaveBeenCalled()
+    expect(useSpaceMembers).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
+    expect(screen.getByText('Space 13')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Space 13/ }))
+    expect(useSpaceTree).toHaveBeenCalledTimes(1)
+    expect(useSpaceMembers).toHaveBeenCalledTimes(1)
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Найти пространство' }), {
+      target: { value: 'Space 25' },
+    })
+    expect(screen.getByText('Space 25')).toBeInTheDocument()
+    expect(screen.queryByText('Space 13')).not.toBeInTheDocument()
   })
 })
