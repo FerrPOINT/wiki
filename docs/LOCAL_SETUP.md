@@ -186,4 +186,4 @@ pre-commit install
 - `docs/TESTING.md`
 - `docs/TROUBLESHOOTING.md`
 - `docs/CODE_STYLE.md`
-- `docs/AGENTS.md`
+- `AGENTS.md`
