@@ -427,10 +427,11 @@ export function useUsers(enabled = true) {
   })
 }
 
-export function useWikiSearch(params: SearchParams) {
+export function useWikiSearch(params: SearchParams, enabled = true) {
   return useQuery({
     queryKey: wikiKeys.search(params),
     queryFn: () => searchWiki(params),
+    enabled,
   })
 }
 
