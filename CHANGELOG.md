@@ -7,6 +7,13 @@
 ## [Unreleased]
 
 ### Added
+- Управление пространствами: streamlined UX (#10).
+- Обзор wiki стал space-aware — контекст активного пространства (#11).
+- Product-metrics counters (PR #5).
+- Root AGENTS.md и SECURITY.md (стандарты Base).
+### Changed
+- Мобильные галереи и auth-кадры удалены из README — desktop-only evidence.
+### Added
 
 - Frontend MVP pages подключены к публичному Wiki API для spaces, documents, tasks, phases, evidence, templates, users, audit и search.
 - Добавлены рабочие UI-формы для создания документа, создания пользователя, URL evidence и file evidence.
