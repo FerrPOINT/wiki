@@ -4,8 +4,7 @@
 // redirecting, so full page loads of protected routes stay authenticated.
 import { RequireAuth as Guard } from '@sdlc/ui/auth'
 import { useAuthStore } from '@/shared/auth/store'
-import { refreshAccessToken } from '@/api/client'
 
 export function RequireAuth() {
-  return <Guard store={useAuthStore} refresh={refreshAccessToken} />
+  return <Guard store={useAuthStore} />
 }

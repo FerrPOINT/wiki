@@ -155,32 +155,15 @@ describe('apiRequest error handling', () => {
     expect(requestHeaders(fetchMock).get('X-Request-ID')).toBe('req-caller-1')
   })
 
-  it('adds request id headers to token refresh requests', async () => {
+  it('does not retry revoked SSO tokens through local refresh', async () => {
     useAuthStore.setState({ token: 'expired-token' })
-    storeRefreshToken('refresh-token')
-    const fetchMock = vi.fn<typeof fetch>()
-    fetchMock
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ error: { code: 'UNAUTHORIZED', message: 'unauthorized' } }), {
-          status: 401,
-        }),
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({ access_token: 'fresh-token', refresh_token: 'next-refresh' }),
-          {
-            status: 200,
-          },
-        ),
-      )
-      .mockResolvedValueOnce(new Response(JSON.stringify({ spaces: [] }), { status: 200 }))
-    vi.stubGlobal('fetch', fetchMock)
-
-    await apiRequest('/api/v1/spaces')
-
-    const refreshHeaders = fetchMock.mock.calls[1]?.[1]?.headers
-    expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/v1/auth/refresh')
-    expect(refreshHeaders).toBeInstanceOf(Headers)
-    expect((refreshHeaders as Headers).get('X-Request-ID')).toMatch(/^wiki-ui-/)
+    const fetchMock = mockFetchResponse(
+      new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }),
+    )
+    const assign = vi.fn()
+    vi.stubGlobal('window', { location: { assign } })
+    await expectApiError(apiRequest('/api/v1/spaces'))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(assign).toHaveBeenCalledWith('/login')
   })
 })

@@ -18,6 +18,75 @@ struct PostgresWikiUserRepository<'a> {
     request_id: Option<&'a str>,
 }
 
+#[derive(serde::Deserialize)]
+struct CentralDirectoryUser {
+    id: String,
+    email: String,
+    display_name: String,
+    status: String,
+}
+
+impl PostgresWikiBackend {
+    pub async fn sync_central_users(&self, token: &str) -> Result<(), shared::AppError> {
+        let jwks = std::env::var("WIKI_AUTH__CENTRAL_JWKS_URI")
+            .map_err(|_| shared::AppError::Unavailable("Central Auth is unavailable".into()))?;
+        let mut url = reqwest::Url::parse(&jwks)
+            .map_err(|_| shared::AppError::Unavailable("Central Auth URL is invalid".into()))?;
+        url.set_path("/auth/users");
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(5))
+            .build()
+            .map_err(|_| shared::AppError::Unavailable("Central Auth is unavailable".into()))?;
+
+        for page in 0..100 {
+            let response = client
+                .get(url.clone())
+                .query(&[("offset", page * 100)])
+                .bearer_auth(token)
+                .send()
+                .await
+                .map_err(|_| shared::AppError::Unavailable("Central Auth is unavailable".into()))?;
+            if !response.status().is_success() {
+                return Err(shared::AppError::Unavailable(
+                    "Central Auth directory is unavailable".into(),
+                ));
+            }
+            let batch = response
+                .json::<Vec<CentralDirectoryUser>>()
+                .await
+                .map_err(|_| {
+                    shared::AppError::Unavailable("Central Auth directory is invalid".into())
+                })?;
+            let count = batch.len();
+            for entry in batch {
+                if entry.status == "disabled" {
+                    sqlx::query("UPDATE users SET is_active = false, updated_at = now() WHERE central_sub = $1 AND is_active")
+                        .bind(&entry.id).execute(&self.pool).await.map_err(shared::AppError::database)?;
+                    continue;
+                }
+                let id = Uuid::now_v7();
+                sqlx::query(
+                    "INSERT INTO users (id, email, username, display_name, password_hash, central_sub, global_role, is_active, created_at, updated_at) \
+                     VALUES ($1, $2, $3, $4, '!', $5, 'admin', true, now(), now()) \
+                     ON CONFLICT (central_sub) WHERE central_sub IS NOT NULL DO UPDATE \
+                     SET email = EXCLUDED.email, display_name = EXCLUDED.display_name, is_active = true, updated_at = now() \
+                     WHERE users.email IS DISTINCT FROM EXCLUDED.email \
+                        OR users.display_name IS DISTINCT FROM EXCLUDED.display_name OR NOT users.is_active"
+                )
+                .bind(id).bind(&entry.email).bind(format!("central-{}", id.simple()))
+                .bind(&entry.display_name).bind(&entry.id)
+                .execute(&self.pool).await.map_err(shared::AppError::database)?;
+            }
+            if count < 100 {
+                return Ok(());
+            }
+        }
+        Err(shared::AppError::Unavailable(
+            "Central Auth directory is too large".into(),
+        ))
+    }
+}
+
 impl WikiUserRepository for PostgresWikiUserRepository<'_> {
     fn list_users(&self) -> WikiUserRepositoryFuture<'_, Vec<WikiUserResponse>> {
         Box::pin(async move {
@@ -161,9 +230,7 @@ impl WikiSettingsRepository for PostgresWikiSettingsRepository<'_> {
 }
 
 impl PostgresWikiAuthRepository<'_> {
-    /// Finds a wiki user by the central identity's verified email; links
-    /// (creates) a local shadow account on first login. Central users never
-    /// have a usable local password (`!` hash — argon2 verify always fails).
+    /// Central subjects never auto-link to historical local email rows.
     async fn find_or_link_central_user(
         &self,
         ctx: &sdlc_auth_core::AuthContext,
@@ -178,36 +245,41 @@ impl PostgresWikiAuthRepository<'_> {
         if email.is_empty() {
             return Err("central token carries no email claim".into());
         }
-        if let Some(existing) = self
-            .find_user_by_email(&email)
-            .await
-            .map_err(|e| e.to_string())?
-        {
-            if !existing.is_active {
-                return Err("user is deactivated".into());
-            }
-            return Ok(existing);
+        if ctx.user_id.trim().is_empty() {
+            return Err("central token carries no subject".into());
         }
-        let username = email.split('@').next().unwrap_or("central").to_string();
-        let display_name = username.clone();
-        let row = sqlx::query(
+        let id = uuid::Uuid::now_v7();
+        sqlx::query(
             r#"
             INSERT INTO users (
-                id, email, username, display_name, password_hash,
+                id, email, username, display_name, password_hash, central_sub,
                 global_role, is_active, created_at, updated_at
             )
-            VALUES ($1, $2, $3, $4, '!', 'user', true, now(), now())
-            RETURNING id, email, username, display_name, password_hash, global_role, is_active
+            VALUES ($1, $2, $3, $4, '!', $5, 'admin', true, now(), now())
+            ON CONFLICT (central_sub) WHERE central_sub IS NOT NULL DO NOTHING
             "#,
         )
-        .bind(uuid::Uuid::now_v7())
+        .bind(id)
         .bind(&email)
-        .bind(&username)
-        .bind(&display_name)
+        .bind(format!("central-{}", id.simple()))
+        .bind(email.split('@').next().unwrap_or(&email))
+        .bind(&ctx.user_id)
+        .execute(&self.backend.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+        sqlx::query("UPDATE users SET global_role = 'admin', is_active = true WHERE central_sub = $1 AND (global_role <> 'admin' OR NOT is_active)")
+            .bind(&ctx.user_id).execute(&self.backend.pool).await.map_err(|e| e.to_string())?;
+        let row = sqlx::query(
+            "SELECT id, email, username, display_name, password_hash, global_role, is_active \
+             FROM users WHERE central_sub = $1",
+        )
+        .bind(&ctx.user_id)
         .fetch_one(&self.backend.pool)
         .await
         .map_err(|e| e.to_string())?;
-        tracing::info!(email = %email, "linked central user to wiki");
+        if !row.get::<bool, _>("is_active") {
+            return Err("user is deactivated".into());
+        }
         Ok(auth_user_from_row(&row))
     }
 }
@@ -349,7 +421,7 @@ impl WikiAuthRepository for PostgresWikiAuthRepository<'_> {
                 r#"
                 SELECT id, email, username, display_name, password_hash, global_role, is_active
                 FROM users
-                WHERE lower(email) = lower($1)
+                WHERE lower(email) = lower($1) AND central_sub IS NULL
                 "#,
             )
             .bind(email)
@@ -533,6 +605,9 @@ impl PostgresWikiBackend {
                 &ctx,
                 record.id.to_string(),
             ));
+        }
+        if std::env::var_os("WIKI_AUTH__CENTRAL_JWKS_URI").is_some() {
+            return Err(shared::AppError::Unauthorized);
         }
         let repository = PostgresWikiAuthRepository {
             backend: self,

@@ -15,7 +15,9 @@ REST API Wiki предоставляет базовые операции про�
 - Backend возвращает `X-Request-ID` на каждый ответ: echo валидного клиентского заголовка или новый `req_` UUIDv7 для запроса без request id.
 - Большие списки MVP используют bounded `limit` и стабильную сортировку: revisions, evidence, search, audit.
 - Protected domain/admin `POST`/`PUT`/`DELETE` requests may send `Idempotency-Key`; auth/session endpoints are outside this replay scope. The server stores successful responses for 24 hours by `(actor, key, method, path+query, request body hash)` and replays the same response on retry. Reusing the same key for a different request, or retrying while the first request is still processing, returns `409 CONFLICT`.
-- Protected endpoints требуют session/JWT.
+- Protected endpoints требуют Central Auth Bearer token. При настроенном
+  `WIKI_AUTH__CENTRAL_JWKS_URI` недоступность Central Auth возвращается как
+  временная ошибка без fallback на локальный пароль.
 - API не раскрывает секреты, bearer tokens, private storage keys и stack traces.
 
 ## 3. Health and Readiness
@@ -29,6 +31,10 @@ Operational endpoints are part of the public API surface but do not create Wiki 
 
 ## 4. Auth
 
+В платформенном режиме UI использует Central Auth Authorization Code + PKCE.
+Локальные register/login/refresh endpoints остаются только для legacy/test
+режима и закрыты при настроенном Central Auth.
+
 | Method | Path             | Назначение                                                                               |
 | ------ | ---------------- | ---------------------------------------------------------------------------------------- |
 | `POST` | `/auth/register` | Регистрация пользователя; возвращает `403`, если `WIKI_AUTH__REGISTRATION_ENABLED=false` |
@@ -41,16 +47,18 @@ Operational endpoints are part of the public API surface but do not create Wiki 
 
 | Method   | Path                                    | Назначение                        |
 | -------- | --------------------------------------- | --------------------------------- |
-| `GET`    | `/users`                                | Список пользователей для admin UI |
-| `POST`   | `/users`                                | Создать пользователя              |
-| `PUT`    | `/users/{user_id}`                      | Обновить пользователя             |
+| `GET`    | `/users`                                | Активный центральный каталог для назначения |
+| `POST`   | `/users`                                | Legacy only; `403` в центральном режиме |
+| `PUT`    | `/users/{user_id}`                      | Legacy only; `403` в центральном режиме |
 | `GET`    | `/spaces/{space_key}/members`           | Участники space                   |
 | `PUT`    | `/spaces/{space_key}/members/{user_id}` | Назначить роль в space            |
 | `DELETE` | `/spaces/{space_key}/members/{user_id}` | Удалить участника из space        |
 
 `DELETE /spaces/{space_key}/members/{user_id}` возвращает `404 NOT_FOUND`, если такой membership уже отсутствует. Успешный `204` означает, что membership реально был удалён; обычный пользователь без другой роли больше не проходит проверки чтения/поиска для этого space.
 
-`PUT /users/{user_id}` with `active=false` revokes that user's current access and refresh sessions. Reactivating the account does not make old tokens usable again; the user must login again.
+Учётки, установка пароля, отключение и личные API-токены управляются в Admin
+Panel. Центральные люди получают одинаковые пользовательские права в Wiki;
+исторические роли сохраняются только для совместимости legacy-режима.
 
 ## 6. Spaces
 

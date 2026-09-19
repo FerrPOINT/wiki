@@ -264,6 +264,10 @@ impl WikiBackendPort for PostgresWikiBackend {
         PostgresWikiBackend::list_users(self, claims).await
     }
 
+    async fn sync_central_users(&self, token: &str) -> Result<(), shared::AppError> {
+        PostgresWikiBackend::sync_central_users(self, token).await
+    }
+
     async fn create_user(
         &self,
         claims: &WikiClaims,

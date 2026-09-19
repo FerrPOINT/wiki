@@ -33,9 +33,7 @@ import type {
   UpdateDocumentDraftRequest as GeneratedUpdateDocumentDraftRequest,
   UpdateSpaceRequest as GeneratedUpdateSpaceRequest,
   UpsertSpaceMemberRequest as GeneratedUpsertSpaceMemberRequest,
-  WikiCreateUserRequest,
   WikiSettingsResponse,
-  WikiUpdateUserRequest,
   WikiUserListResponse,
   WikiUserResponse,
 } from './generated-exports'
@@ -63,8 +61,6 @@ export type Template = TemplateResponse
 export type CreateTemplateRequest = GeneratedCreateTemplateRequest
 export type AuditEntry = AuditEntryResponse
 export type User = WikiUserResponse
-export type CreateUserRequest = WikiCreateUserRequest
-export type UpdateUserRequest = WikiUpdateUserRequest
 export type WikiSettings = WikiSettingsResponse
 export type SearchResult = SearchResultResponse
 export type CreateEvidenceRequest = GeneratedCreateEvidenceRequest
@@ -315,17 +311,6 @@ export function listAuditLog(params: AuditLogParams = {}): Promise<AuditLogRespo
 
 export function listUsers(): Promise<WikiUserListResponse> {
   return apiRequest<WikiUserListResponse>('/api/v1/users')
-}
-
-export function createUser(body: CreateUserRequest): Promise<User> {
-  return apiRequest<User>('/api/v1/users', { method: 'POST', body })
-}
-
-export function updateUser(userId: string, body: UpdateUserRequest): Promise<User> {
-  return apiRequest<User>(`/api/v1/users/${encodeURIComponent(userId)}`, {
-    method: 'PUT',
-    body,
-  })
 }
 
 export function getWikiSettings(): Promise<WikiSettingsResponse> {

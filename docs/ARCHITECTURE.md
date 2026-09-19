@@ -1,5 +1,11 @@
 # Архитектура Wiki
 
+Central Auth владеет human identity, браузерными сессиями и личными токенами.
+Wiki проверяет issuer/audience/signature/session через общий `sdlc-auth-core`,
+а локальная таблица `users` хранит только проекцию по неизменяемому `central_sub`
+для авторов и внешних ключей. Машинные runtime credentials не смешиваются с
+пользовательской авторизацией.
+
 ## 1. Контекст
 
 Wiki - self-hosted база знаний для SDLC. Продукт хранит документы, версии, вложения и evidence, связанные с внешними task key и phase key.

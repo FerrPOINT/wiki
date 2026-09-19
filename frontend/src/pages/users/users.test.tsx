@@ -1,160 +1,78 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-
 import { UsersPage } from './'
 
-const useCreateUser = vi.hoisted(() => vi.fn())
-const useUpdateUser = vi.hoisted(() => vi.fn())
 const useUsers = vi.hoisted(() => vi.fn())
-
-const createUserMutate = vi.hoisted(() => vi.fn())
-const updateUserMutate = vi.hoisted(() => vi.fn())
 const usersRefetch = vi.hoisted(() => vi.fn())
 
-vi.mock('@/shared/api/hooks', () => ({
-  useCreateUser,
-  useUpdateUser,
-  useUsers,
-}))
+vi.mock('@/shared/api/hooks', () => ({ useUsers }))
 
-function setupUsers({
-  createOverrides = {},
-  usersOverrides = {},
-}: {
-  createOverrides?: Record<string, unknown>
-  usersOverrides?: Record<string, unknown>
-} = {}) {
+function setupUsers(overrides: Record<string, unknown> = {}) {
   useUsers.mockReturnValue({
     data: {
       users: [
         {
-          active: true,
-          display_name: 'Администратор',
+          id: 'u1',
           email: 'admin@example.test',
-          id: 'user-admin',
-          is_system_admin: true,
-          role: 'admin',
-          username: 'admin',
+          display_name: 'Анна',
+          username: 'anna',
+          active: true,
         },
         {
-          active: true,
-          display_name: 'Редактор',
+          id: 'u2',
           email: 'editor@example.test',
-          id: 'user-editor',
-          is_system_admin: false,
-          role: 'user',
+          display_name: 'Редактор',
           username: 'editor',
+          active: false,
         },
       ],
     },
     isLoading: false,
     isError: false,
     refetch: usersRefetch,
-    ...usersOverrides,
+    ...overrides,
   })
-  useCreateUser.mockReturnValue({
-    mutate: createUserMutate,
-    isPending: false,
-    isError: false,
-    error: null,
-    ...createOverrides,
-  })
-  useUpdateUser.mockReturnValue({
-    mutate: updateUserMutate,
-    isPending: false,
-    isError: false,
-    error: null,
-  })
-
   render(<UsersPage />)
 }
 
 describe('UsersPage', () => {
-  afterEach(() => {
-    vi.clearAllMocks()
+  afterEach(() => vi.clearAllMocks())
+
+  it('shows the central directory without local password or role controls', () => {
+    setupUsers()
+    expect(screen.getByRole('heading', { name: 'Пользователи' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Управление пользователями' })).toHaveAttribute(
+      'href',
+      'http://localhost:7772/users',
+    )
+    expect(screen.getAllByText('Редактор')).toHaveLength(2)
+    expect(screen.getAllByText('Неактивен')).toHaveLength(2)
+    expect(screen.queryByLabelText(/пароль|роль/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /создать|сохранить/i })).not.toBeInTheDocument()
   })
 
-  it('renders permission denied query errors with a retry action', () => {
-    setupUsers({
-      usersOverrides: {
-        data: undefined,
-        isError: true,
-        error: { code: 'FORBIDDEN', message: 'Forbidden' },
-      },
+  it('filters users by name and email without losing the directory', () => {
+    setupUsers()
+    fireEvent.change(screen.getByRole('textbox', { name: 'Поиск пользователей' }), {
+      target: { value: 'editor@' },
     })
+    expect(screen.getAllByText('Редактор')).toHaveLength(2)
+    expect(screen.queryByText('Анна')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByRole('textbox', { name: 'Поиск пользователей' }), {
+      target: { value: 'missing' },
+    })
+    expect(screen.getByText('Ничего не найдено')).toBeInTheDocument()
+  })
 
+  it('renders an error with retry and keeps search available', () => {
+    setupUsers({
+      data: undefined,
+      isError: true,
+      error: { code: 'FORBIDDEN', message: 'Forbidden' },
+    })
     expect(screen.getByRole('alert')).toHaveTextContent('Недостаточно прав для действия')
     fireEvent.click(screen.getByRole('button', { name: 'Повторить' }))
     expect(usersRefetch).toHaveBeenCalled()
-  })
-
-  it('renders create-user validation details without request identifiers', () => {
-    setupUsers({
-      createOverrides: {
-        isError: true,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Validation failed; details=password: required; requestId=req-99',
-          details: [{ field: 'password', message: 'required' }],
-        },
-      },
-    })
-
-    expect(screen.getByText('Проверьте заполнение полей: Пароль: required')).toBeInTheDocument()
-    expect(screen.queryByText(/requestId/)).not.toBeInTheDocument()
-  })
-
-  it('submits new users only from explicit form input', () => {
-    setupUsers()
-
-    expect(screen.getByLabelText('Email')).toHaveValue('')
-    expect(screen.getByLabelText('Логин')).toHaveValue('')
-    expect(screen.getByLabelText('Имя')).toHaveValue('')
-
-    fireEvent.change(screen.getByLabelText('Email'), {
-      target: { value: 'editor@example.test' },
-    })
-    fireEvent.change(screen.getByLabelText('Логин'), {
-      target: { value: 'editor' },
-    })
-    fireEvent.change(screen.getByLabelText('Имя'), {
-      target: { value: 'Редактор' },
-    })
-    fireEvent.change(screen.getByLabelText('Пароль нового пользователя'), {
-      target: { value: 'correct-horse-battery-staple' },
-    })
-    fireEvent.submit(screen.getByLabelText('Email').closest('form')!)
-
-    expect(createUserMutate).toHaveBeenCalledWith(
-      {
-        email: 'editor@example.test',
-        username: 'editor',
-        display_name: 'Редактор',
-        password: 'correct-horse-battery-staple',
-        role: 'user',
-      },
-      { onSuccess: expect.any(Function) },
-    )
-  })
-
-  it('submits global role and status updates through the shared API hook', () => {
-    setupUsers()
-
-    fireEvent.change(screen.getByLabelText('Роль пользователя editor@example.test'), {
-      target: { value: 'admin' },
-    })
-    fireEvent.change(screen.getByLabelText('Статус пользователя editor@example.test'), {
-      target: { value: 'disabled' },
-    })
-    fireEvent.click(screen.getAllByRole('button', { name: 'Сохранить' })[1]!)
-
-    expect(updateUserMutate).toHaveBeenCalledWith({
-      userId: 'user-editor',
-      body: {
-        role: 'admin',
-        is_system_admin: true,
-        active: false,
-      },
-    })
+    expect(screen.getByRole('textbox', { name: 'Поиск пользователей' })).toBeInTheDocument()
   })
 })
