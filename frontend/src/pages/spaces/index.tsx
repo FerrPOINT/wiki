@@ -3,10 +3,12 @@ import { Link } from 'react-router'
 import {
   Archive,
   BookOpenText,
+  ChevronDown,
   FileText,
   FolderOpen,
   Plus,
   Save,
+  Search,
   UserMinus,
   UserPlus,
   Users,
@@ -26,7 +28,6 @@ import {
 } from '@/shared/api/hooks'
 import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
 import { Button } from '@sdlc/ui/ui'
-import { Card, CardContent, CardHeader, CardTitle } from '@sdlc/ui/ui'
 import { Input } from '@sdlc/ui/ui'
 import { Label } from '@sdlc/ui/ui'
 import { Textarea } from '@sdlc/ui/ui'
@@ -40,7 +41,7 @@ const spaceRoleOptions = [
   { value: 'admin', label: 'администратор' },
 ]
 const selectClassName =
-  'flex h-9 w-full rounded-md border border-border-strong bg-surface px-3 py-1 text-sm text-text-primary shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50'
+  'flex min-h-10 w-full rounded-md border border-border-strong bg-surface px-3 py-1 text-sm text-text-primary shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50'
 
 function flattenTree(nodes: SpaceTreeNode[], limit = 5): SpaceTreeNode[] {
   const result: SpaceTreeNode[] = []
@@ -105,13 +106,11 @@ function SpaceTreePreview({ spaceKey }: { spaceKey: string }) {
   )
 }
 
-function CreateSpaceForm({ canCreate }: { canCreate: boolean }) {
+function CreateSpaceForm({ onCreated }: { onCreated: () => void }) {
   const createSpace = useCreateSpace()
   const [key, setKey] = useState('')
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-
-  if (!canCreate) return null
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -126,6 +125,7 @@ function CreateSpaceForm({ canCreate }: { canCreate: boolean }) {
           setKey('')
           setName('')
           setDescription('')
+          onCreated()
         },
       },
     )
@@ -314,7 +314,7 @@ function SpaceMembers({
   )
 }
 
-function SpaceCard({
+function SpaceDetails({
   currentUserId,
   isSystemAdmin,
   space,
@@ -350,109 +350,79 @@ function SpaceCard({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-start justify-between gap-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <FolderOpen className="h-4 w-4 text-accent" />
-            {space.key} · {space.name}
-          </CardTitle>
-          <span className="rounded bg-surface-raised px-2 py-1 text-xs text-text-muted">
-            {statusLabel(space.status)} · {formatDateTime(space.updated_at)}
-          </span>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-sm text-text-muted">{shortText(space.description)}</p>
-        <div className="flex gap-3 text-xs text-text-secondary">
-          <span className="inline-flex items-center gap-1">
-            <FileText className="h-3.5 w-3.5" />
-            {space.document_count}
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <Users className="h-3.5 w-3.5" />
-            {space.member_count}
-          </span>
-        </div>
-
-        {canManage && (
-          <form onSubmit={handleUpdate} className="space-y-3 rounded-md border border-border p-3">
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor={`${space.key}-name`}>Название пространства</Label>
-                <Input
-                  id={`${space.key}-name`}
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor={`${space.key}-description`}>Описание</Label>
-                <Textarea
-                  id={`${space.key}-description`}
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
-                />
-              </div>
+    <div className="space-y-4 border-t border-border bg-surface-raised/40 p-3">
+      {canManage && (
+        <form onSubmit={handleUpdate} className="space-y-3 rounded-md border border-border p-3">
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor={`${space.key}-name`}>Название пространства</Label>
+              <Input
+                id={`${space.key}-name`}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                required
+              />
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" disabled={updateSpace.isPending || !changed || !name.trim()}>
-                <Save className="h-3.5 w-3.5" />
-                {updateSpace.isPending ? 'Сохраняем...' : 'Сохранить'}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="destructive"
-                onClick={() => archiveSpace.mutate(space.key)}
-                disabled={archiveSpace.isPending}
-              >
-                <Archive className="h-3.5 w-3.5" />
-                {archiveSpace.isPending ? 'Архивируем...' : 'Архивировать'}
-              </Button>
+            <div className="space-y-1.5">
+              <Label htmlFor={`${space.key}-description`}>Описание</Label>
+              <Textarea
+                id={`${space.key}-description`}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+              />
             </div>
-            {updateSpace.isError && (
-              <p className="text-sm text-danger">
-                {formatApiErrorForUser(updateSpace.error, 'Не удалось обновить пространство')}
-              </p>
-            )}
-            {archiveSpace.isError && (
-              <p className="text-sm text-danger">
-                {formatApiErrorForUser(archiveSpace.error, 'Не удалось архивировать пространство')}
-              </p>
-            )}
-          </form>
-        )}
-
-        <div className="space-y-2 rounded-md border border-border p-3">
-          <div className="flex items-center gap-2 text-xs font-medium uppercase text-text-muted">
-            <BookOpenText className="h-3.5 w-3.5" />
-            Дерево
           </div>
-          <SpaceTreePreview spaceKey={space.key} />
-        </div>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" disabled={updateSpace.isPending || !changed || !name.trim()}>
+              <Save className="h-3.5 w-3.5" />
+              {updateSpace.isPending ? 'Сохраняем...' : 'Сохранить'}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              onClick={() => archiveSpace.mutate(space.key)}
+              disabled={archiveSpace.isPending}
+            >
+              <Archive className="h-3.5 w-3.5" />
+              {archiveSpace.isPending ? 'Архивируем...' : 'Архивировать'}
+            </Button>
+          </div>
+          {updateSpace.isError && (
+            <p className="text-sm text-danger">
+              {formatApiErrorForUser(updateSpace.error, 'Не удалось обновить пространство')}
+            </p>
+          )}
+          {archiveSpace.isError && (
+            <p className="text-sm text-danger">
+              {formatApiErrorForUser(archiveSpace.error, 'Не удалось архивировать пространство')}
+            </p>
+          )}
+        </form>
+      )}
 
-        {membersQuery.isLoading && <LoadingState message="Загружаем участников" />}
-        {membersQuery.isError && (
-          <ErrorState
-            message={formatApiErrorForUser(
-              membersQuery.error,
-              'Участников может смотреть только администратор пространства',
-            )}
-            onRetry={() => membersQuery.refetch()}
-          />
-        )}
-        {!membersQuery.isLoading && !membersQuery.isError && (
-          <SpaceMembers
-            canManage={canManage}
-            members={members}
-            spaceKey={space.key}
-            users={users}
-          />
-        )}
-      </CardContent>
-    </Card>
+      <div className="space-y-2 rounded-md border border-border p-3">
+        <div className="flex items-center gap-2 text-xs font-medium uppercase text-text-muted">
+          <BookOpenText className="h-3.5 w-3.5" />
+          Дерево
+        </div>
+        <SpaceTreePreview spaceKey={space.key} />
+      </div>
+
+      {membersQuery.isLoading && <LoadingState message="Загружаем участников" />}
+      {membersQuery.isError && (
+        <ErrorState
+          message={formatApiErrorForUser(
+            membersQuery.error,
+            'Участников может смотреть только администратор пространства',
+          )}
+          onRetry={() => membersQuery.refetch()}
+        />
+      )}
+      {!membersQuery.isLoading && !membersQuery.isError && (
+        <SpaceMembers canManage={canManage} members={members} spaceKey={space.key} users={users} />
+      )}
+    </div>
   )
 }
 
@@ -463,6 +433,37 @@ export function SpacesPage() {
   const usersQuery = useUsers(isSystemAdmin)
   const users = usersQuery.data?.users ?? []
   const spaces = spacesQuery.data?.spaces ?? []
+  const [showCreate, setShowCreate] = useState(false)
+  const [search, setSearch] = useState('')
+  const [status, setStatus] = useState('all')
+  const [sort, setSort] = useState('updated')
+  const [mineOnly, setMineOnly] = useState(false)
+  const [page, setPage] = useState(1)
+  const [expandedKey, setExpandedKey] = useState<string | null>(null)
+  const query = search.trim().toLocaleLowerCase()
+  const filteredSpaces = spaces
+    .filter((space) => status === 'all' || space.status === status)
+    .filter((space) => !mineOnly || space.owner_id === currentUserQuery.data?.id)
+    .filter(
+      (space) =>
+        !query ||
+        [space.key, space.name, space.description ?? ''].some((value) =>
+          value.toLocaleLowerCase().includes(query),
+        ),
+    )
+    .sort((a, b) =>
+      sort === 'name'
+        ? a.name.localeCompare(b.name, 'ru')
+        : new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+    )
+  const pageCount = Math.max(1, Math.ceil(filteredSpaces.length / 12))
+  const currentPage = Math.min(page, pageCount)
+  const visibleSpaces = filteredSpaces.slice((currentPage - 1) * 12, currentPage * 12)
+
+  function resetListPosition() {
+    setPage(1)
+    setExpandedKey(null)
+  }
 
   return (
     <div className="space-y-5">
@@ -473,12 +474,26 @@ export function SpacesPage() {
             Пространства группируют документы по продуктам, командам и контекстам процесса.
           </p>
         </div>
-        <Button asChild size="sm">
-          <Link to="/documents/new">Новый документ</Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {isSystemAdmin && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="min-h-10"
+              aria-expanded={showCreate}
+              onClick={() => setShowCreate((value) => !value)}
+            >
+              <Plus className="h-4 w-4" /> Создать пространство
+            </Button>
+          )}
+          <Button asChild size="sm" className="min-h-10">
+            <Link to="/documents/new">Новый документ</Link>
+          </Button>
+        </div>
       </section>
 
-      <CreateSpaceForm canCreate={isSystemAdmin} />
+      {isSystemAdmin && showCreate && <CreateSpaceForm onCreated={() => setShowCreate(false)} />}
 
       {spacesQuery.isLoading && <LoadingState message="Загружаем пространства" />}
       {spacesQuery.isError && (
@@ -498,16 +513,166 @@ export function SpacesPage() {
         />
       )}
       {!spacesQuery.isLoading && !spacesQuery.isError && spaces.length > 0 && (
-        <section className="grid gap-4 xl:grid-cols-2">
-          {spaces.map((space) => (
-            <SpaceCard
-              key={space.key}
-              currentUserId={currentUserQuery.data?.id}
-              isSystemAdmin={isSystemAdmin}
-              space={space}
-              users={users}
-            />
-          ))}
+        <section aria-label="Список пространств" className="space-y-3">
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_11rem_11rem_auto]">
+            <div className="relative min-w-0">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
+                aria-hidden
+              />
+              <Input
+                type="search"
+                aria-label="Найти пространство"
+                placeholder="Название, ключ или описание"
+                value={search}
+                onChange={(event) => {
+                  setSearch(event.target.value)
+                  resetListPosition()
+                }}
+                className="min-h-10 pl-9"
+              />
+            </div>
+            <select
+              aria-label="Статус пространства"
+              className={selectClassName}
+              value={status}
+              onChange={(event) => {
+                setStatus(event.target.value)
+                resetListPosition()
+              }}
+            >
+              <option value="all">Все статусы</option>
+              <option value="active">Активные</option>
+              <option value="archived">Архивные</option>
+            </select>
+            <select
+              aria-label="Сортировка пространств"
+              className={selectClassName}
+              value={sort}
+              onChange={(event) => {
+                setSort(event.target.value)
+                resetListPosition()
+              }}
+            >
+              <option value="updated">Сначала обновлённые</option>
+              <option value="name">По названию</option>
+            </select>
+            {currentUserQuery.data && (
+              <label className="flex min-h-10 cursor-pointer items-center gap-2 whitespace-nowrap text-sm text-text-secondary">
+                <input
+                  type="checkbox"
+                  checked={mineOnly}
+                  onChange={(event) => {
+                    setMineOnly(event.target.checked)
+                    resetListPosition()
+                  }}
+                  className="h-4 w-4 accent-accent"
+                />
+                Только мои
+              </label>
+            )}
+          </div>
+          <p className="text-xs text-text-muted">
+            Показано {visibleSpaces.length} из {filteredSpaces.length} пространств
+          </p>
+          {filteredSpaces.length === 0 ? (
+            <p role="status" className="border-y border-border py-6 text-sm text-text-muted">
+              По заданным условиям пространства не найдены.
+            </p>
+          ) : (
+            <ul className="divide-y divide-border border-y border-border">
+              {visibleSpaces.map((space) => {
+                const expanded = expandedKey === space.key
+                const owner = users.find((user) => user.id === space.owner_id)
+                return (
+                  <li key={space.key}>
+                    <button
+                      type="button"
+                      aria-expanded={expanded}
+                      aria-controls={`space-details-${space.key}`}
+                      onClick={() => setExpandedKey(expanded ? null : space.key)}
+                      className="flex min-h-16 w-full min-w-0 items-start gap-3 py-2 text-left transition-colors hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
+                    >
+                      <FolderOpen className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
+                      <span className="min-w-0 flex-1 space-y-1">
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span className="truncate text-sm font-semibold">{space.name}</span>
+                          <span className="shrink-0 text-xs text-text-muted">{space.key}</span>
+                          {space.status === 'archived' && (
+                            <span className="shrink-0 text-xs text-warning">
+                              {statusLabel(space.status)}
+                            </span>
+                          )}
+                        </span>
+                        <span className="block truncate text-xs text-text-secondary">
+                          {shortText(space.description)}
+                        </span>
+                        <span className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-muted">
+                          <span className="inline-flex items-center gap-1">
+                            <FileText className="h-3.5 w-3.5" aria-hidden />
+                            {space.document_count} документов
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <Users className="h-3.5 w-3.5" aria-hidden />
+                            {space.member_count} участников
+                          </span>
+                          {owner && <span>Владелец: {owner.display_name ?? owner.username}</span>}
+                          <span>Обновлено {formatDateTime(space.updated_at)}</span>
+                        </span>
+                      </span>
+                      <ChevronDown
+                        className={`mt-1 h-4 w-4 shrink-0 text-text-muted transition-transform ${expanded ? 'rotate-180' : ''}`}
+                        aria-hidden
+                      />
+                    </button>
+                    {expanded && (
+                      <div id={`space-details-${space.key}`}>
+                        <SpaceDetails
+                          currentUserId={currentUserQuery.data?.id}
+                          isSystemAdmin={isSystemAdmin}
+                          space={space}
+                          users={users}
+                        />
+                      </div>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+          {filteredSpaces.length > 12 && (
+            <nav aria-label="Страницы пространств" className="flex items-center justify-end gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="min-h-10"
+                disabled={currentPage === 1}
+                onClick={() => {
+                  setPage(currentPage - 1)
+                  setExpandedKey(null)
+                }}
+              >
+                Назад
+              </Button>
+              <span className="text-sm tabular-nums text-text-muted">
+                {currentPage} / {pageCount}
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="min-h-10"
+                disabled={currentPage === pageCount}
+                onClick={() => {
+                  setPage(currentPage + 1)
+                  setExpandedKey(null)
+                }}
+              >
+                Далее
+              </Button>
+            </nav>
+          )}
         </section>
       )}
     </div>
