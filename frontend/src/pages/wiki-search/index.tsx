@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { FileCheck2, FileText, GitBranch, Search } from 'lucide-react'
-import { defaultSpaceKey, useWikiSearch } from '@/shared/api/hooks'
+import { useWikiSearch } from '@/shared/api/hooks'
 import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
 import { Card, CardContent, CardHeader, CardTitle } from '@sdlc/ui/ui'
 import { Input } from '@sdlc/ui/ui'
@@ -49,7 +49,7 @@ function optional(value: string) {
 
 export function WikiSearchPage() {
   const [query, setQuery] = useState('')
-  const [spaceFilter, setSpaceFilter] = useState(defaultSpaceKey)
+  const [spaceFilter, setSpaceFilter] = useState('')
   const [taskFilter, setTaskFilter] = useState('')
   const [phaseFilter, setPhaseFilter] = useState('')
   const [resultTypeFilter, setResultTypeFilter] = useState('all')
@@ -57,7 +57,7 @@ export function WikiSearchPage() {
   const searchParams: SearchParams = useMemo(
     () => ({
       q: query,
-      space: optional(spaceFilter) ?? defaultSpaceKey,
+      space: optional(spaceFilter),
       task_key: optional(taskFilter),
       phase_key: optional(phaseFilter),
       document_type: documentTypeFilter === 'all' ? undefined : documentTypeFilter,
@@ -129,7 +129,7 @@ export function WikiSearchPage() {
                 type="button"
                 className={`min-h-8 rounded-md border px-3 py-1.5 text-xs ${
                   resultTypeFilter === item.value
-                    ? 'border-accent bg-accent text-white'
+                    ? 'border-accent bg-accent text-accent-foreground'
                     : 'border-border text-text-secondary hover:bg-surface-raised'
                 }`}
                 onClick={() => setResultTypeFilter(item.value)}
@@ -145,7 +145,7 @@ export function WikiSearchPage() {
                 type="button"
                 className={`min-h-8 rounded-md border px-3 py-1.5 text-xs ${
                   documentTypeFilter === item.value
-                    ? 'border-accent bg-accent text-white'
+                    ? 'border-accent bg-accent text-accent-foreground'
                     : 'border-border text-text-secondary hover:bg-surface-raised'
                 }`}
                 onClick={() => setDocumentTypeFilter(item.value)}

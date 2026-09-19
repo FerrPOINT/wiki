@@ -153,7 +153,7 @@ export function TemplatesPage() {
                   <p className="text-sm text-text-secondary">
                     {formatDocumentType(template.document_type)}
                   </p>
-                  <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-background p-3 text-xs text-text-muted">
+                  <pre className="min-w-0 whitespace-pre-wrap break-all rounded-md border border-border bg-background p-3 text-xs text-text-muted">
                     {template.body_markdown}
                   </pre>
                   <div className="flex items-center justify-between gap-3 text-xs text-text-muted">

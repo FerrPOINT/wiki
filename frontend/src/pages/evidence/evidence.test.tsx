@@ -11,6 +11,7 @@ const useAttachment = vi.hoisted(() => vi.fn())
 const useDownloadAttachment = vi.hoisted(() => vi.fn())
 const useEvidence = vi.hoisted(() => vi.fn())
 const useEvidenceItem = vi.hoisted(() => vi.fn())
+const useSpaces = vi.hoisted(() => vi.fn())
 
 const createFileMutate = vi.hoisted(() => vi.fn())
 const createLinkMutate = vi.hoisted(() => vi.fn())
@@ -25,9 +26,11 @@ vi.mock('@/shared/api/hooks', () => ({
   useDownloadAttachment,
   useEvidence,
   useEvidenceItem,
+  useSpaces,
 }))
 
 function setupEvidence(initialRoute = '/evidence') {
+  useSpaces.mockReturnValue({ data: { spaces: [{ key: 'BASE' }] } })
   const evidenceItems = [
     {
       attachment_id: null,
@@ -172,7 +175,7 @@ describe('EvidencePage', () => {
     expect(screen.queryByText('Сборка прошла')).not.toBeInTheDocument()
     expect(screen.getByText('Лог сборки')).toBeInTheDocument()
     expect(useEvidence).toHaveBeenCalledWith({
-      space: 'BASE',
+      space: undefined,
       document_id: undefined,
       task_key: undefined,
       phase_key: undefined,

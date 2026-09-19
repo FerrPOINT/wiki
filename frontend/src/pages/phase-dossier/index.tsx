@@ -15,6 +15,7 @@ import { Input } from '@sdlc/ui/ui'
 import { Label } from '@sdlc/ui/ui'
 import { Progress } from '@sdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
+import { resolveSpaceKey } from '@/shared/lib/space-selection'
 import {
   formatDateTime,
   formatDocumentStatus,
@@ -36,24 +37,23 @@ function readiness(phase: Pick<PhasePage, 'document_count' | 'evidence_count'>):
   return Math.max(0, Math.min(100, score))
 }
 
-function normalizeSpaceParam(value: string | null): string {
-  const normalized = value?.trim().toUpperCase()
-  return normalized || defaultSpaceKey
-}
-
 function useSelectedSpaceKey() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const selectedSpaceKey = normalizeSpaceParam(searchParams.get('space'))
+  const spacesQuery = useSpaces()
+  const selectedSpaceKey = resolveSpaceKey(
+    searchParams.get('space'),
+    spacesQuery.data?.spaces ?? [],
+  )
 
   function setSelectedSpaceKey(spaceKey: string) {
-    const normalized = normalizeSpaceParam(spaceKey)
+    const normalized = spaceKey.trim().toUpperCase()
     const nextParams = new URLSearchParams(searchParams)
-    if (normalized === defaultSpaceKey) nextParams.delete('space')
-    else nextParams.set('space', normalized)
+    if (normalized) nextParams.set('space', normalized)
+    else nextParams.delete('space')
     setSearchParams(nextParams, { replace: true })
   }
 
-  return [selectedSpaceKey, setSelectedSpaceKey] as const
+  return [selectedSpaceKey, setSelectedSpaceKey, spacesQuery] as const
 }
 
 function scopedPath(path: string, spaceKey: string): string {
@@ -75,7 +75,7 @@ function SpaceSelector({
   const spacesQuery = useSpaces()
   const spaces: SpaceOption[] = spacesQuery.data?.spaces ?? []
   const hasSelected = spaces.some((space) => space.key === value)
-  const options = hasSelected ? spaces : [{ key: value, name: value }, ...spaces]
+  const options = value && !hasSelected ? [{ key: value, name: value }, ...spaces] : spaces
 
   return (
     <div className="w-full space-y-1.5 sm:w-64">
@@ -85,8 +85,9 @@ function SpaceSelector({
         className={selectClassName}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        disabled={spacesQuery.isLoading}
+        disabled={spacesQuery.isLoading || options.length === 0}
       >
+        {options.length === 0 && <option value="">Нет пространств</option>}
         {options.map((space) => (
           <option key={space.key} value={space.key}>
             {space.name ? `${space.key} · ${space.name}` : space.key}
@@ -98,7 +99,7 @@ function SpaceSelector({
 }
 
 export function PhaseDossiersPage() {
-  const [selectedSpaceKey, setSelectedSpaceKey] = useSelectedSpaceKey()
+  const [selectedSpaceKey, setSelectedSpaceKey, spacesQuery] = useSelectedSpaceKey()
   const phasesQuery = usePhases(selectedSpaceKey)
   const phases = phasesQuery.data?.phases ?? []
 
@@ -114,17 +115,30 @@ export function PhaseDossiersPage() {
         <SpaceSelector value={selectedSpaceKey} onChange={setSelectedSpaceKey} />
       </section>
 
-      {phasesQuery.isLoading && <LoadingState message="Загружаем фазы" />}
-      {phasesQuery.isError && (
+      {spacesQuery.isLoading && <LoadingState message="Загружаем пространства" />}
+      {spacesQuery.isError && (
+        <ErrorState
+          message={formatApiErrorForUser(spacesQuery.error, 'Не удалось загрузить пространства')}
+          onRetry={() => spacesQuery.refetch()}
+        />
+      )}
+      {!spacesQuery.isLoading && !spacesQuery.isError && !selectedSpaceKey && (
+        <EmptyState message="Сначала создайте пространство" />
+      )}
+      {selectedSpaceKey && phasesQuery.isLoading && <LoadingState message="Загружаем фазы" />}
+      {selectedSpaceKey && phasesQuery.isError && (
         <ErrorState
           message={formatApiErrorForUser(phasesQuery.error, 'Не удалось загрузить фазы')}
           onRetry={() => phasesQuery.refetch()}
         />
       )}
-      {!phasesQuery.isLoading && !phasesQuery.isError && phases.length === 0 && (
-        <EmptyState message="Документы и материалы ещё не связаны с фазами" />
-      )}
-      {!phasesQuery.isLoading && !phasesQuery.isError && phases.length > 0 && (
+      {selectedSpaceKey &&
+        !phasesQuery.isLoading &&
+        !phasesQuery.isError &&
+        phases.length === 0 && (
+          <EmptyState message="Документы и материалы ещё не связаны с фазами" />
+        )}
+      {selectedSpaceKey && !phasesQuery.isLoading && !phasesQuery.isError && phases.length > 0 && (
         <section className="grid gap-4 lg:grid-cols-4">
           {phases.map((phase) => {
             const value = readiness(phase)
@@ -169,7 +183,7 @@ export function PhaseDossiersPage() {
 
 export function PhaseDossierPage() {
   const { phaseId = 'implementation' } = useParams()
-  const [selectedSpaceKey, setSelectedSpaceKey] = useSelectedSpaceKey()
+  const [selectedSpaceKey, setSelectedSpaceKey, spacesQuery] = useSelectedSpaceKey()
   const phaseQuery = usePhase(phaseId, selectedSpaceKey)
   const linkDocument = useLinkPhaseDocument()
   const [documentId, setDocumentId] = useState('')
@@ -197,6 +211,18 @@ export function PhaseDossierPage() {
     )
   }
 
+  if (!selectedSpaceKey) {
+    if (spacesQuery.isLoading) return <LoadingState message="Загружаем пространства" />
+    if (spacesQuery.isError) {
+      return (
+        <ErrorState
+          message={formatApiErrorForUser(spacesQuery.error, 'Не удалось загрузить пространства')}
+          onRetry={() => spacesQuery.refetch()}
+        />
+      )
+    }
+    return <EmptyState message="Сначала создайте пространство" />
+  }
   if (phaseQuery.isLoading) return <LoadingState message="Загружаем фазу" />
   if (phaseQuery.isError || !phase) {
     return (

@@ -52,7 +52,7 @@ describe('DashboardPage', () => {
         },
       ],
     })
-    searchWiki.mockResolvedValueOnce({
+    searchWiki.mockResolvedValue({
       results: [
         {
           id: 'product-requirements',
@@ -91,7 +91,7 @@ describe('DashboardPage', () => {
         },
       ],
     })
-    listEvidence.mockResolvedValueOnce({ evidence: [] })
+    listEvidence.mockResolvedValue({ evidence: [] })
 
     render(wrapper(<DashboardPage />))
 
@@ -119,8 +119,8 @@ describe('DashboardPage', () => {
     await waitFor(() => {
       expect(listSpaces).toHaveBeenCalledTimes(2)
       expect(searchWiki).toHaveBeenCalledTimes(2)
-      expect(listTasks).toHaveBeenCalledTimes(2)
-      expect(listPhases).toHaveBeenCalledTimes(2)
+      expect(listTasks).not.toHaveBeenCalled()
+      expect(listPhases).not.toHaveBeenCalled()
     })
   })
 })
