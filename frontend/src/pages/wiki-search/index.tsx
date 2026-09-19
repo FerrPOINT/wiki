@@ -1,29 +1,30 @@
-import { useMemo, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
-import { FileCheck2, FileText, GitBranch, Search } from 'lucide-react'
+import { FileCheck2, FileText, GitBranch, ListFilter, Search } from 'lucide-react'
 import { useWikiSearch } from '@/shared/api/hooks'
-import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
-import { Card, CardContent, CardHeader, CardTitle } from '@sdlc/ui/ui'
-import { Input } from '@sdlc/ui/ui'
-import { Label } from '@sdlc/ui/ui'
+import { Button, EmptyState, ErrorState, Input, Label, LoadingState } from '@sdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
-import { formatDateTime } from '@/shared/lib/wiki-format'
+import { formatDateTime, formatDocumentType } from '@/shared/lib/wiki-format'
 import type { SearchParams, SearchResult } from '@/api/wiki'
 
-const resultTypeFilters = [
+const resultTypes = [
   { label: 'Все', value: 'all' },
   { label: 'Документы', value: 'document' },
   { label: 'Материалы', value: 'evidence' },
-]
-
-const documentTypeFilters = [
-  { label: 'Любой тип', value: 'all' },
-  { label: 'Требования', value: 'requirements' },
-  { label: 'Исследование', value: 'research_note' },
-  { label: 'Реализация', value: 'implementation_note' },
-  { label: 'План проверки', value: 'test_plan' },
-  { label: 'Релиз', value: 'release_note' },
-]
+] as const
+const documentTypes = [
+  'all',
+  'page',
+  'requirements',
+  'research_note',
+  'implementation_note',
+  'test_plan',
+  'release_note',
+] as const
+const searchLimit = 100
+const pageSize = 12
+const selectClassName =
+  'min-h-10 w-full rounded-md border border-border-strong bg-surface px-3 text-sm text-text-primary focus-visible:outline-2 focus-visible:outline-accent'
 
 function resultIcon(type: string) {
   if (type === 'evidence') return FileCheck2
@@ -38,189 +39,335 @@ function resultLabel(type: string) {
   return type
 }
 
-function countResults(results: SearchResult[], type: string) {
-  return results.filter((result) => result.result_type === type).length
-}
-
 function optional(value: string) {
-  const trimmed = value.trim()
-  return trimmed === '' ? undefined : trimmed
+  return value.trim() || undefined
 }
 
 export function WikiSearchPage() {
   const [query, setQuery] = useState('')
+  const [appliedQuery, setAppliedQuery] = useState('')
   const [spaceFilter, setSpaceFilter] = useState('')
   const [taskFilter, setTaskFilter] = useState('')
   const [phaseFilter, setPhaseFilter] = useState('')
-  const [resultTypeFilter, setResultTypeFilter] = useState('all')
-  const [documentTypeFilter, setDocumentTypeFilter] = useState('all')
+  const [appliedFilters, setAppliedFilters] = useState({
+    space: '',
+    task: '',
+    phase: '',
+    documentType: 'all',
+  })
+  const [resultTypeFilter, setResultTypeFilter] =
+    useState<(typeof resultTypes)[number]['value']>('all')
+  const [documentTypeFilter, setDocumentTypeFilter] = useState<string>('all')
+  const [showFilters, setShowFilters] = useState(false)
+  const [page, setPage] = useState(1)
+  const resultsSection = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setAppliedQuery(query.trim()), 300)
+    return () => window.clearTimeout(timeout)
+  }, [query])
+
   const searchParams: SearchParams = useMemo(
     () => ({
-      q: query,
-      space: optional(spaceFilter),
-      task_key: optional(taskFilter),
-      phase_key: optional(phaseFilter),
-      document_type: documentTypeFilter === 'all' ? undefined : documentTypeFilter,
-      limit: 25,
+      q: appliedQuery,
+      space: optional(appliedFilters.space),
+      task_key: optional(appliedFilters.task),
+      phase_key: optional(appliedFilters.phase),
+      document_type:
+        appliedFilters.documentType === 'all' ? undefined : appliedFilters.documentType,
+      limit: searchLimit,
     }),
-    [documentTypeFilter, phaseFilter, query, spaceFilter, taskFilter],
+    [appliedFilters, appliedQuery],
   )
   const searchQuery = useWikiSearch(searchParams)
-  const results = useMemo(() => searchQuery.data?.results ?? [], [searchQuery.data?.results])
-  const filteredResults = useMemo(() => {
-    if (resultTypeFilter === 'all') return results
-    return results.filter((result) => result.result_type === resultTypeFilter)
-  }, [resultTypeFilter, results])
+  const results = searchQuery.data?.results ?? []
+  const documentCount = results.filter((result) => result.result_type === 'document').length
+  const evidenceCount = results.filter((result) => result.result_type === 'evidence').length
+  const filteredResults =
+    resultTypeFilter === 'all'
+      ? results
+      : results.filter((result) => result.result_type === resultTypeFilter)
+  const totalPages = Math.max(1, Math.ceil(filteredResults.length / pageSize))
+  const currentPage = Math.min(page, totalPages)
+  const visibleResults = filteredResults.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  const activeFilterCount =
+    [appliedFilters.space, appliedFilters.task, appliedFilters.phase].filter(
+      (value) => value.trim() !== '',
+    ).length + (appliedFilters.documentType === 'all' ? 0 : 1)
+
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setAppliedQuery(query.trim())
+    setPage(1)
+  }
+
+  function applyFilters(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setAppliedFilters({
+      space: spaceFilter.trim(),
+      task: taskFilter.trim(),
+      phase: phaseFilter.trim(),
+      documentType: documentTypeFilter,
+    })
+    if (documentTypeFilter !== 'all') setResultTypeFilter('document')
+    setPage(1)
+  }
+
+  function selectResultType(value: (typeof resultTypes)[number]['value']) {
+    setResultTypeFilter(value)
+    if (value === 'evidence') {
+      setDocumentTypeFilter('all')
+      setAppliedFilters((filters) => ({ ...filters, documentType: 'all' }))
+    }
+    setPage(1)
+  }
+
+  function changePage(nextPage: number) {
+    setPage(nextPage)
+    resultsSection.current?.scrollIntoView?.({ block: 'start' })
+  }
 
   return (
-    <div className="space-y-5">
-      <section>
-        <h1 className="text-2xl font-bold">Поиск</h1>
-        <p className="mt-1 max-w-3xl text-sm text-text-muted">
-          Поиск по документам, задачам, фазам и материалам.
-        </p>
-      </section>
+    <div className="space-y-4">
+      <h1 className="text-2xl font-bold">Поиск</h1>
 
-      <section className="space-y-3 rounded-md border border-border bg-surface p-3">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-text-muted" />
-          <Input
-            aria-label="Поисковый запрос"
-            className="pl-9"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="релиз, BASE-42, требования..."
-          />
-        </div>
-        <div className="grid gap-3 md:grid-cols-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="search-space">Пространство поиска</Label>
+      <section aria-label="Параметры поиска" className="space-y-3">
+        <form role="search" onSubmit={submitSearch} className="flex min-w-0 gap-2">
+          <div className="relative min-w-0 flex-1">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
+              aria-hidden
+            />
             <Input
-              id="search-space"
-              value={spaceFilter}
-              onChange={(event) => setSpaceFilter(event.target.value.toUpperCase())}
-              placeholder="BASE"
+              type="search"
+              aria-label="Поисковый запрос"
+              className="min-h-10 pl-9"
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value)
+                setPage(1)
+              }}
+              placeholder="Название, текст или ключ"
             />
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="search-task">Задача</Label>
-            <Input
-              id="search-task"
-              value={taskFilter}
-              onChange={(event) => setTaskFilter(event.target.value)}
-              placeholder="BASE-42"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="search-phase">Фаза</Label>
-            <Input
-              id="search-phase"
-              value={phaseFilter}
-              onChange={(event) => setPhaseFilter(event.target.value)}
-              placeholder="implementation"
-            />
-          </div>
-        </div>
-        <div className="space-y-2">
-          <div className="flex flex-wrap gap-2">
-            {resultTypeFilters.map((item) => (
-              <button
-                key={item.value}
-                type="button"
-                className={`min-h-8 rounded-md border px-3 py-1.5 text-xs ${
-                  resultTypeFilter === item.value
-                    ? 'border-accent bg-accent text-accent-foreground'
-                    : 'border-border text-text-secondary hover:bg-surface-raised'
-                }`}
-                onClick={() => setResultTypeFilter(item.value)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {documentTypeFilters.map((item) => (
-              <button
-                key={item.value}
-                type="button"
-                className={`min-h-8 rounded-md border px-3 py-1.5 text-xs ${
-                  documentTypeFilter === item.value
-                    ? 'border-accent bg-accent text-accent-foreground'
-                    : 'border-border text-text-secondary hover:bg-surface-raised'
-                }`}
-                onClick={() => setDocumentTypeFilter(item.value)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="min-h-10 shrink-0 sm:min-h-10"
+            aria-expanded={showFilters}
+            aria-controls="search-filters"
+            onClick={() => setShowFilters((value) => !value)}
+          >
+            <ListFilter className="h-4 w-4" aria-hidden />
+            Фильтры{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+          </Button>
+        </form>
 
-      <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Результаты</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {searchQuery.isLoading && <LoadingState message="Ищем" />}
-            {searchQuery.isError && (
-              <ErrorState
-                message={formatApiErrorForUser(searchQuery.error, 'Не удалось выполнить поиск')}
-                onRetry={() => searchQuery.refetch()}
+        {showFilters && (
+          <form
+            id="search-filters"
+            onSubmit={applyFilters}
+            className="grid gap-3 border-y border-border py-3 sm:grid-cols-2 xl:grid-cols-4"
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="search-space">Пространство</Label>
+              <Input
+                id="search-space"
+                className="min-h-10"
+                value={spaceFilter}
+                onChange={(event) => {
+                  setSpaceFilter(event.target.value.toUpperCase())
+                }}
+                placeholder="BASE"
               />
-            )}
-            {!searchQuery.isLoading && !searchQuery.isError && filteredResults.length === 0 && (
-              <EmptyState message="Ничего не найдено" />
-            )}
-            {!searchQuery.isLoading &&
-              !searchQuery.isError &&
-              filteredResults.map((result) => {
-                const Icon = resultIcon(result.result_type)
-                return (
-                  <Link
-                    key={`${result.result_type}-${result.id}`}
-                    to={result.url}
-                    className="block rounded-md border border-border p-3 hover:bg-surface-raised"
-                  >
-                    <div className="flex items-start gap-3">
-                      <Icon className="mt-0.5 h-4 w-4 text-accent" />
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium text-text-primary">{result.title}</div>
-                        <div className="mt-1 text-xs text-text-muted">
-                          {resultLabel(result.result_type)} · {result.space_key} ·{' '}
-                          {formatDateTime(result.updated_at)}
-                        </div>
-                        <p className="mt-2 line-clamp-2 text-sm text-text-secondary">
-                          {result.snippet}
-                        </p>
-                      </div>
-                    </div>
-                  </Link>
-                )
-              })}
-          </CardContent>
-        </Card>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="search-task">Задача</Label>
+              <Input
+                id="search-task"
+                className="min-h-10"
+                value={taskFilter}
+                onChange={(event) => {
+                  setTaskFilter(event.target.value)
+                }}
+                placeholder="BASE-42"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="search-phase">Фаза</Label>
+              <Input
+                id="search-phase"
+                className="min-h-10"
+                value={phaseFilter}
+                onChange={(event) => {
+                  setPhaseFilter(event.target.value)
+                }}
+                placeholder="implementation"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="search-document-type">Тип документа</Label>
+              <select
+                id="search-document-type"
+                className={selectClassName}
+                value={documentTypeFilter}
+                onChange={(event) => {
+                  setDocumentTypeFilter(event.target.value)
+                }}
+              >
+                {documentTypes.map((type) => (
+                  <option key={type} value={type}>
+                    {type === 'all' ? 'Любой тип' : formatDocumentType(type)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-wrap justify-end gap-2 sm:col-span-2 xl:col-span-4">
+              {(activeFilterCount > 0 ||
+                spaceFilter ||
+                taskFilter ||
+                phaseFilter ||
+                documentTypeFilter !== 'all') && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="min-h-10 sm:min-h-10"
+                  onClick={() => {
+                    setSpaceFilter('')
+                    setTaskFilter('')
+                    setPhaseFilter('')
+                    setDocumentTypeFilter('all')
+                    setAppliedFilters({ space: '', task: '', phase: '', documentType: 'all' })
+                    setResultTypeFilter('all')
+                    setPage(1)
+                  }}
+                >
+                  Сбросить фильтры
+                </Button>
+              )}
+              <Button type="submit" size="sm" className="min-h-10 sm:min-h-10">
+                Применить
+              </Button>
+            </div>
+          </form>
+        )}
+      </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Фасеты</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm text-text-secondary">
-            <div className="flex justify-between gap-3">
-              <span>Документы</span>
-              <span>{countResults(results, 'document')}</span>
-            </div>
-            <div className="flex justify-between gap-3">
-              <span>Материалы</span>
-              <span>{countResults(results, 'evidence')}</span>
-            </div>
-            <div className="flex justify-between gap-3">
-              <span>Всего</span>
-              <span>{results.length}</span>
-            </div>
-          </CardContent>
-        </Card>
+      <section
+        ref={resultsSection}
+        aria-labelledby="search-results-title"
+        className="scroll-mt-16 space-y-3"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="search-results-title" className="text-base font-semibold">
+            Результаты
+          </h2>
+          {!searchQuery.isLoading && !searchQuery.isError && (
+            <p role="status" className="text-sm text-text-muted">
+              {filteredResults.length === 0
+                ? '0 результатов'
+                : `${(currentPage - 1) * pageSize + 1}–${Math.min(currentPage * pageSize, filteredResults.length)} из ${filteredResults.length}`}
+            </p>
+          )}
+        </div>
+        <div role="group" aria-label="Тип результата" className="flex flex-wrap gap-2">
+          {resultTypes.map((item) => {
+            const count =
+              item.value === 'document'
+                ? documentCount
+                : item.value === 'evidence'
+                  ? evidenceCount
+                  : results.length
+            return (
+              <Button
+                key={item.value}
+                type="button"
+                size="sm"
+                variant={resultTypeFilter === item.value ? 'secondary' : 'outline'}
+                className="min-h-10 sm:min-h-10"
+                aria-pressed={resultTypeFilter === item.value}
+                onClick={() => selectResultType(item.value)}
+              >
+                {item.label} <span className="text-text-muted">{count}</span>
+              </Button>
+            )
+          })}
+        </div>
+
+        {searchQuery.isLoading && <LoadingState message="Ищем" />}
+        {searchQuery.isError && (
+          <ErrorState
+            message={formatApiErrorForUser(searchQuery.error, 'Не удалось выполнить поиск')}
+            onRetry={() => searchQuery.refetch()}
+          />
+        )}
+        {!searchQuery.isLoading && !searchQuery.isError && filteredResults.length === 0 && (
+          <EmptyState message="Ничего не найдено" />
+        )}
+        {!searchQuery.isLoading && !searchQuery.isError && filteredResults.length > 0 && (
+          <div className="divide-y divide-border border-y border-border">
+            {visibleResults.map((result: SearchResult) => {
+              const Icon = resultIcon(result.result_type)
+              return (
+                <Link
+                  key={`${result.result_type}-${result.id}`}
+                  to={result.url}
+                  className="flex min-h-16 min-w-0 items-start gap-3 px-2 py-3 hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
+                >
+                  <Icon className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
+                  <span className="min-w-0 flex-1">
+                    <span className="block break-words text-sm font-medium text-text-primary">
+                      {result.title}
+                    </span>
+                    <span className="mt-0.5 block text-xs text-text-muted">
+                      {resultLabel(result.result_type)} · {result.space_key} ·{' '}
+                      {formatDateTime(result.updated_at)}
+                    </span>
+                    {result.snippet && (
+                      <span className="mt-1 block break-words text-sm text-text-secondary line-clamp-1">
+                        {result.snippet}
+                      </span>
+                    )}
+                  </span>
+                </Link>
+              )
+            })}
+          </div>
+        )}
+        {filteredResults.length > pageSize && !searchQuery.isError && (
+          <nav aria-label="Страницы результатов" className="flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="min-h-10 sm:min-h-10"
+              disabled={currentPage === 1}
+              onClick={() => changePage(currentPage - 1)}
+            >
+              Назад
+            </Button>
+            <span className="text-sm text-text-muted">
+              {currentPage} / {totalPages}
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="min-h-10 sm:min-h-10"
+              disabled={currentPage === totalPages}
+              onClick={() => changePage(currentPage + 1)}
+            >
+              Далее
+            </Button>
+          </nav>
+        )}
+        {results.length === searchLimit && !searchQuery.isError && (
+          <p className="text-sm text-text-muted">
+            Показаны первые 100 результатов. Уточните запрос для более точной выдачи.
+          </p>
+        )}
       </section>
     </div>
   )

@@ -12,6 +12,7 @@
 - Product-metrics counters (PR #5).
 - Root AGENTS.md и SECURITY.md (стандарты Base).
 ### Changed
+- Поиск Wiki получил компактную выдачу, раскрываемые фильтры и постраничную навигацию с явным лимитом первых 100 результатов.
 - Мобильные галереи и auth-кадры удалены из README — desktop-only evidence.
 ### Added
 
