@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import {
   CheckCircle2,
@@ -10,13 +10,13 @@ import {
   Upload,
 } from 'lucide-react'
 import {
-  defaultSpaceKey,
   useAttachment,
   useCreateEvidence,
   useCreateFileEvidence,
   useDownloadAttachment,
   useEvidence,
   useEvidenceItem,
+  useSpaces,
 } from '@/shared/api/hooks'
 import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
 import { Button } from '@sdlc/ui/ui'
@@ -26,6 +26,7 @@ import { Label } from '@sdlc/ui/ui'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@sdlc/ui/ui'
 import { formatApiErrorForUser, formatFirstApiErrorForUser } from '@/shared/lib/api-error'
 import { formatBytes, formatDateTime, formatEvidenceType } from '@/shared/lib/wiki-format'
+import { defaultSpaceKey, resolveSpaceKey } from '@/shared/lib/space-selection'
 import type { AttachmentDownload, Evidence } from '@/api/wiki'
 
 type EvidenceMode = 'external_url' | 'uploaded_file'
@@ -147,12 +148,14 @@ export function EvidencePage() {
   const [mode, setMode] = useState<EvidenceMode>('external_url')
   const [title, setTitle] = useState('')
   const [url, setUrl] = useState('')
-  const initialSpace = (searchParams.get('space') ?? defaultSpaceKey).trim().toUpperCase()
-  const [space, setSpace] = useState(initialSpace || defaultSpaceKey)
+  const initialSpace = searchParams.get('space')?.trim().toUpperCase() ?? ''
+  const spacesQuery = useSpaces()
+  const suggestedSpace = resolveSpaceKey(initialSpace, spacesQuery.data?.spaces ?? [])
+  const [space, setSpace] = useState(initialSpace)
   const [documentId, setDocumentId] = useState(searchParams.get('document_id')?.trim() ?? '')
   const [task, setTask] = useState(searchParams.get('task_key')?.trim() ?? '')
   const [phase, setPhase] = useState(searchParams.get('phase_key')?.trim() ?? '')
-  const [filterSpace, setFilterSpace] = useState(initialSpace || defaultSpaceKey)
+  const [filterSpace, setFilterSpace] = useState(initialSpace)
   const [filterDocument, setFilterDocument] = useState(
     searchParams.get('document_id')?.trim() ?? '',
   )
@@ -162,7 +165,7 @@ export function EvidencePage() {
   const selectedEvidenceId = searchParams.get('id')?.trim() ?? ''
   const evidenceParams = useMemo(
     () => ({
-      space: optional(filterSpace) ?? defaultSpaceKey,
+      space: optional(filterSpace) ?? undefined,
       document_id: optional(filterDocument) ?? undefined,
       task_key: optional(filterTask) ?? undefined,
       phase_key: optional(filterPhase) ?? undefined,
@@ -194,6 +197,10 @@ export function EvidencePage() {
     'Не удалось сохранить материал',
   )
 
+  useEffect(() => {
+    if (!space && suggestedSpace) setSpace(suggestedSpace)
+  }, [space, suggestedSpace])
+
   function resetForm() {
     setTitle('')
     setUrl('')
@@ -202,7 +209,7 @@ export function EvidencePage() {
 
   function resetFilters() {
     setQuery('')
-    setFilterSpace(defaultSpaceKey)
+    setFilterSpace('')
     setFilterDocument('')
     setFilterTask('')
     setFilterPhase('')
@@ -217,7 +224,7 @@ export function EvidencePage() {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const evidence = {
-      space: optional(space) ?? defaultSpaceKey,
+      space: space.trim().toUpperCase(),
       document_id: optional(documentId),
       task_key: optional(task),
       phase_key: optional(phase),

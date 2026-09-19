@@ -85,34 +85,62 @@ export function AuditLogPage() {
             <EmptyState message="Событий аудита пока нет" />
           )}
           {!auditQuery.isLoading && !auditQuery.isError && entries.length > 0 && (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Событие</TableHead>
-                  <TableHead>Участник</TableHead>
-                  <TableHead>Объект</TableHead>
-                  <TableHead>Тип</TableHead>
-                  <TableHead>Запрос</TableHead>
-                  <TableHead>Время</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              <ul className="divide-y divide-border xl:hidden">
                 {entries.map((event) => (
-                  <TableRow key={event.id}>
-                    <TableCell className="font-mono text-xs">{event.action}</TableCell>
-                    <TableCell>{event.actor_id}</TableCell>
-                    <TableCell>{event.entity_id}</TableCell>
-                    <TableCell>{event.entity_type}</TableCell>
-                    <TableCell className="max-w-52 truncate font-mono text-xs">
-                      {event.request_id}
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap text-xs text-text-muted">
-                      {formatDateTime(event.created_at)}
-                    </TableCell>
-                  </TableRow>
+                  <li key={event.id} className="py-3 first:pt-0 last:pb-0">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                      <span className="min-w-0 break-all font-mono text-xs">{event.action}</span>
+                      <time className="text-xs text-text-muted">
+                        {formatDateTime(event.created_at)}
+                      </time>
+                    </div>
+                    <dl className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
+                      <dt className="text-text-muted">Участник</dt>
+                      <dd className="min-w-0 break-all">{event.actor_id}</dd>
+                      <dt className="text-text-muted">Объект</dt>
+                      <dd className="min-w-0 break-all">{event.entity_id}</dd>
+                      <dt className="text-text-muted">Тип</dt>
+                      <dd className="min-w-0 break-all">{event.entity_type}</dd>
+                      <dt className="text-text-muted">Запрос</dt>
+                      <dd className="min-w-0 break-all font-mono">{event.request_id}</dd>
+                    </dl>
+                  </li>
                 ))}
-              </TableBody>
-            </Table>
+              </ul>
+              <div className="hidden xl:block">
+                <Table className="table-fixed">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Событие</TableHead>
+                      <TableHead>Участник</TableHead>
+                      <TableHead>Объект</TableHead>
+                      <TableHead>Тип</TableHead>
+                      <TableHead>Запрос</TableHead>
+                      <TableHead>Время</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {entries.map((event) => (
+                      <TableRow key={event.id}>
+                        <TableCell className="break-all font-mono text-xs">
+                          {event.action}
+                        </TableCell>
+                        <TableCell className="break-all">{event.actor_id}</TableCell>
+                        <TableCell className="break-all">{event.entity_id}</TableCell>
+                        <TableCell className="break-all">{event.entity_type}</TableCell>
+                        <TableCell className="break-all font-mono text-xs">
+                          {event.request_id}
+                        </TableCell>
+                        <TableCell className="text-xs text-text-muted">
+                          {formatDateTime(event.created_at)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

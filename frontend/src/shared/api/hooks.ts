@@ -53,12 +53,13 @@ import {
   type UpsertSpaceMemberRequest,
 } from '@/api/wiki'
 import { ssoConfig, storeRefreshToken, useAuthStore } from '@/shared/auth/store'
+import { defaultSpaceKey } from '@/shared/lib/space-selection'
 
 const authKeys = {
   me: ['me'] as const,
 }
 
-export const defaultSpaceKey = 'BASE'
+export { defaultSpaceKey } from '@/shared/lib/space-selection'
 const defaultDocumentRevisionListParams: DocumentRevisionListParams = { limit: 20 }
 const defaultEvidenceListParams: EvidenceListParams = { limit: 30 }
 const defaultAuditLogParams: AuditLogParams = { limit: 50 }
@@ -289,6 +290,7 @@ export function useTasks(spaceKey = defaultSpaceKey) {
   return useQuery({
     queryKey: wikiKeys.tasks(spaceKey),
     queryFn: () => listTasks(spaceKey),
+    enabled: Boolean(spaceKey),
   })
 }
 
@@ -296,7 +298,7 @@ export function useTask(taskKey: string, spaceKey = defaultSpaceKey) {
   return useQuery({
     queryKey: wikiKeys.task(spaceKey, taskKey),
     queryFn: () => getTask(spaceKey, taskKey),
-    enabled: Boolean(taskKey),
+    enabled: Boolean(taskKey) && Boolean(spaceKey),
   })
 }
 
@@ -327,6 +329,7 @@ export function usePhases(spaceKey = defaultSpaceKey) {
   return useQuery({
     queryKey: wikiKeys.phases(spaceKey),
     queryFn: () => listPhases(spaceKey),
+    enabled: Boolean(spaceKey),
   })
 }
 
@@ -334,7 +337,7 @@ export function usePhase(phaseKey: string, spaceKey = defaultSpaceKey) {
   return useQuery({
     queryKey: wikiKeys.phase(spaceKey, phaseKey),
     queryFn: () => getPhase(spaceKey, phaseKey),
-    enabled: Boolean(phaseKey),
+    enabled: Boolean(phaseKey) && Boolean(spaceKey),
   })
 }
 

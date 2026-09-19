@@ -1,27 +1,21 @@
 import { Link } from 'react-router'
 import { CheckCircle2, FilePlus2, FileText, GitBranch, Library, Search } from 'lucide-react'
-import {
-  defaultSpaceKey,
-  useEvidence,
-  usePhases,
-  useSpaces,
-  useTasks,
-  useWikiSearch,
-} from '@/shared/api/hooks'
+import { useEvidence, usePhases, useSpaces, useTasks, useWikiSearch } from '@/shared/api/hooks'
 import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
 import { Button } from '@sdlc/ui/ui'
 import { Card, CardContent, CardHeader, CardTitle } from '@sdlc/ui/ui'
 import { formatFirstApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime } from '@/shared/lib/wiki-format'
+import { resolveSpaceKey } from '@/shared/lib/space-selection'
 
 export function DashboardPage() {
   const spacesQuery = useSpaces()
-  const searchQuery = useWikiSearch({ space: defaultSpaceKey, limit: 6 })
-  const tasksQuery = useTasks(defaultSpaceKey)
-  const phasesQuery = usePhases(defaultSpaceKey)
-  const evidenceQuery = useEvidence({ space: defaultSpaceKey, limit: 6 })
-
   const spaces = spacesQuery.data?.spaces ?? []
+  const activeSpaceKey = resolveSpaceKey(null, spaces)
+  const searchQuery = useWikiSearch({ space: activeSpaceKey || undefined, limit: 6 })
+  const tasksQuery = useTasks(activeSpaceKey)
+  const phasesQuery = usePhases(activeSpaceKey)
+  const evidenceQuery = useEvidence({ space: activeSpaceKey || undefined, limit: 6 })
   const results = searchQuery.data?.results ?? []
   const tasks = tasksQuery.data?.tasks ?? []
   const phases = phasesQuery.data?.phases ?? []
@@ -30,19 +24,36 @@ export function DashboardPage() {
   const focusTasks = tasks.slice(0, 3)
   const documentCount = spaces.reduce((sum, space) => sum + space.document_count, 0)
   const isLoading =
-    spacesQuery.isLoading || searchQuery.isLoading || tasksQuery.isLoading || phasesQuery.isLoading
+    spacesQuery.isLoading ||
+    searchQuery.isLoading ||
+    tasksQuery.isLoading ||
+    phasesQuery.isLoading ||
+    evidenceQuery.isLoading
   const isError =
-    spacesQuery.isError || searchQuery.isError || tasksQuery.isError || phasesQuery.isError
+    spacesQuery.isError ||
+    searchQuery.isError ||
+    tasksQuery.isError ||
+    phasesQuery.isError ||
+    evidenceQuery.isError
   const overviewError = formatFirstApiErrorForUser(
-    [spacesQuery.error, searchQuery.error, tasksQuery.error, phasesQuery.error],
+    [
+      spacesQuery.error,
+      searchQuery.error,
+      tasksQuery.error,
+      phasesQuery.error,
+      evidenceQuery.error,
+    ],
     'Не удалось загрузить обзор Wiki',
   )
 
   function retryOverview() {
     void spacesQuery.refetch()
     void searchQuery.refetch()
-    void tasksQuery.refetch()
-    void phasesQuery.refetch()
+    if (activeSpaceKey) {
+      void tasksQuery.refetch()
+      void phasesQuery.refetch()
+    }
+    void evidenceQuery.refetch()
   }
 
   return (
@@ -174,7 +185,7 @@ export function DashboardPage() {
               focusTasks.map((task) => (
                 <Link
                   key={task.task_key}
-                  to={`/tasks/${task.task_key}`}
+                  to={`/tasks/${task.task_key}?space=${encodeURIComponent(activeSpaceKey)}`}
                   className="block rounded-md border border-border p-3 hover:bg-surface-raised"
                 >
                   <div className="text-sm font-medium text-text-primary">{task.task_key}</div>
