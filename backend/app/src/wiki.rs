@@ -1278,28 +1278,40 @@ impl<'a, R: WikiEvidenceRepository + ?Sized> WikiEvidenceUseCase<'a, R> {
 
     pub async fn list(
         &self,
-        space_key: Option<&str>,
+        request: shared::EvidenceQuery,
         document_id: Option<Uuid>,
-        task_key: Option<&str>,
-        phase_key: Option<&str>,
         access_user_id: Option<Uuid>,
-        query: Option<&str>,
-        cursor: Option<&str>,
-        limit: Option<usize>,
     ) -> Result<shared::EvidenceListResponse, AppError> {
-        let limit = clamp_limit_with_default(limit, DEFAULT_EVIDENCE_LIMIT, MAX_EVIDENCE_LIMIT);
-        let query = query.map(str::trim).filter(|value| !value.is_empty());
+        let limit =
+            clamp_limit_with_default(request.limit, DEFAULT_EVIDENCE_LIMIT, MAX_EVIDENCE_LIMIT);
+        let query = request
+            .q
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
         if query.is_some_and(|value| value.chars().count() > 200) {
             return Err(AppError::invalid_input("evidence query is too long"));
         }
         let criteria = WikiEvidenceQueryCriteria {
-            space_key: space_key.map(normalize_space_key).transpose()?,
+            space_key: request
+                .space
+                .as_deref()
+                .map(normalize_space_key)
+                .transpose()?,
             document_id,
-            task_key: task_key.map(normalize_task_key).transpose()?,
-            phase_key: phase_key.map(normalize_phase_key).transpose()?,
+            task_key: request
+                .task_key
+                .as_deref()
+                .map(normalize_task_key)
+                .transpose()?,
+            phase_key: request
+                .phase_key
+                .as_deref()
+                .map(normalize_phase_key)
+                .transpose()?,
             access_user_id,
             query: query.map(str::to_lowercase),
-            cursor: parse_evidence_cursor(cursor)?,
+            cursor: parse_evidence_cursor(request.cursor.as_deref())?,
             limit: (limit + 1) as i64,
         };
         evidence_page(self.repository.list_evidence(&criteria).await?, limit)
@@ -4019,14 +4031,16 @@ mod tests {
 
         let list = use_case
             .list(
-                Some("sdlc"),
+                shared::EvidenceQuery {
+                    space: Some("sdlc".to_string()),
+                    task_key: Some(" SDLC-42 ".to_string()),
+                    phase_key: Some(" Implementation ".to_string()),
+                    q: Some(" Build LOG ".to_string()),
+                    limit: Some(500),
+                    ..Default::default()
+                },
                 Some(document_id),
-                Some(" SDLC-42 "),
-                Some(" Implementation "),
                 Some(access_user_id),
-                Some(" Build LOG "),
-                None,
-                Some(500),
             )
             .await
             .unwrap();
@@ -4050,7 +4064,7 @@ mod tests {
         );
 
         let list = use_case
-            .list(None, None, None, None, None, None, None, None)
+            .list(shared::EvidenceQuery::default(), None, None)
             .await
             .unwrap();
         assert_eq!(list.evidence.len(), 1);
@@ -4067,14 +4081,28 @@ mod tests {
 
         assert!(
             use_case
-                .list(None, None, None, None, None, None, Some("bad"), None)
+                .list(
+                    shared::EvidenceQuery {
+                        cursor: Some("bad".to_string()),
+                        ..Default::default()
+                    },
+                    None,
+                    None
+                )
                 .await
                 .is_err()
         );
         let long_query = "a".repeat(201);
         assert!(
             use_case
-                .list(None, None, None, None, None, Some(&long_query), None, None)
+                .list(
+                    shared::EvidenceQuery {
+                        q: Some(long_query),
+                        ..Default::default()
+                    },
+                    None,
+                    None
+                )
                 .await
                 .is_err()
         );

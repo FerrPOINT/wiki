@@ -354,16 +354,7 @@ impl PostgresWikiBackend {
             request_id: None,
         };
         WikiEvidenceUseCase::new(&repository)
-            .list(
-                space_key.as_deref(),
-                document_id,
-                query.task_key.as_deref(),
-                query.phase_key.as_deref(),
-                access_user_id,
-                query.q.as_deref(),
-                query.cursor.as_deref(),
-                query.limit,
-            )
+            .list(query, document_id, access_user_id)
             .await
     }
 

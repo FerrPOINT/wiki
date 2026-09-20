@@ -266,9 +266,15 @@ export function EvidencePage() {
     }
     setFilterError('')
     const nextParams = new URLSearchParams(searchParams)
-    const values = [filterQuery, filterSpace.toUpperCase(), filterDocument, filterTask, filterPhase]
-    FILTER_KEYS.forEach((key, index) => {
-      const value = optional(values[index])
+    const values: Record<(typeof FILTER_KEYS)[number], string> = {
+      q: filterQuery,
+      space: filterSpace.toUpperCase(),
+      document_id: filterDocument,
+      task_key: filterTask,
+      phase_key: filterPhase,
+    }
+    FILTER_KEYS.forEach((key) => {
+      const value = optional(values[key])
       if (value) nextParams.set(key, value)
       else nextParams.delete(key)
     })

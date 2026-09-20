@@ -675,7 +675,7 @@ pub struct CreateEvidenceRequest {
     pub checksum: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, IntoParams)]
+#[derive(Debug, Clone, Default, Deserialize, IntoParams)]
 pub struct EvidenceQuery {
     pub space: Option<String>,
     pub document_id: Option<String>,
