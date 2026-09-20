@@ -90,6 +90,7 @@ export type DocumentRevisionListParams = {
 
 export type AuditLogParams = {
   limit?: number
+  cursor?: string
 }
 
 function queryString(params: Record<string, string | number | boolean | null | undefined>): string {

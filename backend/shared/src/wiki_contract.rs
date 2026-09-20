@@ -736,12 +736,14 @@ pub struct AuditEntryResponse {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AuditLogResponse {
     pub entries: Vec<AuditEntryResponse>,
+    pub next_cursor: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, IntoParams)]
 pub struct AuditLogQuery {
     #[param(minimum = 1, maximum = 200)]
     pub limit: Option<usize>,
+    pub cursor: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, IntoParams)]

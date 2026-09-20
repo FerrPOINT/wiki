@@ -1,9 +1,10 @@
 use super::{PostgresWikiBackend, mapping::audit_entry_from_row};
 use app::wiki::{
-    WikiAuditCommand, WikiAuditRepository, WikiAuditRepositoryFuture, WikiAuditUseCase,
+    WikiAuditCommand, WikiAuditCursor, WikiAuditRepository, WikiAuditRepositoryFuture,
+    WikiAuditUseCase,
 };
 use shared::wiki_contract::*;
-use sqlx::Postgres;
+use sqlx::{Postgres, QueryBuilder};
 use uuid::Uuid;
 
 struct PostgresWikiAuditRepository<'a> {
@@ -15,20 +16,30 @@ impl WikiAuditRepository for PostgresWikiAuditRepository<'_> {
     fn list_recent_entries(
         &self,
         limit: usize,
+        cursor: Option<WikiAuditCursor>,
     ) -> WikiAuditRepositoryFuture<'_, Vec<AuditEntryResponse>> {
         Box::pin(async move {
-            let rows = sqlx::query(
-                r#"
+            let mut query = QueryBuilder::<Postgres>::new(
+                "
                 SELECT id, actor_id, action, entity_type, entity_id, request_id, created_at
                 FROM audit_log
-                ORDER BY created_at DESC
-                LIMIT $1
-                "#,
-            )
-            .bind(limit as i64)
-            .fetch_all(&self.backend.pool)
-            .await
-            .map_err(shared::AppError::database)?;
+                ",
+            );
+            if let Some(cursor) = cursor {
+                query
+                    .push(" WHERE (created_at, id) < (")
+                    .push_bind(cursor.created_at)
+                    .push(", ")
+                    .push_bind(cursor.id)
+                    .push(")");
+            }
+            let rows = query
+                .push(" ORDER BY created_at DESC, id DESC LIMIT ")
+                .push_bind(limit as i64)
+                .build()
+                .fetch_all(&self.backend.pool)
+                .await
+                .map_err(shared::AppError::database)?;
             Ok(rows.iter().map(audit_entry_from_row).collect())
         })
     }

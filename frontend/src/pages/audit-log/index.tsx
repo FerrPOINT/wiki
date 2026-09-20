@@ -1,7 +1,9 @@
-import { FileCheck2, History, LockKeyhole, UserRound } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { ChevronLeft, ChevronRight, History } from 'lucide-react'
 import { useAuditLog } from '@/shared/api/hooks'
 import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
 import { Card, CardContent, CardHeader, CardTitle } from '@sdlc/ui/ui'
+import { Button } from '@sdlc/ui/ui'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@sdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime } from '@/shared/lib/wiki-format'
@@ -10,9 +12,15 @@ function countBy(entries: { action: string }[], needle: string): number {
   return entries.filter((entry) => entry.action.includes(needle)).length
 }
 
+const PAGE_SIZE = 20
+
 export function AuditLogPage() {
-  const auditQuery = useAuditLog()
+  const [cursors, setCursors] = useState<(string | null)[]>([null])
+  const eventsRef = useRef<HTMLDivElement>(null)
+  const cursor = cursors[cursors.length - 1] ?? undefined
+  const auditQuery = useAuditLog({ limit: PAGE_SIZE, cursor })
   const entries = auditQuery.data?.entries ?? []
+  const nextCursor = auditQuery.data?.next_cursor
   const documentEvents = countBy(entries, 'document')
   const accessEvents = entries.filter((entry) =>
     ['member', 'role', 'space'].some((needle) => entry.action.includes(needle)),
@@ -21,56 +29,36 @@ export function AuditLogPage() {
     ['auth', 'user'].some((needle) => entry.action.includes(needle)),
   ).length
 
+  function changePage(nextCursors: (string | null)[]) {
+    setCursors(nextCursors)
+    eventsRef.current?.scrollIntoView?.({ block: 'start' })
+  }
+
   return (
     <div className="space-y-5">
       <section>
         <h1 className="text-2xl font-bold">Аудит</h1>
-        <p className="mt-1 max-w-3xl text-sm text-text-muted">
-          Неизменяемая история действий с документами, материалами, пользователями и правами.
-        </p>
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">События документов</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-3">
-              <FileCheck2 className="h-5 w-5 text-success" />
-              <span className="text-2xl font-semibold">{documentEvents}</span>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">События доступа</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-3">
-              <LockKeyhole className="h-5 w-5 text-warning" />
-              <span className="text-2xl font-semibold">{accessEvents}</span>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Пользователи</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-3">
-              <UserRound className="h-5 w-5 text-accent" />
-              <span className="text-2xl font-semibold">{userEvents}</span>
-            </div>
-          </CardContent>
-        </Card>
-      </section>
+      {!auditQuery.isLoading && !auditQuery.isError && entries.length > 0 && (
+        <section
+          aria-label="Сводка текущей страницы"
+          className="flex flex-wrap gap-x-5 gap-y-2 border-y border-border py-3 text-sm"
+        >
+          <span>
+            Показано <strong>{entries.length}</strong> (лимит {PAGE_SIZE})
+          </span>
+          <span>Документы: {documentEvents}</span>
+          <span>Доступ: {accessEvents}</span>
+          <span>Пользователи: {userEvents}</span>
+        </section>
+      )}
 
-      <Card>
+      <Card ref={eventsRef} className="scroll-mt-16">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <History className="h-4 w-4 text-accent" />
-            Последние события
+            События
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -141,6 +129,36 @@ export function AuditLogPage() {
                 </Table>
               </div>
             </>
+          )}
+          {(cursors.length > 1 || nextCursor) && (
+            <nav
+              aria-label="Страницы аудита"
+              className="mt-4 flex flex-wrap items-center gap-3 border-t border-border pt-3"
+            >
+              <span className="mr-auto text-sm text-text-secondary">Страница {cursors.length}</span>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10"
+                disabled={cursors.length === 1 || auditQuery.isLoading || auditQuery.isFetching}
+                onClick={() => changePage(cursors.slice(0, -1))}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Назад
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10"
+                disabled={
+                  !nextCursor || auditQuery.isLoading || auditQuery.isFetching || auditQuery.isError
+                }
+                onClick={() => nextCursor && changePage([...cursors, nextCursor])}
+              >
+                Далее
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </nav>
           )}
         </CardContent>
       </Card>

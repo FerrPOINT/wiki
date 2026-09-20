@@ -147,6 +147,8 @@ The PostgreSQL adapter is split by operation area:
 - idempotency records for protected write replay;
 - search.
 
+Audit is append-only, so the list uses a `(created_at, id)` keyset cursor rather than an offset. The UUID breaks timestamp ties, and newer writes do not shift an already opened older page. Clients treat `next_cursor` as opaque.
+
 ## 9. API Layer
 
 Axum API owns:

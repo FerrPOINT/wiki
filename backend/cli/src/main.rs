@@ -411,6 +411,8 @@ enum AuditCommands {
     List {
         #[arg(long)]
         limit: Option<usize>,
+        #[arg(long)]
+        cursor: Option<String>,
     },
 }
 
@@ -1009,8 +1011,11 @@ async fn execute_search(api: &ApiClient, command: SearchCommands) -> Result<Valu
 
 async fn execute_audit(api: &ApiClient, command: AuditCommands) -> Result<Value> {
     match command {
-        AuditCommands::List { limit } => {
-            let query = query_string([("limit", limit.map(|value| value.to_string()))]);
+        AuditCommands::List { limit, cursor } => {
+            let query = query_string([
+                ("limit", limit.map(|value| value.to_string())),
+                ("cursor", cursor),
+            ]);
             api.get(&format!("/audit-log{query}")).await
         }
     }
@@ -2030,7 +2035,10 @@ mod tests {
         let audit = execute(
             &api,
             Commands::Audit {
-                command: AuditCommands::List { limit: None },
+                command: AuditCommands::List {
+                    limit: None,
+                    cursor: None,
+                },
             },
         )
         .await
@@ -2077,7 +2085,10 @@ mod tests {
         let value = execute(
             &api,
             Commands::Audit {
-                command: AuditCommands::List { limit: Some(25) },
+                command: AuditCommands::List {
+                    limit: Some(25),
+                    cursor: Some("123.cursor-id".to_string()),
+                },
             },
         )
         .await
@@ -2087,7 +2098,10 @@ mod tests {
         let requests = server.requests();
         assert_eq!(requests.len(), 1);
         assert_eq!(requests[0].method, Method::GET);
-        assert_eq!(requests[0].path, "/api/v1/audit-log?limit=25");
+        assert_eq!(
+            requests[0].path,
+            "/api/v1/audit-log?limit=25&cursor=123.cursor-id"
+        );
         assert_eq!(
             requests[0].authorization.as_deref(),
             Some("Bearer secret-token")

@@ -1,10 +1,11 @@
 use app::wiki::{
     DEFAULT_AUDIT_LIMIT, DEFAULT_DOCUMENT_REVISION_LIMIT, DEFAULT_EVIDENCE_LIMIT,
     DEFAULT_SEARCH_LIMIT, MAX_AUDIT_LIMIT, MAX_DOCUMENT_REVISION_LIMIT, MAX_EVIDENCE_LIMIT,
-    MAX_SEARCH_LIMIT, WikiSpaceAccess, checksum, clamp_limit_with_default, markdown_to_html,
-    normalize_attachment_file_name, normalize_document_type, normalize_evidence_type,
-    normalize_phase_key, normalize_required, normalize_space_key, normalize_space_role,
-    normalize_task_key, safe_download_filename, slugify, snippet, space_role_allows,
+    MAX_SEARCH_LIMIT, WikiSpaceAccess, audit_log_page, checksum, clamp_limit_with_default,
+    markdown_to_html, normalize_attachment_file_name, normalize_document_type,
+    normalize_evidence_type, normalize_phase_key, normalize_required, normalize_space_key,
+    normalize_space_role, normalize_task_key, parse_audit_cursor, safe_download_filename, slugify,
+    snippet, space_role_allows,
 };
 use axum::{
     Extension, Json,
@@ -14,7 +15,7 @@ use axum::{
     middleware::Next,
     response::{IntoResponse, Response},
 };
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::{Arc, Mutex, OnceLock},
@@ -636,7 +637,7 @@ impl WikiStore {
             attachments: BTreeMap::new(),
             templates,
             audit: vec![AuditEntryResponse {
-                id: "audit-initial".to_string(),
+                id: new_id(),
                 actor_id: user_id,
                 action: "wiki.seeded".to_string(),
                 entity_type: "space".to_string(),
@@ -2928,9 +2929,33 @@ pub async fn list_audit_log(
     let store = store().lock().expect("wiki store lock");
     ensure_system_admin(&store, &claims.user_id)?;
     let limit = clamp_limit_with_default(query.limit, DEFAULT_AUDIT_LIMIT, MAX_AUDIT_LIMIT);
-    Ok(Json(AuditLogResponse {
-        entries: store.audit.iter().rev().take(limit).cloned().collect(),
-    }))
+    let cursor = parse_audit_cursor(query.cursor.as_deref())?;
+    let mut entries = store
+        .audit
+        .iter()
+        .cloned()
+        .map(|entry| {
+            let created_at = DateTime::parse_from_rfc3339(&entry.created_at)
+                .map_err(|_| shared::AppError::internal("invalid stored audit timestamp"))?
+                .with_timezone(&Utc);
+            let id = Uuid::parse_str(&entry.id)
+                .map_err(|_| shared::AppError::internal("invalid stored audit id"))?;
+            Ok((created_at, id, entry))
+        })
+        .collect::<Result<Vec<_>, shared::AppError>>()?;
+    entries.sort_unstable_by(|left, right| right.0.cmp(&left.0).then_with(|| right.1.cmp(&left.1)));
+    let page = entries
+        .into_iter()
+        .filter(|(created_at, id, _)| {
+            cursor.as_ref().is_none_or(|cursor| {
+                created_at < &cursor.created_at
+                    || (created_at == &cursor.created_at && id < &cursor.id)
+            })
+        })
+        .take(limit + 1)
+        .map(|(_, _, entry)| entry)
+        .collect();
+    Ok(Json(audit_log_page(page, limit)?))
 }
 
 #[utoipa::path(
