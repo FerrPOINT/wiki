@@ -1,10 +1,10 @@
 use app::wiki::{
-    DEFAULT_AUDIT_LIMIT, DEFAULT_DOCUMENT_REVISION_LIMIT, DEFAULT_EVIDENCE_LIMIT,
-    DEFAULT_SEARCH_LIMIT, MAX_AUDIT_LIMIT, MAX_DOCUMENT_REVISION_LIMIT, MAX_EVIDENCE_LIMIT,
-    MAX_SEARCH_LIMIT, WikiSpaceAccess, audit_log_page, checksum, clamp_limit_with_default,
-    markdown_to_html, normalize_attachment_file_name, normalize_document_type,
-    normalize_evidence_type, normalize_phase_key, normalize_required, normalize_space_key,
-    normalize_space_role, normalize_task_key, parse_audit_cursor, safe_download_filename, slugify,
+    DEFAULT_AUDIT_LIMIT, DEFAULT_DOCUMENT_REVISION_LIMIT, DEFAULT_EVIDENCE_LIMIT, MAX_AUDIT_LIMIT,
+    MAX_DOCUMENT_REVISION_LIMIT, MAX_EVIDENCE_LIMIT, WikiSpaceAccess, audit_log_page,
+    build_wiki_search_criteria_from_query, checksum, clamp_limit_with_default, markdown_to_html,
+    normalize_attachment_file_name, normalize_document_type, normalize_evidence_type,
+    normalize_phase_key, normalize_required, normalize_space_key, normalize_space_role,
+    normalize_task_key, parse_audit_cursor, safe_download_filename, search_result_page, slugify,
     snippet, space_role_allows,
 };
 use axum::{
@@ -2607,7 +2607,7 @@ pub async fn list_evidence(
         .map(normalize_phase_key)
         .transpose()?;
     let store = store().lock().expect("wiki store lock");
-    if let Some(key) = &requested_space {
+    if let Some(key) = requested_space {
         ensure_space_access(&store, key, &claims.user_id, WikiSpaceAccess::View)?;
     }
     let mut items: Vec<_> = store
@@ -2978,35 +2978,24 @@ pub async fn search(
         return Ok(Json(response));
     }
 
-    let requested_space = query
-        .space
-        .as_deref()
-        .map(normalize_space_key)
-        .transpose()?;
-    let requested_task_key = query
-        .task_key
-        .as_deref()
-        .map(normalize_task_key)
-        .transpose()?;
-    let requested_phase_key = query
-        .phase_key
-        .as_deref()
-        .map(normalize_phase_key)
-        .transpose()?;
-    let requested_document_type = query
-        .document_type
-        .as_deref()
-        .map(|value| normalize_document_type(value, true))
-        .transpose()?;
+    let criteria = build_wiki_search_criteria_from_query(&query)?;
+    let requested_space = &criteria.space_key;
+    let requested_task_key = &criteria.task_key;
+    let requested_phase_key = &criteria.phase_key;
+    let requested_document_type = criteria.document_type;
     let store = store().lock().expect("wiki store lock");
     if let Some(key) = &requested_space {
         ensure_space_access(&store, key, &claims.user_id, WikiSpaceAccess::View)?;
     }
-    let needle = query.q.unwrap_or_default().to_lowercase();
-    let include_archived = query.include_archived.unwrap_or(false);
+    let needle = criteria.needle.to_lowercase();
+    let include_archived = criteria.include_archived;
     let mut results = Vec::new();
 
-    for document in store.documents.values() {
+    for document in store
+        .documents
+        .values()
+        .filter(|_| criteria.result_type != Some("evidence"))
+    {
         if !can_view_space(&store, &document.space_key, &claims.user_id) {
             continue;
         }
@@ -3058,14 +3047,18 @@ pub async fn search(
                 result_type: "document".to_string(),
                 title: indexed_title.to_string(),
                 space_key: document.space_key.clone(),
-                url: format!("/documents/{}", document.slug),
+                url: format!("/documents/{}", document.id),
                 snippet: snippet(indexed_markdown),
                 updated_at: document.updated_at.clone(),
             });
         }
     }
 
-    for item in store.evidence.values() {
+    for item in store
+        .evidence
+        .values()
+        .filter(|_| criteria.result_type != Some("document"))
+    {
         if !can_view_space(&store, &item.space_key, &claims.user_id) {
             continue;
         }
@@ -3105,14 +3098,9 @@ pub async fn search(
         }
     }
 
-    results.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
-    results.truncate(clamp_limit_with_default(
-        query.limit,
-        DEFAULT_SEARCH_LIMIT,
-        MAX_SEARCH_LIMIT,
-    ));
+    let response = search_result_page(results, criteria.limit as usize, criteria.cursor.as_ref())?;
     record_search_query(metric_scope);
-    Ok(Json(SearchResponse { results }))
+    Ok(Json(response))
 }
 
 fn auth_response(store: &mut WikiStore, user: &WikiUserResponse) -> WikiAuthResponse {

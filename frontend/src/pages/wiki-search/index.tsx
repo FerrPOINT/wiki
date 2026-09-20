@@ -21,8 +21,7 @@ const documentTypes = [
   'test_plan',
   'release_note',
 ] as const
-const searchLimit = 100
-const pageSize = 12
+const pageSize = 20
 const selectClassName =
   'min-h-10 w-full rounded-md border border-border-strong bg-surface px-3 text-sm text-text-primary focus-visible:outline-2 focus-visible:outline-accent'
 
@@ -59,13 +58,19 @@ export function WikiSearchPage() {
     useState<(typeof resultTypes)[number]['value']>('all')
   const [documentTypeFilter, setDocumentTypeFilter] = useState<string>('all')
   const [showFilters, setShowFilters] = useState(false)
-  const [page, setPage] = useState(1)
+  const [pageCursors, setPageCursors] = useState<(string | undefined)[]>([undefined])
+  const currentPage = pageCursors.length
   const resultsSection = useRef<HTMLElement>(null)
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => setAppliedQuery(query.trim()), 300)
+    const timeout = window.setTimeout(() => {
+      if (query.trim() !== appliedQuery) {
+        setAppliedQuery(query.trim())
+        setPageCursors([undefined])
+      }
+    }, 300)
     return () => window.clearTimeout(timeout)
-  }, [query])
+  }, [query, appliedQuery])
 
   const searchParams: SearchParams = useMemo(
     () => ({
@@ -75,21 +80,15 @@ export function WikiSearchPage() {
       phase_key: optional(appliedFilters.phase),
       document_type:
         appliedFilters.documentType === 'all' ? undefined : appliedFilters.documentType,
-      limit: searchLimit,
+      result_type: resultTypeFilter === 'all' ? undefined : resultTypeFilter,
+      limit: pageSize,
+      cursor: pageCursors[currentPage - 1],
     }),
-    [appliedFilters, appliedQuery],
+    [appliedFilters, appliedQuery, resultTypeFilter, pageCursors, currentPage],
   )
   const searchQuery = useWikiSearch(searchParams)
   const results = searchQuery.data?.results ?? []
-  const documentCount = results.filter((result) => result.result_type === 'document').length
-  const evidenceCount = results.filter((result) => result.result_type === 'evidence').length
-  const filteredResults =
-    resultTypeFilter === 'all'
-      ? results
-      : results.filter((result) => result.result_type === resultTypeFilter)
-  const totalPages = Math.max(1, Math.ceil(filteredResults.length / pageSize))
-  const currentPage = Math.min(page, totalPages)
-  const visibleResults = filteredResults.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  const nextCursor = searchQuery.data?.next_cursor
   const activeFilterCount =
     [appliedFilters.space, appliedFilters.task, appliedFilters.phase].filter(
       (value) => value.trim() !== '',
@@ -98,7 +97,7 @@ export function WikiSearchPage() {
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setAppliedQuery(query.trim())
-    setPage(1)
+    setPageCursors([undefined])
   }
 
   function applyFilters(event: FormEvent<HTMLFormElement>) {
@@ -110,7 +109,7 @@ export function WikiSearchPage() {
       documentType: documentTypeFilter,
     })
     if (documentTypeFilter !== 'all') setResultTypeFilter('document')
-    setPage(1)
+    setPageCursors([undefined])
   }
 
   function selectResultType(value: (typeof resultTypes)[number]['value']) {
@@ -119,11 +118,12 @@ export function WikiSearchPage() {
       setDocumentTypeFilter('all')
       setAppliedFilters((filters) => ({ ...filters, documentType: 'all' }))
     }
-    setPage(1)
+    setPageCursors([undefined])
   }
 
-  function changePage(nextPage: number) {
-    setPage(nextPage)
+  function changePage(direction: 'previous' | 'next') {
+    if (direction === 'previous') setPageCursors((cursors) => cursors.slice(0, -1))
+    else if (nextCursor) setPageCursors((cursors) => [...cursors, nextCursor])
     resultsSection.current?.scrollIntoView?.({ block: 'start' })
   }
 
@@ -145,7 +145,6 @@ export function WikiSearchPage() {
               value={query}
               onChange={(event) => {
                 setQuery(event.target.value)
-                setPage(1)
               }}
               placeholder="Название, текст или ключ"
             />
@@ -241,7 +240,7 @@ export function WikiSearchPage() {
                     setDocumentTypeFilter('all')
                     setAppliedFilters({ space: '', task: '', phase: '', documentType: 'all' })
                     setResultTypeFilter('all')
-                    setPage(1)
+                    setPageCursors([undefined])
                   }}
                 >
                   Сбросить фильтры
@@ -266,34 +265,26 @@ export function WikiSearchPage() {
           </h2>
           {!searchQuery.isLoading && !searchQuery.isError && (
             <p role="status" className="text-sm text-text-muted">
-              {filteredResults.length === 0
+              {results.length === 0
                 ? '0 результатов'
-                : `${(currentPage - 1) * pageSize + 1}–${Math.min(currentPage * pageSize, filteredResults.length)} из ${filteredResults.length}`}
+                : `Показано ${(currentPage - 1) * pageSize + 1}–${(currentPage - 1) * pageSize + results.length}`}
             </p>
           )}
         </div>
         <div role="group" aria-label="Тип результата" className="flex flex-wrap gap-2">
-          {resultTypes.map((item) => {
-            const count =
-              item.value === 'document'
-                ? documentCount
-                : item.value === 'evidence'
-                  ? evidenceCount
-                  : results.length
-            return (
-              <Button
-                key={item.value}
-                type="button"
-                size="sm"
-                variant={resultTypeFilter === item.value ? 'secondary' : 'outline'}
-                className="min-h-10 sm:min-h-10"
-                aria-pressed={resultTypeFilter === item.value}
-                onClick={() => selectResultType(item.value)}
-              >
-                {item.label} <span className="text-text-muted">{count}</span>
-              </Button>
-            )
-          })}
+          {resultTypes.map((item) => (
+            <Button
+              key={item.value}
+              type="button"
+              size="sm"
+              variant={resultTypeFilter === item.value ? 'secondary' : 'outline'}
+              className="min-h-10 sm:min-h-10"
+              aria-pressed={resultTypeFilter === item.value}
+              onClick={() => selectResultType(item.value)}
+            >
+              {item.label}
+            </Button>
+          ))}
         </div>
 
         {searchQuery.isLoading && <LoadingState message="Ищем" />}
@@ -303,12 +294,12 @@ export function WikiSearchPage() {
             onRetry={() => searchQuery.refetch()}
           />
         )}
-        {!searchQuery.isLoading && !searchQuery.isError && filteredResults.length === 0 && (
+        {!searchQuery.isLoading && !searchQuery.isError && results.length === 0 && (
           <EmptyState message="Ничего не найдено" />
         )}
-        {!searchQuery.isLoading && !searchQuery.isError && filteredResults.length > 0 && (
+        {!searchQuery.isLoading && !searchQuery.isError && results.length > 0 && (
           <div className="divide-y divide-border border-y border-border">
-            {visibleResults.map((result: SearchResult) => {
+            {results.map((result: SearchResult) => {
               const Icon = resultIcon(result.result_type)
               return (
                 <Link
@@ -336,7 +327,7 @@ export function WikiSearchPage() {
             })}
           </div>
         )}
-        {filteredResults.length > pageSize && !searchQuery.isError && (
+        {(currentPage > 1 || nextCursor) && !searchQuery.isLoading && !searchQuery.isError && (
           <nav aria-label="Страницы результатов" className="flex items-center justify-end gap-2">
             <Button
               type="button"
@@ -344,29 +335,22 @@ export function WikiSearchPage() {
               variant="outline"
               className="min-h-10 sm:min-h-10"
               disabled={currentPage === 1}
-              onClick={() => changePage(currentPage - 1)}
+              onClick={() => changePage('previous')}
             >
               Назад
             </Button>
-            <span className="text-sm text-text-muted">
-              {currentPage} / {totalPages}
-            </span>
+            <span className="text-sm text-text-muted">Страница {currentPage}</span>
             <Button
               type="button"
               size="sm"
               variant="outline"
               className="min-h-10 sm:min-h-10"
-              disabled={currentPage === totalPages}
-              onClick={() => changePage(currentPage + 1)}
+              disabled={!nextCursor}
+              onClick={() => changePage('next')}
             >
               Далее
             </Button>
           </nav>
-        )}
-        {results.length === searchLimit && !searchQuery.isError && (
-          <p className="text-sm text-text-muted">
-            Показаны первые 100 результатов. Уточните запрос для более точной выдачи.
-          </p>
         )}
       </section>
     </div>

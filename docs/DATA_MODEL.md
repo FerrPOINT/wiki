@@ -306,6 +306,7 @@ Required constraint categories:
 - immutable revision version uniqueness per document;
 - FTS index for published revision search;
 - audit indexes by entity, actor and `(created_at DESC, id DESC)` for stable cursor pagination.
+- `documents_search_cursor_idx` on `(updated_at DESC, id DESC)` for search pagination; evidence cursor ordering uses `(created_at DESC, id DESC)` once the evidence-list index migration is applied.
 
 ## 5. Search
 

@@ -1333,8 +1333,85 @@ pub struct WikiSearchCriteria {
     pub task_key: Option<String>,
     pub phase_key: Option<String>,
     pub document_type: Option<&'static str>,
+    pub result_type: Option<&'static str>,
     pub include_archived: bool,
     pub limit: i64,
+    pub cursor: Option<WikiSearchCursor>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct WikiSearchCursor {
+    pub updated_at: DateTime<Utc>,
+    pub id: Uuid,
+    pub result_type: String,
+}
+
+pub fn parse_search_cursor(value: Option<&str>) -> Result<Option<WikiSearchCursor>, AppError> {
+    let Some(value) = value else { return Ok(None) };
+    let mut parts = value.split('.');
+    let (Some(micros), Some(id), Some(result_type), None) =
+        (parts.next(), parts.next(), parts.next(), parts.next())
+    else {
+        return Err(AppError::invalid_input("invalid search cursor"));
+    };
+    let updated_at = micros
+        .parse::<i64>()
+        .ok()
+        .and_then(DateTime::<Utc>::from_timestamp_micros)
+        .ok_or_else(|| AppError::invalid_input("invalid search cursor"))?;
+    let id = Uuid::parse_str(id).map_err(|_| AppError::invalid_input("invalid search cursor"))?;
+    if !matches!(result_type, "document" | "evidence") {
+        return Err(AppError::invalid_input("invalid search cursor"));
+    }
+    Ok(Some(WikiSearchCursor {
+        updated_at,
+        id,
+        result_type: result_type.to_string(),
+    }))
+}
+
+pub fn search_result_page(
+    results: Vec<shared::SearchResultResponse>,
+    limit: usize,
+    cursor: Option<&WikiSearchCursor>,
+) -> Result<shared::SearchResponse, AppError> {
+    let mut keyed = results
+        .into_iter()
+        .map(|result| {
+            let updated_at = DateTime::parse_from_rfc3339(&result.updated_at)
+                .map_err(|_| AppError::internal("invalid stored search timestamp"))?
+                .with_timezone(&Utc);
+            let id = Uuid::parse_str(&result.id)
+                .map_err(|_| AppError::internal("invalid stored search id"))?;
+            let key = WikiSearchCursor {
+                updated_at: DateTime::<Utc>::from_timestamp_micros(updated_at.timestamp_micros())
+                    .ok_or_else(|| AppError::internal("invalid stored search timestamp"))?,
+                id,
+                result_type: result.result_type.clone(),
+            };
+            Ok((key, result))
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+    keyed.retain(|(key, _)| cursor.is_none_or(|cursor| key < cursor));
+    keyed.sort_by(|a, b| b.0.cmp(&a.0));
+    let has_more = keyed.len() > limit;
+    keyed.truncate(limit);
+    let next_cursor = if has_more {
+        keyed.last().map(|(key, _)| {
+            format!(
+                "{}.{}.{}",
+                key.updated_at.timestamp_micros(),
+                key.id,
+                key.result_type
+            )
+        })
+    } else {
+        None
+    };
+    Ok(shared::SearchResponse {
+        results: keyed.into_iter().map(|(_, result)| result).collect(),
+        next_cursor,
+    })
 }
 
 pub type WikiSearchRepositoryFuture<'a> =
@@ -1368,18 +1445,21 @@ impl<'a, R: WikiSearchRepository + ?Sized> WikiSearchUseCase<'a, R> {
         criteria: WikiSearchCriteria,
         restricted_user_id: Option<Uuid>,
     ) -> Result<shared::SearchResponse, AppError> {
-        let mut results = self
-            .repository
-            .search_documents(&criteria, restricted_user_id)
-            .await?;
-        results.extend(
+        let mut results = if criteria.result_type == Some("evidence") {
+            Vec::new()
+        } else {
             self.repository
-                .search_evidence(&criteria, restricted_user_id)
-                .await?,
-        );
-        results.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
-        results.truncate(criteria.limit as usize);
-        Ok(shared::SearchResponse { results })
+                .search_documents(&criteria, restricted_user_id)
+                .await?
+        };
+        if criteria.result_type != Some("document") {
+            results.extend(
+                self.repository
+                    .search_evidence(&criteria, restricted_user_id)
+                    .await?,
+            );
+        }
+        search_result_page(results, criteria.limit as usize, criteria.cursor.as_ref())
     }
 }
 
@@ -1662,15 +1742,17 @@ pub fn build_wiki_search_criteria(
         document_type: document_type
             .map(|value| normalize_document_type(value, true))
             .transpose()?,
+        result_type: None,
         include_archived: include_archived.unwrap_or(false),
         limit: clamp_limit_with_default(limit, DEFAULT_SEARCH_LIMIT, MAX_SEARCH_LIMIT) as i64,
+        cursor: None,
     })
 }
 
 pub fn build_wiki_search_criteria_from_query(
     query: &shared::SearchQuery,
 ) -> Result<WikiSearchCriteria, AppError> {
-    build_wiki_search_criteria(
+    let mut criteria = build_wiki_search_criteria(
         query.q.as_deref(),
         query.space.as_deref(),
         query.task_key.as_deref(),
@@ -1678,7 +1760,15 @@ pub fn build_wiki_search_criteria_from_query(
         query.document_type.as_deref(),
         query.include_archived,
         query.limit,
-    )
+    )?;
+    criteria.result_type = match query.result_type.as_deref() {
+        None | Some("") => None,
+        Some("document") => Some("document"),
+        Some("evidence") => Some("evidence"),
+        _ => return Err(AppError::invalid_input("unsupported search result type")),
+    };
+    criteria.cursor = parse_search_cursor(query.cursor.as_deref())?;
+    Ok(criteria)
 }
 
 fn evidence_like_pattern(value: &str) -> String {
@@ -4244,20 +4334,20 @@ mod tests {
         let repository = StaticSearchRepository {
             documents: vec![
                 search_result(
-                    "doc-old",
+                    "00000000-0000-0000-0000-000000000001",
                     "document",
                     "Old document",
                     "2026-08-30T10:00:00Z",
                 ),
                 search_result(
-                    "doc-new",
+                    "00000000-0000-0000-0000-000000000003",
                     "document",
                     "New document",
                     "2026-09-01T10:00:00Z",
                 ),
             ],
             evidence: vec![search_result(
-                "evidence-mid",
+                "00000000-0000-0000-0000-000000000002",
                 "evidence",
                 "Middle evidence",
                 "2026-08-31T10:00:00Z",
@@ -4268,7 +4358,7 @@ mod tests {
                 .unwrap();
 
         let response = WikiSearchUseCase::new(&repository)
-            .execute(criteria, Some(Uuid::nil()))
+            .execute(criteria.clone(), Some(Uuid::nil()))
             .await
             .unwrap();
 
@@ -4278,8 +4368,51 @@ mod tests {
                 .iter()
                 .map(|result| result.id.as_str())
                 .collect::<Vec<_>>(),
-            vec!["doc-new", "evidence-mid"]
+            vec![
+                "00000000-0000-0000-0000-000000000003",
+                "00000000-0000-0000-0000-000000000002"
+            ]
         );
+        let cursor = response.next_cursor.expect("more search results");
+        let mut second_criteria = criteria;
+        second_criteria.cursor = parse_search_cursor(Some(&cursor)).unwrap();
+        let second = WikiSearchUseCase::new(&repository)
+            .execute(second_criteria, Some(Uuid::nil()))
+            .await
+            .unwrap();
+        assert_eq!(second.results.len(), 1);
+        assert_eq!(second.results[0].id, "00000000-0000-0000-0000-000000000001");
+        assert!(second.next_cursor.is_none());
+    }
+
+    #[test]
+    fn wiki_search_cursor_rejects_invalid_values_and_orders_microsecond_ties_by_id() {
+        for value in [
+            "invalid",
+            "0.invalid.document",
+            "0.00000000-0000-0000-0000-000000000001.other",
+        ] {
+            assert!(parse_search_cursor(Some(value)).is_err());
+        }
+        let results = vec![
+            search_result(
+                "00000000-0000-0000-0000-000000000001",
+                "document",
+                "First",
+                "2026-09-01T10:00:00.123456100Z",
+            ),
+            search_result(
+                "00000000-0000-0000-0000-000000000002",
+                "evidence",
+                "Second",
+                "2026-09-01T10:00:00.123456900Z",
+            ),
+        ];
+        let first = search_result_page(results.clone(), 1, None).unwrap();
+        assert_eq!(first.results[0].id, "00000000-0000-0000-0000-000000000002");
+        let cursor = parse_search_cursor(first.next_cursor.as_deref()).unwrap();
+        let second = search_result_page(results, 1, cursor.as_ref()).unwrap();
+        assert_eq!(second.results[0].id, "00000000-0000-0000-0000-000000000001");
     }
 
     #[tokio::test]

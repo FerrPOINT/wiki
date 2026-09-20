@@ -71,8 +71,10 @@ export type SearchParams = {
   task_key?: string
   phase_key?: string
   document_type?: string
+  result_type?: 'document' | 'evidence'
   include_archived?: boolean
   limit?: number
+  cursor?: string
 }
 
 export type EvidenceListParams = {

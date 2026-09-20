@@ -141,6 +141,8 @@ wiki template list
 wiki template create --name "Release note" --type release_note --from-file release-note.md
 wiki template apply requirements --space SDLC --title "Requirements"
 wiki search query "authorization" --space SDLC --type requirements --limit 20
+wiki search query "authorization" --space SDLC --result-type evidence --limit 20
+wiki search query "authorization" --space SDLC --result-type evidence --limit 20 --cursor '<next_cursor>'
 wiki search query "archived decision" --space SDLC --include-archived
 ```
 
@@ -155,7 +157,7 @@ wiki settings get
 
 `wiki audit list` returns the API JSON as-is, including `request_id` and `next_cursor`. Pass `next_cursor` back as `--cursor` to read older events. Without `--limit`, the API returns the latest 50 events; `--limit` is clamped server-side to `1..200`.
 
-Bounded read commands use the same limits as the public API: `wiki doc history` defaults to 20, clamps to `1..100` and accepts `--offset` (default `0`) for older revisions; `wiki evidence list` defaults to 30 and clamps to `1..100`; `wiki search query` defaults to 20 and clamps to `1..100`.
+Bounded read commands use the same limits as the public API: `wiki doc history` defaults to 20, clamps to `1..100` and accepts `--offset` (default `0`) for older revisions; `wiki evidence list` defaults to 30 and clamps to `1..100`; `wiki search query` defaults to 20, clamps to `1..100`, accepts `--result-type document|evidence` and continues with the response `next_cursor` via `--cursor`.
 
 ## Contract Freeze
 

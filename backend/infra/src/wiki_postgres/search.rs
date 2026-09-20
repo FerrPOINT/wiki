@@ -29,7 +29,20 @@ impl WikiSearchRepository for PostgresWikiSearchRepository<'_> {
                 .bind(criteria.document_type)
                 .bind(criteria.include_archived)
                 .bind(restricted_user_id)
-                .bind(criteria.limit)
+                .bind(
+                    criteria
+                        .cursor
+                        .as_ref()
+                        .map(|cursor| cursor.updated_at.to_owned()),
+                )
+                .bind(criteria.cursor.as_ref().map(|cursor| cursor.id))
+                .bind(
+                    criteria
+                        .cursor
+                        .as_ref()
+                        .map(|cursor| cursor.result_type.as_str()),
+                )
+                .bind(criteria.limit + 1)
                 .fetch_all(self.pool)
                 .await
                 .map_err(shared::AppError::database)?;
@@ -49,7 +62,20 @@ impl WikiSearchRepository for PostgresWikiSearchRepository<'_> {
                 .bind(criteria.task_key.as_deref())
                 .bind(criteria.phase_key.as_deref())
                 .bind(restricted_user_id)
-                .bind(criteria.limit)
+                .bind(
+                    criteria
+                        .cursor
+                        .as_ref()
+                        .map(|cursor| cursor.updated_at.to_owned()),
+                )
+                .bind(criteria.cursor.as_ref().map(|cursor| cursor.id))
+                .bind(
+                    criteria
+                        .cursor
+                        .as_ref()
+                        .map(|cursor| cursor.result_type.as_str()),
+                )
+                .bind(criteria.limit + 1)
                 .fetch_all(self.pool)
                 .await
                 .map_err(shared::AppError::database)?;

@@ -400,9 +400,13 @@ enum SearchCommands {
         #[arg(long = "type")]
         document_type: Option<String>,
         #[arg(long)]
+        result_type: Option<String>,
+        #[arg(long)]
         include_archived: bool,
         #[arg(long)]
         limit: Option<usize>,
+        #[arg(long)]
+        cursor: Option<String>,
     },
 }
 
@@ -989,8 +993,10 @@ async fn execute_search(api: &ApiClient, command: SearchCommands) -> Result<Valu
             task,
             phase,
             document_type,
+            result_type,
             include_archived,
             limit,
+            cursor,
         } => {
             let query = query_string([
                 ("q", Some(query)),
@@ -998,11 +1004,13 @@ async fn execute_search(api: &ApiClient, command: SearchCommands) -> Result<Valu
                 ("task_key", task),
                 ("phase_key", phase),
                 ("document_type", document_type),
+                ("result_type", result_type),
                 (
                     "include_archived",
                     include_archived.then(|| "true".to_string()),
                 ),
                 ("limit", limit.map(|value| value.to_string())),
+                ("cursor", cursor),
             ]);
             api.get(&format!("/search{query}")).await
         }
@@ -1377,8 +1385,10 @@ mod tests {
                     task: Some("SDLC-42".to_string()),
                     phase: Some("testing".to_string()),
                     document_type: Some("requirements".to_string()),
+                    result_type: Some("document".to_string()),
                     include_archived: true,
                     limit: Some(25),
+                    cursor: Some("42.00000000-0000-0000-0000-000000000000.document".to_string()),
                 },
             },
         )
@@ -1391,7 +1401,7 @@ mod tests {
         assert_eq!(requests[0].method, Method::GET);
         assert_eq!(
             requests[0].path,
-            "/api/v1/search?q=release%20gate&space=SDLC%20KB&task_key=SDLC-42&phase_key=testing&document_type=requirements&include_archived=true&limit=25"
+            "/api/v1/search?q=release%20gate&space=SDLC%20KB&task_key=SDLC-42&phase_key=testing&document_type=requirements&result_type=document&include_archived=true&limit=25&cursor=42.00000000-0000-0000-0000-000000000000.document"
         );
         assert_eq!(
             requests[0].authorization.as_deref(),

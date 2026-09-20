@@ -907,6 +907,17 @@
             }
           },
           {
+            "name": "result_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
             "name": "include_archived",
             "in": "query",
             "required": false,
@@ -928,6 +939,17 @@
               ],
               "maximum": 100,
               "minimum": 1
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
             }
           }
         ],
@@ -2658,6 +2680,12 @@
             "items": {
               "$ref": "#/components/schemas/SearchResultResponse"
             }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },

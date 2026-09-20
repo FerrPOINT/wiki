@@ -96,8 +96,7 @@ pub(super) const SEARCH_DOCUMENTS_SQL: &str = r#"
         END AS query
     ),
     matching_revisions AS MATERIALIZED (
-        SELECT cr.id,
-               ts_rank_cd(cr.search_vector, sq.query) AS search_rank
+        SELECT cr.id
         FROM search_query sq
         JOIN document_revisions cr ON sq.query IS NOT NULL
         WHERE cr.search_vector @@ sq.query
@@ -106,21 +105,12 @@ pub(super) const SEARCH_DOCUMENTS_SQL: &str = r#"
            'document' AS result_type,
            COALESCE(cr.title, d.title) AS title,
            s.key AS space_key,
-           '/documents/' || d.slug AS url,
+           '/documents/' || d.id::text AS url,
            CASE
                WHEN cr.id IS NOT NULL THEN COALESCE(NULLIF(cr.content_text, ''), cr.title)
                ELSE COALESCE(NULLIF(dd.content_markdown, ''), d.title)
            END AS snippet,
-           d.updated_at,
-           CASE
-               WHEN sq.query IS NULL THEN 0::real
-               WHEN mr.id IS NOT NULL THEN mr.search_rank
-               ELSE ts_rank_cd(
-                   setweight(to_tsvector('simple', coalesce(d.title, '')), 'A')
-                   || setweight(to_tsvector('simple', coalesce(dd.content_markdown, '')), 'B'),
-                   sq.query
-               )
-           END AS search_rank
+           d.updated_at
     FROM search_query sq
     CROSS JOIN documents d
     JOIN spaces s ON s.id = d.space_id
@@ -158,8 +148,9 @@ pub(super) const SEARCH_DOCUMENTS_SQL: &str = r#"
           FROM space_members sm
           WHERE sm.space_id = d.space_id AND sm.user_id = $7
       ))
-    ORDER BY search_rank DESC, d.updated_at DESC
-    LIMIT $8
+      AND ($8::timestamptz IS NULL OR (d.updated_at, d.id, 'document'::text) < ($8, $9::uuid, $10::text))
+    ORDER BY d.updated_at DESC, d.id DESC
+    LIMIT $11
 "#;
 
 pub(super) const SEARCH_EVIDENCE_SQL: &str = r#"
@@ -187,6 +178,7 @@ pub(super) const SEARCH_EVIDENCE_SQL: &str = r#"
           FROM space_members sm
           WHERE sm.space_id = e.space_id AND sm.user_id = $5
       ))
-    ORDER BY e.created_at DESC
-    LIMIT $6
+      AND ($6::timestamptz IS NULL OR (e.created_at, e.id, 'evidence'::text) < ($6, $7::uuid, $8::text))
+    ORDER BY e.created_at DESC, e.id DESC
+    LIMIT $9
 "#;

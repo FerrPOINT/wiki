@@ -34,12 +34,22 @@ function setupSearch(
   results = [documentResult, evidenceResult],
   overrides: Record<string, unknown> = {},
 ) {
-  useWikiSearch.mockReturnValue({
-    data: { results },
-    isLoading: false,
-    isError: false,
-    refetch: searchRefetch,
-    ...overrides,
+  useWikiSearch.mockImplementation((params: { result_type?: string; cursor?: string }) => {
+    const matching = results.filter(
+      (result) => !params.result_type || result.result_type === params.result_type,
+    )
+    const offset = params.cursor ? Number(params.cursor.slice(5)) : 0
+    const page = matching.slice(offset, offset + 20)
+    return {
+      data: {
+        results: page,
+        next_cursor: offset + 20 < matching.length ? `page-${offset + 20}` : null,
+      },
+      isLoading: false,
+      isError: false,
+      refetch: searchRefetch,
+      ...overrides,
+    }
   })
 
   render(
@@ -54,7 +64,7 @@ describe('WikiSearchPage', () => {
     vi.clearAllMocks()
   })
 
-  it('filters visible result types and sends expanded filters to the API hook', async () => {
+  it('sends result type and expanded filters to the API hook', async () => {
     setupSearch()
 
     expect(screen.getByRole('link', { name: /Требования Wiki/ })).toHaveAttribute(
@@ -63,9 +73,12 @@ describe('WikiSearchPage', () => {
     )
     expect(screen.getByRole('link', { name: /Smoke proof/ })).toHaveAttribute('href', '/evidence')
 
-    fireEvent.click(screen.getByRole('button', { name: /Документы 1/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Документы' }))
     expect(screen.getByRole('link', { name: /Требования Wiki/ })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /Smoke proof/ })).not.toBeInTheDocument()
+    expect(useWikiSearch).toHaveBeenLastCalledWith(
+      expect.objectContaining({ result_type: 'document' }),
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Фильтры' }))
     fireEvent.change(screen.getByRole('searchbox', { name: 'Поисковый запрос' }), {
@@ -77,7 +90,9 @@ describe('WikiSearchPage', () => {
     fireEvent.change(screen.getByLabelText('Тип документа'), { target: { value: 'test_plan' } })
     expect(useWikiSearch).toHaveBeenLastCalledWith({
       document_type: undefined,
-      limit: 100,
+      result_type: 'document',
+      cursor: undefined,
+      limit: 20,
       phase_key: undefined,
       q: '',
       space: undefined,
@@ -88,7 +103,9 @@ describe('WikiSearchPage', () => {
     await waitFor(() =>
       expect(useWikiSearch).toHaveBeenLastCalledWith({
         document_type: 'test_plan',
-        limit: 100,
+        result_type: 'document',
+        cursor: undefined,
+        limit: 20,
         phase_key: 'testing',
         q: 'релиз',
         space: 'ENG',
@@ -102,39 +119,54 @@ describe('WikiSearchPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Сбросить фильтры' }))
     expect(screen.getByLabelText('Пространство')).toHaveValue('')
     expect(screen.getByLabelText('Тип документа')).toHaveValue('all')
-    expect(screen.getByRole('button', { name: /Все 2/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Все' })).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('limits visible results by page and labels the API cap honestly', () => {
-    const results = Array.from({ length: 100 }, (_, index) => ({
+  it('requests subsequent pages and displays only the current page range', () => {
+    const results = Array.from({ length: 41 }, (_, index) => ({
       ...documentResult,
       id: `doc-${index + 1}`,
       title: `Документ ${String(index + 1).padStart(3, '0')}`,
     }))
     setupSearch(results)
 
-    expect(screen.getAllByRole('link', { name: /Документ \d+/ })).toHaveLength(12)
-    expect(screen.getByText('1–12 из 100')).toBeInTheDocument()
-    expect(screen.getByText(/Показаны первые 100 результатов/)).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: /Документ \d+/ })).toHaveLength(20)
+    expect(screen.getByText('Показано 1–20')).toBeInTheDocument()
     const pagination = screen.getByRole('navigation', { name: 'Страницы результатов' })
     fireEvent.click(within(pagination).getByRole('button', { name: 'Далее' }))
-    expect(screen.getAllByRole('link', { name: /Документ \d+/ })).toHaveLength(12)
-    expect(screen.getByText('13–24 из 100')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Документ 013/ })).toBeInTheDocument()
+    expect(useWikiSearch).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: 'page-20' }))
+    expect(screen.getAllByRole('link', { name: /Документ \d+/ })).toHaveLength(20)
+    expect(screen.getByText('Показано 21–40')).toBeInTheDocument()
+    fireEvent.click(within(pagination).getByRole('button', { name: 'Далее' }))
+    expect(screen.getByText('Показано 41–41')).toBeInTheDocument()
+    expect(within(pagination).getByRole('button', { name: 'Далее' })).toBeDisabled()
+    fireEvent.click(within(pagination).getByRole('button', { name: 'Назад' }))
+    expect(screen.getByText('Показано 21–40')).toBeInTheDocument()
   })
 
-  it('clears document type when the evidence view is selected', () => {
-    setupSearch()
+  it('finds materials beyond the first hundred documents and clears document type', () => {
+    const documents = Array.from({ length: 101 }, (_, index) => ({
+      ...documentResult,
+      id: `doc-${index}`,
+    }))
+    setupSearch([...documents, evidenceResult])
     fireEvent.click(screen.getByRole('button', { name: 'Фильтры' }))
     fireEvent.change(screen.getByLabelText('Тип документа'), { target: { value: 'requirements' } })
     fireEvent.click(screen.getByRole('button', { name: 'Применить' }))
-    expect(screen.getByRole('button', { name: /Документы 1/ })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'Документы' })).toHaveAttribute(
       'aria-pressed',
       'true',
     )
-    fireEvent.click(screen.getByRole('button', { name: /Материалы 1/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Материалы' }))
     expect(screen.getByLabelText('Тип документа')).toHaveValue('all')
     expect(screen.getByRole('link', { name: /Smoke proof/ })).toBeInTheDocument()
+    expect(useWikiSearch).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        result_type: 'evidence',
+        document_type: undefined,
+        cursor: undefined,
+      }),
+    )
   })
 
   it('renders permission denied search errors with retry', () => {

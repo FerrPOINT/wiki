@@ -1,5 +1,7 @@
 # Current State - Wiki
 
+> Search pagination change (2026-09-20): server-side `result_type` and stable keyset cursor implemented in draft PR. Local Rust/PostgreSQL runs and 375/1920/2560 live screenshots are pending because the current host has critically low C: free space; remote CI does not replace that release gate. This search PR assumes the evidence `(created_at DESC, id DESC)` index from the separate evidence pagination PR is merged first.
+
 > Snapshot date: 2026-09-03. Authority is repository code and tests; update this file whenever capability state changes.
 
 ## Current Verified

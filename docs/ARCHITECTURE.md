@@ -149,6 +149,8 @@ The PostgreSQL adapter is split by operation area:
 
 Audit is append-only, so the list uses a `(created_at, id)` keyset cursor rather than an offset. The UUID breaks timestamp ties, and newer writes do not shift an already opened older page. Clients treat `next_cursor` as opaque.
 
+Search uses the same keyset principle across documents and evidence: repositories fetch at most `limit + 1` per allowed result type after `(updated_at, id, result_type)`, and the application layer merges, orders and emits the next cursor. The server applies `result_type` before limiting; there is no inferred total. Published-revision full-text matching remains in PostgreSQL, while the final result order is chronological rather than relevance-ranked.
+
 ## 9. API Layer
 
 Axum API owns:

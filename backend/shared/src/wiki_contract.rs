@@ -753,9 +753,11 @@ pub struct SearchQuery {
     pub task_key: Option<String>,
     pub phase_key: Option<String>,
     pub document_type: Option<String>,
+    pub result_type: Option<String>,
     pub include_archived: Option<bool>,
     #[param(minimum = 1, maximum = 100)]
     pub limit: Option<usize>,
+    pub cursor: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -772,6 +774,7 @@ pub struct SearchResultResponse {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct SearchResponse {
     pub results: Vec<SearchResultResponse>,
+    pub next_cursor: Option<String>,
 }
 
 fn default_user_role() -> String {

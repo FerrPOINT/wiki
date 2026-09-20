@@ -2102,6 +2102,109 @@ async fn wiki_memory_search_filters_document_type_task_phase_archived_and_permis
 }
 
 #[tokio::test]
+async fn wiki_memory_search_pages_all_results_and_filters_type_before_limit() {
+    let app = test_app();
+    let token = login_memory_admin(&app).await;
+    let suffix = Uuid::now_v7().simple().to_string();
+    let short = &suffix[..12];
+    let search_token = format!("searchpage{short}");
+    let (status, evidence) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(&token),
+        Some(json!({
+            "space": "SDLC",
+            "title": format!("{search_token} evidence"),
+            "evidence_type": "external_url",
+            "url": "https://ci.local/jobs/search-page"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let evidence_id = evidence["id"].as_str().unwrap();
+
+    for index in 0..101 {
+        let (status, _) = call(
+            &app,
+            Method::POST,
+            "/api/v1/spaces/SDLC/documents",
+            Some(&token),
+            Some(json!({
+                "title": format!("{search_token} document {index}"),
+                "slug": format!("search-page-{short}-{index}"),
+                "document_type": "page",
+                "content_markdown": search_token,
+            })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED);
+    }
+
+    let (status, first) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/search?q={search_token}&space=SDLC&limit=100"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(first["results"].as_array().unwrap().len(), 100);
+    assert!(
+        first["results"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item["result_type"] == "document")
+    );
+    let cursor = first["next_cursor"].as_str().unwrap();
+
+    let (status, second) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/search?q={search_token}&space=SDLC&limit=100&cursor={cursor}"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(second["results"].as_array().unwrap().len(), 2);
+    assert!(
+        second["results"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["id"] == evidence_id)
+    );
+    assert!(second["next_cursor"].is_null());
+
+    let (status, materials) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/search?q={search_token}&space=SDLC&result_type=evidence&limit=20"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(materials["results"].as_array().unwrap().len(), 1);
+    assert_eq!(materials["results"][0]["id"], evidence_id);
+
+    for query in ["result_type=other", "cursor=bad"] {
+        let (status, _) = call(
+            &app,
+            Method::GET,
+            &format!("/api/v1/search?{query}"),
+            Some(&token),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+}
+
+#[tokio::test]
 async fn wiki_memory_task_phase_document_links_enforce_space_boundary() {
     let app = test_app();
     let token = login_memory_admin(&app).await;
@@ -3875,6 +3978,97 @@ async fn wiki_postgres_search_uses_fts_index_when_database_available() {
         plan.contains("document_revisions_search_idx"),
         "expected Postgres FTS plan to use document_revisions_search_idx:\n{plan}"
     );
+}
+
+#[tokio::test]
+async fn wiki_postgres_search_pages_and_filters_result_type_when_database_available() {
+    let Ok(database_url) = env::var("WIKI_TEST_DATABASE_URL") else {
+        eprintln!("skipping postgres search cursor test: WIKI_TEST_DATABASE_URL is not set");
+        return;
+    };
+    reset_postgres(&database_url).await;
+    let storage_dir = env::temp_dir().join(format!("wiki-api-test-{}", Uuid::now_v7()));
+    let (app, _) = postgres_test_app(database_url, storage_dir).await;
+    let token = login_admin(&app).await;
+    let suffix = Uuid::now_v7().simple().to_string();
+    let short = &suffix[..12];
+    let needle = format!("searchcursor{short}");
+
+    let (status, evidence) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(&token),
+        Some(json!({
+            "space": "SDLC", "title": format!("{needle} material"),
+            "evidence_type": "external_url", "url": "https://ci.local/jobs/search-cursor"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let evidence_id = evidence["id"].as_str().unwrap();
+
+    for index in 0..2 {
+        let (status, document) = call(
+            &app,
+            Method::POST,
+            "/api/v1/spaces/SDLC/documents",
+            Some(&token),
+            Some(json!({
+                "title": format!("{needle} document {index}"),
+                "slug": format!("search-cursor-{short}-{index}"),
+                "document_type": "page",
+                "content_markdown": format!("# {needle} document {index}"),
+            })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED);
+        let document_id = document["id"].as_str().unwrap();
+        let (status, _) = call(
+            &app,
+            Method::POST,
+            &format!("/api/v1/documents/{document_id}/publish"),
+            Some(&token),
+            Some(json!({ "summary": "Search cursor smoke" })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+    }
+
+    let mut cursor = None;
+    let mut found = Vec::new();
+    for _ in 0..3 {
+        let path = match cursor.as_deref() {
+            Some(cursor) => format!("/api/v1/search?q={needle}&space=SDLC&limit=1&cursor={cursor}"),
+            None => format!("/api/v1/search?q={needle}&space=SDLC&limit=1"),
+        };
+        let (status, page) = call(&app, Method::GET, &path, Some(&token), None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(page["results"].as_array().unwrap().len(), 1);
+        found.push(page["results"][0]["id"].as_str().unwrap().to_string());
+        if page["results"][0]["result_type"] == "document" {
+            assert_eq!(
+                page["results"][0]["url"],
+                format!("/documents/{}", found.last().unwrap())
+            );
+        }
+        cursor = page["next_cursor"].as_str().map(str::to_string);
+    }
+    assert_eq!(found.len(), 3);
+    assert!(found.contains(&evidence_id.to_string()));
+    assert!(cursor.is_none());
+
+    let (status, materials) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/search?q={needle}&space=SDLC&result_type=evidence&limit=1"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(materials["results"][0]["id"], evidence_id);
+    assert!(materials["next_cursor"].is_null());
 }
 
 #[tokio::test]
