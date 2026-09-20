@@ -99,7 +99,7 @@ describe('AdminPage', () => {
 
     expect(screen.getByRole('heading', { name: 'Администрирование' })).toBeInTheDocument()
     expect(screen.getByText('Состояние инстанса')).toBeInTheDocument()
-    expect(screen.getByText('Активных: 1')).toBeInTheDocument()
+    expect(screen.getByText('Доступных профилей: 1')).toBeInTheDocument()
     expect(screen.getByText('Документов: 2')).toBeInTheDocument()
     expect(screen.getByText('Файлы до 25 МБ')).toBeInTheDocument()
   })

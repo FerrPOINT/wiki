@@ -38,15 +38,16 @@ function setupUsers(overrides: Record<string, unknown> = {}) {
 describe('UsersPage', () => {
   afterEach(() => vi.clearAllMocks())
 
-  it('shows the central directory without local password or role controls', () => {
+  it('shows Wiki profiles without local password or role controls', () => {
     setupUsers()
-    expect(screen.getByRole('heading', { name: 'Пользователи' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Управление пользователями' })).toHaveAttribute(
+    expect(screen.getByRole('heading', { name: 'Профили Wiki' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Учётные записи' })).toHaveAttribute(
       'href',
       'http://localhost:7772/users',
     )
     expect(screen.getAllByText('Редактор')).toHaveLength(2)
-    expect(screen.getAllByText('Неактивен')).toHaveLength(2)
+    expect(screen.getAllByText('Профиль отключён')).toHaveLength(2)
+    expect(screen.getAllByText('Профиль доступен')).toHaveLength(2)
     expect(screen.queryByLabelText(/пароль|роль/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /создать|сохранить/i })).not.toBeInTheDocument()
   })

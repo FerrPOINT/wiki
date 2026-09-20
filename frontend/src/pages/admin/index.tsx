@@ -9,7 +9,7 @@ import { formatBytes, formatDateTime } from '@/shared/lib/wiki-format'
 const adminSections = [
   {
     title: 'Пользователи',
-    description: 'Учётные записи, роли и доступы к пространствам.',
+    description: 'Профили Wiki и переход к управлению учётными записями.',
     href: '/users',
     icon: Users,
   },
@@ -62,9 +62,9 @@ export function AdminPage() {
 
   const overviewItems = [
     {
-      label: 'Пользователи',
+      label: 'Профили Wiki',
       value: users.length.toString(),
-      status: `Активных: ${activeUsers}`,
+      status: `Доступных профилей: ${activeUsers}`,
       icon: Users,
     },
     {
@@ -80,7 +80,7 @@ export function AdminPage() {
       icon: History,
     },
     {
-      label: 'Регистрация',
+      label: 'Локальная регистрация',
       value: enabledLabel(settings?.registration_enabled),
       status: `Файлы до ${formatBytes(settings?.max_upload_bytes)}`,
       icon: ShieldCheck,
