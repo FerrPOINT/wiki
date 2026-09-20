@@ -2115,6 +2115,7 @@ async fn wiki_memory_search_pages_all_results_and_filters_type_before_limit() {
         Some(&token),
         Some(json!({
             "space": "SDLC",
+            "task_key": format!("SRCH-{short}"),
             "title": format!("{search_token} evidence"),
             "evidence_type": "external_url",
             "url": "https://ci.local/jobs/search-page"
@@ -4000,7 +4001,8 @@ async fn wiki_postgres_search_pages_and_filters_result_type_when_database_availa
         "/api/v1/evidence",
         Some(&token),
         Some(json!({
-            "space": "SDLC", "title": format!("{needle} material"),
+            "space": "SDLC", "task_key": format!("SRCH-{short}"),
+            "title": format!("{needle} material"),
             "evidence_type": "external_url", "url": "https://ci.local/jobs/search-cursor"
         })),
     )
