@@ -38,7 +38,7 @@ export function TemplatesPage() {
   const templatesQuery = useTemplates()
   const currentUserQuery = useCurrentUser()
   const createTemplate = useCreateTemplate()
-  const isSystemAdmin = currentUserQuery.data?.is_system_admin === true
+  const isSystemAdmin = !currentUserQuery.isError && currentUserQuery.data?.is_system_admin === true
   const templates = templatesQuery.data?.templates ?? []
   const [showCreate, setShowCreate] = useState(false)
   const [createdTemplate, setCreatedTemplate] = useState<Template | null>(null)
@@ -119,6 +119,13 @@ export function TemplatesPage() {
           </Button>
         </div>
       </header>
+
+      {currentUserQuery.isError && (
+        <ErrorState
+          message={`Не удалось проверить права. ${formatApiErrorForUser(currentUserQuery.error, 'Повторите запрос')}`}
+          onRetry={() => currentUserQuery.refetch()}
+        />
+      )}
 
       {createdTemplate && (
         <div

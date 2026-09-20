@@ -10,6 +10,7 @@ const useTemplates = vi.hoisted(() => vi.fn())
 
 const createTemplateMutate = vi.hoisted(() => vi.fn())
 const templatesRefetch = vi.hoisted(() => vi.fn())
+const currentUserRefetch = vi.hoisted(() => vi.fn())
 
 vi.mock('@/shared/api/hooks', () => ({
   useCreateTemplate,
@@ -29,6 +30,8 @@ function setupTemplates({
   useCurrentUser.mockReturnValue({
     data: { is_system_admin: true },
     isLoading: false,
+    isError: false,
+    refetch: currentUserRefetch,
     ...currentUserOverrides,
   })
   useTemplates.mockReturnValue({
@@ -125,6 +128,22 @@ describe('TemplatesPage', () => {
     expect(screen.queryByRole('form', { name: 'Создание шаблона' })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Использовать шаблон Требования' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Создать документ' })).toBeInTheDocument()
+  })
+
+  it('shows a retry when checking the current user fails without hiding the template list', () => {
+    setupTemplates({
+      currentUserOverrides: {
+        data: undefined,
+        isError: true,
+        error: { code: 'INTERNAL_ERROR', message: 'Unavailable' },
+      },
+    })
+
+    expect(screen.queryByRole('button', { name: 'Новый шаблон' })).not.toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Не удалось проверить права')
+    expect(screen.getByRole('link', { name: 'Использовать шаблон Требования' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }))
+    expect(currentUserRefetch).toHaveBeenCalledTimes(1)
   })
 
   it('confirms creation even when the current search excludes the new template', () => {
