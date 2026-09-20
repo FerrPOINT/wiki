@@ -530,6 +530,8 @@ pub struct DocumentRevisionListResponse {
 pub struct DocumentRevisionQuery {
     #[param(minimum = 1, maximum = 100)]
     pub limit: Option<usize>,
+    #[param(minimum = 0)]
+    pub offset: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]

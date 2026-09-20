@@ -1790,6 +1790,31 @@ async fn wiki_memory_document_revision_history_is_latest_first_and_immutable() {
     assert_eq!(limited_revisions[0]["id"], second_revision_id);
     assert_eq!(limited_revisions[0]["version"], 2);
 
+    let (status, older_history) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/documents/{document_id}/revisions?limit=1&offset=1"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let older_revisions = older_history["revisions"].as_array().unwrap();
+    assert_eq!(older_revisions.len(), 1);
+    assert_eq!(older_revisions[0]["id"], first_revision_id);
+    assert_eq!(older_revisions[0]["version"], 1);
+
+    let (status, beyond_history) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/documents/{document_id}/revisions?limit=1&offset=2"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(beyond_history["revisions"].as_array().unwrap().is_empty());
+
     let (status, old_revision) = call(
         &app,
         Method::GET,
@@ -5087,6 +5112,20 @@ async fn wiki_postgres_routes_persist_across_router_rebuilds() {
     assert_eq!(limited_revisions.len(), 1);
     assert_eq!(limited_revisions[0]["id"], second_revision["id"]);
     assert_eq!(limited_revisions[0]["version"], 2);
+
+    let (status, older_history) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/documents/{document_id}/revisions?limit=1&offset=1"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let older_revisions = older_history["revisions"].as_array().unwrap();
+    assert_eq!(older_revisions.len(), 1);
+    assert_eq!(older_revisions[0]["id"], first_revision_id.to_string());
+    assert_eq!(older_revisions[0]["version"], 1);
 
     let pool = PgPoolOptions::new()
         .max_connections(1)

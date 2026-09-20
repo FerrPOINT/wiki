@@ -687,6 +687,7 @@ pub trait WikiDocumentRepository {
         &self,
         document_id: Uuid,
         limit: usize,
+        offset: u32,
     ) -> WikiDocumentRepositoryFuture<'_, Vec<shared::DocumentRevisionResponse>>;
 
     fn get_revision(
@@ -825,7 +826,10 @@ impl<'a, R: WikiDocumentRepository + ?Sized> WikiDocumentUseCase<'a, R> {
             MAX_DOCUMENT_REVISION_LIMIT,
         );
         Ok(shared::DocumentRevisionListResponse {
-            revisions: self.repository.list_revisions(document_id, limit).await?,
+            revisions: self
+                .repository
+                .list_revisions(document_id, limit, query.offset.unwrap_or(0))
+                .await?,
         })
     }
 
@@ -1902,7 +1906,7 @@ mod tests {
         published: std::sync::Mutex<Vec<(Uuid, WikiPublishDocumentCommand)>>,
         archived: std::sync::Mutex<Vec<(Uuid, WikiArchiveDocumentCommand)>>,
         moved: std::sync::Mutex<Vec<(Uuid, WikiMoveDocumentCommand)>>,
-        listed_revisions: std::sync::Mutex<Vec<(Uuid, usize)>>,
+        listed_revisions: std::sync::Mutex<Vec<(Uuid, usize, u32)>>,
         requested_revisions: std::sync::Mutex<Vec<(Uuid, Uuid)>>,
     }
 
@@ -2284,12 +2288,13 @@ mod tests {
             &self,
             document_id: Uuid,
             limit: usize,
+            offset: u32,
         ) -> WikiDocumentRepositoryFuture<'_, Vec<shared::DocumentRevisionResponse>> {
             Box::pin(async move {
                 self.listed_revisions
                     .lock()
                     .expect("listed revision documents should be lockable")
-                    .push((document_id, limit));
+                    .push((document_id, limit, offset));
                 Ok(self.revisions.clone())
             })
         }
@@ -3441,7 +3446,10 @@ mod tests {
         let revisions = use_case
             .list_revisions(
                 document_id,
-                shared::DocumentRevisionQuery { limit: Some(500) },
+                shared::DocumentRevisionQuery {
+                    limit: Some(500),
+                    offset: Some(25),
+                },
             )
             .await
             .unwrap();
@@ -3453,7 +3461,7 @@ mod tests {
                 .lock()
                 .expect("listed revision documents should be lockable")
                 .as_slice(),
-            [(document_id, MAX_DOCUMENT_REVISION_LIMIT)]
+            [(document_id, MAX_DOCUMENT_REVISION_LIMIT, 25)]
         );
 
         let revision = use_case
