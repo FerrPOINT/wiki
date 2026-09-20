@@ -315,7 +315,9 @@ describe('SpacesPage', () => {
     expect(dialog).toBeVisible()
 
     const onSuccess = archiveMutate.mock.calls[0]![1].onSuccess as (space: typeof baseSpace) => void
-    act(() => onSuccess({ ...baseSpace, status: 'archived', updated_at: '2026-09-20T11:00:00Z' }))
+    act(() =>
+      onSuccess({ ...baseSpace, status: 'archived', updated_at: '2026-09-20T11:00:00Z' }),
+    )
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent(
       'Пространство «База знаний Base» архивировано',
