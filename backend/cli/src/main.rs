@@ -413,6 +413,16 @@ enum AuditCommands {
         limit: Option<usize>,
         #[arg(long)]
         cursor: Option<String>,
+        #[arg(long)]
+        action: Option<String>,
+        #[arg(long)]
+        entity_type: Option<String>,
+        #[arg(long)]
+        actor_id: Option<String>,
+        #[arg(long)]
+        from: Option<String>,
+        #[arg(long)]
+        to: Option<String>,
     },
 }
 
@@ -1011,10 +1021,23 @@ async fn execute_search(api: &ApiClient, command: SearchCommands) -> Result<Valu
 
 async fn execute_audit(api: &ApiClient, command: AuditCommands) -> Result<Value> {
     match command {
-        AuditCommands::List { limit, cursor } => {
+        AuditCommands::List {
+            limit,
+            cursor,
+            action,
+            entity_type,
+            actor_id,
+            from,
+            to,
+        } => {
             let query = query_string([
                 ("limit", limit.map(|value| value.to_string())),
                 ("cursor", cursor),
+                ("action", action),
+                ("entity_type", entity_type),
+                ("actor_id", actor_id),
+                ("from", from),
+                ("to", to),
             ]);
             api.get(&format!("/audit-log{query}")).await
         }
@@ -2038,6 +2061,11 @@ mod tests {
                 command: AuditCommands::List {
                     limit: None,
                     cursor: None,
+                    action: None,
+                    entity_type: None,
+                    actor_id: None,
+                    from: None,
+                    to: None,
                 },
             },
         )
@@ -2088,6 +2116,11 @@ mod tests {
                 command: AuditCommands::List {
                     limit: Some(25),
                     cursor: Some("123.cursor-id".to_string()),
+                    action: Some("document.publish".to_string()),
+                    entity_type: Some("document".to_string()),
+                    actor_id: Some("00000000-0000-0000-0000-000000000000".to_string()),
+                    from: Some("2026-09-01T00:00:00Z".to_string()),
+                    to: Some("2026-09-02T00:00:00Z".to_string()),
                 },
             },
         )
@@ -2100,7 +2133,7 @@ mod tests {
         assert_eq!(requests[0].method, Method::GET);
         assert_eq!(
             requests[0].path,
-            "/api/v1/audit-log?limit=25&cursor=123.cursor-id"
+            "/api/v1/audit-log?limit=25&cursor=123.cursor-id&action=document.publish&entity_type=document&actor_id=00000000-0000-0000-0000-000000000000&from=2026-09-01T00%3A00%3A00Z&to=2026-09-02T00%3A00%3A00Z"
         );
         assert_eq!(
             requests[0].authorization.as_deref(),

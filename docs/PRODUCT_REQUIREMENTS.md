@@ -91,7 +91,7 @@ MVP не включает:
 | REQ-TPL-001   | Templates        | Editor создаёт документ из базового шаблона                                                                                               |
 | REQ-SET-001   | Settings         | Admin видит безопасный runtime snapshot настроек инстанса: API path, регистрацию, storage/search backend, лимит загрузки, язык и timezone |
 | REQ-OPS-001   | Runtime health   | API отдаёт liveness/readiness для запуска, мониторинга и деплоя; отдельная UI-страница для этого не нужна                                  |
-| REQ-AUD-001   | Audit            | Система пишет audit для login/logout, document create/edit/publish/archive, evidence add, member/role changes                             |
+| REQ-AUD-001   | Audit            | Система пишет audit для login/logout, document create/edit/publish/archive, evidence add, member/role changes; admin фильтрует весь журнал по действию, типу сущности, автору и диапазону времени до cursor-пагинации |
 | REQ-API-001   | API              | Все MVP-операции доступны через `/api/v1`; protected domain/admin write-запросы с `Idempotency-Key` безопасны для retry без duplicate domain/audit writes |
 | REQ-CLI-001   | CLI              | CLI покрывает те же базовые операции, что и API, и возвращает JSON по умолчанию                                                           |
 | REQ-UI-001    | UI               | UI покрывает основные сценарии spaces, documents, task/phase dossiers, evidence, search и admin                                           |

@@ -1,7 +1,7 @@
 use super::{PostgresWikiBackend, mapping::audit_entry_from_row};
 use app::wiki::{
-    WikiAuditCommand, WikiAuditCursor, WikiAuditRepository, WikiAuditRepositoryFuture,
-    WikiAuditUseCase,
+    WikiAuditCommand, WikiAuditCursor, WikiAuditFilter, WikiAuditRepository,
+    WikiAuditRepositoryFuture, WikiAuditUseCase,
 };
 use shared::wiki_contract::*;
 use sqlx::{Postgres, QueryBuilder};
@@ -17,6 +17,7 @@ impl WikiAuditRepository for PostgresWikiAuditRepository<'_> {
         &self,
         limit: usize,
         cursor: Option<WikiAuditCursor>,
+        filter: WikiAuditFilter,
     ) -> WikiAuditRepositoryFuture<'_, Vec<AuditEntryResponse>> {
         Box::pin(async move {
             let mut query = QueryBuilder::<Postgres>::new(
@@ -25,9 +26,25 @@ impl WikiAuditRepository for PostgresWikiAuditRepository<'_> {
                 FROM audit_log
                 ",
             );
+            query.push(" WHERE true");
+            if let Some(action) = filter.action {
+                query.push(" AND action = ").push_bind(action);
+            }
+            if let Some(entity_type) = filter.entity_type {
+                query.push(" AND entity_type = ").push_bind(entity_type);
+            }
+            if let Some(actor_id) = filter.actor_id {
+                query.push(" AND actor_id = ").push_bind(actor_id);
+            }
+            if let Some(from) = filter.from {
+                query.push(" AND created_at >= ").push_bind(from);
+            }
+            if let Some(to) = filter.to {
+                query.push(" AND created_at < ").push_bind(to);
+            }
             if let Some(cursor) = cursor {
                 query
-                    .push(" WHERE (created_at, id) < (")
+                    .push(" AND (created_at, id) < (")
                     .push_bind(cursor.created_at)
                     .push(", ")
                     .push_bind(cursor.id)

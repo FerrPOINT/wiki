@@ -2930,6 +2930,7 @@ pub async fn list_audit_log(
     ensure_system_admin(&store, &claims.user_id)?;
     let limit = clamp_limit_with_default(query.limit, DEFAULT_AUDIT_LIMIT, MAX_AUDIT_LIMIT);
     let cursor = parse_audit_cursor(query.cursor.as_deref())?;
+    let filter = app::wiki::WikiAuditFilter::from_query(&query)?;
     let mut entries = store
         .audit
         .iter()
@@ -2946,6 +2947,7 @@ pub async fn list_audit_log(
     entries.sort_unstable_by(|left, right| right.0.cmp(&left.0).then_with(|| right.1.cmp(&left.1)));
     let page = entries
         .into_iter()
+        .filter(|(created_at, _, entry)| filter.matches(entry, created_at))
         .filter(|(created_at, id, _)| {
             cursor.as_ref().is_none_or(|cursor| {
                 created_at < &cursor.created_at

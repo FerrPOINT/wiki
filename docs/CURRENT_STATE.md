@@ -56,6 +56,7 @@
 
 ## Known Local Environment Limits
 
+- 2026-09-20 audit-filter change: local Rust build and live browser QA are deferred while C: has about 0.08 GB free. CI must run the isolated PostgreSQL tests and OpenAPI drift gate; no working Docker volumes are changed by this PR.
 - Native Windows Rust linking currently requires MSVC `link.exe`; backend checks are run through WSL on this host.
 - `pnpm add` is blocked on this host by Corepack/Node `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING`; existing package binaries under `frontend/node_modules/.bin` can still be used for TypeScript/tests/build/lint verification.
 - Docker PostgreSQL smoke can be run through `scripts/postgres-smoke.ps1` once Docker Desktop is available. In the last setup check, Docker CLI was installed, but the Docker daemon/service was stopped and could not be started from this process; the test Postgres port `3458` was closed.

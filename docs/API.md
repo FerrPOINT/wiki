@@ -148,11 +148,11 @@ Canonical `evidence_type` values for MVP are `external_url` and `uploaded_file`.
 | `GET`  | `/templates` | Список шаблонов                                                    |
 | `POST` | `/templates` | Создать шаблон, system admin only                                  |
 | `GET`  | `/settings`  | Admin-only read-only snapshot безопасных runtime настроек инстанса |
-| `GET`  | `/audit-log` | Страницы audit events для admin UI; `limit` clamps to `1..200`, необязательный `cursor` |
+| `GET`  | `/audit-log` | Страницы audit events для admin UI; `limit` clamps to `1..200`, необязательные `cursor`, `action`, `entity_type`, `actor_id`, `from`, `to` |
 
 `GET /settings` не возвращает секреты, connection strings, storage paths или bootstrap credentials. MVP endpoint показывает только значения, нужные UI/CLI: API path, регистрацию, storage/search backend, лимит загрузки, язык и timezone.
 
-`GET /audit-log` возвращает append-only события с `request_id` в порядке `(created_at DESC, id DESC)`. Endpoint всегда bounded: без параметра отдаёт последние 50 событий, `limit` ограничивается диапазоном `1..200`. Ответ содержит `next_cursor` (`null` на последней странице); для следующей страницы клиент передаёт его неизменённым в `cursor`. Неизвестный формат курсора даёт `400`. Keyset-пагинация сохраняет границы уже открытых страниц при появлении новых событий и различает записи с одинаковым временем. Для mutating HTTP-запросов audit entry использует тот же `X-Request-ID`, который backend вернул клиенту в response header; если запрос пришёл без валидного id, middleware создаёт `req_` id и он попадает в audit.
+`GET /audit-log` возвращает append-only события с `request_id` в порядке `(created_at DESC, id DESC)`. Endpoint всегда bounded: без параметра отдаёт последние 50 событий, `limit` ограничивается диапазоном `1..200`. Ответ содержит `next_cursor` (`null` на последней странице); для следующей страницы клиент передаёт его неизменённым в `cursor`. Необязательные `action` и `entity_type` сравниваются точно, `actor_id` принимает UUID, `from` и `to` принимают RFC3339 и задают полуоткрытый интервал `[from, to)` в UTC. Фильтры действуют на весь audit до cursor/limit; при переходе к следующей странице клиент сохраняет тот же набор фильтров. Неверные UUID/даты, обратный диапазон и неизвестный формат курсора дают `400`. Keyset-пагинация сохраняет границы уже открытых страниц при появлении новых событий и различает записи с одинаковым временем. Для mutating HTTP-запросов audit entry использует тот же `X-Request-ID`, который backend вернул клиенту в response header; если запрос пришёл без валидного id, middleware создаёт `req_` id и он попадает в audit.
 
 ## 13. Deferred API Areas
 

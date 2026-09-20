@@ -150,10 +150,11 @@ wiki search query "archived decision" --space SDLC --include-archived
 wiki audit list
 wiki audit list --limit 25
 wiki audit list --limit 25 --cursor CURSOR_FROM_PREVIOUS_RESPONSE
+wiki audit list --action document.publish --entity-type document --actor-id UUID --from 2026-09-01T00:00:00Z --to 2026-09-02T00:00:00Z
 wiki settings get
 ```
 
-`wiki audit list` returns the API JSON as-is, including `request_id` and `next_cursor`. Pass `next_cursor` back as `--cursor` to read older events. Without `--limit`, the API returns the latest 50 events; `--limit` is clamped server-side to `1..200`.
+`wiki audit list` returns the API JSON as-is, including `request_id` and `next_cursor`. Pass `next_cursor` back as `--cursor` with the same filters to read older matching events. `--action`/`--entity-type` use exact matching, `--actor-id` expects UUID, and `--from`/`--to` define an RFC3339 `[from, to)` interval. Without `--limit`, the API returns the latest 50 events; `--limit` is clamped server-side to `1..200`.
 
 Bounded read commands use the same limits as the public API: `wiki doc history` defaults to 20, clamps to `1..100` and accepts `--offset` (default `0`) for older revisions; `wiki evidence list` defaults to 30 and clamps to `1..100`; `wiki search query` defaults to 20 and clamps to `1..100`.
 

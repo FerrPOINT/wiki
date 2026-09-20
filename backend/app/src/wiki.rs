@@ -1489,11 +1489,92 @@ pub fn audit_log_page(
     })
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct WikiAuditFilter {
+    pub action: Option<String>,
+    pub entity_type: Option<String>,
+    pub actor_id: Option<Uuid>,
+    pub from: Option<DateTime<Utc>>,
+    pub to: Option<DateTime<Utc>>,
+}
+
+impl WikiAuditFilter {
+    pub fn from_query(query: &shared::AuditLogQuery) -> Result<Self, AppError> {
+        fn text(value: Option<&str>, name: &str) -> Result<Option<String>, AppError> {
+            value
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(|value| {
+                    if value.len() > 128 || value.chars().any(char::is_control) {
+                        Err(AppError::invalid_input(format!("invalid {name} filter")))
+                    } else {
+                        Ok(value.to_string())
+                    }
+                })
+                .transpose()
+        }
+
+        fn timestamp(value: Option<&str>, name: &str) -> Result<Option<DateTime<Utc>>, AppError> {
+            value
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(|value| {
+                    DateTime::parse_from_rfc3339(value)
+                        .map(|value| value.with_timezone(&Utc))
+                        .map_err(|_| AppError::invalid_input(format!("invalid {name} timestamp")))
+                })
+                .transpose()
+        }
+
+        let from = timestamp(query.from.as_deref(), "from")?;
+        let to = timestamp(query.to.as_deref(), "to")?;
+        if from
+            .as_ref()
+            .zip(to.as_ref())
+            .is_some_and(|(from, to)| from >= to)
+        {
+            return Err(AppError::invalid_input("from must be before to"));
+        }
+        Ok(Self {
+            action: text(query.action.as_deref(), "action")?,
+            entity_type: text(query.entity_type.as_deref(), "entity_type")?,
+            actor_id: query
+                .actor_id
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(|value| {
+                    Uuid::parse_str(value)
+                        .map_err(|_| AppError::invalid_input("invalid actor_id filter"))
+                })
+                .transpose()?,
+            from,
+            to,
+        })
+    }
+
+    pub fn matches(&self, entry: &shared::AuditEntryResponse, created_at: &DateTime<Utc>) -> bool {
+        self.action
+            .as_ref()
+            .is_none_or(|value| entry.action == value.as_str())
+            && self
+                .entity_type
+                .as_ref()
+                .is_none_or(|value| entry.entity_type == value.as_str())
+            && self
+                .actor_id
+                .is_none_or(|value| entry.actor_id == value.to_string())
+            && self.from.as_ref().is_none_or(|value| created_at >= value)
+            && self.to.as_ref().is_none_or(|value| created_at < value)
+    }
+}
+
 pub trait WikiAuditRepository {
     fn list_recent_entries(
         &self,
         limit: usize,
         cursor: Option<WikiAuditCursor>,
+        filter: WikiAuditFilter,
     ) -> WikiAuditRepositoryFuture<'_, Vec<shared::AuditEntryResponse>>;
 
     fn record_entry(&self, command: WikiAuditCommand) -> WikiAuditRepositoryFuture<'_, ()>;
@@ -1514,9 +1595,10 @@ impl<'a, R: WikiAuditRepository + ?Sized> WikiAuditUseCase<'a, R> {
     ) -> Result<shared::AuditLogResponse, AppError> {
         let limit = clamp_limit_with_default(query.limit, DEFAULT_AUDIT_LIMIT, MAX_AUDIT_LIMIT);
         let cursor = parse_audit_cursor(query.cursor.as_deref())?;
+        let filter = WikiAuditFilter::from_query(&query)?;
         let entries = self
             .repository
-            .list_recent_entries(limit + 1, cursor)
+            .list_recent_entries(limit + 1, cursor, filter)
             .await?;
         audit_log_page(entries, limit)
     }
@@ -2637,6 +2719,7 @@ mod tests {
             &self,
             limit: usize,
             cursor: Option<WikiAuditCursor>,
+            filter: WikiAuditFilter,
         ) -> WikiAuditRepositoryFuture<'_, Vec<shared::AuditEntryResponse>> {
             Box::pin(async move {
                 let start = cursor
@@ -2651,6 +2734,12 @@ mod tests {
                     .entries
                     .iter()
                     .skip(start)
+                    .filter(|entry| {
+                        let created_at = DateTime::parse_from_rfc3339(&entry.created_at)
+                            .expect("valid audit fixture timestamp")
+                            .with_timezone(&Utc);
+                        filter.matches(entry, &created_at)
+                    })
                     .take(limit)
                     .cloned()
                     .collect())
@@ -4347,6 +4436,7 @@ mod tests {
             .list_recent(shared::AuditLogQuery {
                 limit: None,
                 cursor: None,
+                ..Default::default()
             })
             .await
             .unwrap();
@@ -4405,6 +4495,7 @@ mod tests {
             .list_recent(shared::AuditLogQuery {
                 limit: Some(1),
                 cursor: None,
+                ..Default::default()
             })
             .await
             .unwrap();
@@ -4413,6 +4504,7 @@ mod tests {
             .list_recent(shared::AuditLogQuery {
                 limit: Some(1),
                 cursor: first.next_cursor,
+                ..Default::default()
             })
             .await
             .unwrap();
@@ -4421,6 +4513,7 @@ mod tests {
             .list_recent(shared::AuditLogQuery {
                 limit: Some(1),
                 cursor: second.next_cursor,
+                ..Default::default()
             })
             .await
             .unwrap();
@@ -4431,9 +4524,71 @@ mod tests {
             .list_recent(shared::AuditLogQuery {
                 limit: Some(1),
                 cursor: Some("not-a-cursor".to_string()),
+                ..Default::default()
             })
             .await;
         assert!(matches!(invalid, Err(AppError::InvalidInput(_))));
+    }
+
+    #[tokio::test]
+    async fn wiki_audit_filters_apply_before_cursor_and_validate_range() {
+        let mut entries = vec![
+            audit_entry("document.publish"),
+            audit_entry("document.edit"),
+            audit_entry("document.publish"),
+            audit_entry("document.publish"),
+            audit_entry("space.create"),
+        ];
+        for (index, entry) in entries.iter_mut().enumerate() {
+            entry.created_at = format!("2026-09-01T10:00:0{}Z", 4 - index);
+        }
+        entries[2].actor_id = Uuid::now_v7().to_string();
+        entries[4].entity_type = "space".to_string();
+        let repository = RecordingAuditRepository {
+            entries,
+            recorded: std::sync::Mutex::new(Vec::new()),
+        };
+        let use_case = WikiAuditUseCase::new(&repository);
+        let query = shared::AuditLogQuery {
+            limit: Some(1),
+            action: Some(" document.publish ".to_string()),
+            entity_type: Some("document".to_string()),
+            actor_id: Some(Uuid::nil().to_string()),
+            from: Some("2026-09-01T10:00:00Z".to_string()),
+            to: Some("2026-09-01T10:00:05Z".to_string()),
+            ..Default::default()
+        };
+        let first = use_case.list_recent(query.clone()).await.unwrap();
+        assert_eq!(first.entries[0].created_at, "2026-09-01T10:00:04Z");
+        let second = use_case
+            .list_recent(shared::AuditLogQuery {
+                cursor: first.next_cursor,
+                ..query.clone()
+            })
+            .await
+            .unwrap();
+        assert_eq!(second.entries[0].created_at, "2026-09-01T10:00:01Z");
+        assert!(second.next_cursor.is_none());
+
+        for invalid in [
+            shared::AuditLogQuery {
+                actor_id: Some("not-a-uuid".to_string()),
+                ..query.clone()
+            },
+            shared::AuditLogQuery {
+                from: Some("invalid".to_string()),
+                ..query.clone()
+            },
+            shared::AuditLogQuery {
+                to: Some("2026-09-01T09:00:00Z".to_string()),
+                ..query
+            },
+        ] {
+            assert!(matches!(
+                use_case.list_recent(invalid).await,
+                Err(AppError::InvalidInput(_))
+            ));
+        }
     }
 
     #[test]

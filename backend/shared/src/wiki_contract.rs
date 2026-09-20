@@ -739,11 +739,16 @@ pub struct AuditLogResponse {
     pub next_cursor: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, IntoParams)]
+#[derive(Debug, Clone, Default, Deserialize, IntoParams)]
 pub struct AuditLogQuery {
     #[param(minimum = 1, maximum = 200)]
     pub limit: Option<usize>,
     pub cursor: Option<String>,
+    pub action: Option<String>,
+    pub entity_type: Option<String>,
+    pub actor_id: Option<String>,
+    pub from: Option<String>,
+    pub to: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, IntoParams)]

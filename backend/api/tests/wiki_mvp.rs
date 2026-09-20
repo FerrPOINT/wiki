@@ -4309,6 +4309,37 @@ async fn wiki_audit_log_honors_bounded_limit_query() {
     assert_eq!(entries.len(), 1);
     assert_eq!(entries[0]["action"], "document.create");
     assert_eq!(entries[0]["entity_id"], document_id);
+    let actor_id = entries[0]["actor_id"].as_str().unwrap();
+    let (status, filtered) = call(
+        &app,
+        Method::GET,
+        &format!(
+            "/api/v1/audit-log?limit=1&action=document.create&entity_type=document&actor_id={actor_id}"
+        ),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(filtered["entries"][0]["entity_id"], document_id);
+    let (status, empty) = call(
+        &app,
+        Method::GET,
+        "/api/v1/audit-log?action=document.missing",
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(empty["entries"].as_array().unwrap().is_empty());
+    for path in [
+        "/api/v1/audit-log?actor_id=invalid",
+        "/api/v1/audit-log?from=invalid",
+        "/api/v1/audit-log?from=2026-09-02T00:00:00Z&to=2026-09-01T00:00:00Z",
+    ] {
+        let (status, _) = call(&app, Method::GET, path, Some(&token), None).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
 }
 
 #[tokio::test]
@@ -4461,12 +4492,17 @@ async fn wiki_postgres_audit_cursor_keeps_timestamp_ties_stable() {
             .fetch_one(&pool)
             .await
             .unwrap();
+    let actor_id: Uuid = sqlx::query_scalar("SELECT id FROM users LIMIT 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     let ids: Vec<Uuid> = (0..3).map(|_| Uuid::now_v7()).collect();
     for id in &ids {
         sqlx::query(
-            "INSERT INTO audit_log (id, action, entity_type, entity_id, request_id, created_at) VALUES ($1, 'audit.page', 'test', $2, $3, $4)",
+            "INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, request_id, created_at) VALUES ($1, $2, 'audit.page', 'test', $3, $4, $5)",
         )
         .bind(id)
+        .bind(actor_id)
         .bind(Uuid::now_v7())
         .bind(format!("audit-page-{id}"))
         .bind(future_at)
@@ -4500,6 +4536,25 @@ async fn wiki_postgres_audit_cursor_keeps_timestamp_ties_stable() {
             .unwrap();
         }
     }
+    let from = (future_at - chrono::Duration::seconds(1))
+        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let to = (future_at + chrono::Duration::minutes(2))
+        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let filtered_path = format!(
+        "/api/v1/audit-log?limit=1&action=audit.page&entity_type=test&actor_id={actor_id}&from={from}&to={to}"
+    );
+    let mut cursor: Option<String> = None;
+    for expected_id in expected {
+        let path = cursor.as_ref().map_or_else(
+            || filtered_path.clone(),
+            |cursor| format!("{filtered_path}&cursor={cursor}"),
+        );
+        let (status, page) = call(&app, Method::GET, &path, Some(token), None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(page["entries"][0]["id"], expected_id.to_string());
+        cursor = page["next_cursor"].as_str().map(ToString::to_string);
+    }
+    assert!(cursor.is_none());
     let index_exists: bool = sqlx::query_scalar(
         "SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'audit_time_id_idx')",
     )
