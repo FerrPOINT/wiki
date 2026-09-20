@@ -57,6 +57,24 @@ export type MoveDocumentRequest = GeneratedMoveDocumentRequest
 export type LinkDocumentRequest = GeneratedLinkDocumentRequest
 export type TaskPage = TaskPageResponse
 export type PhasePage = PhasePageResponse
+export type DossierCatalogParams = {
+  limit?: number
+  cursor?: string
+  q?: string
+}
+export type TaskSummaryList = {
+  tasks: Pick<TaskPage, 'space_key' | 'task_key' | 'title' | 'document_count' | 'evidence_count'>[]
+  next_cursor: string | null
+  total: number
+}
+export type PhaseSummaryList = {
+  phases: Pick<
+    PhasePage,
+    'space_key' | 'phase_key' | 'title' | 'document_count' | 'evidence_count'
+  >[]
+  next_cursor: string | null
+  total: number
+}
 export type Template = TemplateResponse
 export type CreateTemplateRequest = GeneratedCreateTemplateRequest
 export type AuditEntry = AuditEntryResponse
@@ -229,6 +247,15 @@ export function listTasks(spaceKey: string): Promise<TaskPageListResponse> {
   return apiRequest<TaskPageListResponse>(`/api/v1/spaces/${encodeURIComponent(spaceKey)}/tasks`)
 }
 
+export function listTaskSummaries(
+  spaceKey: string,
+  params: DossierCatalogParams = {},
+): Promise<TaskSummaryList> {
+  return apiRequest<TaskSummaryList>(
+    `/api/v1/spaces/${encodeURIComponent(spaceKey)}/task-summaries${queryString(params)}`,
+  )
+}
+
 export function getTask(spaceKey: string, taskKey: string): Promise<TaskPage> {
   return apiRequest<TaskPage>(
     `/api/v1/spaces/${encodeURIComponent(spaceKey)}/tasks/${encodeURIComponent(taskKey)}`,
@@ -251,6 +278,15 @@ export function linkTaskDocument(
 
 export function listPhases(spaceKey: string): Promise<PhasePageListResponse> {
   return apiRequest<PhasePageListResponse>(`/api/v1/spaces/${encodeURIComponent(spaceKey)}/phases`)
+}
+
+export function listPhaseSummaries(
+  spaceKey: string,
+  params: DossierCatalogParams = {},
+): Promise<PhaseSummaryList> {
+  return apiRequest<PhaseSummaryList>(
+    `/api/v1/spaces/${encodeURIComponent(spaceKey)}/phase-summaries${queryString(params)}`,
+  )
 }
 
 export function getPhase(spaceKey: string, phaseKey: string): Promise<PhasePage> {

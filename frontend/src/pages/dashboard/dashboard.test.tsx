@@ -1,20 +1,20 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DashboardPage } from './'
 
 const listSpaces = vi.hoisted(() => vi.fn())
-const listTasks = vi.hoisted(() => vi.fn())
-const listPhases = vi.hoisted(() => vi.fn())
+const listTaskSummaries = vi.hoisted(() => vi.fn())
+const listPhaseSummaries = vi.hoisted(() => vi.fn())
 const listEvidence = vi.hoisted(() => vi.fn())
 const searchWiki = vi.hoisted(() => vi.fn())
 
 vi.mock('@/api/wiki', () => ({
   listSpaces,
-  listTasks,
-  listPhases,
+  listTaskSummaries,
+  listPhaseSummaries,
   listEvidence,
   searchWiki,
 }))
@@ -65,7 +65,7 @@ describe('DashboardPage', () => {
         },
       ],
     })
-    listTasks.mockResolvedValueOnce({
+    listTaskSummaries.mockResolvedValueOnce({
       tasks: [
         {
           space_key: 'BASE',
@@ -73,12 +73,12 @@ describe('DashboardPage', () => {
           title: 'Требования к Wiki',
           document_count: 1,
           evidence_count: 1,
-          documents: [],
-          evidence: [],
         },
       ],
+      next_cursor: 'BASE-42',
+      total: 7,
     })
-    listPhases.mockResolvedValueOnce({
+    listPhaseSummaries.mockResolvedValueOnce({
       phases: [
         {
           space_key: 'BASE',
@@ -86,10 +86,10 @@ describe('DashboardPage', () => {
           title: 'implementation',
           document_count: 1,
           evidence_count: 1,
-          documents: [],
-          evidence: [],
         },
       ],
+      next_cursor: null,
+      total: 3,
     })
     listEvidence.mockResolvedValue({ evidence: [] })
 
@@ -105,13 +105,18 @@ describe('DashboardPage', () => {
       'href',
       '/tasks/BASE-42?space=BASE',
     )
+    const stats = within(screen.getByRole('region', { name: 'Показатели Wiki' }))
+    expect(stats.getByText('7')).toBeInTheDocument()
+    expect(stats.getByText('3')).toBeInTheDocument()
+    expect(listTaskSummaries).toHaveBeenCalledWith('BASE', { limit: 4 })
+    expect(listPhaseSummaries).toHaveBeenCalledWith('BASE', { limit: 1 })
   })
 
   it('renders overview API errors with a retry action', async () => {
     listSpaces.mockRejectedValue(new Error('Forbidden'))
     searchWiki.mockRejectedValue(new Error('Forbidden'))
-    listTasks.mockRejectedValue(new Error('Forbidden'))
-    listPhases.mockRejectedValue(new Error('Forbidden'))
+    listTaskSummaries.mockRejectedValue(new Error('Forbidden'))
+    listPhaseSummaries.mockRejectedValue(new Error('Forbidden'))
     listEvidence.mockResolvedValue({ evidence: [] })
 
     render(wrapper(<DashboardPage />))
@@ -122,8 +127,8 @@ describe('DashboardPage', () => {
     await waitFor(() => {
       expect(listSpaces).toHaveBeenCalledTimes(2)
       expect(searchWiki).not.toHaveBeenCalled()
-      expect(listTasks).not.toHaveBeenCalled()
-      expect(listPhases).not.toHaveBeenCalled()
+      expect(listTaskSummaries).not.toHaveBeenCalled()
+      expect(listPhaseSummaries).not.toHaveBeenCalled()
     })
   })
 
@@ -132,10 +137,12 @@ describe('DashboardPage', () => {
       spaces: [{ key: 'BASE', name: 'Base', document_count: 1 }],
     })
     searchWiki.mockRejectedValue(new Error('Search unavailable'))
-    listTasks.mockResolvedValue({
+    listTaskSummaries.mockResolvedValue({
       tasks: [{ task_key: 'BASE-42', title: 'Проверить релиз', document_count: 1 }],
+      next_cursor: null,
+      total: 1,
     })
-    listPhases.mockResolvedValue({ phases: [] })
+    listPhaseSummaries.mockResolvedValue({ phases: [], next_cursor: null, total: 0 })
 
     render(wrapper(<DashboardPage />))
 
@@ -149,18 +156,18 @@ describe('DashboardPage', () => {
       spaces: [{ key: 'BASE', name: 'Base', document_count: 1 }],
     })
     searchWiki.mockResolvedValue({ results: [] })
-    listTasks.mockResolvedValue({ tasks: [] })
-    listPhases.mockRejectedValueOnce(new Error('Phases unavailable'))
-    listPhases.mockResolvedValue({ phases: [] })
+    listTaskSummaries.mockResolvedValue({ tasks: [], next_cursor: null, total: 0 })
+    listPhaseSummaries.mockRejectedValueOnce(new Error('Phases unavailable'))
+    listPhaseSummaries.mockResolvedValue({ phases: [], next_cursor: null, total: 0 })
 
     render(wrapper(<DashboardPage />))
 
     expect(await screen.findByText('Phases unavailable')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /повторить/i }))
-    await waitFor(() => expect(listPhases).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(listPhaseSummaries).toHaveBeenCalledTimes(2))
     expect(listSpaces).toHaveBeenCalledTimes(1)
     expect(searchWiki).toHaveBeenCalledTimes(1)
-    expect(listTasks).toHaveBeenCalledTimes(1)
+    expect(listTaskSummaries).toHaveBeenCalledTimes(1)
   })
 
   it('switches the scoped overview between spaces', async () => {
@@ -184,13 +191,15 @@ describe('DashboardPage', () => {
             ]
           : [],
     }))
-    listTasks.mockImplementation(async (space: string) => ({
+    listTaskSummaries.mockImplementation(async (space: string) => ({
       tasks:
         space === 'TEAM'
           ? [{ task_key: 'TEAM-1', title: 'Задача команды', document_count: 1 }]
           : [],
+      next_cursor: null,
+      total: space === 'TEAM' ? 1 : 0,
     }))
-    listPhases.mockResolvedValue({ phases: [] })
+    listPhaseSummaries.mockResolvedValue({ phases: [], next_cursor: null, total: 0 })
 
     render(wrapper(<DashboardPage />))
     const spaceSelect = await screen.findByLabelText('Пространство')
@@ -199,7 +208,12 @@ describe('DashboardPage', () => {
 
     expect(await screen.findByText('Документ команды')).toBeInTheDocument()
     expect(await screen.findByText('Задача команды')).toBeInTheDocument()
-    expect(listTasks).toHaveBeenCalledWith('TEAM')
+    expect(listTaskSummaries).toHaveBeenCalledWith('TEAM', { limit: 4 })
     expect(searchWiki).toHaveBeenCalledWith(expect.objectContaining({ space: 'TEAM' }))
+    expect(
+      within(screen.getByRole('region', { name: 'Задачи в Wiki' })).getByRole('link', {
+        name: /Все/,
+      }),
+    ).toHaveAttribute('href', '/tasks?space=TEAM')
   })
 })

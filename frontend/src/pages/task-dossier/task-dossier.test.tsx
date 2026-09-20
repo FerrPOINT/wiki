@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -7,7 +7,7 @@ import { TaskDossierPage, TaskDossiersPage } from './'
 const useLinkTaskDocument = vi.hoisted(() => vi.fn())
 const useSpaces = vi.hoisted(() => vi.fn())
 const useTask = vi.hoisted(() => vi.fn())
-const useTasks = vi.hoisted(() => vi.fn())
+const useTaskSummaries = vi.hoisted(() => vi.fn())
 const linkTaskMutate = vi.hoisted(() => vi.fn())
 const taskRefetch = vi.hoisted(() => vi.fn())
 
@@ -16,7 +16,7 @@ vi.mock('@/shared/api/hooks', () => ({
   useLinkTaskDocument,
   useSpaces,
   useTask,
-  useTasks,
+  useTaskSummaries,
 }))
 
 const taskPage = {
@@ -41,7 +41,6 @@ function renderTaskPage(
     isError: false,
     refetch: taskRefetch,
   })
-  useTasks.mockReturnValue({ data: { tasks: [] }, isLoading: false, isError: false })
   useSpaces.mockReturnValue({
     data: {
       spaces: [
@@ -71,8 +70,52 @@ function renderTaskPage(
   )
 }
 
-function renderTaskList(tasks: Array<Record<string, unknown>>) {
-  useTasks.mockReturnValue({ data: { tasks }, isLoading: false, isError: false })
+function renderTaskList(
+  tasks: Array<{ task_key: string; title: string; document_count: number; evidence_count: number }>,
+  nextPageState: 'normal' | 'error' | 'empty' = 'normal',
+) {
+  useTaskSummaries.mockImplementation(
+    (_spaceKey, params: { limit: number; cursor?: string; q?: string }) => {
+      if (nextPageState === 'error' && params.cursor) {
+        return {
+          data: undefined,
+          isLoading: false,
+          isFetching: false,
+          isError: true,
+          error: new Error('network error'),
+          refetch: vi.fn(),
+        }
+      }
+      if (nextPageState === 'empty' && params.cursor) {
+        return {
+          data: { tasks: [], next_cursor: null, total: tasks.length },
+          isLoading: false,
+          isFetching: false,
+          isError: false,
+          refetch: vi.fn(),
+        }
+      }
+      const needle = params.q?.toLocaleLowerCase('ru') ?? ''
+      const matching = tasks.filter((task) =>
+        `${task.task_key} ${task.title}`.toLocaleLowerCase('ru').includes(needle),
+      )
+      const remaining = params.cursor
+        ? matching.filter((task) => task.task_key > params.cursor!)
+        : matching
+      const page = remaining.slice(0, params.limit)
+      return {
+        data: {
+          tasks: page,
+          next_cursor: remaining.length > params.limit ? page.at(-1)?.task_key : null,
+          total: matching.length,
+        },
+        isLoading: false,
+        isFetching: false,
+        isError: false,
+        refetch: vi.fn(),
+      }
+    },
+  )
   useSpaces.mockReturnValue({
     data: {
       spaces: [
@@ -209,9 +252,13 @@ describe('TaskDossierPage', () => {
 })
 
 describe('TaskDossiersPage', () => {
-  afterEach(() => vi.clearAllMocks())
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.clearAllMocks()
+  })
 
-  it('shows compact searchable pages without a fabricated readiness score', () => {
+  it('searches the whole space and pages bounded summaries without a readiness score', () => {
+    vi.useFakeTimers()
     renderTaskList(
       Array.from({ length: 25 }, (_, index) => ({
         task_key: `DOCS-${String(index + 1).padStart(2, '0')}`,
@@ -222,19 +269,96 @@ describe('TaskDossiersPage', () => {
     )
 
     expect(screen.queryByText('Заполненность')).not.toBeInTheDocument()
-    expect(screen.getByText('Показано 12 из 25 задач')).toBeInTheDocument()
+    expect(useTaskSummaries).toHaveBeenCalledWith('DOCS', {
+      limit: 12,
+      cursor: undefined,
+      q: undefined,
+    })
+    expect(screen.getByText('Задачи: 12 из 25')).toBeInTheDocument()
     expect(screen.getAllByRole('listitem')).toHaveLength(12)
     const pagination = screen.getByRole('navigation', { name: 'Страницы задач' })
     fireEvent.click(within(pagination).getByRole('button', { name: 'Далее' }))
-    expect(screen.getByText('2 / 3')).toBeInTheDocument()
+    expect(screen.getByText('Страница 2')).toBeInTheDocument()
+    expect(useTaskSummaries).toHaveBeenLastCalledWith('DOCS', {
+      limit: 12,
+      cursor: 'DOCS-12',
+      q: undefined,
+    })
     fireEvent.change(screen.getByRole('searchbox', { name: 'Найти задачу' }), {
       target: { value: 'DOCS-25' },
     })
-    expect(screen.getByText('Показано 1 из 1 задач')).toBeInTheDocument()
+    act(() => vi.advanceTimersByTime(300))
+    expect(useTaskSummaries).toHaveBeenLastCalledWith('DOCS', {
+      limit: 12,
+      cursor: undefined,
+      q: 'DOCS-25',
+    })
+    expect(screen.getByText('Задачи: 1 из 1')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /DOCS-25/ })).toHaveAttribute(
       'href',
       '/tasks/DOCS-25?space=DOCS',
     )
     expect(screen.queryByRole('navigation', { name: 'Страницы задач' })).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Найти задачу' }), {
+      target: { value: 'missing' },
+    })
+    act(() => vi.advanceTimersByTime(300))
+    expect(screen.getByText('По запросу задачи не найдены')).toBeInTheDocument()
+    expect(screen.getByRole('searchbox', { name: 'Найти задачу' })).toHaveValue('missing')
+  })
+
+  it('keeps previous-page navigation and search after a cursor request fails', () => {
+    renderTaskList(
+      Array.from({ length: 13 }, (_, index) => ({
+        task_key: `DOCS-${String(index + 1).padStart(2, '0')}`,
+        title: `Задача ${index + 1}`,
+        document_count: 0,
+        evidence_count: 0,
+      })),
+      'error',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(screen.getByRole('searchbox', { name: 'Найти задачу' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Назад' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByText('Задачи: 12 из 13')).toBeInTheDocument()
+  })
+
+  it('keeps back navigation when a later page becomes empty', () => {
+    renderTaskList(
+      Array.from({ length: 13 }, (_, index) => ({
+        task_key: `DOCS-${String(index + 1).padStart(2, '0')}`,
+        title: `Задача ${index + 1}`,
+        document_count: 0,
+        evidence_count: 0,
+      })),
+      'empty',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
+    expect(screen.getByText('На этой странице задач больше нет')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Назад' })).toBeEnabled()
+  })
+
+  it('resets the catalog query when the selected space changes', () => {
+    vi.useFakeTimers()
+    renderTaskList([{ task_key: 'DOCS-01', title: 'Задача', document_count: 0, evidence_count: 0 }])
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Найти задачу' }), {
+      target: { value: 'DOCS-01' },
+    })
+    act(() => vi.advanceTimersByTime(300))
+
+    fireEvent.change(screen.getByLabelText('Пространство'), { target: { value: 'BASE' } })
+
+    expect(screen.getByRole('searchbox', { name: 'Найти задачу' })).toHaveValue('')
+    expect(useTaskSummaries).toHaveBeenLastCalledWith('BASE', {
+      limit: 12,
+      cursor: undefined,
+      q: undefined,
+    })
   })
 })

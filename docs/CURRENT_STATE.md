@@ -1,6 +1,6 @@
 # Current State - Wiki
 
-> Dossier UI update (2026-09-20): `/tasks` and `/phases` use compact searchable client-side pages, while detail links open exact document/evidence records and no longer infer workflow readiness from item counts. Draft PR still needs 375/1920/2560 live QA. The current list API remains unbounded and loads full nested dossiers with PostgreSQL N+1 queries; server-side summary/cursor pagination is a separate required follow-up.
+> Dossier UI update (2026-09-20): `/tasks` and `/phases` use compact server-side summary pages (12 per request) with space-wide `q` search, cursor navigation and exact `total`. Dashboard uses bounded summary previews and `total` instead of loading nested dossiers. Detail links open exact document/evidence records and no longer infer workflow readiness from item counts. This frontend depends on draft API PR #29; neither PR is ready to merge before dependency ordering and 375/1920/2560 live QA.
 
 > Snapshot date: 2026-09-03. Authority is repository code and tests; update this file whenever capability state changes.
 

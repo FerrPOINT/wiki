@@ -1,11 +1,11 @@
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { FileCheck2, FileText, Link2, Search } from 'lucide-react'
 import {
   defaultSpaceKey,
   useLinkPhaseDocument,
   usePhase,
-  usePhases,
+  usePhaseSummaries,
   useSpaces,
 } from '@/shared/api/hooks'
 import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
@@ -94,21 +94,131 @@ function SpaceSelector({
   )
 }
 
+function PhaseCatalog({ spaceKey }: { spaceKey: string }) {
+  const [search, setSearch] = useState('')
+  const [appliedSearch, setAppliedSearch] = useState('')
+  const [cursors, setCursors] = useState<(string | null)[]>([null])
+  const listRef = useRef<HTMLElement>(null)
+  const cursor = cursors[cursors.length - 1] ?? undefined
+  const phasesQuery = usePhaseSummaries(spaceKey, {
+    limit: pageSize,
+    cursor,
+    q: appliedSearch || undefined,
+  })
+  const phases = phasesQuery.data?.phases ?? []
+  const nextCursor = phasesQuery.data?.next_cursor
+
+  useEffect(() => {
+    if (search.trim() === appliedSearch) return
+    const timeout = window.setTimeout(() => {
+      setAppliedSearch(search.trim())
+      setCursors([null])
+    }, 300)
+    return () => window.clearTimeout(timeout)
+  }, [search, appliedSearch])
+
+  function changePage(nextCursors: (string | null)[]) {
+    setCursors(nextCursors)
+    listRef.current?.scrollIntoView?.({ block: 'start' })
+  }
+
+  return (
+    <section ref={listRef} aria-label="Список фаз" className="scroll-mt-16 space-y-3">
+      <div className="relative max-w-md">
+        <Search
+          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
+          aria-hidden
+        />
+        <Input
+          type="search"
+          aria-label="Найти фазу"
+          className="min-h-10 pl-9"
+          placeholder="Ключ, название или документ"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+      </div>
+
+      {phasesQuery.isLoading && <LoadingState message="Загружаем фазы" />}
+      {phasesQuery.isError && (
+        <ErrorState
+          message={formatApiErrorForUser(phasesQuery.error, 'Не удалось загрузить фазы')}
+          onRetry={() => phasesQuery.refetch()}
+        />
+      )}
+      {!phasesQuery.isLoading && !phasesQuery.isError && phases.length === 0 && (
+        <EmptyState
+          message={
+            cursors.length > 1
+              ? 'На этой странице фаз больше нет'
+              : appliedSearch
+                ? 'По запросу фазы не найдены'
+                : 'Документы и материалы ещё не связаны с фазами'
+          }
+        />
+      )}
+      {!phasesQuery.isLoading && !phasesQuery.isError && phases.length > 0 && (
+        <>
+          <p role="status" className="text-xs text-text-muted">
+            Фазы: {phases.length} из {phasesQuery.data?.total}
+          </p>
+          <ul className="divide-y divide-border border-y border-border">
+            {phases.map((phase) => (
+              <li key={phase.phase_key}>
+                <Link
+                  to={scopedPath(`/phases/${phase.phase_key}`, spaceKey)}
+                  className="flex min-h-16 min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 px-2 py-3 hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
+                >
+                  <span className="min-w-0">
+                    <span className="block break-words text-sm font-medium text-text-primary">
+                      {phase.title ?? phase.phase_key}
+                    </span>
+                    {phase.title && (
+                      <span className="block text-xs text-text-muted">{phase.phase_key}</span>
+                    )}
+                  </span>
+                  <span className="shrink-0 text-xs text-text-muted">
+                    Документы: {phase.document_count} · Материалы: {phase.evidence_count}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {(cursors.length > 1 || nextCursor) && (
+        <nav aria-label="Страницы фаз" className="flex items-center justify-end gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="min-h-10"
+            disabled={cursors.length === 1 || phasesQuery.isLoading || phasesQuery.isFetching}
+            onClick={() => changePage(cursors.slice(0, -1))}
+          >
+            Назад
+          </Button>
+          <span className="text-sm text-text-muted">Страница {cursors.length}</span>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="min-h-10"
+            disabled={
+              !nextCursor || phasesQuery.isLoading || phasesQuery.isFetching || phasesQuery.isError
+            }
+            onClick={() => nextCursor && changePage([...cursors, nextCursor])}
+          >
+            Далее
+          </Button>
+        </nav>
+      )}
+    </section>
+  )
+}
+
 export function PhaseDossiersPage() {
   const [selectedSpaceKey, setSelectedSpaceKey, spacesQuery] = useSelectedSpaceKey()
-  const phasesQuery = usePhases(selectedSpaceKey)
-  const phases = phasesQuery.data?.phases ?? []
-  const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
-  const needle = search.trim().toLocaleLowerCase('ru')
-  const filteredPhases = needle
-    ? phases.filter((phase) =>
-        `${phase.phase_key} ${phase.title ?? ''}`.toLocaleLowerCase('ru').includes(needle),
-      )
-    : phases
-  const totalPages = Math.max(1, Math.ceil(filteredPhases.length / pageSize))
-  const currentPage = Math.min(page, totalPages)
-  const visiblePhases = filteredPhases.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
   return (
     <div className="space-y-5">
@@ -119,14 +229,7 @@ export function PhaseDossiersPage() {
             Каждая завершённая фаза должна иметь документы и материалы, достаточные для аудита.
           </p>
         </div>
-        <SpaceSelector
-          value={selectedSpaceKey}
-          onChange={(spaceKey) => {
-            setSelectedSpaceKey(spaceKey)
-            setSearch('')
-            setPage(1)
-          }}
-        />
+        <SpaceSelector value={selectedSpaceKey} onChange={setSelectedSpaceKey} />
       </section>
 
       {spacesQuery.isLoading && <LoadingState message="Загружаем пространства" />}
@@ -139,96 +242,7 @@ export function PhaseDossiersPage() {
       {!spacesQuery.isLoading && !spacesQuery.isError && !selectedSpaceKey && (
         <EmptyState message="Сначала создайте пространство" />
       )}
-      {selectedSpaceKey && phasesQuery.isLoading && <LoadingState message="Загружаем фазы" />}
-      {selectedSpaceKey && phasesQuery.isError && (
-        <ErrorState
-          message={formatApiErrorForUser(phasesQuery.error, 'Не удалось загрузить фазы')}
-          onRetry={() => phasesQuery.refetch()}
-        />
-      )}
-      {selectedSpaceKey &&
-        !phasesQuery.isLoading &&
-        !phasesQuery.isError &&
-        phases.length === 0 && (
-          <EmptyState message="Документы и материалы ещё не связаны с фазами" />
-        )}
-      {selectedSpaceKey && !phasesQuery.isLoading && !phasesQuery.isError && phases.length > 0 && (
-        <section aria-label="Список фаз" className="space-y-3">
-          <div className="relative max-w-md">
-            <Search
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
-              aria-hidden
-            />
-            <Input
-              type="search"
-              aria-label="Найти фазу"
-              className="min-h-10 pl-9"
-              placeholder="Ключ или название"
-              value={search}
-              onChange={(event) => {
-                setSearch(event.target.value)
-                setPage(1)
-              }}
-            />
-          </div>
-          <p role="status" className="text-xs text-text-muted">
-            Показано {visiblePhases.length} из {filteredPhases.length} фаз
-          </p>
-          {filteredPhases.length === 0 ? (
-            <EmptyState message="По запросу фазы не найдены" />
-          ) : (
-            <ul className="divide-y divide-border border-y border-border">
-              {visiblePhases.map((phase) => (
-                <li key={phase.phase_key}>
-                  <Link
-                    to={scopedPath(`/phases/${phase.phase_key}`, selectedSpaceKey)}
-                    className="flex min-h-16 min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 px-2 py-3 hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
-                  >
-                    <span className="min-w-0">
-                      <span className="block break-words text-sm font-medium text-text-primary">
-                        {phase.title ?? phase.phase_key}
-                      </span>
-                      {phase.title && (
-                        <span className="block text-xs text-text-muted">{phase.phase_key}</span>
-                      )}
-                    </span>
-                    <span className="shrink-0 text-xs text-text-muted">
-                      Документы: {phase.document_count} · Материалы: {phase.evidence_count}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-          {totalPages > 1 && (
-            <nav aria-label="Страницы фаз" className="flex items-center justify-end gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="min-h-10"
-                disabled={currentPage === 1}
-                onClick={() => setPage(currentPage - 1)}
-              >
-                Назад
-              </Button>
-              <span className="text-sm text-text-muted">
-                {currentPage} / {totalPages}
-              </span>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="min-h-10"
-                disabled={currentPage === totalPages}
-                onClick={() => setPage(currentPage + 1)}
-              >
-                Далее
-              </Button>
-            </nav>
-          )}
-        </section>
-      )}
+      {selectedSpaceKey && <PhaseCatalog key={selectedSpaceKey} spaceKey={selectedSpaceKey} />}
     </div>
   )
 }

@@ -13,8 +13,11 @@ import {
   useLinkPhaseDocument,
   useLinkTaskDocument,
   useMoveDocument,
+  usePhaseSummaries,
   usePublishDocument,
+  useTaskSummaries,
   useUpdateDocumentDraft,
+  wikiKeys,
 } from './hooks'
 
 const archiveDocument = vi.hoisted(() => vi.fn())
@@ -25,6 +28,8 @@ const linkPhaseDocument = vi.hoisted(() => vi.fn())
 const linkTaskDocument = vi.hoisted(() => vi.fn())
 const listDocumentRevisions = vi.hoisted(() => vi.fn())
 const listEvidence = vi.hoisted(() => vi.fn())
+const listPhaseSummaries = vi.hoisted(() => vi.fn())
+const listTaskSummaries = vi.hoisted(() => vi.fn())
 const moveDocument = vi.hoisted(() => vi.fn())
 const publishDocument = vi.hoisted(() => vi.fn())
 const updateDocumentDraft = vi.hoisted(() => vi.fn())
@@ -60,9 +65,9 @@ vi.mock('@/api/wiki', () => ({
   listAuditLog: vi.fn(),
   listDocumentRevisions,
   listEvidence,
-  listPhases: vi.fn(),
+  listPhaseSummaries,
   listSpaces: vi.fn(),
-  listTasks: vi.fn(),
+  listTaskSummaries,
   listTemplates: vi.fn(),
   listUsers: vi.fn(),
   moveDocument,
@@ -169,6 +174,21 @@ describe('wiki API hooks', () => {
 
     expect(listDocumentRevisions).toHaveBeenCalledWith('product-requirements', { limit: 20 })
     expect(listEvidence).toHaveBeenCalledWith({ limit: 30 })
+  })
+
+  it('passes bounded dossier search and cursor params through summary hooks', async () => {
+    listTaskSummaries.mockResolvedValueOnce({ tasks: [], next_cursor: null, total: 0 })
+    listPhaseSummaries.mockResolvedValueOnce({ phases: [], next_cursor: null, total: 0 })
+
+    const taskParams = { limit: 12, q: 'release', cursor: 'BASE-10' }
+    const phaseParams = { limit: 12, q: 'testing', cursor: 'test' }
+    const taskHook = renderHook(() => useTaskSummaries('BASE', taskParams), { wrapper })
+    const phaseHook = renderHook(() => usePhaseSummaries('BASE', phaseParams), { wrapper })
+
+    await waitFor(() => expect(taskHook.result.current.isSuccess).toBe(true))
+    await waitFor(() => expect(phaseHook.result.current.isSuccess).toBe(true))
+    expect(listTaskSummaries).toHaveBeenCalledWith('BASE', taskParams)
+    expect(listPhaseSummaries).toHaveBeenCalledWith('BASE', phaseParams)
   })
 
   it('passes a revision page offset through the list hook', async () => {
@@ -283,6 +303,9 @@ describe('wiki API hooks', () => {
   })
 
   it('links task documents through the public API wrapper', async () => {
+    const queryClient = new QueryClient()
+    const summaryKey = wikiKeys.taskSummaryList('BASE', { limit: 12 })
+    queryClient.setQueryData(summaryKey, { tasks: [], next_cursor: null, total: 0 })
     linkTaskDocument.mockResolvedValueOnce({
       space_key: 'BASE',
       task_key: 'BASE-42',
@@ -292,7 +315,9 @@ describe('wiki API hooks', () => {
       evidence: [],
     })
 
-    const { result } = renderHook(() => useLinkTaskDocument(), { wrapper })
+    const { result } = renderHook(() => useLinkTaskDocument(), {
+      wrapper: wrapperFor(queryClient),
+    })
 
     await act(async () => {
       await result.current.mutateAsync({
@@ -305,9 +330,13 @@ describe('wiki API hooks', () => {
     expect(linkTaskDocument).toHaveBeenCalledWith('BASE', 'BASE-42', {
       document_id: 'product-requirements',
     })
+    expect(queryClient.getQueryState(summaryKey)?.isInvalidated).toBe(true)
   })
 
   it('links phase documents through the public API wrapper', async () => {
+    const queryClient = new QueryClient()
+    const summaryKey = wikiKeys.phaseSummaryList('BASE', { limit: 12 })
+    queryClient.setQueryData(summaryKey, { phases: [], next_cursor: null, total: 0 })
     linkPhaseDocument.mockResolvedValueOnce({
       space_key: 'BASE',
       phase_key: 'implementation',
@@ -317,7 +346,9 @@ describe('wiki API hooks', () => {
       evidence: [],
     })
 
-    const { result } = renderHook(() => useLinkPhaseDocument(), { wrapper })
+    const { result } = renderHook(() => useLinkPhaseDocument(), {
+      wrapper: wrapperFor(queryClient),
+    })
 
     await act(async () => {
       await result.current.mutateAsync({
@@ -330,6 +361,7 @@ describe('wiki API hooks', () => {
     expect(linkPhaseDocument).toHaveBeenCalledWith('BASE', 'implementation', {
       document_id: 'product-requirements',
     })
+    expect(queryClient.getQueryState(summaryKey)?.isInvalidated).toBe(true)
   })
 
   it('reads a selected evidence item through the public API wrapper', async () => {

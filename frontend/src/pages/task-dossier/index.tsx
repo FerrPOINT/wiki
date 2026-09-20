@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { FileCheck2, FileText, GitBranch, Link2, Search } from 'lucide-react'
 import {
@@ -6,7 +6,7 @@ import {
   useLinkTaskDocument,
   useSpaces,
   useTask,
-  useTasks,
+  useTaskSummaries,
 } from '@/shared/api/hooks'
 import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
 import { Button } from '@sdlc/ui/ui'
@@ -94,21 +94,133 @@ function SpaceSelector({
   )
 }
 
+function TaskCatalog({ spaceKey }: { spaceKey: string }) {
+  const [search, setSearch] = useState('')
+  const [appliedSearch, setAppliedSearch] = useState('')
+  const [cursors, setCursors] = useState<(string | null)[]>([null])
+  const listRef = useRef<HTMLElement>(null)
+  const cursor = cursors[cursors.length - 1] ?? undefined
+  const tasksQuery = useTaskSummaries(spaceKey, {
+    limit: pageSize,
+    cursor,
+    q: appliedSearch || undefined,
+  })
+  const tasks = tasksQuery.data?.tasks ?? []
+  const nextCursor = tasksQuery.data?.next_cursor
+
+  useEffect(() => {
+    if (search.trim() === appliedSearch) return
+    const timeout = window.setTimeout(() => {
+      setAppliedSearch(search.trim())
+      setCursors([null])
+    }, 300)
+    return () => window.clearTimeout(timeout)
+  }, [search, appliedSearch])
+
+  function changePage(nextCursors: (string | null)[]) {
+    setCursors(nextCursors)
+    listRef.current?.scrollIntoView?.({ block: 'start' })
+  }
+
+  return (
+    <section ref={listRef} aria-label="Список задач" className="scroll-mt-16 space-y-3">
+      <div className="relative max-w-md">
+        <Search
+          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
+          aria-hidden
+        />
+        <Input
+          type="search"
+          aria-label="Найти задачу"
+          className="min-h-10 pl-9"
+          placeholder="Ключ, название или документ"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+      </div>
+
+      {tasksQuery.isLoading && <LoadingState message="Загружаем задачи" />}
+      {tasksQuery.isError && (
+        <ErrorState
+          message={formatApiErrorForUser(tasksQuery.error, 'Не удалось загрузить задачи')}
+          onRetry={() => tasksQuery.refetch()}
+        />
+      )}
+      {!tasksQuery.isLoading && !tasksQuery.isError && tasks.length === 0 && (
+        <EmptyState
+          message={
+            cursors.length > 1
+              ? 'На этой странице задач больше нет'
+              : appliedSearch
+                ? 'По запросу задачи не найдены'
+                : 'Документы ещё не связаны с задачами'
+          }
+        />
+      )}
+      {!tasksQuery.isLoading && !tasksQuery.isError && tasks.length > 0 && (
+        <>
+          <p role="status" className="text-xs text-text-muted">
+            Задачи: {tasks.length} из {tasksQuery.data?.total}
+          </p>
+          <ul className="divide-y divide-border border-y border-border">
+            {tasks.map((task) => (
+              <li key={task.task_key}>
+                <Link
+                  to={scopedPath(`/tasks/${task.task_key}`, spaceKey)}
+                  className="flex min-h-16 min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 px-2 py-3 hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
+                >
+                  <span className="min-w-0">
+                    <span className="block break-words text-sm font-medium text-text-primary">
+                      {task.task_key}
+                    </span>
+                    {task.title && (
+                      <span className="block break-words text-sm text-text-secondary">
+                        {task.title}
+                      </span>
+                    )}
+                  </span>
+                  <span className="shrink-0 text-xs text-text-muted">
+                    Документы: {task.document_count} · Материалы: {task.evidence_count}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {(cursors.length > 1 || nextCursor) && (
+        <nav aria-label="Страницы задач" className="flex items-center justify-end gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="min-h-10"
+            disabled={cursors.length === 1 || tasksQuery.isLoading || tasksQuery.isFetching}
+            onClick={() => changePage(cursors.slice(0, -1))}
+          >
+            Назад
+          </Button>
+          <span className="text-sm text-text-muted">Страница {cursors.length}</span>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="min-h-10"
+            disabled={
+              !nextCursor || tasksQuery.isLoading || tasksQuery.isFetching || tasksQuery.isError
+            }
+            onClick={() => nextCursor && changePage([...cursors, nextCursor])}
+          >
+            Далее
+          </Button>
+        </nav>
+      )}
+    </section>
+  )
+}
+
 export function TaskDossiersPage() {
   const [selectedSpaceKey, setSelectedSpaceKey, spacesQuery] = useSelectedSpaceKey()
-  const tasksQuery = useTasks(selectedSpaceKey)
-  const tasks = tasksQuery.data?.tasks ?? []
-  const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
-  const needle = search.trim().toLocaleLowerCase('ru')
-  const filteredTasks = needle
-    ? tasks.filter((task) =>
-        `${task.task_key} ${task.title ?? ''}`.toLocaleLowerCase('ru').includes(needle),
-      )
-    : tasks
-  const totalPages = Math.max(1, Math.ceil(filteredTasks.length / pageSize))
-  const currentPage = Math.min(page, totalPages)
-  const visibleTasks = filteredTasks.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
   return (
     <div className="space-y-5">
@@ -120,14 +232,7 @@ export function TaskDossiersPage() {
             статусом в трекере.
           </p>
         </div>
-        <SpaceSelector
-          value={selectedSpaceKey}
-          onChange={(spaceKey) => {
-            setSelectedSpaceKey(spaceKey)
-            setSearch('')
-            setPage(1)
-          }}
-        />
+        <SpaceSelector value={selectedSpaceKey} onChange={setSelectedSpaceKey} />
       </section>
 
       {spacesQuery.isLoading && <LoadingState message="Загружаем пространства" />}
@@ -140,95 +245,7 @@ export function TaskDossiersPage() {
       {!spacesQuery.isLoading && !spacesQuery.isError && !selectedSpaceKey && (
         <EmptyState message="Сначала создайте пространство" />
       )}
-      {selectedSpaceKey && tasksQuery.isLoading && <LoadingState message="Загружаем задачи" />}
-      {selectedSpaceKey && tasksQuery.isError && (
-        <ErrorState
-          message={formatApiErrorForUser(tasksQuery.error, 'Не удалось загрузить задачи')}
-          onRetry={() => tasksQuery.refetch()}
-        />
-      )}
-      {selectedSpaceKey && !tasksQuery.isLoading && !tasksQuery.isError && tasks.length === 0 && (
-        <EmptyState message="Документы ещё не связаны с задачами" />
-      )}
-      {selectedSpaceKey && !tasksQuery.isLoading && !tasksQuery.isError && tasks.length > 0 && (
-        <section aria-label="Список задач" className="space-y-3">
-          <div className="relative max-w-md">
-            <Search
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
-              aria-hidden
-            />
-            <Input
-              type="search"
-              aria-label="Найти задачу"
-              className="min-h-10 pl-9"
-              placeholder="Ключ или название"
-              value={search}
-              onChange={(event) => {
-                setSearch(event.target.value)
-                setPage(1)
-              }}
-            />
-          </div>
-          <p role="status" className="text-xs text-text-muted">
-            Показано {visibleTasks.length} из {filteredTasks.length} задач
-          </p>
-          {filteredTasks.length === 0 ? (
-            <EmptyState message="По запросу задачи не найдены" />
-          ) : (
-            <ul className="divide-y divide-border border-y border-border">
-              {visibleTasks.map((task) => (
-                <li key={task.task_key}>
-                  <Link
-                    to={scopedPath(`/tasks/${task.task_key}`, selectedSpaceKey)}
-                    className="flex min-h-16 min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 px-2 py-3 hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
-                  >
-                    <span className="min-w-0">
-                      <span className="block break-words text-sm font-medium text-text-primary">
-                        {task.task_key}
-                      </span>
-                      {task.title && (
-                        <span className="block break-words text-sm text-text-secondary">
-                          {task.title}
-                        </span>
-                      )}
-                    </span>
-                    <span className="shrink-0 text-xs text-text-muted">
-                      Документы: {task.document_count} · Материалы: {task.evidence_count}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-          {totalPages > 1 && (
-            <nav aria-label="Страницы задач" className="flex items-center justify-end gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="min-h-10"
-                disabled={currentPage === 1}
-                onClick={() => setPage(currentPage - 1)}
-              >
-                Назад
-              </Button>
-              <span className="text-sm text-text-muted">
-                {currentPage} / {totalPages}
-              </span>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="min-h-10"
-                disabled={currentPage === totalPages}
-                onClick={() => setPage(currentPage + 1)}
-              >
-                Далее
-              </Button>
-            </nav>
-          )}
-        </section>
-      )}
+      {selectedSpaceKey && <TaskCatalog key={selectedSpaceKey} spaceKey={selectedSpaceKey} />}
     </div>
   )
 }
