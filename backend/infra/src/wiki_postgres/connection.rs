@@ -96,7 +96,7 @@ impl PostgresWikiBackend {
                         global_role, is_active, created_at, updated_at
                     )
                     VALUES ($1, $2, $3, $4, $5, 'admin', true, now(), now())
-                    ON CONFLICT (lower(email))
+                    ON CONFLICT (lower(email)) WHERE central_sub IS NULL
                     DO UPDATE SET
                         username = EXCLUDED.username,
                         display_name = EXCLUDED.display_name,

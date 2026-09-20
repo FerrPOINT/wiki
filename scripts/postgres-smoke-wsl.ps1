@@ -104,6 +104,7 @@ $BashScript = $BashTemplate.
     Replace("__POSTGRES_HOST__", (ConvertTo-BashSingleQuotedLiteral $PostgresHost)).
     Replace("__POSTGRES_PORT__", (ConvertTo-BashSingleQuotedLiteral ([string]$PostgresPort))).
     Replace("__TIMEOUT_SECONDS__", (ConvertTo-BashSingleQuotedLiteral ([string]$TimeoutSeconds)))
+$BashScript = $BashScript.Replace("`r`n", "`n")
 
 $EncodedScript = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($BashScript))
 & wsl bash -lc "printf '%s' '$EncodedScript' | base64 -d | bash"
