@@ -2773,7 +2773,8 @@
       "PhaseSummaryListResponse": {
         "type": "object",
         "required": [
-          "phases"
+          "phases",
+          "total"
         ],
         "properties": {
           "next_cursor": {
@@ -2787,6 +2788,10 @@
             "items": {
               "$ref": "#/components/schemas/PhaseSummaryResponse"
             }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
           }
         }
       },
@@ -3107,7 +3112,8 @@
       "TaskSummaryListResponse": {
         "type": "object",
         "required": [
-          "tasks"
+          "tasks",
+          "total"
         ],
         "properties": {
           "next_cursor": {
@@ -3121,6 +3127,10 @@
             "items": {
               "$ref": "#/components/schemas/TaskSummaryResponse"
             }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
           }
         }
       },

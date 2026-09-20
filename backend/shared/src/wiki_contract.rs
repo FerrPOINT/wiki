@@ -646,6 +646,7 @@ pub struct TaskSummaryResponse {
 pub struct TaskSummaryListResponse {
     pub tasks: Vec<TaskSummaryResponse>,
     pub next_cursor: Option<String>,
+    pub total: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -677,6 +678,7 @@ pub struct PhaseSummaryResponse {
 pub struct PhaseSummaryListResponse {
     pub phases: Vec<PhaseSummaryResponse>,
     pub next_cursor: Option<String>,
+    pub total: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]

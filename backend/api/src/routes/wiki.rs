@@ -2132,9 +2132,8 @@ pub async fn list_task_summaries(
             task_keys.insert(task_key.clone());
         }
     }
-    let tasks = task_keys
+    let matched: Vec<_> = task_keys
         .into_iter()
-        .filter(|task_key| cursor.as_ref().is_none_or(|value| task_key > value))
         .filter(|task_key| {
             q.as_ref().is_none_or(|needle| {
                 task_key.to_lowercase().contains(needle)
@@ -2146,10 +2145,15 @@ pub async fn list_task_summaries(
                     })
             })
         })
+        .collect();
+    let total = matched.len();
+    let tasks = matched
+        .into_iter()
+        .filter(|task_key| cursor.as_ref().is_none_or(|value| task_key > value))
         .take(limit + 1)
         .map(|task_key| task_summary(&store, &key, &task_key))
         .collect();
-    Ok(Json(task_summary_page(tasks, limit)))
+    Ok(Json(task_summary_page(tasks, limit, total)))
 }
 
 #[utoipa::path(
@@ -2387,9 +2391,8 @@ pub async fn list_phase_summaries(
             phase_keys.insert(phase_key.clone());
         }
     }
-    let phases = phase_keys
+    let matched: Vec<_> = phase_keys
         .into_iter()
-        .filter(|phase_key| cursor.as_ref().is_none_or(|value| phase_key > value))
         .filter(|phase_key| {
             q.as_ref().is_none_or(|needle| {
                 phase_key.to_lowercase().contains(needle)
@@ -2401,10 +2404,15 @@ pub async fn list_phase_summaries(
                     })
             })
         })
+        .collect();
+    let total = matched.len();
+    let phases = matched
+        .into_iter()
+        .filter(|phase_key| cursor.as_ref().is_none_or(|value| phase_key > value))
         .take(limit + 1)
         .map(|phase_key| phase_summary(&store, &key, &phase_key))
         .collect();
-    Ok(Json(phase_summary_page(phases, limit)))
+    Ok(Json(phase_summary_page(phases, limit, total)))
 }
 
 #[utoipa::path(

@@ -188,7 +188,7 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
         cursor: Option<&'a str>,
         q: Option<&'a str>,
         limit: usize,
-    ) -> WikiDossierRepositoryFuture<'a, Vec<TaskSummaryResponse>> {
+    ) -> WikiDossierRepositoryFuture<'a, (Vec<TaskSummaryResponse>, usize)> {
         Box::pin(async move {
             let rows = sqlx::query(
                 r#"
@@ -210,8 +210,23 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
                            ))
                     ORDER BY task_key COLLATE "C"
                     LIMIT $3
+                ), total AS (
+                    SELECT count(*) AS total
+                    FROM task_dossiers
+                    WHERE space_id = $1
+                      AND ($4::text IS NULL
+                           OR strpos(lower(task_key), lower($4::text)) > 0
+                           OR strpos(lower(coalesce(title_snapshot, '')), lower($4::text)) > 0
+                           OR EXISTS (
+                               SELECT 1
+                               FROM document_task_links dtl
+                               JOIN documents d ON d.id = dtl.document_id
+                               WHERE dtl.task_dossier_id = task_dossiers.id
+                                 AND d.archived_at IS NULL
+                                 AND strpos(lower(d.title), lower($4::text)) > 0
+                           ))
                 )
-                SELECT page.task_key,
+                SELECT total.total, page.task_key,
                        COALESCE(page.title_snapshot, (
                            SELECT d.title
                            FROM document_task_links dtl
@@ -226,7 +241,7 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
                         WHERE dtl.task_dossier_id = page.id AND d.archived_at IS NULL) AS document_count,
                        (SELECT count(*) FROM evidence_items e
                         WHERE e.task_dossier_id = page.id) AS evidence_count
-                FROM page
+                FROM total LEFT JOIN page ON true
                 ORDER BY page.task_key COLLATE "C"
                 "#,
             )
@@ -238,7 +253,11 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
             .await
             .map_err(shared::AppError::database)?;
 
-            rows.iter()
+            let total = usize::try_from(rows[0].get::<i64, _>("total"))
+                .map_err(|_| shared::AppError::internal("invalid task summary total"))?;
+            let tasks = rows
+                .iter()
+                .filter(|row| row.get::<Option<String>, _>("task_key").is_some())
                 .map(|row| {
                     Ok(TaskSummaryResponse {
                         space_key: space_key.to_string(),
@@ -250,7 +269,8 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
                             .map_err(|_| shared::AppError::internal("invalid evidence count"))?,
                     })
                 })
-                .collect()
+                .collect::<Result<Vec<_>, shared::AppError>>()?;
+            Ok((tasks, total))
         })
     }
 
@@ -384,7 +404,7 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
         cursor: Option<&'a str>,
         q: Option<&'a str>,
         limit: usize,
-    ) -> WikiDossierRepositoryFuture<'a, Vec<PhaseSummaryResponse>> {
+    ) -> WikiDossierRepositoryFuture<'a, (Vec<PhaseSummaryResponse>, usize)> {
         Box::pin(async move {
             let rows = sqlx::query(
                 r#"
@@ -406,8 +426,23 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
                            ))
                     ORDER BY phase_key COLLATE "C"
                     LIMIT $3
+                ), total AS (
+                    SELECT count(*) AS total
+                    FROM phase_dossiers
+                    WHERE space_id = $1
+                      AND ($4::text IS NULL
+                           OR strpos(lower(phase_key), lower($4::text)) > 0
+                           OR strpos(lower(coalesce(phase_name, '')), lower($4::text)) > 0
+                           OR EXISTS (
+                               SELECT 1
+                               FROM document_phase_links dpl
+                               JOIN documents d ON d.id = dpl.document_id
+                               WHERE dpl.phase_dossier_id = phase_dossiers.id
+                                 AND d.archived_at IS NULL
+                                 AND strpos(lower(d.title), lower($4::text)) > 0
+                           ))
                 )
-                SELECT page.phase_key,
+                SELECT total.total, page.phase_key,
                        COALESCE(page.phase_name, page.phase_key) AS title,
                        (SELECT count(*)
                         FROM document_phase_links dpl
@@ -415,7 +450,7 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
                         WHERE dpl.phase_dossier_id = page.id AND d.archived_at IS NULL) AS document_count,
                        (SELECT count(*) FROM evidence_items e
                         WHERE e.phase_dossier_id = page.id) AS evidence_count
-                FROM page
+                FROM total LEFT JOIN page ON true
                 ORDER BY page.phase_key COLLATE "C"
                 "#,
             )
@@ -427,7 +462,11 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
             .await
             .map_err(shared::AppError::database)?;
 
-            rows.iter()
+            let total = usize::try_from(rows[0].get::<i64, _>("total"))
+                .map_err(|_| shared::AppError::internal("invalid phase summary total"))?;
+            let phases = rows
+                .iter()
+                .filter(|row| row.get::<Option<String>, _>("phase_key").is_some())
                 .map(|row| {
                     Ok(PhaseSummaryResponse {
                         space_key: space_key.to_string(),
@@ -439,7 +478,8 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
                             .map_err(|_| shared::AppError::internal("invalid evidence count"))?,
                     })
                 })
-                .collect()
+                .collect::<Result<Vec<_>, shared::AppError>>()?;
+            Ok((phases, total))
         })
     }
 

@@ -875,7 +875,7 @@ pub trait WikiDossierRepository {
         cursor: Option<&'a str>,
         q: Option<&'a str>,
         limit: usize,
-    ) -> WikiDossierRepositoryFuture<'a, Vec<shared::TaskSummaryResponse>>;
+    ) -> WikiDossierRepositoryFuture<'a, (Vec<shared::TaskSummaryResponse>, usize)>;
 
     fn get_task<'a>(
         &'a self,
@@ -917,7 +917,7 @@ pub trait WikiDossierRepository {
         cursor: Option<&'a str>,
         q: Option<&'a str>,
         limit: usize,
-    ) -> WikiDossierRepositoryFuture<'a, Vec<shared::PhaseSummaryResponse>>;
+    ) -> WikiDossierRepositoryFuture<'a, (Vec<shared::PhaseSummaryResponse>, usize)>;
 
     fn get_phase<'a>(
         &'a self,
@@ -981,11 +981,11 @@ impl<'a, R: WikiDossierRepository + ?Sized> WikiDossierUseCase<'a, R> {
             .map(normalize_task_key)
             .transpose()?;
         let q = normalize_dossier_catalog_search(query.q.as_deref())?;
-        let tasks = self
+        let (tasks, total) = self
             .repository
             .list_task_summaries(space_id, &key, cursor.as_deref(), q.as_deref(), limit + 1)
             .await?;
-        Ok(task_summary_page(tasks, limit))
+        Ok(task_summary_page(tasks, limit, total))
     }
 
     pub async fn get_task(
@@ -1073,11 +1073,11 @@ impl<'a, R: WikiDossierRepository + ?Sized> WikiDossierUseCase<'a, R> {
             .map(normalize_phase_key)
             .transpose()?;
         let q = normalize_dossier_catalog_search(query.q.as_deref())?;
-        let phases = self
+        let (phases, total) = self
             .repository
             .list_phase_summaries(space_id, &key, cursor.as_deref(), q.as_deref(), limit + 1)
             .await?;
-        Ok(phase_summary_page(phases, limit))
+        Ok(phase_summary_page(phases, limit, total))
     }
 
     pub async fn get_phase(
@@ -1162,18 +1162,24 @@ pub fn normalize_dossier_catalog_search(value: Option<&str>) -> Result<Option<St
 pub fn task_summary_page(
     mut tasks: Vec<shared::TaskSummaryResponse>,
     limit: usize,
+    total: usize,
 ) -> shared::TaskSummaryListResponse {
     let has_more = tasks.len() > limit;
     tasks.truncate(limit);
     let next_cursor = has_more
         .then(|| tasks.last().map(|task| task.task_key.clone()))
         .flatten();
-    shared::TaskSummaryListResponse { tasks, next_cursor }
+    shared::TaskSummaryListResponse {
+        tasks,
+        next_cursor,
+        total,
+    }
 }
 
 pub fn phase_summary_page(
     mut phases: Vec<shared::PhaseSummaryResponse>,
     limit: usize,
+    total: usize,
 ) -> shared::PhaseSummaryListResponse {
     let has_more = phases.len() > limit;
     phases.truncate(limit);
@@ -1183,6 +1189,7 @@ pub fn phase_summary_page(
     shared::PhaseSummaryListResponse {
         phases,
         next_cursor,
+        total,
     }
 }
 
@@ -2489,18 +2496,19 @@ mod tests {
             cursor: Option<&'a str>,
             q: Option<&'a str>,
             limit: usize,
-        ) -> WikiDossierRepositoryFuture<'a, Vec<shared::TaskSummaryResponse>> {
+        ) -> WikiDossierRepositoryFuture<'a, (Vec<shared::TaskSummaryResponse>, usize)> {
             Box::pin(async move {
-                Ok((cursor.is_none_or(|key| self.task.task_key.as_str() > key)
-                    && q.is_none_or(|value| {
-                        self.task
-                            .task_key
-                            .to_lowercase()
-                            .contains(&value.to_lowercase())
-                            || self.task.title.as_deref().is_some_and(|title| {
-                                title.to_lowercase().contains(&value.to_lowercase())
-                            })
-                    })
+                let matches = q.is_none_or(|value| {
+                    self.task
+                        .task_key
+                        .to_lowercase()
+                        .contains(&value.to_lowercase())
+                        || self.task.title.as_deref().is_some_and(|title| {
+                            title.to_lowercase().contains(&value.to_lowercase())
+                        })
+                });
+                let page = (matches
+                    && cursor.is_none_or(|key| self.task.task_key.as_str() > key)
                     && limit > 0)
                     .then(|| shared::TaskSummaryResponse {
                         space_key: self.task.space_key.clone(),
@@ -2510,7 +2518,8 @@ mod tests {
                         evidence_count: self.task.evidence_count,
                     })
                     .into_iter()
-                    .collect())
+                    .collect();
+                Ok((page, usize::from(matches)))
             })
         }
 
@@ -2594,30 +2603,30 @@ mod tests {
             cursor: Option<&'a str>,
             q: Option<&'a str>,
             limit: usize,
-        ) -> WikiDossierRepositoryFuture<'a, Vec<shared::PhaseSummaryResponse>> {
+        ) -> WikiDossierRepositoryFuture<'a, (Vec<shared::PhaseSummaryResponse>, usize)> {
             Box::pin(async move {
-                Ok(
-                    (cursor.is_none_or(|key| self.phase.phase_key.as_str() > key)
-                        && q.is_none_or(|value| {
-                            self.phase
-                                .phase_key
-                                .to_lowercase()
-                                .contains(&value.to_lowercase())
-                                || self.phase.title.as_deref().is_some_and(|title| {
-                                    title.to_lowercase().contains(&value.to_lowercase())
-                                })
+                let matches = q.is_none_or(|value| {
+                    self.phase
+                        .phase_key
+                        .to_lowercase()
+                        .contains(&value.to_lowercase())
+                        || self.phase.title.as_deref().is_some_and(|title| {
+                            title.to_lowercase().contains(&value.to_lowercase())
                         })
-                        && limit > 0)
-                        .then(|| shared::PhaseSummaryResponse {
-                            space_key: self.phase.space_key.clone(),
-                            phase_key: self.phase.phase_key.clone(),
-                            title: self.phase.title.clone(),
-                            document_count: self.phase.document_count,
-                            evidence_count: self.phase.evidence_count,
-                        })
-                        .into_iter()
-                        .collect(),
-                )
+                });
+                let page = (matches
+                    && cursor.is_none_or(|key| self.phase.phase_key.as_str() > key)
+                    && limit > 0)
+                    .then(|| shared::PhaseSummaryResponse {
+                        space_key: self.phase.space_key.clone(),
+                        phase_key: self.phase.phase_key.clone(),
+                        title: self.phase.title.clone(),
+                        document_count: self.phase.document_count,
+                        evidence_count: self.phase.evidence_count,
+                    })
+                    .into_iter()
+                    .collect();
+                Ok((page, usize::from(matches)))
             })
         }
 
@@ -4109,6 +4118,7 @@ mod tests {
             repository.task.document_count
         );
         assert!(tasks.next_cursor.is_none());
+        assert_eq!(tasks.total, 1);
 
         let phases = use_case
             .list_phase_summaries(
@@ -4123,6 +4133,7 @@ mod tests {
             .await
             .unwrap();
         assert!(phases.phases.is_empty());
+        assert_eq!(phases.total, 1);
         assert!(
             use_case
                 .list_task_summaries(
@@ -4164,8 +4175,9 @@ mod tests {
                 evidence_count: 0,
             })
             .collect();
-        let page = task_summary_page(tasks, 20);
+        let page = task_summary_page(tasks, 20, 21);
         assert_eq!(page.tasks.len(), 20);
+        assert_eq!(page.total, 21);
         assert_eq!(page.next_cursor.as_deref(), Some("SDLC-19"));
 
         let phases: Vec<_> = (0..3)
@@ -4177,8 +4189,9 @@ mod tests {
                 evidence_count: 0,
             })
             .collect();
-        let page = phase_summary_page(phases, 20);
+        let page = phase_summary_page(phases, 20, 3);
         assert_eq!(page.phases.len(), 3);
+        assert_eq!(page.total, 3);
         assert!(page.next_cursor.is_none());
     }
 

@@ -2157,6 +2157,7 @@ async fn wiki_memory_dossier_summaries_page_without_nested_payloads() {
         assert_eq!(status, StatusCode::OK);
         let collection = if kind == "task" { "tasks" } else { "phases" };
         assert_eq!(first[collection].as_array().unwrap().len(), 2);
+        assert_eq!(first["total"], 3);
         assert_eq!(first[collection][0]["document_count"], 1);
         assert_eq!(first[collection][0]["evidence_count"], 0);
         assert!(first[collection][0].get("documents").is_none());
@@ -2173,7 +2174,19 @@ async fn wiki_memory_dossier_summaries_page_without_nested_payloads() {
         .await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(second[collection].as_array().unwrap().len(), 1);
+        assert_eq!(second["total"], 3);
         assert!(second["next_cursor"].is_null());
+        let (status, empty) = call(
+            &app,
+            Method::GET,
+            &format!("{path}&cursor=ZZZ"),
+            Some(&token),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(empty[collection].as_array().unwrap().is_empty());
+        assert_eq!(empty["total"], 3);
         let (status, _) = call(
             &app,
             Method::GET,
@@ -2197,6 +2210,7 @@ async fn wiki_memory_dossier_summaries_page_without_nested_payloads() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(searched["tasks"].as_array().unwrap().len(), 1);
+    assert_eq!(searched["total"], 1);
     assert_eq!(searched["tasks"][0]["task_key"], "TASK-2");
     assert!(searched["next_cursor"].is_null());
     let (status, searched) = call(
@@ -2209,6 +2223,7 @@ async fn wiki_memory_dossier_summaries_page_without_nested_payloads() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(searched["phases"].as_array().unwrap().len(), 1);
+    assert_eq!(searched["total"], 3);
     assert!(searched["next_cursor"].is_string());
 
     let (status, _) = call(
@@ -2240,6 +2255,7 @@ async fn wiki_memory_dossier_summaries_page_without_nested_payloads() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert!(searched["tasks"].as_array().unwrap().is_empty());
+    assert_eq!(searched["total"], 0);
 }
 
 #[tokio::test]
@@ -4758,6 +4774,7 @@ async fn wiki_postgres_dossier_summaries_page_and_count_without_nested_payloads(
         let (status, first) = call(&app, Method::GET, &path, Some(&token), None).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(first[collection].as_array().unwrap().len(), 2);
+        assert_eq!(first["total"], 3);
         assert_eq!(first[collection][0]["document_count"], 1);
         assert_eq!(first[collection][0]["evidence_count"], 1);
         assert!(first[collection][0].get("documents").is_none());
@@ -4773,7 +4790,19 @@ async fn wiki_postgres_dossier_summaries_page_and_count_without_nested_payloads(
         .await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(second[collection].as_array().unwrap().len(), 1);
+        assert_eq!(second["total"], 3);
         assert!(second["next_cursor"].is_null());
+        let (status, empty) = call(
+            &app,
+            Method::GET,
+            &format!("{path}&cursor=ZZZ"),
+            Some(&token),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(empty[collection].as_array().unwrap().is_empty());
+        assert_eq!(empty["total"], 3);
     }
 
     let (status, searched) = call(
@@ -4786,6 +4815,7 @@ async fn wiki_postgres_dossier_summaries_page_and_count_without_nested_payloads(
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(searched["tasks"].as_array().unwrap().len(), 1);
+    assert_eq!(searched["total"], 1);
     assert_eq!(searched["tasks"][0]["title"], "Task 2");
     let (status, searched) = call(
         &app,
@@ -4797,6 +4827,7 @@ async fn wiki_postgres_dossier_summaries_page_and_count_without_nested_payloads(
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(searched["phases"].as_array().unwrap().len(), 1);
+    assert_eq!(searched["total"], 1);
     assert_eq!(searched["phases"][0]["phase_key"], "phase-0");
 
     let indexes: i64 = sqlx::query_scalar(
@@ -4836,6 +4867,7 @@ async fn wiki_postgres_dossier_summaries_page_and_count_without_nested_payloads(
     .await;
     assert_eq!(status, StatusCode::OK);
     assert!(searched["phases"].as_array().unwrap().is_empty());
+    assert_eq!(searched["total"], 0);
     pool.close().await;
 }
 
