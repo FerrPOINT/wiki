@@ -548,35 +548,39 @@ export function DocumentPage() {
               {(revisionPage > 0 || hasNextRevisionPage) && (
                 <nav
                   aria-label="Страницы ревизий"
-                  className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3"
+                  className="space-y-2 border-t border-border pt-3"
                 >
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-10"
-                    disabled={revisionPage === 0}
-                    onClick={() => {
-                      setSelectedRevisionId(null)
-                      setRevisionPage((page) => page - 1)
-                    }}
-                  >
-                    Предыдущая
-                  </Button>
-                  <span className="text-sm text-text-secondary">Страница {revisionPage + 1}</span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-10"
-                    disabled={
-                      !hasNextRevisionPage || revisionsQuery.isLoading || revisionsQuery.isError
-                    }
-                    onClick={() => {
-                      setSelectedRevisionId(null)
-                      setRevisionPage((page) => page + 1)
-                    }}
-                  >
-                    Следующая
-                  </Button>
+                  <span className="block text-center text-sm text-text-secondary">
+                    Страница {revisionPage + 1}
+                  </span>
+                  <div className="flex items-center justify-between gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-10"
+                      disabled={revisionPage === 0}
+                      onClick={() => {
+                        setSelectedRevisionId(null)
+                        setRevisionPage((page) => page - 1)
+                      }}
+                    >
+                      Предыдущая
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-10"
+                      disabled={
+                        !hasNextRevisionPage || revisionsQuery.isLoading || revisionsQuery.isError
+                      }
+                      onClick={() => {
+                        setSelectedRevisionId(null)
+                        setRevisionPage((page) => page + 1)
+                      }}
+                    >
+                      Следующая
+                    </Button>
+                  </div>
                 </nav>
               )}
             </CardContent>
