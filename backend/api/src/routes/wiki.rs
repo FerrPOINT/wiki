@@ -2689,7 +2689,7 @@ fn evidence_cursor_key(item: &EvidenceResponse) -> Option<(i64, Uuid)> {
 }
 
 fn sort_evidence_for_page(items: &mut [EvidenceResponse]) {
-    items.sort_by(|a, b| evidence_cursor_key(b).cmp(&evidence_cursor_key(a)));
+    items.sort_by_key(|item| std::cmp::Reverse(evidence_cursor_key(item)));
 }
 
 #[utoipa::path(
@@ -3382,6 +3382,10 @@ fn now_iso() -> String {
     Utc::now().to_rfc3339()
 }
 
+fn default_user_role() -> String {
+    "viewer".to_string()
+}
+
 #[cfg(test)]
 mod evidence_cursor_tests {
     use super::*;
@@ -3425,8 +3429,4 @@ mod evidence_cursor_tests {
         assert_eq!(remaining.len(), 1);
         assert_eq!(remaining[0].id, lower_id);
     }
-}
-
-fn default_user_role() -> String {
-    "viewer".to_string()
 }
