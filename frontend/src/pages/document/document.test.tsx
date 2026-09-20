@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,6 +15,7 @@ const usePublishDocument = vi.hoisted(() => vi.fn())
 const useUpdateDocumentDraft = vi.hoisted(() => vi.fn())
 
 const archiveMutate = vi.hoisted(() => vi.fn())
+const archiveReset = vi.hoisted(() => vi.fn())
 const moveMutate = vi.hoisted(() => vi.fn())
 const publishMutateAsync = vi.hoisted(() => vi.fn())
 const updateDraftMutate = vi.hoisted(() => vi.fn())
@@ -113,6 +114,7 @@ function setupDocument(document: Document = baseDocument) {
   })
   useArchiveDocument.mockReturnValue({
     mutate: archiveMutate,
+    reset: archiveReset,
     isPending: false,
     error: null,
   })
@@ -122,7 +124,7 @@ function setupDocument(document: Document = baseDocument) {
     error: null,
   })
 
-  render(
+  return render(
     <MemoryRouter initialEntries={['/documents/product-requirements']}>
       <Routes>
         <Route path="/documents/:documentId" element={<DocumentPage />} />
@@ -216,6 +218,49 @@ describe('DocumentPage', () => {
       },
       { onSuccess: expect.any(Function) },
     )
+  })
+
+  it('keeps archive confirmation open until the server confirms success', () => {
+    setupDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Архивировать' }))
+    expect(archiveReset).toHaveBeenCalledOnce()
+    const dialog = screen.getByRole('alertdialog')
+    fireEvent.click(screen.getByRole('button', { name: 'Подтвердить' }))
+
+    expect(archiveMutate).toHaveBeenCalledWith('product-requirements', {
+      onSuccess: expect.any(Function),
+    })
+    expect(dialog).toBeVisible()
+
+    const onSuccess = archiveMutate.mock.calls[0]![1].onSuccess as () => void
+    act(() => onSuccess())
+    expect(dialog).not.toBeInTheDocument()
+    expect(screen.getByText('Документ архивирован')).toBeVisible()
+  })
+
+  it('shows archive errors inside the confirmation without closing it', () => {
+    const view = setupDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Архивировать' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Подтвердить' }))
+
+    useArchiveDocument.mockReturnValue({
+      mutate: archiveMutate,
+      reset: archiveReset,
+      isPending: false,
+      error: { code: 'FORBIDDEN' },
+    })
+    view.rerender(
+      <MemoryRouter initialEntries={['/documents/product-requirements']}>
+        <Routes>
+          <Route path="/documents/:documentId" element={<DocumentPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('alertdialog')).toBeVisible()
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('Недостаточно прав для действия')
+    expect(archiveMutate).toHaveBeenCalledOnce()
   })
 
   it('publishes the draft with the current base revision id', async () => {

@@ -199,10 +199,12 @@ export function DocumentPage() {
 
   function handleArchive() {
     if (!canEdit) return
-    setArchiveOpen(false)
     setStatusMessage('')
     archiveDocument.mutate(documentId, {
-      onSuccess: () => setStatusMessage('Документ архивирован'),
+      onSuccess: () => {
+        setArchiveOpen(false)
+        setStatusMessage('Документ архивирован')
+      },
     })
   }
 
@@ -247,7 +249,10 @@ export function DocumentPage() {
               size="sm"
               variant="destructive"
               disabled={archiveDocument.isPending}
-              onClick={() => setArchiveOpen(true)}
+              onClick={() => {
+                archiveDocument.reset()
+                setArchiveOpen(true)
+              }}
             >
               <Archive className="h-4 w-4" />
               Архивировать
@@ -262,6 +267,12 @@ export function DocumentPage() {
         title="Архивировать документ?"
         description="Документ исчезнет из обычного дерева страниц, но останется в истории и аудите."
         onConfirm={handleArchive}
+        isPending={archiveDocument.isPending}
+        error={
+          archiveDocument.error
+            ? formatApiErrorForUser(archiveDocument.error, 'Не удалось архивировать документ')
+            : null
+        }
       />
 
       {(statusMessage || mutationError) && (
