@@ -52,7 +52,7 @@ import {
   type CreateTemplateRequest,
   type UpsertSpaceMemberRequest,
 } from '@/api/wiki'
-import { ssoConfig, storeRefreshToken, useAuthStore } from '@/shared/auth/store'
+import { clearLegacyRefreshToken, ssoConfig, useAuthStore } from '@/shared/auth/store'
 import { defaultSpaceKey } from '@/shared/lib/space-selection'
 
 const authKeys = {
@@ -97,7 +97,7 @@ export function useLogin() {
   return useMutation({
     mutationFn: login,
     onSuccess: (data) => {
-      storeRefreshToken(data.refresh_token ?? null)
+      clearLegacyRefreshToken()
       setAuth({
         token: data.access_token,
         userId: data.user_id,
@@ -116,7 +116,7 @@ export function useRegister() {
   return useMutation({
     mutationFn: register,
     onSuccess: (data) => {
-      storeRefreshToken(data.refresh_token ?? null)
+      clearLegacyRefreshToken()
       setAuth({
         token: data.access_token,
         userId: data.user_id,
