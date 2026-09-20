@@ -1,6 +1,6 @@
 import { type FormEvent, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
-import { CheckCircle2, CircleDashed, FileCheck2, FileText, GitBranch, Link2 } from 'lucide-react'
+import { FileCheck2, FileText, Link2, Search } from 'lucide-react'
 import {
   defaultSpaceKey,
   useLinkPhaseDocument,
@@ -10,10 +10,8 @@ import {
 } from '@/shared/api/hooks'
 import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
 import { Button } from '@sdlc/ui/ui'
-import { Card, CardContent, CardHeader, CardTitle } from '@sdlc/ui/ui'
 import { Input } from '@sdlc/ui/ui'
 import { Label } from '@sdlc/ui/ui'
-import { Progress } from '@sdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { resolveSpaceKey } from '@/shared/lib/space-selection'
 import {
@@ -22,19 +20,15 @@ import {
   formatDocumentType,
   formatEvidenceType,
 } from '@/shared/lib/wiki-format'
-import type { PhasePage } from '@/api/wiki'
+
+const pageSize = 12
 
 const selectClassName =
-  'flex h-9 w-full rounded-md border border-border-strong bg-surface px-3 py-1 text-sm text-text-primary shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50'
+  'flex min-h-10 w-full rounded-md border border-border-strong bg-surface px-3 py-1 text-sm text-text-primary shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50'
 
 type SpaceOption = {
   key: string
   name: string
-}
-
-function readiness(phase: Pick<PhasePage, 'document_count' | 'evidence_count'>): number {
-  const score = phase.document_count * 45 + phase.evidence_count * 35
-  return Math.max(0, Math.min(100, score))
 }
 
 function useSelectedSpaceKey() {
@@ -60,17 +54,19 @@ function scopedPath(path: string, spaceKey: string): string {
   return spaceKey === defaultSpaceKey ? path : `${path}?space=${encodeURIComponent(spaceKey)}`
 }
 
-function evidencePhasePath(spaceKey: string, phaseKey: string): string {
-  const params = new URLSearchParams({ space: spaceKey, phase_key: phaseKey })
+function evidencePhasePath(spaceKey: string, phaseKey: string, evidenceId: string): string {
+  const params = new URLSearchParams({ space: spaceKey, phase_key: phaseKey, id: evidenceId })
   return `/evidence?${params.toString()}`
 }
 
 function SpaceSelector({
   value,
   onChange,
+  disabled = false,
 }: {
   value: string
   onChange: (spaceKey: string) => void
+  disabled?: boolean
 }) {
   const spacesQuery = useSpaces()
   const spaces: SpaceOption[] = spacesQuery.data?.spaces ?? []
@@ -85,7 +81,7 @@ function SpaceSelector({
         className={selectClassName}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        disabled={spacesQuery.isLoading || options.length === 0}
+        disabled={disabled || spacesQuery.isLoading || spacesQuery.isError || options.length === 0}
       >
         {options.length === 0 && <option value="">Нет пространств</option>}
         {options.map((space) => (
@@ -102,6 +98,17 @@ export function PhaseDossiersPage() {
   const [selectedSpaceKey, setSelectedSpaceKey, spacesQuery] = useSelectedSpaceKey()
   const phasesQuery = usePhases(selectedSpaceKey)
   const phases = phasesQuery.data?.phases ?? []
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const needle = search.trim().toLocaleLowerCase('ru')
+  const filteredPhases = needle
+    ? phases.filter((phase) =>
+        `${phase.phase_key} ${phase.title ?? ''}`.toLocaleLowerCase('ru').includes(needle),
+      )
+    : phases
+  const totalPages = Math.max(1, Math.ceil(filteredPhases.length / pageSize))
+  const currentPage = Math.min(page, totalPages)
+  const visiblePhases = filteredPhases.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
   return (
     <div className="space-y-5">
@@ -112,7 +119,14 @@ export function PhaseDossiersPage() {
             Каждая завершённая фаза должна иметь документы и материалы, достаточные для аудита.
           </p>
         </div>
-        <SpaceSelector value={selectedSpaceKey} onChange={setSelectedSpaceKey} />
+        <SpaceSelector
+          value={selectedSpaceKey}
+          onChange={(spaceKey) => {
+            setSelectedSpaceKey(spaceKey)
+            setSearch('')
+            setPage(1)
+          }}
+        />
       </section>
 
       {spacesQuery.isLoading && <LoadingState message="Загружаем пространства" />}
@@ -139,42 +153,80 @@ export function PhaseDossiersPage() {
           <EmptyState message="Документы и материалы ещё не связаны с фазами" />
         )}
       {selectedSpaceKey && !phasesQuery.isLoading && !phasesQuery.isError && phases.length > 0 && (
-        <section className="grid gap-4 lg:grid-cols-4">
-          {phases.map((phase) => {
-            const value = readiness(phase)
-            return (
-              <Card key={phase.phase_key}>
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between gap-2 text-base">
-                    {phase.title ?? phase.phase_key}
-                    {phase.evidence_count > 0 ? (
-                      <CheckCircle2 className="h-4 w-4 text-success" />
-                    ) : (
-                      <CircleDashed className="h-4 w-4 text-warning" />
-                    )}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between text-xs text-text-muted">
-                      <span>Заполненность</span>
-                      <span>{value}%</span>
-                    </div>
-                    <Progress value={value} variant={value < 50 ? 'danger' : 'default'} />
-                  </div>
-                  <div className="text-xs text-text-muted">
-                    Документы: {phase.document_count} · Материалы: {phase.evidence_count}
-                  </div>
+        <section aria-label="Список фаз" className="space-y-3">
+          <div className="relative max-w-md">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
+              aria-hidden
+            />
+            <Input
+              type="search"
+              aria-label="Найти фазу"
+              className="min-h-10 pl-9"
+              placeholder="Ключ или название"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value)
+                setPage(1)
+              }}
+            />
+          </div>
+          <p role="status" className="text-xs text-text-muted">
+            Показано {visiblePhases.length} из {filteredPhases.length} фаз
+          </p>
+          {filteredPhases.length === 0 ? (
+            <EmptyState message="По запросу фазы не найдены" />
+          ) : (
+            <ul className="divide-y divide-border border-y border-border">
+              {visiblePhases.map((phase) => (
+                <li key={phase.phase_key}>
                   <Link
                     to={scopedPath(`/phases/${phase.phase_key}`, selectedSpaceKey)}
-                    className="text-sm text-accent"
+                    className="flex min-h-16 min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 px-2 py-3 hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
                   >
-                    Открыть фазу
+                    <span className="min-w-0">
+                      <span className="block break-words text-sm font-medium text-text-primary">
+                        {phase.title ?? phase.phase_key}
+                      </span>
+                      {phase.title && (
+                        <span className="block text-xs text-text-muted">{phase.phase_key}</span>
+                      )}
+                    </span>
+                    <span className="shrink-0 text-xs text-text-muted">
+                      Документы: {phase.document_count} · Материалы: {phase.evidence_count}
+                    </span>
                   </Link>
-                </CardContent>
-              </Card>
-            )
-          })}
+                </li>
+              ))}
+            </ul>
+          )}
+          {totalPages > 1 && (
+            <nav aria-label="Страницы фаз" className="flex items-center justify-end gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="min-h-10"
+                disabled={currentPage === 1}
+                onClick={() => setPage(currentPage - 1)}
+              >
+                Назад
+              </Button>
+              <span className="text-sm text-text-muted">
+                {currentPage} / {totalPages}
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="min-h-10"
+                disabled={currentPage === totalPages}
+                onClick={() => setPage(currentPage + 1)}
+              >
+                Далее
+              </Button>
+            </nav>
+          )}
         </section>
       )}
     </div>
@@ -189,12 +241,11 @@ export function PhaseDossierPage() {
   const [documentId, setDocumentId] = useState('')
   const [linkMessage, setLinkMessage] = useState('')
   const phase = phaseQuery.data
-  const value = phase ? readiness(phase) : 0
 
   function handleLinkDocument(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const trimmedDocumentId = documentId.trim()
-    if (!trimmedDocumentId) return
+    if (!trimmedDocumentId || linkDocument.isPending) return
     setLinkMessage('')
     linkDocument.mutate(
       {
@@ -235,116 +286,142 @@ export function PhaseDossierPage() {
 
   return (
     <div className="space-y-5">
-      <section className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <div className="text-sm text-text-muted">карточка фазы</div>
-          <h1 className="mt-2 text-2xl font-bold">{phase.title ?? phase.phase_key}</h1>
-          <p className="mt-1 max-w-3xl text-sm text-text-muted">
-            Документы и материалы, привязанные к фазе процесса в пространстве {selectedSpaceKey}.
-          </p>
-        </div>
-        <SpaceSelector value={selectedSpaceKey} onChange={setSelectedSpaceKey} />
-        <div className="min-w-72 rounded-md border border-border p-3">
-          <div className="flex items-center justify-between text-sm">
-            <span className="font-medium">Заполненность</span>
-            <span className="text-text-muted">{value}%</span>
-          </div>
-          <Progress value={value} className="mt-3" />
-          <p className="mt-2 text-xs text-text-muted">
-            Документы: {phase.document_count} · Материалы: {phase.evidence_count}
-          </p>
-        </div>
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-[1fr_1fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <FileText className="h-4 w-4 text-accent" />
-              Документы фазы
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <form
-              onSubmit={handleLinkDocument}
-              className="rounded-md bg-surface-raised p-3"
-              aria-label="Привязать документ к фазе"
+      <section className="space-y-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <Link
+              to={scopedPath('/phases', selectedSpaceKey)}
+              className="inline-flex min-h-10 items-center text-sm text-accent hover:text-accent-hover"
             >
-              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                <div className="space-y-1.5">
-                  <Label htmlFor="phase-document-link">Документ для фазы</Label>
-                  <Input
-                    id="phase-document-link"
-                    value={documentId}
-                    onChange={(event) => setDocumentId(event.target.value)}
-                    placeholder="product-requirements"
-                    disabled={linkDocument.isPending}
-                  />
-                </div>
-                <Button type="submit" disabled={linkDocument.isPending || !documentId.trim()}>
-                  <Link2 className="h-4 w-4" />
-                  {linkDocument.isPending ? 'Привязываем' : 'Привязать'}
-                </Button>
-              </div>
-              {linkDocument.isError && (
-                <p className="mt-2 text-sm text-danger" role="alert">
-                  {formatApiErrorForUser(linkDocument.error, 'Не удалось привязать документ')}
-                </p>
-              )}
-              {linkMessage && !linkDocument.isError && (
-                <p className="mt-2 text-sm text-success">{linkMessage}</p>
-              )}
-            </form>
-            {phase.documents.length === 0 && (
-              <EmptyState message="С фазой пока не связан ни один документ" />
+              К фазам
+            </Link>
+            <h1 className="mt-2 break-words text-2xl font-bold">
+              {phase.title ?? phase.phase_key}
+            </h1>
+            {phase.title && phase.title !== phase.phase_key && (
+              <p className="mt-1 break-words text-sm text-text-muted">{phase.phase_key}</p>
             )}
-            {phase.documents.map((document) => (
-              <Link
-                key={document.id}
-                to={`/documents/${document.slug}`}
-                className="flex items-center justify-between rounded-md border border-border p-3 text-sm hover:bg-surface-raised"
-              >
-                <span>
-                  {document.title}
-                  <span className="ml-2 text-xs text-text-muted">
-                    {formatDocumentType(document.document_type)}
-                  </span>
-                </span>
-                <span className="rounded bg-surface-raised px-2 py-1 text-xs text-text-secondary">
-                  {formatDocumentStatus(document.status)}
-                </span>
-              </Link>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <FileCheck2 className="h-4 w-4 text-accent" />
-              Материалы
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm text-text-secondary">
-            {phase.evidence.length === 0 && <EmptyState message="Материалы пока не прикреплены" />}
-            {phase.evidence.map((item) => (
-              <Link
-                key={item.id}
-                to={evidencePhasePath(selectedSpaceKey, phase.phase_key)}
-                className="flex items-center justify-between rounded-md border border-border p-3 hover:bg-surface-raised"
-              >
-                <span className="inline-flex items-center gap-2">
-                  <GitBranch className="h-4 w-4 text-accent" />
-                  {item.title}
-                </span>
-                <span className="rounded bg-surface-raised px-2 py-1 text-xs text-text-muted">
-                  {formatEvidenceType(item.evidence_type)} · {formatDateTime(item.created_at)}
-                </span>
-              </Link>
-            ))}
-          </CardContent>
-        </Card>
+          </div>
+          <SpaceSelector
+            value={selectedSpaceKey}
+            disabled={linkDocument.isPending}
+            onChange={(spaceKey) => {
+              setSelectedSpaceKey(spaceKey)
+              setDocumentId('')
+              setLinkMessage('')
+            }}
+          />
+        </div>
+        <div className="flex flex-wrap gap-x-5 gap-y-1 border-y border-border py-2 text-sm text-text-muted">
+          <span>Документы: {phase.document_count}</span>
+          <span>Материалы: {phase.evidence_count}</span>
+        </div>
       </section>
+
+      {spacesQuery.isError && (
+        <ErrorState
+          message={formatApiErrorForUser(spacesQuery.error, 'Не удалось загрузить пространства')}
+          onRetry={() => spacesQuery.refetch()}
+        />
+      )}
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <section className="min-w-0 space-y-3" aria-labelledby="phase-documents-title">
+          <h2 id="phase-documents-title" className="text-base font-semibold">
+            Документы фазы
+          </h2>
+          <form
+            onSubmit={handleLinkDocument}
+            className="border-y border-border bg-surface-raised p-3"
+            aria-label="Привязать документ к фазе"
+          >
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+              <div className="space-y-1.5">
+                <Label htmlFor="phase-document-link">Документ для фазы</Label>
+                <Input
+                  id="phase-document-link"
+                  className="min-h-10"
+                  value={documentId}
+                  onChange={(event) => setDocumentId(event.target.value)}
+                  placeholder="product-requirements"
+                  disabled={linkDocument.isPending}
+                />
+              </div>
+              <Button
+                type="submit"
+                className="min-h-10 sm:min-h-10"
+                disabled={linkDocument.isPending || !documentId.trim()}
+              >
+                <Link2 className="h-4 w-4" />
+                {linkDocument.isPending ? 'Привязываем' : 'Привязать'}
+              </Button>
+            </div>
+            {linkDocument.isError && (
+              <p className="mt-2 text-sm text-danger" role="alert">
+                {formatApiErrorForUser(linkDocument.error, 'Не удалось привязать документ')}
+              </p>
+            )}
+            {linkMessage && !linkDocument.isError && (
+              <p className="mt-2 text-sm text-success">{linkMessage}</p>
+            )}
+          </form>
+          {phase.documents.length === 0 ? (
+            <EmptyState message="С фазой пока не связан ни один документ" />
+          ) : (
+            <ul className="divide-y divide-border border-y border-border">
+              {phase.documents.map((document) => (
+                <li key={document.id}>
+                  <Link
+                    to={`/documents/${document.id}`}
+                    className="flex min-h-14 min-w-0 items-start gap-3 px-2 py-3 hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
+                  >
+                    <FileText className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
+                    <span className="min-w-0">
+                      <span className="block break-words text-sm font-medium text-text-primary">
+                        {document.title}
+                      </span>
+                      <span className="block text-xs text-text-muted">
+                        {formatDocumentType(document.document_type)} ·{' '}
+                        {formatDocumentStatus(document.status)}
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="min-w-0 space-y-3" aria-labelledby="phase-evidence-title">
+          <h2 id="phase-evidence-title" className="text-base font-semibold">
+            Материалы
+          </h2>
+          {phase.evidence.length === 0 ? (
+            <EmptyState message="Материалы пока не прикреплены" />
+          ) : (
+            <ul className="divide-y divide-border border-y border-border">
+              {phase.evidence.map((item) => (
+                <li key={item.id}>
+                  <Link
+                    to={evidencePhasePath(selectedSpaceKey, phase.phase_key, item.id)}
+                    className="flex min-h-14 min-w-0 items-start gap-3 px-2 py-3 hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
+                  >
+                    <FileCheck2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
+                    <span className="min-w-0">
+                      <span className="block break-words text-sm font-medium text-text-primary">
+                        {item.title}
+                      </span>
+                      <span className="block text-xs text-text-muted">
+                        {formatEvidenceType(item.evidence_type)} · {formatDateTime(item.created_at)}
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
     </div>
   )
 }
