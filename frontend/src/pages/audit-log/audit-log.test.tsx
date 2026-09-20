@@ -53,7 +53,7 @@ function queryResult(data: { entries: AuditEntry[]; next_cursor: string | null }
 describe('AuditLogPage', () => {
   afterEach(() => vi.clearAllMocks())
 
-  it('labels counts as page-only and navigates through cursor pages', () => {
+  it('shows readable events, preserves technical IDs and navigates cursor pages', () => {
     useAuditLog.mockImplementation(({ cursor }: { cursor?: string }) =>
       queryResult(
         cursor
@@ -64,11 +64,15 @@ describe('AuditLogPage', () => {
     render(<AuditLogPage />)
 
     expect(useAuditLog).toHaveBeenCalledWith({ limit: 20, cursor: undefined })
-    const summary = screen.getByRole('region', { name: 'Сводка текущей страницы' })
-    expect(summary).toHaveTextContent('Показано 3 (лимит 20)')
-    expect(summary).toHaveTextContent('Документы: 1')
-    expect(summary).toHaveTextContent('Доступ: 1')
-    expect(summary).toHaveTextContent('Пользователи: 1')
+    const events = screen.getByRole('region', { name: 'События аудита' })
+    expect(within(events).getByRole('status')).toHaveTextContent('Событий на странице: 3')
+    expect(screen.getAllByText('Опубликован документ')).toHaveLength(2)
+    expect(screen.getAllByText('document.publish')).toHaveLength(2)
+    expect(screen.getAllByText('request-3')).toHaveLength(2)
+    const details = screen.getAllByText('Технические данные')[0]!.closest('details')
+    expect(details).not.toHaveAttribute('open')
+    fireEvent.click(screen.getAllByText('Технические данные')[0]!)
+    expect(details).toHaveAttribute('open')
     expect(screen.getByRole('navigation', { name: 'Страницы аудита' })).toHaveTextContent(
       'Страница 1',
     )
@@ -79,9 +83,7 @@ describe('AuditLogPage', () => {
       'Страница 2',
     )
     expect(screen.getByRole('button', { name: 'Далее' })).toBeDisabled()
-    expect(
-      within(screen.getByRole('region', { name: 'Сводка текущей страницы' })).getByText(/Показано/),
-    ).toHaveTextContent('Показано 1 (лимит 20)')
+    expect(within(events).getByRole('status')).toHaveTextContent('Событий на странице: 1')
 
     fireEvent.click(screen.getByRole('button', { name: 'Назад' }))
     expect(useAuditLog).toHaveBeenLastCalledWith({ limit: 20, cursor: undefined })
@@ -122,9 +124,17 @@ describe('AuditLogPage', () => {
     render(<AuditLogPage />)
 
     expect(screen.getByText('Событий аудита пока нет')).toBeInTheDocument()
-    expect(
-      screen.queryByRole('region', { name: 'Сводка текущей страницы' }),
-    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: 'Страницы аудита' })).not.toBeInTheDocument()
+  })
+
+  it('falls back to the original code for an unknown action', () => {
+    useAuditLog.mockReturnValue(
+      queryResult({ entries: [{ ...entries[0]!, action: 'integration.sync' }], next_cursor: null }),
+    )
+
+    render(<AuditLogPage />)
+
+    expect(screen.getAllByText('integration.sync')).toHaveLength(3)
   })
 })
