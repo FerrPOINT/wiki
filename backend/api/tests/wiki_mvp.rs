@@ -4312,6 +4312,72 @@ async fn wiki_audit_log_honors_bounded_limit_query() {
 }
 
 #[tokio::test]
+async fn wiki_audit_log_cursor_is_stable_when_new_events_arrive() {
+    let app = test_app();
+    let token = login_memory_admin(&app).await;
+    let slug = format!("audit-cursor-{}", Uuid::now_v7().simple());
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces/SDLC/documents",
+        Some(&token),
+        Some(json!({
+            "title": "Audit cursor",
+            "slug": slug,
+            "document_type": "page",
+            "content_markdown": "# Audit cursor"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let (status, first) = call(
+        &app,
+        Method::GET,
+        "/api/v1/audit-log?limit=1",
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let first_id = first["entries"][0]["id"].as_str().unwrap();
+    let cursor = first["next_cursor"].as_str().unwrap();
+
+    let newer_slug = format!("audit-newer-{}", Uuid::now_v7().simple());
+    let (status, newer) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces/SDLC/documents",
+        Some(&token),
+        Some(json!({
+            "title": "Newer audit event",
+            "slug": newer_slug,
+            "document_type": "page",
+            "content_markdown": "# Newer"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let path = format!("/api/v1/audit-log?limit=1&cursor={cursor}");
+    let (status, second) = call(&app, Method::GET, &path, Some(&token), None).await;
+    assert_eq!(status, StatusCode::OK);
+    let second_entry = &second["entries"][0];
+    assert_ne!(second_entry["id"], first_id);
+    assert_ne!(second_entry["entity_id"], newer["id"]);
+
+    let (status, _) = call(
+        &app,
+        Method::GET,
+        "/api/v1/audit-log?cursor=not-a-cursor",
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
 async fn wiki_postgres_audit_records_request_id_when_database_available() {
     let Ok(database_url) = env::var("WIKI_TEST_DATABASE_URL") else {
         eprintln!("skipping postgres audit request id test: WIKI_TEST_DATABASE_URL is not set");
@@ -4364,6 +4430,84 @@ async fn wiki_postgres_audit_records_request_id_when_database_available() {
             && entry["entity_id"] == document_id
             && entry["request_id"] == document_request_id
     }));
+}
+
+#[tokio::test]
+async fn wiki_postgres_audit_cursor_keeps_timestamp_ties_stable() {
+    let Ok(database_url) = env::var("WIKI_TEST_DATABASE_URL") else {
+        eprintln!("skipping postgres audit cursor test: WIKI_TEST_DATABASE_URL is not set");
+        return;
+    };
+    reset_postgres(&database_url).await;
+    let storage_dir = env::temp_dir().join(format!("wiki-api-test-{}", Uuid::now_v7()));
+    let (app, _) = postgres_test_app(database_url.clone(), storage_dir).await;
+    let (status, login) = call(
+        &app,
+        Method::POST,
+        "/api/v1/auth/login",
+        None,
+        Some(json!({ "email": "admin@example.com", "password": "admin-password" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let token = login["access_token"].as_str().unwrap();
+    let pool = PgPoolOptions::new()
+        .max_connections(1)
+        .connect(&database_url)
+        .await
+        .unwrap();
+    let future_at: chrono::DateTime<chrono::Utc> =
+        sqlx::query_scalar("SELECT now() + interval '1 hour'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    let ids: Vec<Uuid> = (0..3).map(|_| Uuid::now_v7()).collect();
+    for id in &ids {
+        sqlx::query(
+            "INSERT INTO audit_log (id, action, entity_type, entity_id, request_id, created_at) VALUES ($1, 'audit.page', 'test', $2, $3, $4)",
+        )
+        .bind(id)
+        .bind(Uuid::now_v7())
+        .bind(format!("audit-page-{id}"))
+        .bind(future_at)
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+    let mut expected = ids;
+    expected.sort_by(|left, right| right.cmp(left));
+    let mut cursor: Option<String> = None;
+    for (index, expected_id) in expected.iter().enumerate() {
+        let path = cursor.as_ref().map_or_else(
+            || "/api/v1/audit-log?limit=1".to_string(),
+            |cursor| format!("/api/v1/audit-log?limit=1&cursor={cursor}"),
+        );
+        let (status, page) = call(&app, Method::GET, &path, Some(token), None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(page["entries"][0]["id"], expected_id.to_string());
+        cursor = page["next_cursor"].as_str().map(ToString::to_string);
+        assert!(cursor.is_some());
+
+        if index == 0 {
+            sqlx::query(
+                "INSERT INTO audit_log (id, action, entity_type, entity_id, request_id, created_at) VALUES ($1, 'audit.newer', 'test', $2, 'audit-newer', $3)",
+            )
+            .bind(Uuid::now_v7())
+            .bind(Uuid::now_v7())
+            .bind(future_at + chrono::Duration::minutes(1))
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+    }
+    let index_exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'audit_time_id_idx')",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(index_exists);
+    pool.close().await;
 }
 
 #[tokio::test]

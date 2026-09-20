@@ -1445,10 +1445,55 @@ pub struct WikiAuditCommand {
     pub entity_id: Uuid,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiAuditCursor {
+    pub created_at: DateTime<Utc>,
+    pub id: Uuid,
+}
+
+pub fn parse_audit_cursor(value: Option<&str>) -> Result<Option<WikiAuditCursor>, AppError> {
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    let (created_at, id) = value
+        .split_once('.')
+        .ok_or_else(|| AppError::invalid_input("invalid audit cursor"))?;
+    let micros = created_at
+        .parse::<i64>()
+        .map_err(|_| AppError::invalid_input("invalid audit cursor"))?;
+    let created_at = DateTime::<Utc>::from_timestamp_micros(micros)
+        .ok_or_else(|| AppError::invalid_input("invalid audit cursor"))?;
+    let id = Uuid::parse_str(id).map_err(|_| AppError::invalid_input("invalid audit cursor"))?;
+    Ok(Some(WikiAuditCursor { created_at, id }))
+}
+
+pub fn audit_log_page(
+    mut entries: Vec<shared::AuditEntryResponse>,
+    limit: usize,
+) -> Result<shared::AuditLogResponse, AppError> {
+    let has_more = entries.len() > limit;
+    entries.truncate(limit);
+    let next_cursor = if has_more {
+        let last = entries
+            .last()
+            .ok_or_else(|| AppError::internal("invalid audit page boundary"))?;
+        let created_at = DateTime::parse_from_rfc3339(&last.created_at)
+            .map_err(|_| AppError::internal("invalid stored audit timestamp"))?;
+        Some(format!("{}.{}", created_at.timestamp_micros(), last.id))
+    } else {
+        None
+    };
+    Ok(shared::AuditLogResponse {
+        entries,
+        next_cursor,
+    })
+}
+
 pub trait WikiAuditRepository {
     fn list_recent_entries(
         &self,
         limit: usize,
+        cursor: Option<WikiAuditCursor>,
     ) -> WikiAuditRepositoryFuture<'_, Vec<shared::AuditEntryResponse>>;
 
     fn record_entry(&self, command: WikiAuditCommand) -> WikiAuditRepositoryFuture<'_, ()>;
@@ -1468,9 +1513,12 @@ impl<'a, R: WikiAuditRepository + ?Sized> WikiAuditUseCase<'a, R> {
         query: shared::AuditLogQuery,
     ) -> Result<shared::AuditLogResponse, AppError> {
         let limit = clamp_limit_with_default(query.limit, DEFAULT_AUDIT_LIMIT, MAX_AUDIT_LIMIT);
-        Ok(shared::AuditLogResponse {
-            entries: self.repository.list_recent_entries(limit).await?,
-        })
+        let cursor = parse_audit_cursor(query.cursor.as_deref())?;
+        let entries = self
+            .repository
+            .list_recent_entries(limit + 1, cursor)
+            .await?;
+        audit_log_page(entries, limit)
     }
 
     pub async fn record(
@@ -2588,8 +2636,25 @@ mod tests {
         fn list_recent_entries(
             &self,
             limit: usize,
+            cursor: Option<WikiAuditCursor>,
         ) -> WikiAuditRepositoryFuture<'_, Vec<shared::AuditEntryResponse>> {
-            Box::pin(async move { Ok(self.entries.iter().take(limit).cloned().collect()) })
+            Box::pin(async move {
+                let start = cursor
+                    .as_ref()
+                    .and_then(|cursor| {
+                        self.entries
+                            .iter()
+                            .position(|entry| entry.id == cursor.id.to_string())
+                    })
+                    .map_or(0, |index| index + 1);
+                Ok(self
+                    .entries
+                    .iter()
+                    .skip(start)
+                    .take(limit)
+                    .cloned()
+                    .collect())
+            })
         }
 
         fn record_entry(&self, command: WikiAuditCommand) -> WikiAuditRepositoryFuture<'_, ()> {
@@ -4279,11 +4344,15 @@ mod tests {
         let entity_id = Uuid::now_v7();
 
         let response = WikiAuditUseCase::new(&repository)
-            .list_recent(shared::AuditLogQuery { limit: None })
+            .list_recent(shared::AuditLogQuery {
+                limit: None,
+                cursor: None,
+            })
             .await
             .unwrap();
         assert_eq!(response.entries.len(), 1);
         assert_eq!(response.entries[0].action, "document.publish");
+        assert!(response.next_cursor.is_none());
 
         WikiAuditUseCase::new(&repository)
             .record(
@@ -4314,6 +4383,57 @@ mod tests {
                 .await
                 .is_err()
         );
+    }
+
+    #[tokio::test]
+    async fn wiki_audit_use_case_pages_without_duplicates_and_rejects_bad_cursors() {
+        let mut entries = vec![
+            audit_entry("document.publish"),
+            audit_entry("document.edit"),
+            audit_entry("document.create"),
+        ];
+        for (index, entry) in entries.iter_mut().enumerate() {
+            entry.created_at = format!("2026-09-01T10:00:0{}Z", 3 - index);
+        }
+        let repository = RecordingAuditRepository {
+            entries,
+            recorded: std::sync::Mutex::new(Vec::new()),
+        };
+        let use_case = WikiAuditUseCase::new(&repository);
+
+        let first = use_case
+            .list_recent(shared::AuditLogQuery {
+                limit: Some(1),
+                cursor: None,
+            })
+            .await
+            .unwrap();
+        assert_eq!(first.entries[0].action, "document.publish");
+        let second = use_case
+            .list_recent(shared::AuditLogQuery {
+                limit: Some(1),
+                cursor: first.next_cursor,
+            })
+            .await
+            .unwrap();
+        assert_eq!(second.entries[0].action, "document.edit");
+        let third = use_case
+            .list_recent(shared::AuditLogQuery {
+                limit: Some(1),
+                cursor: second.next_cursor,
+            })
+            .await
+            .unwrap();
+        assert_eq!(third.entries[0].action, "document.create");
+        assert!(third.next_cursor.is_none());
+
+        let invalid = use_case
+            .list_recent(shared::AuditLogQuery {
+                limit: Some(1),
+                cursor: Some("not-a-cursor".to_string()),
+            })
+            .await;
+        assert!(matches!(invalid, Err(AppError::InvalidInput(_))));
     }
 
     #[test]

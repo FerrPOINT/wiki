@@ -305,7 +305,7 @@ Required constraint categories:
 - idempotency uniqueness by `(actor_id, idempotency_key)` plus state/response-shape checks and TTL index;
 - immutable revision version uniqueness per document;
 - FTS index for published revision search;
-- audit indexes by entity, actor and time.
+- audit indexes by entity, actor and `(created_at DESC, id DESC)` for stable cursor pagination.
 
 ## 5. Search
 
