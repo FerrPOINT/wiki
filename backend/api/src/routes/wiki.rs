@@ -2607,7 +2607,7 @@ pub async fn list_evidence(
         .map(normalize_phase_key)
         .transpose()?;
     let store = store().lock().expect("wiki store lock");
-    if let Some(key) = requested_space {
+    if let Some(key) = requested_space.as_deref() {
         ensure_space_access(&store, key, &claims.user_id, WikiSpaceAccess::View)?;
     }
     let mut items: Vec<_> = store
