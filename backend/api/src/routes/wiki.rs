@@ -2,10 +2,10 @@ use app::wiki::{
     DEFAULT_AUDIT_LIMIT, DEFAULT_DOCUMENT_REVISION_LIMIT, DEFAULT_EVIDENCE_LIMIT,
     DEFAULT_SEARCH_LIMIT, MAX_AUDIT_LIMIT, MAX_DOCUMENT_REVISION_LIMIT, MAX_EVIDENCE_LIMIT,
     MAX_SEARCH_LIMIT, WikiSpaceAccess, audit_log_page, checksum, clamp_limit_with_default,
-    markdown_to_html, normalize_attachment_file_name, normalize_document_type,
+    evidence_page, markdown_to_html, normalize_attachment_file_name, normalize_document_type,
     normalize_evidence_type, normalize_phase_key, normalize_required, normalize_space_key,
-    normalize_space_role, normalize_task_key, parse_audit_cursor, safe_download_filename, slugify,
-    snippet, space_role_allows,
+    normalize_space_role, normalize_task_key, parse_audit_cursor, parse_evidence_cursor,
+    safe_download_filename, slugify, snippet, space_role_allows,
 };
 use axum::{
     Extension, Json,
@@ -2233,6 +2233,7 @@ pub async fn list_task_evidence(
     ensure_space_access(&store, &key, &claims.user_id, WikiSpaceAccess::View)?;
     Ok(Json(EvidenceListResponse {
         evidence: evidence_for_task(&store, &key, &task_key),
+        next_cursor: None,
     }))
 }
 
@@ -2425,6 +2426,7 @@ pub async fn list_phase_evidence(
     ensure_space_access(&store, &key, &claims.user_id, WikiSpaceAccess::View)?;
     Ok(Json(EvidenceListResponse {
         evidence: evidence_for_phase(&store, &key, &phase_key),
+        next_cursor: None,
     }))
 }
 
@@ -2606,6 +2608,19 @@ pub async fn list_evidence(
         .as_deref()
         .map(normalize_phase_key)
         .transpose()?;
+    let search = query
+        .q
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if search.is_some_and(|value| value.chars().count() > 200) {
+        return Err(shared::AppError::invalid_input(
+            "evidence query is too long",
+        ));
+    }
+    let search = search.map(str::to_lowercase);
+    let cursor = parse_evidence_cursor(query.cursor.as_deref())?;
+    let limit = clamp_limit_with_default(query.limit, DEFAULT_EVIDENCE_LIMIT, MAX_EVIDENCE_LIMIT);
     let store = store().lock().expect("wiki store lock");
     if let Some(key) = &requested_space {
         ensure_space_access(&store, key, &claims.user_id, WikiSpaceAccess::View)?;
@@ -2635,15 +2650,46 @@ pub async fn list_evidence(
                 .as_ref()
                 .is_none_or(|key| item.phase_key.as_ref() == Some(key))
         })
+        .filter(|item| {
+            search.as_ref().is_none_or(|needle| {
+                [
+                    Some(item.title.as_str()),
+                    item.document_id.as_deref(),
+                    item.task_key.as_deref(),
+                    item.phase_key.as_deref(),
+                    item.url.as_deref(),
+                    Some(item.evidence_type.as_str()),
+                    Some(item.space_key.as_str()),
+                ]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>()
+                .join(" ")
+                .to_lowercase()
+                .contains(needle)
+            })
+        })
+        .filter(|item| {
+            cursor.as_ref().is_none_or(|cursor| {
+                DateTime::parse_from_rfc3339(&item.created_at)
+                    .ok()
+                    .and_then(|created_at| {
+                        Uuid::parse_str(&item.id)
+                            .ok()
+                            .map(|id| (created_at.timestamp_micros(), id))
+                    })
+                    .is_some_and(|key| key < (cursor.created_at.timestamp_micros(), cursor.id))
+            })
+        })
         .cloned()
         .collect();
-    items.sort_by(|a, b| b.created_at.cmp(&a.created_at));
-    items.truncate(clamp_limit_with_default(
-        query.limit,
-        DEFAULT_EVIDENCE_LIMIT,
-        MAX_EVIDENCE_LIMIT,
-    ));
-    Ok(Json(EvidenceListResponse { evidence: items }))
+    items.sort_by(|a, b| {
+        let a_time = DateTime::parse_from_rfc3339(&a.created_at).ok();
+        let b_time = DateTime::parse_from_rfc3339(&b.created_at).ok();
+        b_time.cmp(&a_time).then_with(|| b.id.cmp(&a.id))
+    });
+    items.truncate(limit + 1);
+    Ok(Json(evidence_page(items, limit)?))
 }
 
 #[utoipa::path(

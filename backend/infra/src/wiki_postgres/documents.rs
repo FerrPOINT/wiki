@@ -774,6 +774,8 @@ impl PostgresWikiBackend {
                     document_id: Some(document_id.to_string()),
                     task_key: None,
                     phase_key: None,
+                    q: None,
+                    cursor: None,
                     limit: Some(100),
                 },
             )

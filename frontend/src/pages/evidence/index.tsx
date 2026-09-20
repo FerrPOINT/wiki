@@ -1,14 +1,36 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import {
-  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Download,
   ExternalLink,
   FileText,
+  Info,
   Link2,
+  Plus,
   RotateCcw,
+  Search,
   Upload,
 } from 'lucide-react'
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  EmptyState,
+  ErrorState,
+  Input,
+  Label,
+  LoadingState,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@sdlc/ui/ui'
 import {
   useAttachment,
   useCreateEvidence,
@@ -18,18 +40,14 @@ import {
   useEvidenceItem,
   useSpaces,
 } from '@/shared/api/hooks'
-import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
-import { Button } from '@sdlc/ui/ui'
-import { Card, CardContent, CardHeader, CardTitle } from '@sdlc/ui/ui'
-import { Input } from '@sdlc/ui/ui'
-import { Label } from '@sdlc/ui/ui'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@sdlc/ui/ui'
 import { formatApiErrorForUser, formatFirstApiErrorForUser } from '@/shared/lib/api-error'
 import { formatBytes, formatDateTime, formatEvidenceType } from '@/shared/lib/wiki-format'
 import { defaultSpaceKey, resolveSpaceKey } from '@/shared/lib/space-selection'
 import type { AttachmentDownload, Evidence } from '@/api/wiki'
 
 type EvidenceMode = 'external_url' | 'uploaded_file'
+const PAGE_SIZE = 20
+const FILTER_KEYS = ['q', 'space', 'document_id', 'task_key', 'phase_key'] as const
 
 function optional(value: string) {
   const trimmed = value.trim()
@@ -57,9 +75,7 @@ function AttachmentMetadata({ item }: { item: Evidence }) {
   const checksum = attachment?.checksum ?? item.checksum
   const fileName = attachment?.file_name ?? item.attachment_id ?? item.title
 
-  if (!hasAttachment) {
-    return <span className="text-xs text-text-muted">внешняя ссылка</span>
-  }
+  if (!hasAttachment) return null
 
   function handleDownload() {
     if (!item.attachment_id) return
@@ -69,28 +85,23 @@ function AttachmentMetadata({ item }: { item: Evidence }) {
   }
 
   return (
-    <div className="space-y-2 text-xs text-text-muted">
-      <div>
-        <div className="max-w-[16rem] truncate font-medium text-text-secondary" title={fileName}>
-          {attachmentQuery.isLoading ? 'загружаем файл...' : fileName}
-        </div>
-        {attachment && (
-          <div>
-            {formatBytes(attachment.size_bytes)} · {attachment.content_type}
-          </div>
-        )}
-        {attachmentQuery.isError && <div className="text-warning">метаданные недоступны</div>}
+    <div className="min-w-0 space-y-2 text-xs text-text-muted">
+      <div className="min-w-0 break-all font-medium text-text-secondary">
+        {attachmentQuery.isLoading ? 'Загружаем файл...' : fileName}
       </div>
-      {checksum ? (
-        <code
-          className="block max-w-[16rem] truncate rounded bg-background px-2 py-1"
-          title={checksum}
-        >
-          {checksum}
-        </code>
-      ) : (
-        <span>контрольная сумма не получена</span>
+      {attachment && (
+        <div>
+          {formatBytes(attachment.size_bytes)} · {attachment.content_type}
+        </div>
       )}
+      {attachmentQuery.isError && (
+        <Button type="button" size="sm" variant="outline" onClick={() => attachmentQuery.refetch()}>
+          Повторить загрузку метаданных
+        </Button>
+      )}
+      <div className="min-w-0 break-all font-mono">
+        {checksum ?? 'Контрольная сумма недоступна'}
+      </div>
       <Button
         type="button"
         size="sm"
@@ -99,7 +110,7 @@ function AttachmentMetadata({ item }: { item: Evidence }) {
         disabled={downloadAttachment.isPending}
         aria-label={`Скачать ${item.title}`}
       >
-        <Download className="h-3.5 w-3.5" />
+        <Download className="h-4 w-4" />
         {downloadAttachment.isPending ? 'Скачиваем...' : 'Скачать'}
       </Button>
       {downloadAttachment.isError && (
@@ -113,11 +124,11 @@ function AttachmentMetadata({ item }: { item: Evidence }) {
 
 function EvidenceTargetLinks({ item }: { item: Evidence }) {
   return (
-    <div className="flex flex-wrap gap-2 text-sm">
+    <div className="flex min-w-0 flex-wrap gap-x-3 gap-y-1 text-sm">
       {item.document_id && (
         <Link
           to={`/documents/${item.document_id}`}
-          className="rounded bg-surface-raised px-2 py-1 text-accent"
+          className="min-w-0 break-all text-accent hover:text-accent-hover"
         >
           документ {item.document_id}
         </Link>
@@ -125,7 +136,7 @@ function EvidenceTargetLinks({ item }: { item: Evidence }) {
       {item.task_key && (
         <Link
           to={scopedDossierPath(`/tasks/${item.task_key}`, item.space_key)}
-          className="rounded bg-surface-raised px-2 py-1 text-accent"
+          className="min-w-0 break-all text-accent hover:text-accent-hover"
         >
           задача {item.task_key}
         </Link>
@@ -133,7 +144,7 @@ function EvidenceTargetLinks({ item }: { item: Evidence }) {
       {item.phase_key && (
         <Link
           to={scopedDossierPath(`/phases/${item.phase_key}`, item.space_key)}
-          className="rounded bg-surface-raised px-2 py-1 text-accent"
+          className="min-w-0 break-all text-accent hover:text-accent-hover"
         >
           фаза {item.phase_key}
         </Link>
@@ -142,53 +153,80 @@ function EvidenceTargetLinks({ item }: { item: Evidence }) {
   )
 }
 
+function EvidenceTitle({ item, onSelect }: { item: Evidence; onSelect: (id: string) => void }) {
+  if (item.url) {
+    return (
+      <a
+        href={item.url}
+        target="_blank"
+        rel="noreferrer"
+        className="min-w-0 break-words font-medium text-accent hover:text-accent-hover"
+      >
+        {item.title}
+      </a>
+    )
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(item.id)}
+      className="min-w-0 break-words text-left font-medium text-accent hover:text-accent-hover"
+    >
+      {item.title}
+    </button>
+  )
+}
+
 export function EvidencePage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const [query, setQuery] = useState('')
-  const [mode, setMode] = useState<EvidenceMode>('external_url')
-  const [title, setTitle] = useState('')
-  const [url, setUrl] = useState('')
   const initialSpace = searchParams.get('space')?.trim().toUpperCase() ?? ''
+  const appliedQuery = searchParams.get('q') ?? ''
+  const appliedSpace = searchParams.get('space') ?? ''
+  const appliedDocument = searchParams.get('document_id') ?? ''
+  const appliedTask = searchParams.get('task_key') ?? ''
+  const appliedPhase = searchParams.get('phase_key') ?? ''
   const spacesQuery = useSpaces()
   const suggestedSpace = resolveSpaceKey(initialSpace, spacesQuery.data?.spaces ?? [])
   const [space, setSpace] = useState(initialSpace)
   const [documentId, setDocumentId] = useState(searchParams.get('document_id')?.trim() ?? '')
   const [task, setTask] = useState(searchParams.get('task_key')?.trim() ?? '')
   const [phase, setPhase] = useState(searchParams.get('phase_key')?.trim() ?? '')
-  const [filterSpace, setFilterSpace] = useState(initialSpace)
-  const [filterDocument, setFilterDocument] = useState(
-    searchParams.get('document_id')?.trim() ?? '',
-  )
-  const [filterTask, setFilterTask] = useState(searchParams.get('task_key')?.trim() ?? '')
-  const [filterPhase, setFilterPhase] = useState(searchParams.get('phase_key')?.trim() ?? '')
+  const [title, setTitle] = useState('')
+  const [url, setUrl] = useState('')
   const [file, setFile] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const registryRef = useRef<HTMLDivElement>(null)
+  const [mode, setMode] = useState<EvidenceMode>('external_url')
+  const [isCreateOpen, setCreateOpen] = useState(false)
+  const [targetError, setTargetError] = useState('')
+  const [filterError, setFilterError] = useState('')
+  const [filterQuery, setFilterQuery] = useState(appliedQuery)
+  const [filterSpace, setFilterSpace] = useState(initialSpace)
+  const [filterDocument, setFilterDocument] = useState(appliedDocument)
+  const [filterTask, setFilterTask] = useState(appliedTask)
+  const [filterPhase, setFilterPhase] = useState(appliedPhase)
+  const [cursors, setCursors] = useState<(string | null)[]>([null])
   const selectedEvidenceId = searchParams.get('id')?.trim() ?? ''
   const evidenceParams = useMemo(
     () => ({
-      space: optional(filterSpace) ?? undefined,
-      document_id: optional(filterDocument) ?? undefined,
-      task_key: optional(filterTask) ?? undefined,
-      phase_key: optional(filterPhase) ?? undefined,
-      limit: 30,
+      q: optional(searchParams.get('q') ?? '') ?? undefined,
+      space: optional(searchParams.get('space') ?? '') ?? undefined,
+      document_id: optional(searchParams.get('document_id') ?? '') ?? undefined,
+      task_key: optional(searchParams.get('task_key') ?? '') ?? undefined,
+      phase_key: optional(searchParams.get('phase_key') ?? '') ?? undefined,
+      cursor: cursors[cursors.length - 1] ?? undefined,
+      limit: PAGE_SIZE,
     }),
-    [filterDocument, filterPhase, filterSpace, filterTask],
+    [searchParams, cursors],
   )
   const evidenceQuery = useEvidence(evidenceParams)
+  const selectedEvidenceQuery = useEvidenceItem(selectedEvidenceId)
   const createLink = useCreateEvidence()
   const createFile = useCreateFileEvidence()
-  const selectedEvidenceQuery = useEvidenceItem(selectedEvidenceId)
-  const items = useMemo(() => evidenceQuery.data?.evidence ?? [], [evidenceQuery.data?.evidence])
+  const items = evidenceQuery.data?.evidence ?? []
+  const nextCursor = evidenceQuery.data?.next_cursor
   const selectedEvidence =
     selectedEvidenceQuery.data ?? items.find((item) => item.id === selectedEvidenceId)
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase()
-    if (!needle) return items
-    return items.filter((item) =>
-      [item.title, item.document_id, item.task_key, item.phase_key, item.url, item.evidence_type]
-        .filter(Boolean)
-        .some((value) => value?.toLowerCase().includes(needle)),
-    )
-  }, [items, query])
   const linkCount = items.filter((item) => item.evidence_type === 'external_url').length
   const fileCount = items.filter((item) => item.evidence_type === 'uploaded_file').length
   const isSaving = createLink.isPending || createFile.isPending
@@ -201,28 +239,75 @@ export function EvidencePage() {
     if (!space && suggestedSpace) setSpace(suggestedSpace)
   }, [space, suggestedSpace])
 
+  useEffect(() => {
+    setFilterQuery(appliedQuery)
+    setFilterSpace(appliedSpace)
+    setFilterDocument(appliedDocument)
+    setFilterTask(appliedTask)
+    setFilterPhase(appliedPhase)
+    setCursors([null])
+  }, [appliedQuery, appliedSpace, appliedDocument, appliedTask, appliedPhase])
+
   function resetForm() {
     setTitle('')
     setUrl('')
     setFile(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    setCreateOpen(false)
+    setTargetError('')
+    setCursors([null])
+  }
+
+  function applyFilters(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (optional(filterSpace)?.length === 1) {
+      setFilterError('Ключ пространства должен содержать минимум 2 символа')
+      return
+    }
+    setFilterError('')
+    const nextParams = new URLSearchParams(searchParams)
+    const values = [filterQuery, filterSpace.toUpperCase(), filterDocument, filterTask, filterPhase]
+    FILTER_KEYS.forEach((key, index) => {
+      const value = optional(values[index])
+      if (value) nextParams.set(key, value)
+      else nextParams.delete(key)
+    })
+    setCursors([null])
+    setSearchParams(nextParams)
   }
 
   function resetFilters() {
-    setQuery('')
+    setFilterError('')
+    setFilterQuery('')
     setFilterSpace('')
     setFilterDocument('')
     setFilterTask('')
     setFilterPhase('')
+    const nextParams = new URLSearchParams(searchParams)
+    FILTER_KEYS.forEach((key) => nextParams.delete(key))
+    setCursors([null])
+    setSearchParams(nextParams)
   }
 
-  function clearSelectedEvidence() {
+  function selectEvidence(id: string | null) {
     const nextParams = new URLSearchParams(searchParams)
-    nextParams.delete('id')
+    if (id) nextParams.set('id', id)
+    else nextParams.delete('id')
     setSearchParams(nextParams)
+  }
+
+  function changePage(nextCursors: (string | null)[]) {
+    setCursors(nextCursors)
+    registryRef.current?.scrollIntoView?.({ block: 'start' })
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (!optional(documentId) && !optional(task) && !optional(phase)) {
+      setTargetError('Укажите документ, задачу или фазу')
+      return
+    }
+    setTargetError('')
     const evidence = {
       space: space.trim().toUpperCase(),
       document_id: optional(documentId),
@@ -230,141 +315,168 @@ export function EvidencePage() {
       phase_key: optional(phase),
       title: title.trim(),
     }
-
     if (mode === 'external_url') {
       createLink.mutate(
-        {
-          ...evidence,
-          evidence_type: 'external_url',
-          url: optional(url),
-        },
+        { ...evidence, evidence_type: 'external_url', url: optional(url) },
         { onSuccess: resetForm },
       )
       return
     }
-
-    if (!file) return
-    createFile.mutate({ file, evidence }, { onSuccess: resetForm })
+    if (file) createFile.mutate({ file, evidence }, { onSuccess: resetForm })
   }
 
   return (
     <div className="space-y-5">
-      <section className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Материалы</h1>
-          <p className="mt-1 max-w-3xl text-sm text-text-muted">
-            Артефакты, ссылки и файлы, подтверждающие документ, задачу или фазу процесса.
-          </p>
-        </div>
-      </section>
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">Материалы</h1>
+        <Button
+          type="button"
+          onClick={() => setCreateOpen((open) => !open)}
+          disabled={isSaving}
+          aria-expanded={isCreateOpen}
+          aria-controls={isCreateOpen ? 'evidence-create-form' : undefined}
+        >
+          <Plus className="h-4 w-4" />
+          {isCreateOpen ? 'Закрыть форму' : 'Добавить материал'}
+        </Button>
+      </header>
 
-      <form onSubmit={handleSubmit} className="rounded-md border border-border bg-surface p-3">
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant={mode === 'external_url' ? 'default' : 'secondary'}
-            onClick={() => setMode('external_url')}
-          >
-            <Link2 className="h-4 w-4" />
-            Ссылка
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={mode === 'uploaded_file' ? 'default' : 'secondary'}
-            onClick={() => setMode('uploaded_file')}
-          >
-            <Upload className="h-4 w-4" />
-            Файл
-          </Button>
-        </div>
-
-        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-[10rem_13rem_minmax(0,1fr)_10rem_10rem]">
-          <div className="space-y-1.5">
-            <Label htmlFor="evidence-space">Пространство</Label>
-            <Input
-              id="evidence-space"
-              value={space}
-              onChange={(event) => setSpace(event.target.value.toUpperCase())}
-              required
-            />
+      {isCreateOpen && (
+        <form
+          id="evidence-create-form"
+          onSubmit={handleSubmit}
+          className="space-y-3 border-y border-border py-4"
+        >
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Тип материала">
+            <Button
+              type="button"
+              size="sm"
+              variant={mode === 'external_url' ? 'default' : 'secondary'}
+              onClick={() => setMode('external_url')}
+              aria-pressed={mode === 'external_url'}
+            >
+              <Link2 className="h-4 w-4" />
+              Ссылка
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={mode === 'uploaded_file' ? 'default' : 'secondary'}
+              onClick={() => setMode('uploaded_file')}
+              aria-pressed={mode === 'uploaded_file'}
+            >
+              <Upload className="h-4 w-4" />
+              Файл
+            </Button>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="evidence-document">Документ</Label>
-            <Input
-              id="evidence-document"
-              value={documentId}
-              onChange={(event) => setDocumentId(event.target.value)}
-              placeholder="ID или slug документа"
-            />
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[10rem_13rem_minmax(0,1fr)_10rem_10rem]">
+            <div className="space-y-1.5">
+              <Label htmlFor="evidence-space">Пространство</Label>
+              <Input
+                id="evidence-space"
+                value={space}
+                onChange={(event) => setSpace(event.target.value.toUpperCase())}
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="evidence-document">Документ</Label>
+              <Input
+                id="evidence-document"
+                value={documentId}
+                onChange={(event) => {
+                  setDocumentId(event.target.value)
+                  setTargetError('')
+                }}
+                placeholder="ID или slug"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="evidence-title">Название</Label>
+              <Input
+                id="evidence-title"
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="evidence-task">Задача</Label>
+              <Input
+                id="evidence-task"
+                value={task}
+                onChange={(event) => {
+                  setTask(event.target.value)
+                  setTargetError('')
+                }}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="evidence-phase">Фаза</Label>
+              <Input
+                id="evidence-phase"
+                value={phase}
+                onChange={(event) => {
+                  setPhase(event.target.value)
+                  setTargetError('')
+                }}
+              />
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="evidence-title">Название</Label>
-            <Input
-              id="evidence-title"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder="Название материала"
-              required
-            />
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+            {mode === 'external_url' ? (
+              <Input
+                type="url"
+                value={url}
+                onChange={(event) => setUrl(event.target.value)}
+                placeholder="https://..."
+                aria-label="URL материала"
+                required
+              />
+            ) : (
+              <Input
+                ref={fileInputRef}
+                type="file"
+                aria-label="Файл материала"
+                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                required
+              />
+            )}
+            <Button disabled={isSaving}>{isSaving ? 'Сохраняем...' : 'Сохранить материал'}</Button>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="evidence-task">Задача</Label>
-            <Input
-              id="evidence-task"
-              value={task}
-              onChange={(event) => setTask(event.target.value)}
-              placeholder="Ключ задачи"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="evidence-phase">Фаза</Label>
-            <Input
-              id="evidence-phase"
-              value={phase}
-              onChange={(event) => setPhase(event.target.value)}
-              placeholder="Ключ фазы"
-            />
-          </div>
-        </div>
-
-        <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
-          {mode === 'external_url' ? (
-            <Input
-              value={url}
-              onChange={(event) => setUrl(event.target.value)}
-              placeholder="https://..."
-              aria-label="URL материала"
-              required
-            />
-          ) : (
-            <Input
-              type="file"
-              aria-label="Файл материала"
-              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-              required
-            />
+          {targetError && (
+            <p role="alert" className="text-sm text-danger">
+              {targetError}
+            </p>
           )}
-          <Button disabled={isSaving}>
-            <CheckCircle2 className="h-4 w-4" />
-            {isSaving ? 'Сохраняем...' : 'Добавить материал'}
-          </Button>
-        </div>
-        {saveError && <p className="mt-2 text-sm text-danger">{saveError}</p>}
-      </form>
+          {saveError && (
+            <p role="alert" className="text-sm text-danger">
+              {saveError}
+            </p>
+          )}
+        </form>
+      )}
 
-      <section className="grid gap-3 rounded-md border border-border bg-surface p-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1.3fr)_8rem_13rem_10rem_10rem_auto]">
+      <form
+        onSubmit={applyFilters}
+        aria-label="Фильтры материалов"
+        className="grid gap-2 border-y border-border py-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-[minmax(12rem,1fr)_8rem_12rem_10rem_10rem_auto_auto]"
+      >
         <Input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Поиск по материалам, документу или типу"
+          value={filterQuery}
+          onChange={(event) => setFilterQuery(event.target.value)}
+          maxLength={200}
+          placeholder="Поиск по всем материалам"
           aria-label="Поиск материалов"
         />
         <Input
           value={filterSpace}
-          onChange={(event) => setFilterSpace(event.target.value.toUpperCase())}
-          placeholder="BASE"
+          onChange={(event) => {
+            setFilterSpace(event.target.value.toUpperCase())
+            setFilterError('')
+          }}
+          minLength={2}
+          placeholder="Пространство"
           aria-label="Фильтр пространства"
         />
         <Input
@@ -385,11 +497,20 @@ export function EvidencePage() {
           placeholder="Фаза"
           aria-label="Фильтр фазы"
         />
-        <Button size="sm" variant="outline" type="button" onClick={resetFilters}>
+        <Button type="submit" size="sm">
+          <Search className="h-4 w-4" />
+          Найти
+        </Button>
+        <Button type="button" size="sm" variant="outline" onClick={resetFilters}>
           <RotateCcw className="h-4 w-4" />
           Сбросить
         </Button>
-      </section>
+        {filterError && (
+          <p role="alert" className="text-sm text-danger 2xl:col-span-full">
+            {filterError}
+          </p>
+        )}
+      </form>
 
       {selectedEvidenceId && (
         <Card>
@@ -413,23 +534,26 @@ export function EvidencePage() {
             {!selectedEvidenceQuery.isLoading &&
               !selectedEvidenceQuery.isError &&
               selectedEvidence && (
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
-                  <div className="space-y-3">
-                    <div>
-                      <div className="text-sm font-medium text-text-primary">
-                        {selectedEvidence.title}
-                      </div>
-                      <div className="mt-1 text-xs text-text-muted">
-                        {formatEvidenceType(selectedEvidence.evidence_type)} ·{' '}
-                        {formatDateTime(selectedEvidence.created_at)}
-                      </div>
+                <div
+                  className={
+                    selectedEvidence.evidence_type === 'uploaded_file'
+                      ? 'grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]'
+                      : 'min-w-0'
+                  }
+                >
+                  <div className="min-w-0 space-y-3">
+                    <div className="break-words font-medium">{selectedEvidence.title}</div>
+                    <div className="text-xs text-text-muted">
+                      {selectedEvidence.space_key} ·{' '}
+                      {formatEvidenceType(selectedEvidence.evidence_type)} ·{' '}
+                      {formatDateTime(selectedEvidence.created_at)}
                     </div>
                     {selectedEvidence.url && (
                       <a
                         href={selectedEvidence.url}
-                        className="inline-flex items-center gap-2 text-sm text-accent hover:text-accent-hover"
                         target="_blank"
                         rel="noreferrer"
+                        className="inline-flex items-center gap-2 text-sm text-accent hover:text-accent-hover"
                       >
                         <ExternalLink className="h-4 w-4" />
                         Открыть ссылку
@@ -437,56 +561,35 @@ export function EvidencePage() {
                     )}
                     <EvidenceTargetLinks item={selectedEvidence} />
                   </div>
-                  <AttachmentMetadata item={selectedEvidence} />
+                  {selectedEvidence.evidence_type === 'uploaded_file' && (
+                    <AttachmentMetadata item={selectedEvidence} />
+                  )}
                 </div>
               )}
             {!selectedEvidenceQuery.isLoading &&
               !selectedEvidenceQuery.isError &&
               !selectedEvidence && <EmptyState message="Материал не найден в текущем доступе" />}
-            <Button type="button" size="sm" variant="outline" onClick={clearSelectedEvidence}>
+            <Button type="button" size="sm" variant="outline" onClick={() => selectEvidence(null)}>
               Снять выделение
             </Button>
           </CardContent>
         </Card>
       )}
 
-      <section className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Всего</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-3">
-              <CheckCircle2 className="h-5 w-5 text-success" />
-              <span className="text-2xl font-semibold">{items.length}</span>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Ссылки</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-3">
-              <ExternalLink className="h-5 w-5 text-accent" />
-              <span className="text-2xl font-semibold">{linkCount}</span>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Файлы</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-3">
-              <FileText className="h-5 w-5 text-warning" />
-              <span className="text-2xl font-semibold">{fileCount}</span>
-            </div>
-          </CardContent>
-        </Card>
-      </section>
+      {!evidenceQuery.isLoading && !evidenceQuery.isError && items.length > 0 && (
+        <section
+          aria-label="Сводка текущей страницы"
+          className="flex flex-wrap gap-x-5 gap-y-1 border-b border-border pb-3 text-sm text-text-secondary"
+        >
+          <span>
+            Показано <strong>{items.length}</strong> (лимит {PAGE_SIZE})
+          </span>
+          <span>Ссылки: {linkCount}</span>
+          <span>Файлы: {fileCount}</span>
+        </section>
+      )}
 
-      <Card>
+      <Card ref={registryRef} className="scroll-mt-16">
         <CardHeader>
           <CardTitle className="text-base">Реестр материалов</CardTitle>
         </CardHeader>
@@ -498,90 +601,121 @@ export function EvidencePage() {
               onRetry={() => evidenceQuery.refetch()}
             />
           )}
-          {!evidenceQuery.isLoading && !evidenceQuery.isError && filtered.length === 0 && (
+          {!evidenceQuery.isLoading && !evidenceQuery.isError && items.length === 0 && (
             <EmptyState message="Материалы не найдены" />
           )}
-          {!evidenceQuery.isLoading && !evidenceQuery.isError && filtered.length > 0 && (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Материал</TableHead>
-                  <TableHead>Документ</TableHead>
-                  <TableHead>Задача</TableHead>
-                  <TableHead>Фаза</TableHead>
-                  <TableHead>Тип</TableHead>
-                  <TableHead>Метаданные</TableHead>
-                  <TableHead>Дата</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((item) => (
-                  <TableRow
-                    key={item.id}
-                    className={item.id === selectedEvidenceId ? 'bg-accent/10' : undefined}
-                  >
-                    <TableCell className="font-medium">
-                      {item.url ? (
-                        <a
-                          href={item.url}
-                          className="text-accent hover:text-accent-hover"
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {item.title}
-                        </a>
-                      ) : (
-                        item.title
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {item.document_id ? (
-                        <Link
-                          to={`/documents/${item.document_id}`}
-                          className="block max-w-[13rem] truncate text-accent hover:text-accent-hover"
-                          title={item.document_id}
-                        >
-                          {item.document_id}
-                        </Link>
-                      ) : (
-                        <span className="text-text-muted">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {item.task_key ? (
-                        <Link
-                          to={`/tasks/${item.task_key}`}
-                          className="text-accent hover:text-accent-hover"
-                        >
-                          {item.task_key}
-                        </Link>
-                      ) : (
-                        <span className="text-text-muted">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {item.phase_key ? (
-                        <Link
-                          to={`/phases/${item.phase_key}`}
-                          className="text-accent hover:text-accent-hover"
-                        >
-                          {item.phase_key}
-                        </Link>
-                      ) : (
-                        <span className="text-text-muted">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>{formatEvidenceType(item.evidence_type)}</TableCell>
-                    <TableCell>
-                      <AttachmentMetadata item={item} />
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap text-xs text-text-muted">
+          {!evidenceQuery.isLoading && !evidenceQuery.isError && items.length > 0 && (
+            <>
+              <ul className="divide-y divide-border xl:hidden" aria-label="Материалы">
+                {items.map((item) => (
+                  <li key={item.id} className="min-w-0 py-3 first:pt-0 last:pb-0">
+                    <div className="flex min-w-0 items-start justify-between gap-2">
+                      <EvidenceTitle item={item} onSelect={selectEvidence} />
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        aria-label={`Открыть материал ${item.title}`}
+                        title="Открыть материал"
+                        onClick={() => selectEvidence(item.id)}
+                      >
+                        <Info className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="mt-1 text-xs text-text-muted">
+                      {item.space_key} · {formatEvidenceType(item.evidence_type)} ·{' '}
                       {formatDateTime(item.created_at)}
-                    </TableCell>
-                  </TableRow>
+                    </div>
+                    <div className="mt-2">
+                      <EvidenceTargetLinks item={item} />
+                    </div>
+                  </li>
                 ))}
-              </TableBody>
-            </Table>
+              </ul>
+              <div className="hidden xl:block">
+                <Table className="table-fixed">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[25%]">Материал</TableHead>
+                      <TableHead>Связи</TableHead>
+                      <TableHead className="w-28">Тип</TableHead>
+                      <TableHead className="w-36">Дата</TableHead>
+                      <TableHead className="w-12">
+                        <span className="sr-only">Действия</span>
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {items.map((item) => (
+                      <TableRow
+                        key={item.id}
+                        className={item.id === selectedEvidenceId ? 'bg-accent/10' : undefined}
+                      >
+                        <TableCell className="min-w-0">
+                          <EvidenceTitle item={item} onSelect={selectEvidence} />
+                        </TableCell>
+                        <TableCell className="min-w-0">
+                          <EvidenceTargetLinks item={item} />
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {formatEvidenceType(item.evidence_type)}
+                        </TableCell>
+                        <TableCell className="text-xs text-text-muted">
+                          {formatDateTime(item.created_at)}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            aria-label={`Открыть материал ${item.title}`}
+                            title="Открыть материал"
+                            onClick={() => selectEvidence(item.id)}
+                          >
+                            <Info className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
+          {(cursors.length > 1 || nextCursor) && (
+            <nav
+              aria-label="Страницы материалов"
+              className="mt-4 flex flex-wrap items-center gap-3 border-t border-border pt-3"
+            >
+              <span className="mr-auto text-sm text-text-secondary">Страница {cursors.length}</span>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10"
+                disabled={
+                  cursors.length === 1 || evidenceQuery.isLoading || evidenceQuery.isFetching
+                }
+                onClick={() => changePage(cursors.slice(0, -1))}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Назад
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10"
+                disabled={
+                  !nextCursor ||
+                  evidenceQuery.isLoading ||
+                  evidenceQuery.isFetching ||
+                  evidenceQuery.isError
+                }
+                onClick={() => nextCursor && changePage([...cursors, nextCursor])}
+              >
+                Далее
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </nav>
           )}
         </CardContent>
       </Card>

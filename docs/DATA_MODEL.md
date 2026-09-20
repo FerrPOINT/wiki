@@ -231,6 +231,8 @@ URL или файл, связанный с документом, задачей 
 
 Constraint: минимум одно из `document_id`, `task_dossier_id`, `phase_dossier_id` заполнено.
 
+Индекс `evidence_time_id_idx (created_at DESC, id DESC)` поддерживает стабильный курсор общего реестра; фильтры по space/document/task/phase применяются до `LIMIT`.
+
 ### attachments
 
 | Поле                | Тип           | Описание                                                       |

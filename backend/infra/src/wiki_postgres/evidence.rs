@@ -143,6 +143,9 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
                 .bind(criteria.task_key.as_deref())
                 .bind(criteria.phase_key.as_deref())
                 .bind(criteria.access_user_id)
+                .bind(criteria.query.as_deref())
+                .bind(criteria.cursor.as_ref().map(|cursor| cursor.created_at))
+                .bind(criteria.cursor.as_ref().map(|cursor| cursor.id))
                 .bind(criteria.limit)
                 .fetch_all(&self.backend.pool)
                 .await
@@ -357,6 +360,8 @@ impl PostgresWikiBackend {
                 query.task_key.as_deref(),
                 query.phase_key.as_deref(),
                 access_user_id,
+                query.q.as_deref(),
+                query.cursor.as_deref(),
                 query.limit,
             )
             .await
