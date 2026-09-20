@@ -2675,17 +2675,17 @@
           "results"
         ],
         "properties": {
-          "results": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SearchResultResponse"
-            }
-          },
           "next_cursor": {
             "type": [
               "string",
               "null"
             ]
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchResultResponse"
+            }
           }
         }
       },
