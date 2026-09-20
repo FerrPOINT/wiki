@@ -1,8 +1,9 @@
-import { useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { useAuditLog } from '@/shared/api/hooks'
+import { type FormEvent, useRef, useState } from 'react'
+import { ChevronLeft, ChevronRight, ListFilter, RefreshCw } from 'lucide-react'
+import { useAuditLog, useUsers } from '@/shared/api/hooks'
 import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
 import { Button } from '@sdlc/ui/ui'
+import { Input } from '@sdlc/ui/ui'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@sdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime } from '@/shared/lib/wiki-format'
@@ -33,14 +34,79 @@ const actionLabels: Record<string, string> = {
 }
 
 const PAGE_SIZE = 20
+const selectClassName =
+  'min-h-10 w-full rounded-md border border-border-strong bg-surface px-3 text-sm text-text-primary focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50'
+const entityTypes = [
+  ['document', 'Документ'],
+  ['space', 'Пространство'],
+  ['user', 'Пользователь'],
+  ['task', 'Задача'],
+  ['phase', 'Фаза'],
+  ['evidence', 'Материал'],
+  ['attachment', 'Файл'],
+  ['template', 'Шаблон'],
+] as const
+const emptyFilters = { action: '', entity_type: '', actor_id: '', from: '', to: '' }
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export function AuditLogPage() {
+  const [showFilters, setShowFilters] = useState(false)
+  const [draftFilters, setDraftFilters] = useState(emptyFilters)
+  const [appliedFilters, setAppliedFilters] = useState(emptyFilters)
+  const [filterError, setFilterError] = useState('')
   const [cursors, setCursors] = useState<(string | null)[]>([null])
   const eventsRef = useRef<HTMLElement>(null)
   const cursor = cursors[cursors.length - 1] ?? undefined
-  const auditQuery = useAuditLog({ limit: PAGE_SIZE, cursor })
+  const auditQuery = useAuditLog({ limit: PAGE_SIZE, cursor, ...appliedFilters })
+  const usersQuery = useUsers(showFilters)
   const entries = auditQuery.data?.entries ?? []
   const nextCursor = auditQuery.data?.next_cursor
+  const users = usersQuery.data?.users ?? []
+  const activeFilterCount = Object.values(appliedFilters).filter(Boolean).length
+
+  function updateDraft(name: keyof typeof emptyFilters, value: string) {
+    setDraftFilters((current) => ({ ...current, [name]: value }))
+    setFilterError('')
+  }
+
+  function applyFilters(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const actorId = draftFilters.actor_id.trim()
+    if (actorId && !uuidPattern.test(actorId)) {
+      setFilterError('Укажите UUID участника')
+      return
+    }
+    const fromDate = draftFilters.from ? new Date(draftFilters.from) : null
+    const toDate = draftFilters.to ? new Date(draftFilters.to) : null
+    if (
+      (fromDate && Number.isNaN(fromDate.getTime())) ||
+      (toDate && Number.isNaN(toDate.getTime()))
+    ) {
+      setFilterError('Проверьте даты периода')
+      return
+    }
+    if (fromDate && toDate && fromDate.getTime() >= toDate.getTime()) {
+      setFilterError('Дата начала должна быть раньше даты окончания')
+      return
+    }
+    setAppliedFilters({
+      action: draftFilters.action,
+      entity_type: draftFilters.entity_type,
+      actor_id: actorId,
+      from: fromDate?.toISOString() ?? '',
+      to: toDate?.toISOString() ?? '',
+    })
+    setCursors([null])
+    setFilterError('')
+    setShowFilters(false)
+  }
+
+  function clearFilters() {
+    setDraftFilters(emptyFilters)
+    setAppliedFilters(emptyFilters)
+    setCursors([null])
+    setFilterError('')
+  }
 
   function changePage(nextCursors: (string | null)[]) {
     setCursors(nextCursors)
@@ -50,6 +116,160 @@ export function AuditLogPage() {
   return (
     <div className="min-w-0 space-y-5">
       <h1 className="text-2xl font-bold">Аудит</h1>
+
+      <div className="space-y-3">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="min-h-10"
+          aria-expanded={showFilters}
+          onClick={() => setShowFilters((value) => !value)}
+        >
+          <ListFilter className="h-4 w-4" />
+          Фильтры{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+        </Button>
+        {showFilters && (
+          <form
+            aria-label="Фильтры аудита"
+            onSubmit={applyFilters}
+            className="space-y-3 border-y border-border py-3"
+          >
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="space-y-1">
+                <label htmlFor="audit-action" className="text-sm font-medium">
+                  Действие
+                </label>
+                <select
+                  id="audit-action"
+                  className={selectClassName}
+                  value={draftFilters.action}
+                  onChange={(event) => updateDraft('action', event.target.value)}
+                >
+                  <option value="">Все действия</option>
+                  {Object.entries(actionLabels).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label htmlFor="audit-entity-type" className="text-sm font-medium">
+                  Тип объекта
+                </label>
+                <select
+                  id="audit-entity-type"
+                  className={selectClassName}
+                  value={draftFilters.entity_type}
+                  onChange={(event) => updateDraft('entity_type', event.target.value)}
+                >
+                  <option value="">Все типы</option>
+                  {entityTypes.map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label htmlFor="audit-actor" className="text-sm font-medium">
+                  Участник
+                </label>
+                {usersQuery.isError || (!usersQuery.isLoading && users.length === 0) ? (
+                  <div className="space-y-1">
+                    <div className="flex gap-2">
+                      <Input
+                        id="audit-actor"
+                        className="min-h-10 min-w-0"
+                        placeholder="UUID участника"
+                        value={draftFilters.actor_id}
+                        onChange={(event) => updateDraft('actor_id', event.target.value)}
+                      />
+                      {usersQuery.isError && (
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="outline"
+                          className="min-h-10 min-w-10"
+                          title="Повторить загрузку пользователей"
+                          aria-label="Повторить загрузку пользователей"
+                          onClick={() => usersQuery.refetch()}
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                    {usersQuery.isError && (
+                      <p className="text-xs text-text-muted">
+                        Каталог пользователей недоступен; укажите UUID
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <select
+                    id="audit-actor"
+                    className={selectClassName}
+                    value={draftFilters.actor_id}
+                    disabled={usersQuery.isLoading}
+                    onChange={(event) => updateDraft('actor_id', event.target.value)}
+                  >
+                    <option value="">
+                      {usersQuery.isLoading ? 'Загружаем пользователей' : 'Все участники'}
+                    </option>
+                    {draftFilters.actor_id &&
+                      !users.some((user) => user.id === draftFilters.actor_id) && (
+                        <option value={draftFilters.actor_id}>{draftFilters.actor_id}</option>
+                      )}
+                    {users.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.display_name ?? user.username ?? user.email} · {user.email}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              <div className="space-y-1">
+                <label htmlFor="audit-from" className="text-sm font-medium">
+                  С даты (местное время)
+                </label>
+                <Input
+                  id="audit-from"
+                  type="datetime-local"
+                  className="min-h-10"
+                  value={draftFilters.from}
+                  onChange={(event) => updateDraft('from', event.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <label htmlFor="audit-to" className="text-sm font-medium">
+                  До даты (не включая)
+                </label>
+                <Input
+                  id="audit-to"
+                  type="datetime-local"
+                  className="min-h-10"
+                  value={draftFilters.to}
+                  onChange={(event) => updateDraft('to', event.target.value)}
+                />
+              </div>
+            </div>
+            {filterError && (
+              <p role="alert" className="text-sm text-danger">
+                {filterError}
+              </p>
+            )}
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button type="button" variant="outline" className="min-h-10" onClick={clearFilters}>
+                Сбросить
+              </Button>
+              <Button type="submit" className="min-h-10">
+                Применить
+              </Button>
+            </div>
+          </form>
+        )}
+      </div>
 
       <section ref={eventsRef} aria-label="События аудита" className="min-w-0 scroll-mt-16">
         {!auditQuery.isLoading && !auditQuery.isError && entries.length > 0 && (
@@ -65,7 +285,15 @@ export function AuditLogPage() {
           />
         )}
         {!auditQuery.isLoading && !auditQuery.isError && entries.length === 0 && (
-          <EmptyState message="Событий аудита пока нет" />
+          <EmptyState
+            message={
+              cursors.length > 1
+                ? 'На этой странице событий больше нет'
+                : activeFilterCount > 0
+                  ? 'Событий по фильтрам не найдено'
+                  : 'Событий аудита пока нет'
+            }
+          />
         )}
         {!auditQuery.isLoading && !auditQuery.isError && entries.length > 0 && (
           <>
