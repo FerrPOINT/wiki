@@ -80,19 +80,26 @@ const baseDocument: Document = {
   updated_by: 'user-editor',
 }
 
-function setupDocument(document: Document = baseDocument) {
+function setupDocument(document: Document = baseDocument, revisionHistory?: DocumentRevision[]) {
   useDocument.mockReturnValue({
     data: document,
     isLoading: false,
     isError: false,
     refetch: vi.fn(),
   })
-  useDocumentRevisions.mockReturnValue({
-    data: { revisions: [baseRevision] },
-    isLoading: false,
-    isError: false,
-    refetch: vi.fn(),
-  })
+  useDocumentRevisions.mockImplementation(
+    (_documentId: string, params: { limit: number; offset: number }) => ({
+      data: {
+        revisions: (revisionHistory ?? [baseRevision]).slice(
+          params.offset,
+          params.offset + params.limit,
+        ),
+      },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    }),
+  )
   useDocumentRevision.mockImplementation(
     (_documentId: string, revisionId: string, enabled: boolean) => ({
       data: enabled && revisionId === baseRevision.id ? baseRevision : undefined,
@@ -223,6 +230,43 @@ describe('DocumentPage', () => {
     expect(screen.getByText('Ревизия 2: Требования Wiki')).toBeInTheDocument()
     expect(screen.getAllByRole('heading', { name: 'Published' })).toHaveLength(2)
     expect(screen.getAllByText('Approved body')).toHaveLength(2)
+  })
+
+  it('pages through the complete revision history without showing the sentinel item', () => {
+    const history = Array.from({ length: 45 }, (_, index) => ({
+      ...baseRevision,
+      id: `revision-${45 - index}`,
+      version: 45 - index,
+    }))
+    setupDocument(baseDocument, history)
+
+    expect(useDocumentRevisions).toHaveBeenLastCalledWith('product-requirements', {
+      limit: 21,
+      offset: 0,
+    })
+    expect(screen.getAllByRole('group', { name: /^Ревизия \d+$/ })).toHaveLength(20)
+    expect(screen.getByRole('group', { name: 'Ревизия 45' })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Ревизия 25' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Следующая' }))
+    expect(useDocumentRevisions).toHaveBeenLastCalledWith('product-requirements', {
+      limit: 21,
+      offset: 20,
+    })
+    expect(screen.getByText('Страница 2')).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Ревизия 25' })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Ревизия 5' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Следующая' }))
+    expect(useDocumentRevisions).toHaveBeenLastCalledWith('product-requirements', {
+      limit: 21,
+      offset: 40,
+    })
+    expect(screen.getAllByRole('group', { name: /^Ревизия \d+$/ })).toHaveLength(5)
+    expect(screen.getByRole('button', { name: 'Следующая' })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Предыдущая' }))
+    expect(screen.getByText('Страница 2')).toBeInTheDocument()
   })
 
   it('sends draft and tree move mutations from visible form state', () => {
