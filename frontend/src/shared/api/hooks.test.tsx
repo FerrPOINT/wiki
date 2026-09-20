@@ -171,6 +171,21 @@ describe('wiki API hooks', () => {
     expect(listEvidence).toHaveBeenCalledWith({ limit: 30 })
   })
 
+  it('passes a revision page offset through the list hook', async () => {
+    listDocumentRevisions.mockResolvedValueOnce({ revisions: [] })
+
+    const revisionsHook = renderHook(
+      () => useDocumentRevisions('product-requirements', { limit: 21, offset: 20 }),
+      { wrapper },
+    )
+
+    await waitFor(() => expect(revisionsHook.result.current.isSuccess).toBe(true))
+    expect(listDocumentRevisions).toHaveBeenCalledWith('product-requirements', {
+      limit: 21,
+      offset: 20,
+    })
+  })
+
   it('invalidates audit log after document and evidence write mutations', async () => {
     createDocument.mockResolvedValueOnce(documentResponse())
     updateDocumentDraft.mockResolvedValueOnce(documentResponse({ title: 'Updated requirements' }))

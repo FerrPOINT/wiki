@@ -85,6 +85,7 @@ export type EvidenceListParams = {
 
 export type DocumentRevisionListParams = {
   limit?: number
+  offset?: number
 }
 
 export type AuditLogParams = {

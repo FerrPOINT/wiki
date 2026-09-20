@@ -416,6 +416,7 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
         &self,
         document_id: Uuid,
         limit: usize,
+        offset: u32,
     ) -> WikiDocumentRepositoryFuture<'_, Vec<DocumentRevisionResponse>> {
         Box::pin(async move {
             let rows = sqlx::query(
@@ -425,10 +426,12 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
                 WHERE document_id = $1
                 ORDER BY version DESC
                 LIMIT $2
+                OFFSET $3
                 "#,
             )
             .bind(document_id)
             .bind(limit as i64)
+            .bind(i64::from(offset))
             .fetch_all(&self.backend.pool)
             .await
             .map_err(shared::AppError::database)?;

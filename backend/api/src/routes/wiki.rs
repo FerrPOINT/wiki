@@ -2000,11 +2000,15 @@ pub async fn list_document_revisions(
     ensure_document_access(&store, &id, &claims.user_id, WikiSpaceAccess::View)?;
     let mut revisions = store.revisions.get(&id).cloned().unwrap_or_default();
     revisions.sort_by_key(|revision| std::cmp::Reverse(revision.version));
-    revisions.truncate(clamp_limit_with_default(
-        query.limit,
-        DEFAULT_DOCUMENT_REVISION_LIMIT,
-        MAX_DOCUMENT_REVISION_LIMIT,
-    ));
+    revisions = revisions
+        .into_iter()
+        .skip(query.offset.unwrap_or(0) as usize)
+        .take(clamp_limit_with_default(
+            query.limit,
+            DEFAULT_DOCUMENT_REVISION_LIMIT,
+            MAX_DOCUMENT_REVISION_LIMIT,
+        ))
+        .collect();
     Ok(Json(DocumentRevisionListResponse { revisions }))
 }
 

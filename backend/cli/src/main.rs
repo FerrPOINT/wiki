@@ -206,6 +206,8 @@ enum DocCommands {
         document_id: String,
         #[arg(long)]
         limit: Option<usize>,
+        #[arg(long)]
+        offset: Option<u32>,
     },
     Revision {
         document_id: String,
@@ -774,8 +776,15 @@ async fn execute_doc(api: &ApiClient, command: DocCommands) -> Result<Value> {
             )
             .await
         }
-        DocCommands::History { document_id, limit } => {
-            let query = query_string([("limit", limit.map(|value| value.to_string()))]);
+        DocCommands::History {
+            document_id,
+            limit,
+            offset,
+        } => {
+            let query = query_string([
+                ("limit", limit.map(|value| value.to_string())),
+                ("offset", offset.map(|value| value.to_string())),
+            ]);
             api.get(&format!(
                 "/documents/{}/revisions{}",
                 enc(&document_id),
@@ -1831,6 +1840,7 @@ mod tests {
                 command: DocCommands::History {
                     document_id: "product requirements".to_string(),
                     limit: None,
+                    offset: None,
                 },
             },
         )
@@ -1944,6 +1954,7 @@ mod tests {
                 command: DocCommands::History {
                     document_id: "product requirements".to_string(),
                     limit: Some(20),
+                    offset: Some(20),
                 },
             },
         )
@@ -1956,7 +1967,7 @@ mod tests {
         assert_eq!(requests[0].method, Method::GET);
         assert_eq!(
             requests[0].path,
-            "/api/v1/documents/product%20requirements/revisions?limit=20"
+            "/api/v1/documents/product%20requirements/revisions?limit=20&offset=20"
         );
         assert_eq!(
             requests[0].authorization.as_deref(),
