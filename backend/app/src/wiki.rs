@@ -873,6 +873,7 @@ pub trait WikiDossierRepository {
         space_id: Uuid,
         space_key: &'a str,
         cursor: Option<&'a str>,
+        q: Option<&'a str>,
         limit: usize,
     ) -> WikiDossierRepositoryFuture<'a, Vec<shared::TaskSummaryResponse>>;
 
@@ -914,6 +915,7 @@ pub trait WikiDossierRepository {
         space_id: Uuid,
         space_key: &'a str,
         cursor: Option<&'a str>,
+        q: Option<&'a str>,
         limit: usize,
     ) -> WikiDossierRepositoryFuture<'a, Vec<shared::PhaseSummaryResponse>>;
 
@@ -978,9 +980,10 @@ impl<'a, R: WikiDossierRepository + ?Sized> WikiDossierUseCase<'a, R> {
             .as_deref()
             .map(normalize_task_key)
             .transpose()?;
+        let q = normalize_dossier_catalog_search(query.q.as_deref())?;
         let tasks = self
             .repository
-            .list_task_summaries(space_id, &key, cursor.as_deref(), limit + 1)
+            .list_task_summaries(space_id, &key, cursor.as_deref(), q.as_deref(), limit + 1)
             .await?;
         Ok(task_summary_page(tasks, limit))
     }
@@ -1069,9 +1072,10 @@ impl<'a, R: WikiDossierRepository + ?Sized> WikiDossierUseCase<'a, R> {
             .as_deref()
             .map(normalize_phase_key)
             .transpose()?;
+        let q = normalize_dossier_catalog_search(query.q.as_deref())?;
         let phases = self
             .repository
-            .list_phase_summaries(space_id, &key, cursor.as_deref(), limit + 1)
+            .list_phase_summaries(space_id, &key, cursor.as_deref(), q.as_deref(), limit + 1)
             .await?;
         Ok(phase_summary_page(phases, limit))
     }
@@ -1145,6 +1149,14 @@ pub fn dossier_catalog_limit(value: Option<usize>) -> Result<usize, AppError> {
         ));
     }
     Ok(limit)
+}
+
+pub fn normalize_dossier_catalog_search(value: Option<&str>) -> Result<Option<String>, AppError> {
+    let q = value.unwrap_or_default().trim();
+    if q.len() > 100 || q.chars().any(char::is_control) {
+        return Err(AppError::invalid_input("invalid dossier catalog query"));
+    }
+    Ok((!q.is_empty()).then(|| q.to_string()))
 }
 
 pub fn task_summary_page(
@@ -2475,21 +2487,30 @@ mod tests {
             _space_id: Uuid,
             _space_key: &'a str,
             cursor: Option<&'a str>,
+            q: Option<&'a str>,
             limit: usize,
         ) -> WikiDossierRepositoryFuture<'a, Vec<shared::TaskSummaryResponse>> {
             Box::pin(async move {
-                Ok(
-                    (cursor.is_none_or(|key| self.task.task_key.as_str() > key) && limit > 0)
-                        .then(|| shared::TaskSummaryResponse {
-                            space_key: self.task.space_key.clone(),
-                            task_key: self.task.task_key.clone(),
-                            title: self.task.title.clone(),
-                            document_count: self.task.document_count,
-                            evidence_count: self.task.evidence_count,
-                        })
-                        .into_iter()
-                        .collect(),
-                )
+                Ok((cursor.is_none_or(|key| self.task.task_key.as_str() > key)
+                    && q.is_none_or(|value| {
+                        self.task
+                            .task_key
+                            .to_lowercase()
+                            .contains(&value.to_lowercase())
+                            || self.task.title.as_deref().is_some_and(|title| {
+                                title.to_lowercase().contains(&value.to_lowercase())
+                            })
+                    })
+                    && limit > 0)
+                    .then(|| shared::TaskSummaryResponse {
+                        space_key: self.task.space_key.clone(),
+                        task_key: self.task.task_key.clone(),
+                        title: self.task.title.clone(),
+                        document_count: self.task.document_count,
+                        evidence_count: self.task.evidence_count,
+                    })
+                    .into_iter()
+                    .collect())
             })
         }
 
@@ -2571,11 +2592,22 @@ mod tests {
             _space_id: Uuid,
             _space_key: &'a str,
             cursor: Option<&'a str>,
+            q: Option<&'a str>,
             limit: usize,
         ) -> WikiDossierRepositoryFuture<'a, Vec<shared::PhaseSummaryResponse>> {
             Box::pin(async move {
                 Ok(
-                    (cursor.is_none_or(|key| self.phase.phase_key.as_str() > key) && limit > 0)
+                    (cursor.is_none_or(|key| self.phase.phase_key.as_str() > key)
+                        && q.is_none_or(|value| {
+                            self.phase
+                                .phase_key
+                                .to_lowercase()
+                                .contains(&value.to_lowercase())
+                                || self.phase.title.as_deref().is_some_and(|title| {
+                                    title.to_lowercase().contains(&value.to_lowercase())
+                                })
+                        })
+                        && limit > 0)
                         .then(|| shared::PhaseSummaryResponse {
                             space_key: self.phase.space_key.clone(),
                             phase_key: self.phase.phase_key.clone(),
@@ -4066,6 +4098,7 @@ mod tests {
                 shared::DossierCatalogQuery {
                     limit: Some(1),
                     cursor: Some(" SDLC-41 ".to_string()),
+                    q: Some("sdlc".to_string()),
                 },
             )
             .await
@@ -4084,6 +4117,7 @@ mod tests {
                 shared::DossierCatalogQuery {
                     limit: None,
                     cursor: Some(" Implementation ".to_string()),
+                    q: None,
                 },
             )
             .await
@@ -4097,6 +4131,7 @@ mod tests {
                     shared::DossierCatalogQuery {
                         limit: Some(0),
                         cursor: None,
+                        q: None,
                     },
                 )
                 .await
@@ -4110,6 +4145,7 @@ mod tests {
                     shared::DossierCatalogQuery {
                         limit: Some(101),
                         cursor: None,
+                        q: None,
                     },
                 )
                 .await

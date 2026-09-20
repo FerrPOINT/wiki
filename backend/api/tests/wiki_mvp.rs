@@ -2187,6 +2187,30 @@ async fn wiki_memory_dossier_summaries_page_without_nested_payloads() {
         assert_eq!(status, StatusCode::UNAUTHORIZED);
     }
 
+    let (status, searched) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}/task-summaries?limit=1&q=task-2"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(searched["tasks"].as_array().unwrap().len(), 1);
+    assert_eq!(searched["tasks"][0]["task_key"], "TASK-2");
+    assert!(searched["next_cursor"].is_null());
+    let (status, searched) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}/phase-summaries?limit=1&q=CATALOG"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(searched["phases"].as_array().unwrap().len(), 1);
+    assert!(searched["next_cursor"].is_string());
+
     let (status, _) = call(
         &app,
         Method::POST,
@@ -2206,6 +2230,16 @@ async fn wiki_memory_dossier_summaries_page_without_nested_payloads() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(page["tasks"][0]["document_count"], 0);
+    let (status, searched) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}/task-summaries?q=CATALOG"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(searched["tasks"].as_array().unwrap().is_empty());
 }
 
 #[tokio::test]
@@ -4742,6 +4776,29 @@ async fn wiki_postgres_dossier_summaries_page_and_count_without_nested_payloads(
         assert!(second["next_cursor"].is_null());
     }
 
+    let (status, searched) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}/task-summaries?limit=1&q=task%202"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(searched["tasks"].as_array().unwrap().len(), 1);
+    assert_eq!(searched["tasks"][0]["title"], "Task 2");
+    let (status, searched) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}/phase-summaries?q=LINKED"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(searched["phases"].as_array().unwrap().len(), 1);
+    assert_eq!(searched["phases"][0]["phase_key"], "phase-0");
+
     let indexes: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM pg_indexes WHERE schemaname = 'public' AND indexname IN ('task_dossiers_catalog_key_idx', 'phase_dossiers_catalog_key_idx')",
     )
@@ -4769,6 +4826,16 @@ async fn wiki_postgres_dossier_summaries_page_and_count_without_nested_payloads(
     assert_eq!(status, StatusCode::OK);
     assert_eq!(page["tasks"][0]["document_count"], 0);
     assert_eq!(page["tasks"][0]["evidence_count"], 1);
+    let (status, searched) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}/phase-summaries?q=LINKED"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(searched["phases"].as_array().unwrap().is_empty());
     pool.close().await;
 }
 

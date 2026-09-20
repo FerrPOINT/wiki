@@ -630,6 +630,7 @@ pub struct DossierCatalogQuery {
     #[param(minimum = 1, maximum = 100)]
     pub limit: Option<usize>,
     pub cursor: Option<String>,
+    pub q: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]

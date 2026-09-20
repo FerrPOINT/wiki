@@ -253,6 +253,8 @@ enum TaskCommands {
         limit: Option<usize>,
         #[arg(long)]
         cursor: Option<String>,
+        #[arg(long)]
+        q: Option<String>,
     },
     Get(LinkTargetArgs),
     Docs(LinkTargetArgs),
@@ -269,6 +271,8 @@ enum PhaseCommands {
         limit: Option<usize>,
         #[arg(long)]
         cursor: Option<String>,
+        #[arg(long)]
+        q: Option<String>,
     },
     Get(LinkTargetArgs),
     Docs(LinkTargetArgs),
@@ -822,8 +826,13 @@ async fn execute_task(api: &ApiClient, command: TaskCommands) -> Result<Value> {
             space,
             limit,
             cursor,
+            q,
         } => {
-            let query = query_string([("limit", limit.map(|n| n.to_string())), ("cursor", cursor)]);
+            let query = query_string([
+                ("limit", limit.map(|n| n.to_string())),
+                ("cursor", cursor),
+                ("q", q),
+            ]);
             api.get(&format!("/spaces/{}/task-summaries{query}", enc(&space)))
                 .await
         }
@@ -852,8 +861,13 @@ async fn execute_phase(api: &ApiClient, command: PhaseCommands) -> Result<Value>
             space,
             limit,
             cursor,
+            q,
         } => {
-            let query = query_string([("limit", limit.map(|n| n.to_string())), ("cursor", cursor)]);
+            let query = query_string([
+                ("limit", limit.map(|n| n.to_string())),
+                ("cursor", cursor),
+                ("q", q),
+            ]);
             api.get(&format!("/spaces/{}/phase-summaries{query}", enc(&space)))
                 .await
         }
@@ -2145,6 +2159,7 @@ mod tests {
                     space: "SDLC KB".to_string(),
                     limit: Some(25),
                     cursor: Some("SDLC/24".to_string()),
+                    q: Some("Plan A".to_string()),
                 },
             },
         )
@@ -2202,6 +2217,7 @@ mod tests {
                     space: "SDLC KB".to_string(),
                     limit: Some(10),
                     cursor: Some("phase-9".to_string()),
+                    q: Some("Review".to_string()),
                 },
             },
         )
@@ -2273,7 +2289,7 @@ mod tests {
         assert_eq!(requests[0].method, Method::GET);
         assert_eq!(
             requests[0].path,
-            "/api/v1/spaces/SDLC%20KB/task-summaries?limit=25&cursor=SDLC%2F24"
+            "/api/v1/spaces/SDLC%20KB/task-summaries?limit=25&cursor=SDLC%2F24&q=Plan%20A"
         );
         assert!(requests[0].idempotency_key.is_none());
         assert_eq!(requests[1].method, Method::GET);
@@ -2303,7 +2319,7 @@ mod tests {
         assert_eq!(requests[5].method, Method::GET);
         assert_eq!(
             requests[5].path,
-            "/api/v1/spaces/SDLC%20KB/phase-summaries?limit=10&cursor=phase-9"
+            "/api/v1/spaces/SDLC%20KB/phase-summaries?limit=10&cursor=phase-9&q=Review"
         );
         assert!(requests[5].idempotency_key.is_none());
         assert_eq!(requests[6].method, Method::GET);

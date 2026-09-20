@@ -103,6 +103,7 @@ wiki doc revision <document-id> <revision-id>
 ```bash
 wiki task list --space SDLC
 wiki task list --space SDLC --limit 20 --cursor SDLC-42
+wiki task list --space SDLC --q requirements
 wiki task get --space SDLC --key SDLC-42
 wiki task docs --space SDLC --key SDLC-42
 wiki task evidence --space SDLC --key SDLC-42
@@ -114,13 +115,14 @@ wiki task link-doc --space SDLC --key SDLC-42 --document <document-id>
 ```bash
 wiki phase list --space SDLC
 wiki phase list --space SDLC --limit 20 --cursor implementation
+wiki phase list --space SDLC --q review
 wiki phase get --space SDLC --key implementation
 wiki phase docs --space SDLC --key implementation
 wiki phase evidence --space SDLC --key implementation
 wiki phase link-doc --space SDLC --key implementation --document <document-id>
 ```
 
-`task list` и `phase list` возвращают компактную страницу из 20 записей по умолчанию. Для следующей страницы передайте `next_cursor` из ответа через `--cursor`; допустимый `--limit` — 1–100. Детальные документы и материалы доступны через `get`, `docs` и `evidence`.
+`task list` и `phase list` возвращают компактную страницу из 20 записей по умолчанию. `--q` ищет по ключу и названию во всём пространстве. Для следующей страницы передайте `next_cursor` из ответа через `--cursor` с тем же `--q`; допустимый `--limit` — 1–100. Детальные документы и материалы доступны через `get`, `docs` и `evidence`.
 
 ### Evidence
 

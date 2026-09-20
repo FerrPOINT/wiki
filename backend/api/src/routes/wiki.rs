@@ -3,10 +3,10 @@ use app::wiki::{
     DEFAULT_SEARCH_LIMIT, MAX_AUDIT_LIMIT, MAX_DOCUMENT_REVISION_LIMIT, MAX_EVIDENCE_LIMIT,
     MAX_SEARCH_LIMIT, WikiSpaceAccess, audit_log_page, checksum, clamp_limit_with_default,
     dossier_catalog_limit, markdown_to_html, normalize_attachment_file_name,
-    normalize_document_type, normalize_evidence_type, normalize_phase_key, normalize_required,
-    normalize_space_key, normalize_space_role, normalize_task_key, parse_audit_cursor,
-    phase_summary_page, safe_download_filename, slugify, snippet, space_role_allows,
-    task_summary_page,
+    normalize_document_type, normalize_dossier_catalog_search, normalize_evidence_type,
+    normalize_phase_key, normalize_required, normalize_space_key, normalize_space_role,
+    normalize_task_key, parse_audit_cursor, phase_summary_page, safe_download_filename, slugify,
+    snippet, space_role_allows, task_summary_page,
 };
 use axum::{
     Extension, Json,
@@ -2118,6 +2118,7 @@ pub async fn list_task_summaries(
         .as_deref()
         .map(normalize_task_key)
         .transpose()?;
+    let q = normalize_dossier_catalog_search(query.q.as_deref())?.map(|value| value.to_lowercase());
     let mut task_keys = BTreeSet::new();
     for document in store
         .documents
@@ -2134,6 +2135,17 @@ pub async fn list_task_summaries(
     let tasks = task_keys
         .into_iter()
         .filter(|task_key| cursor.as_ref().is_none_or(|value| task_key > value))
+        .filter(|task_key| {
+            q.as_ref().is_none_or(|needle| {
+                task_key.to_lowercase().contains(needle)
+                    || store.documents.values().any(|document| {
+                        document.space_key == key
+                            && document.status != "archived"
+                            && document.task_keys.iter().any(|value| value == task_key)
+                            && document.title.to_lowercase().contains(needle)
+                    })
+            })
+        })
         .take(limit + 1)
         .map(|task_key| task_summary(&store, &key, &task_key))
         .collect();
@@ -2361,6 +2373,7 @@ pub async fn list_phase_summaries(
         .as_deref()
         .map(normalize_phase_key)
         .transpose()?;
+    let q = normalize_dossier_catalog_search(query.q.as_deref())?.map(|value| value.to_lowercase());
     let mut phase_keys = BTreeSet::new();
     for document in store
         .documents
@@ -2377,6 +2390,17 @@ pub async fn list_phase_summaries(
     let phases = phase_keys
         .into_iter()
         .filter(|phase_key| cursor.as_ref().is_none_or(|value| phase_key > value))
+        .filter(|phase_key| {
+            q.as_ref().is_none_or(|needle| {
+                phase_key.to_lowercase().contains(needle)
+                    || store.documents.values().any(|document| {
+                        document.space_key == key
+                            && document.status != "archived"
+                            && document.phase_keys.iter().any(|value| value == phase_key)
+                            && document.title.to_lowercase().contains(needle)
+                    })
+            })
+        })
         .take(limit + 1)
         .map(|phase_key| phase_summary(&store, &key, &phase_key))
         .collect();

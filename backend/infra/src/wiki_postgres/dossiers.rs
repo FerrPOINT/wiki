@@ -186,6 +186,7 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
         space_id: Uuid,
         space_key: &'a str,
         cursor: Option<&'a str>,
+        q: Option<&'a str>,
         limit: usize,
     ) -> WikiDossierRepositoryFuture<'a, Vec<TaskSummaryResponse>> {
         Box::pin(async move {
@@ -196,6 +197,17 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
                     FROM task_dossiers
                     WHERE space_id = $1
                       AND ($2::text IS NULL OR task_key COLLATE "C" > $2::text COLLATE "C")
+                      AND ($4::text IS NULL
+                           OR strpos(lower(task_key), lower($4::text)) > 0
+                           OR strpos(lower(coalesce(title_snapshot, '')), lower($4::text)) > 0
+                           OR EXISTS (
+                               SELECT 1
+                               FROM document_task_links dtl
+                               JOIN documents d ON d.id = dtl.document_id
+                               WHERE dtl.task_dossier_id = task_dossiers.id
+                                 AND d.archived_at IS NULL
+                                 AND strpos(lower(d.title), lower($4::text)) > 0
+                           ))
                     ORDER BY task_key COLLATE "C"
                     LIMIT $3
                 )
@@ -221,6 +233,7 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
             .bind(space_id)
             .bind(cursor)
             .bind(i64::try_from(limit).map_err(|_| shared::AppError::invalid_input("invalid limit"))?)
+            .bind(q)
             .fetch_all(&self.backend.pool)
             .await
             .map_err(shared::AppError::database)?;
@@ -369,6 +382,7 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
         space_id: Uuid,
         space_key: &'a str,
         cursor: Option<&'a str>,
+        q: Option<&'a str>,
         limit: usize,
     ) -> WikiDossierRepositoryFuture<'a, Vec<PhaseSummaryResponse>> {
         Box::pin(async move {
@@ -379,6 +393,17 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
                     FROM phase_dossiers
                     WHERE space_id = $1
                       AND ($2::text IS NULL OR phase_key COLLATE "C" > $2::text COLLATE "C")
+                      AND ($4::text IS NULL
+                           OR strpos(lower(phase_key), lower($4::text)) > 0
+                           OR strpos(lower(coalesce(phase_name, '')), lower($4::text)) > 0
+                           OR EXISTS (
+                               SELECT 1
+                               FROM document_phase_links dpl
+                               JOIN documents d ON d.id = dpl.document_id
+                               WHERE dpl.phase_dossier_id = phase_dossiers.id
+                                 AND d.archived_at IS NULL
+                                 AND strpos(lower(d.title), lower($4::text)) > 0
+                           ))
                     ORDER BY phase_key COLLATE "C"
                     LIMIT $3
                 )
@@ -397,6 +422,7 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
             .bind(space_id)
             .bind(cursor)
             .bind(i64::try_from(limit).map_err(|_| shared::AppError::invalid_input("invalid limit"))?)
+            .bind(q)
             .fetch_all(&self.backend.pool)
             .await
             .map_err(shared::AppError::database)?;
