@@ -275,6 +275,45 @@ describe('EvidencePage', () => {
     )
   })
 
+  it('confirms a saved item even when the active filter excludes it', () => {
+    const created = evidenceItem('created', { title: 'Новый материал' })
+    createLinkMutate.mockImplementation((_payload, options) => options.onSuccess(created))
+    setupEvidence('/evidence?q=unrelated')
+    openCreateForm()
+    fillEvidenceForm()
+    fireEvent.change(screen.getByLabelText('URL материала'), {
+      target: { value: 'https://ci.local/jobs/new' },
+    })
+    fireEvent.submit(screen.getByRole('button', { name: 'Сохранить материал' }).closest('form')!)
+    expect(screen.getByRole('status')).toHaveTextContent('Материал «Новый материал» добавлен')
+    expect(screen.queryByLabelText('Название')).not.toBeInTheDocument()
+    fireEvent.click(within(screen.getByRole('status')).getByRole('button', { name: 'Открыть' }))
+    expect(useEvidenceItem).toHaveBeenLastCalledWith('created')
+  })
+
+  it('locks every create control while a request is pending', () => {
+    setupEvidence()
+    openCreateForm()
+    useCreateEvidence.mockReturnValue({ mutate: createLinkMutate, isPending: true, error: null })
+    fireEvent.change(screen.getByLabelText('Поиск материалов'), { target: { value: 'refresh' } })
+    expect(screen.getByRole('button', { name: 'Закрыть форму' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Ссылка' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Файл' })).toBeDisabled()
+    for (const label of [
+      'Пространство',
+      'Документ',
+      'Название',
+      'Задача',
+      'Фаза',
+      'URL материала',
+    ]) {
+      expect(screen.getByLabelText(label)).toBeDisabled()
+    }
+    expect(screen.getByRole('button', { name: 'Сохраняем...' })).toBeDisabled()
+    fireEvent.submit(screen.getByLabelText('Название').closest('form')!)
+    expect(createLinkMutate).not.toHaveBeenCalled()
+  })
+
   it('requires an owner target before creating evidence', () => {
     setupEvidence()
     openCreateForm()
@@ -295,7 +334,7 @@ describe('EvidencePage', () => {
 
   it('clears the native file input after success and permits choosing the same file again', async () => {
     const user = userEvent.setup()
-    createFileMutate.mockImplementation((_payload, options) => options.onSuccess())
+    createFileMutate.mockImplementation((_payload, options) => options.onSuccess(defaultItems[1]))
     setupEvidence()
     openCreateForm()
     await user.click(screen.getByRole('button', { name: 'Файл' }))
@@ -305,6 +344,7 @@ describe('EvidencePage', () => {
     fireEvent.submit(screen.getByLabelText('Файл материала').closest('form')!)
     expect(createFileMutate).toHaveBeenCalledTimes(1)
     expect(screen.queryByLabelText('Файл материала')).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Материал «Лог сборки» добавлен')
     openCreateForm()
     expect(screen.getByLabelText('Файл материала')).toHaveValue('')
     fillEvidenceForm()

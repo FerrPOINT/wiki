@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import {
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -12,6 +13,7 @@ import {
   RotateCcw,
   Search,
   Upload,
+  X,
 } from 'lucide-react'
 import {
   Button,
@@ -198,6 +200,7 @@ export function EvidencePage() {
   const registryRef = useRef<HTMLDivElement>(null)
   const [mode, setMode] = useState<EvidenceMode>('external_url')
   const [isCreateOpen, setCreateOpen] = useState(false)
+  const [createdEvidence, setCreatedEvidence] = useState<Evidence | null>(null)
   const [targetError, setTargetError] = useState('')
   const [filterError, setFilterError] = useState('')
   const [filterQuery, setFilterQuery] = useState(appliedQuery)
@@ -258,6 +261,11 @@ export function EvidencePage() {
     setCursors([null])
   }
 
+  function handleSaved(evidence: Evidence) {
+    resetForm()
+    setCreatedEvidence(evidence)
+  }
+
   function applyFilters(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (optional(filterSpace)?.length === 1) {
@@ -309,11 +317,13 @@ export function EvidencePage() {
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (isSaving) return
     if (!optional(documentId) && !optional(task) && !optional(phase)) {
       setTargetError('Укажите документ, задачу или фазу')
       return
     }
     setTargetError('')
+    setCreatedEvidence(null)
     const evidence = {
       space: space.trim().toUpperCase(),
       document_id: optional(documentId),
@@ -324,11 +334,11 @@ export function EvidencePage() {
     if (mode === 'external_url') {
       createLink.mutate(
         { ...evidence, evidence_type: 'external_url', url: optional(url) },
-        { onSuccess: resetForm },
+        { onSuccess: handleSaved },
       )
       return
     }
-    if (file) createFile.mutate({ file, evidence }, { onSuccess: resetForm })
+    if (file) createFile.mutate({ file, evidence }, { onSuccess: handleSaved })
   }
 
   return (
@@ -347,6 +357,36 @@ export function EvidencePage() {
         </Button>
       </header>
 
+      {createdEvidence && (
+        <div
+          role="status"
+          className="flex flex-wrap items-center gap-2 border-y border-border py-3 text-sm text-text-secondary"
+        >
+          <CheckCircle2 className="h-4 w-4 text-success" />
+          <span className="mr-auto min-w-0 break-words">
+            Материал «{createdEvidence.title}» добавлен
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => selectEvidence(createdEvidence.id)}
+          >
+            Открыть
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            aria-label="Закрыть уведомление"
+            title="Закрыть уведомление"
+            onClick={() => setCreatedEvidence(null)}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
       {isCreateOpen && (
         <form
           id="evidence-create-form"
@@ -359,6 +399,7 @@ export function EvidencePage() {
               size="sm"
               variant={mode === 'external_url' ? 'default' : 'secondary'}
               onClick={() => setMode('external_url')}
+              disabled={isSaving}
               aria-pressed={mode === 'external_url'}
             >
               <Link2 className="h-4 w-4" />
@@ -369,6 +410,7 @@ export function EvidencePage() {
               size="sm"
               variant={mode === 'uploaded_file' ? 'default' : 'secondary'}
               onClick={() => setMode('uploaded_file')}
+              disabled={isSaving}
               aria-pressed={mode === 'uploaded_file'}
             >
               <Upload className="h-4 w-4" />
@@ -382,6 +424,7 @@ export function EvidencePage() {
                 id="evidence-space"
                 value={space}
                 onChange={(event) => setSpace(event.target.value.toUpperCase())}
+                disabled={isSaving}
                 required
               />
             </div>
@@ -394,6 +437,7 @@ export function EvidencePage() {
                   setDocumentId(event.target.value)
                   setTargetError('')
                 }}
+                disabled={isSaving}
                 placeholder="ID или slug"
               />
             </div>
@@ -403,6 +447,7 @@ export function EvidencePage() {
                 id="evidence-title"
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
+                disabled={isSaving}
                 required
               />
             </div>
@@ -415,6 +460,7 @@ export function EvidencePage() {
                   setTask(event.target.value)
                   setTargetError('')
                 }}
+                disabled={isSaving}
               />
             </div>
             <div className="space-y-1.5">
@@ -426,6 +472,7 @@ export function EvidencePage() {
                   setPhase(event.target.value)
                   setTargetError('')
                 }}
+                disabled={isSaving}
               />
             </div>
           </div>
@@ -435,6 +482,7 @@ export function EvidencePage() {
                 type="url"
                 value={url}
                 onChange={(event) => setUrl(event.target.value)}
+                disabled={isSaving}
                 placeholder="https://..."
                 aria-label="URL материала"
                 required
@@ -445,6 +493,7 @@ export function EvidencePage() {
                 type="file"
                 aria-label="Файл материала"
                 onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                disabled={isSaving}
                 required
               />
             )}

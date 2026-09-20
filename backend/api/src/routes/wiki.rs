@@ -2671,25 +2671,25 @@ pub async fn list_evidence(
         })
         .filter(|item| {
             cursor.as_ref().is_none_or(|cursor| {
-                DateTime::parse_from_rfc3339(&item.created_at)
-                    .ok()
-                    .and_then(|created_at| {
-                        Uuid::parse_str(&item.id)
-                            .ok()
-                            .map(|id| (created_at.timestamp_micros(), id))
-                    })
+                evidence_cursor_key(item)
                     .is_some_and(|key| key < (cursor.created_at.timestamp_micros(), cursor.id))
             })
         })
         .cloned()
         .collect();
-    items.sort_by(|a, b| {
-        let a_time = DateTime::parse_from_rfc3339(&a.created_at).ok();
-        let b_time = DateTime::parse_from_rfc3339(&b.created_at).ok();
-        b_time.cmp(&a_time).then_with(|| b.id.cmp(&a.id))
-    });
+    sort_evidence_for_page(&mut items);
     items.truncate(limit + 1);
     Ok(Json(evidence_page(items, limit)?))
+}
+
+fn evidence_cursor_key(item: &EvidenceResponse) -> Option<(i64, Uuid)> {
+    let created_at = DateTime::parse_from_rfc3339(&item.created_at).ok()?;
+    let id = Uuid::parse_str(&item.id).ok()?;
+    Some((created_at.timestamp_micros(), id))
+}
+
+fn sort_evidence_for_page(items: &mut [EvidenceResponse]) {
+    items.sort_by(|a, b| evidence_cursor_key(b).cmp(&evidence_cursor_key(a)));
 }
 
 #[utoipa::path(
@@ -3380,6 +3380,51 @@ fn new_id() -> String {
 
 fn now_iso() -> String {
     Utc::now().to_rfc3339()
+}
+
+#[cfg(test)]
+mod evidence_cursor_tests {
+    use super::*;
+
+    #[test]
+    fn memory_evidence_paging_uses_uuid_when_nanoseconds_share_a_microsecond() {
+        let make_item = |id: &str, created_at: &str| EvidenceResponse {
+            id: id.to_string(),
+            space_key: "SDLC".to_string(),
+            document_id: None,
+            task_key: Some("SDLC-1".to_string()),
+            phase_key: None,
+            title: "Cursor tie".to_string(),
+            evidence_type: "external_url".to_string(),
+            url: Some("https://ci.local/jobs/1".to_string()),
+            attachment_id: None,
+            checksum: None,
+            created_by: Uuid::nil().to_string(),
+            created_at: created_at.to_string(),
+        };
+        let higher_id = "00000000-0000-0000-0000-000000000002";
+        let lower_id = "00000000-0000-0000-0000-000000000001";
+        let mut items = vec![
+            make_item(lower_id, "2026-09-20T12:00:00.123456900Z"),
+            make_item(higher_id, "2026-09-20T12:00:00.123456100Z"),
+        ];
+        sort_evidence_for_page(&mut items);
+        assert_eq!(items[0].id, higher_id);
+
+        let page = evidence_page(items.clone(), 1).unwrap();
+        let cursor = parse_evidence_cursor(page.next_cursor.as_deref())
+            .unwrap()
+            .unwrap();
+        let remaining: Vec<_> = items
+            .iter()
+            .filter(|item| {
+                evidence_cursor_key(item)
+                    .is_some_and(|key| key < (cursor.created_at.timestamp_micros(), cursor.id))
+            })
+            .collect();
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].id, lower_id);
+    }
 }
 
 fn default_user_role() -> String {
