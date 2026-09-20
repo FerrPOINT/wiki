@@ -9,26 +9,16 @@ export const ssoConfig = {
 
 export const useAuthStore = createAuthStore({
   storageKey: 'wiki-auth',
+  legacyKeys: ['wiki-refresh-token'],
 })
 export type { AuthState } from '@sdlc/ui/auth'
 
-// Local extra: legacy refresh-token storage helpers (cookie flow primary).
 const REFRESH_KEY = 'wiki-refresh-token'
 
-export function storeRefreshToken(token: string | null): void {
+export function clearLegacyRefreshToken(): void {
   try {
-    const storage = getSafeBrowserStorage()
-    if (token) storage.setItem(REFRESH_KEY, token)
-    else storage.removeItem(REFRESH_KEY)
+    getSafeBrowserStorage().removeItem(REFRESH_KEY)
   } catch {
-    // storage unavailable — cookie flow remains
-  }
-}
-
-export function readRefreshToken(): string | null {
-  try {
-    return getSafeBrowserStorage().getItem(REFRESH_KEY)
-  } catch {
-    return null
+    // Storage can be unavailable in private or opaque browser contexts.
   }
 }

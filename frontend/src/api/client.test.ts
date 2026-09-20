@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiError, apiBlobRequest, apiRequest } from './client'
-import { storeRefreshToken, useAuthStore } from '@/shared/auth/store'
+import { clearLegacyRefreshToken, useAuthStore } from '@/shared/auth/store'
 
 function mockFetchResponse(response: Response) {
   const fetchMock = vi.fn<typeof fetch>()
@@ -29,7 +29,7 @@ async function expectApiError(request: Promise<unknown>): Promise<ApiError> {
 describe('apiRequest error handling', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
-    storeRefreshToken(null)
+    clearLegacyRefreshToken()
     useAuthStore.setState({
       token: null,
       userId: null,

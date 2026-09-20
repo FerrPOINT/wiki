@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router'
 import { completeSso } from '@sdlc/ui/sso'
 import { Button } from '@sdlc/ui/ui'
 import { apiBaseUrl } from '@/api/client'
-import { ssoConfig, storeRefreshToken, useAuthStore } from '@/shared/auth/store'
+import { clearLegacyRefreshToken, ssoConfig, useAuthStore } from '@/shared/auth/store'
 
 let pending: ReturnType<typeof completeSso> | null = null
 function completion() {
@@ -37,7 +37,7 @@ export function SsoCallbackPage() {
           display_name: string
         }
         if (!active) return
-        storeRefreshToken(null)
+        clearLegacyRefreshToken()
         useAuthStore.getState().setAuth({
           token: session.accessToken,
           userId: user.id,
