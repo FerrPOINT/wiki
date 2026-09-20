@@ -32,7 +32,7 @@
 - Users and roles: global admin user list/create/update, space-admin member management and viewer/editor permission boundaries.
 - Spaces: list/create/update/archive, member list/upsert/delete and page tree.
 - Documents: create/get/draft/publish/archive/move, immutable revision detail, optional `base_revision_id` stale publish conflict and bounded latest-first revision history; archived documents and documents inside archived spaces reject write commands, including new evidence attached to archived pages.
-- Task/phase dossiers: list/detail, linked documents and linked evidence by external keys; archived documents and archived spaces are rejected on link commands.
+- Task/phase dossiers: legacy list/detail plus bounded summary catalogs (`limit`/key cursor), linked documents and linked evidence by external keys; archived documents and archived spaces are rejected on link commands. Summary catalog SQL reads one limited page without loading nested document/evidence payloads; UI migration from the legacy list is tracked separately.
 - Evidence and attachments: URL evidence, staged file upload, owner-bound file evidence claim, visible file checksum/metadata, authorized attachment download and idempotent retry protection for write responses.
 - Search: document/evidence search with MVP filters, bounded result windows and permission boundaries.
 - Search performance: document search uses PostgreSQL `tsvector`/GIN with title/body weighting and an env-gated `EXPLAIN` smoke for the filtered MVP query shape.

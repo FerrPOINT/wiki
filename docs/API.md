@@ -101,6 +101,7 @@ Task dossier в MVP - это представление документов/evi
 | Method | Path                                                   | Назначение                       |
 | ------ | ------------------------------------------------------ | -------------------------------- |
 | `GET`  | `/spaces/{space_key}/tasks`                            | Список task keys, известных Wiki |
+| `GET`  | `/spaces/{space_key}/task-summaries`                   | Компактный каталог task dossiers с cursor |
 | `GET`  | `/spaces/{space_key}/tasks/{task_key}`                 | Сводка по task key               |
 | `POST` | `/spaces/{space_key}/tasks/{task_key}/links/documents` | Привязать документ к task key    |
 | `GET`  | `/spaces/{space_key}/tasks/{task_key}/documents`       | Документы task key               |
@@ -113,10 +114,13 @@ Phase dossier в MVP - это представление документов/ev
 | Method | Path                                                     | Назначение                        |
 | ------ | -------------------------------------------------------- | --------------------------------- |
 | `GET`  | `/spaces/{space_key}/phases`                             | Список phase keys, известных Wiki |
+| `GET`  | `/spaces/{space_key}/phase-summaries`                    | Компактный каталог phase dossiers с cursor |
 | `GET`  | `/spaces/{space_key}/phases/{phase_key}`                 | Сводка по phase key               |
 | `POST` | `/spaces/{space_key}/phases/{phase_key}/links/documents` | Привязать документ к phase key    |
 | `GET`  | `/spaces/{space_key}/phases/{phase_key}/documents`       | Документы phase key               |
 | `GET`  | `/spaces/{space_key}/phases/{phase_key}/evidence`        | Evidence phase key                |
+
+`task-summaries` и `phase-summaries` возвращают только `space_key`, ключ, `title`, `document_count` и `evidence_count`, без вложенных документов или evidence. `limit` по умолчанию 20, допускается `1..100`; `cursor` — последний ключ предыдущей страницы, в ответе `next_cursor=null` означает конец. Ключи сортируются в бинарном порядке, поэтому page boundary стабилен при совпадающих датах. Счётчик документов не включает архивные документы. Старые `/tasks` и `/phases` оставлены для совместимости, но новым каталогам следует использовать bounded summary endpoint.
 
 ## 10. Evidence and Attachments
 

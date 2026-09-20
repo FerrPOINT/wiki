@@ -2102,6 +2102,113 @@ async fn wiki_memory_search_filters_document_type_task_phase_archived_and_permis
 }
 
 #[tokio::test]
+async fn wiki_memory_dossier_summaries_page_without_nested_payloads() {
+    let app = test_app();
+    let token = login_memory_admin(&app).await;
+    let short = Uuid::now_v7().simple().to_string();
+    let space_key = format!("CAT-{}", &short[..12]).to_ascii_uppercase();
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces",
+        Some(&token),
+        Some(json!({ "key": space_key, "name": "Catalog test" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let (status, document) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/spaces/{space_key}/documents"),
+        Some(&token),
+        Some(json!({
+            "title": "Catalog document",
+            "slug": format!("catalog-document-{short}"),
+            "document_type": "requirements",
+            "content_markdown": "# Catalog"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let document_id = document["id"].as_str().unwrap();
+
+    for index in 0..3 {
+        let task_key = format!("TASK-{index}");
+        let phase_key = format!("phase-{index}");
+        for path in [
+            format!("/api/v1/spaces/{space_key}/tasks/{task_key}/links/documents"),
+            format!("/api/v1/spaces/{space_key}/phases/{phase_key}/links/documents"),
+        ] {
+            let (status, _) = call(
+                &app,
+                Method::POST,
+                &path,
+                Some(&token),
+                Some(json!({ "document_id": document_id })),
+            )
+            .await;
+            assert_eq!(status, StatusCode::OK);
+        }
+    }
+
+    for (kind, key_name) in [("task", "task_key"), ("phase", "phase_key")] {
+        let path = format!("/api/v1/spaces/{space_key}/{kind}-summaries?limit=2");
+        let (status, first) = call(&app, Method::GET, &path, Some(&token), None).await;
+        assert_eq!(status, StatusCode::OK);
+        let collection = if kind == "task" { "tasks" } else { "phases" };
+        assert_eq!(first[collection].as_array().unwrap().len(), 2);
+        assert_eq!(first[collection][0]["document_count"], 1);
+        assert_eq!(first[collection][0]["evidence_count"], 0);
+        assert!(first[collection][0].get("documents").is_none());
+        let cursor = first["next_cursor"].as_str().unwrap();
+        assert_eq!(first[collection][1][key_name].as_str(), Some(cursor));
+
+        let (status, second) = call(
+            &app,
+            Method::GET,
+            &format!("{path}&cursor={cursor}"),
+            Some(&token),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(second[collection].as_array().unwrap().len(), 1);
+        assert!(second["next_cursor"].is_null());
+        let (status, _) = call(
+            &app,
+            Method::GET,
+            &format!("/api/v1/spaces/{space_key}/{kind}-summaries?limit=0"),
+            Some(&token),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        let (status, _) = call(&app, Method::GET, &path, None, None).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+    }
+
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/documents/{document_id}/archive"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, page) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}/task-summaries?limit=1"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(page["tasks"][0]["document_count"], 0);
+}
+
+#[tokio::test]
 async fn wiki_memory_task_phase_document_links_enforce_space_boundary() {
     let app = test_app();
     let token = login_memory_admin(&app).await;
@@ -4507,6 +4614,161 @@ async fn wiki_postgres_audit_cursor_keeps_timestamp_ties_stable() {
     .await
     .unwrap();
     assert!(index_exists);
+    pool.close().await;
+}
+
+#[tokio::test]
+async fn wiki_postgres_dossier_summaries_page_and_count_without_nested_payloads() {
+    let Ok(database_url) = env::var("WIKI_TEST_DATABASE_URL") else {
+        eprintln!("skipping postgres dossier catalog test: WIKI_TEST_DATABASE_URL is not set");
+        return;
+    };
+    reset_postgres(&database_url).await;
+    let storage_dir = env::temp_dir().join(format!("wiki-api-test-{}", Uuid::now_v7()));
+    let (app, _) = postgres_test_app(database_url.clone(), storage_dir).await;
+    let token = login_admin(&app).await;
+    let short = Uuid::now_v7().simple().to_string();
+    let space_key = format!("CAT-{}", &short[..12]).to_ascii_uppercase();
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces",
+        Some(&token),
+        Some(json!({ "key": space_key, "name": "PG catalog test" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let pool = PgPoolOptions::new()
+        .max_connections(1)
+        .connect(&database_url)
+        .await
+        .unwrap();
+    let space_id: Uuid = sqlx::query_scalar("SELECT id FROM spaces WHERE key = $1")
+        .bind(&space_key)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    for index in (0..3).rev() {
+        sqlx::query(
+            "INSERT INTO task_dossiers (id, space_id, task_key, title_snapshot) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(Uuid::now_v7())
+        .bind(space_id)
+        .bind(format!("TASK-{index}"))
+        .bind(format!("Task {index}"))
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO phase_dossiers (id, space_id, phase_key, phase_name) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(Uuid::now_v7())
+        .bind(space_id)
+        .bind(format!("phase-{index}"))
+        .bind(format!("Phase {index}"))
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+    let (status, document) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/spaces/{space_key}/documents"),
+        Some(&token),
+        Some(json!({
+            "title": "Linked document",
+            "slug": format!("catalog-pg-document-{short}"),
+            "document_type": "requirements",
+            "content_markdown": "# Linked"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let document_id = document["id"].as_str().unwrap();
+    for path in [
+        format!("/api/v1/spaces/{space_key}/tasks/TASK-0/links/documents"),
+        format!("/api/v1/spaces/{space_key}/phases/phase-0/links/documents"),
+    ] {
+        let (status, _) = call(
+            &app,
+            Method::POST,
+            &path,
+            Some(&token),
+            Some(json!({ "document_id": document_id })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+    }
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(&token),
+        Some(json!({
+            "space": space_key,
+            "task_key": "TASK-0",
+            "phase_key": "phase-0",
+            "title": "Catalog evidence",
+            "evidence_type": "external_url",
+            "url": "https://ci.local/catalog-evidence"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    for (kind, collection, key) in [
+        ("task", "tasks", "task_key"),
+        ("phase", "phases", "phase_key"),
+    ] {
+        let path = format!("/api/v1/spaces/{space_key}/{kind}-summaries?limit=2");
+        let (status, first) = call(&app, Method::GET, &path, Some(&token), None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(first[collection].as_array().unwrap().len(), 2);
+        assert_eq!(first[collection][0]["document_count"], 1);
+        assert_eq!(first[collection][0]["evidence_count"], 1);
+        assert!(first[collection][0].get("documents").is_none());
+        let cursor = first["next_cursor"].as_str().unwrap();
+        assert_eq!(first[collection][1][key].as_str(), Some(cursor));
+        let (status, second) = call(
+            &app,
+            Method::GET,
+            &format!("{path}&cursor={cursor}"),
+            Some(&token),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(second[collection].as_array().unwrap().len(), 1);
+        assert!(second["next_cursor"].is_null());
+    }
+
+    let indexes: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM pg_indexes WHERE schemaname = 'public' AND indexname IN ('task_dossiers_catalog_key_idx', 'phase_dossiers_catalog_key_idx')",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(indexes, 2);
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/documents/{document_id}/archive"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, page) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}/task-summaries?limit=1"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(page["tasks"][0]["document_count"], 0);
+    assert_eq!(page["tasks"][0]["evidence_count"], 1);
     pool.close().await;
 }
 

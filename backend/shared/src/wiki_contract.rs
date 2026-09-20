@@ -232,6 +232,12 @@ pub trait WikiBackendPort: Send + Sync {
         claims: &WikiClaims,
         space_key: &str,
     ) -> Result<TaskPageListResponse, AppError>;
+    async fn list_task_summaries(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        query: DossierCatalogQuery,
+    ) -> Result<TaskSummaryListResponse, AppError>;
     async fn get_task(
         &self,
         claims: &WikiClaims,
@@ -262,6 +268,12 @@ pub trait WikiBackendPort: Send + Sync {
         claims: &WikiClaims,
         space_key: &str,
     ) -> Result<PhasePageListResponse, AppError>;
+    async fn list_phase_summaries(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        query: DossierCatalogQuery,
+    ) -> Result<PhaseSummaryListResponse, AppError>;
     async fn get_phase(
         &self,
         claims: &WikiClaims,
@@ -613,6 +625,28 @@ pub struct TaskPageListResponse {
     pub tasks: Vec<TaskPageResponse>,
 }
 
+#[derive(Debug, Clone, Deserialize, IntoParams)]
+pub struct DossierCatalogQuery {
+    #[param(minimum = 1, maximum = 100)]
+    pub limit: Option<usize>,
+    pub cursor: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct TaskSummaryResponse {
+    pub space_key: String,
+    pub task_key: String,
+    pub title: Option<String>,
+    pub document_count: usize,
+    pub evidence_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct TaskSummaryListResponse {
+    pub tasks: Vec<TaskSummaryResponse>,
+    pub next_cursor: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct PhasePageResponse {
     pub space_key: String,
@@ -627,6 +661,21 @@ pub struct PhasePageResponse {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct PhasePageListResponse {
     pub phases: Vec<PhasePageResponse>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct PhaseSummaryResponse {
+    pub space_key: String,
+    pub phase_key: String,
+    pub title: Option<String>,
+    pub document_count: usize,
+    pub evidence_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct PhaseSummaryListResponse {
+    pub phases: Vec<PhaseSummaryResponse>,
+    pub next_cursor: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]

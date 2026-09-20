@@ -178,6 +178,7 @@ API является единственным контрактом backend. UI �
 ### Task dossiers
 
 - `GET /api/v1/spaces/{space_key}/tasks`
+- `GET /api/v1/spaces/{space_key}/task-summaries` — компактный постраничный каталог без вложенных документов/evidence.
 - `GET /api/v1/spaces/{space_key}/tasks/{task_key}`
 - `POST /api/v1/spaces/{space_key}/tasks/{task_key}/links/documents`
 - `GET /api/v1/spaces/{space_key}/tasks/{task_key}/documents`
@@ -186,6 +187,7 @@ API является единственным контрактом backend. UI �
 ### Phase dossiers
 
 - `GET /api/v1/spaces/{space_key}/phases`
+- `GET /api/v1/spaces/{space_key}/phase-summaries` — компактный постраничный каталог без вложенных документов/evidence.
 - `GET /api/v1/spaces/{space_key}/phases/{phase_key}`
 - `POST /api/v1/spaces/{space_key}/phases/{phase_key}/links/documents`
 - `GET /api/v1/spaces/{space_key}/phases/{phase_key}/documents`

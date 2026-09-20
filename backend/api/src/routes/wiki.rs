@@ -2,10 +2,11 @@ use app::wiki::{
     DEFAULT_AUDIT_LIMIT, DEFAULT_DOCUMENT_REVISION_LIMIT, DEFAULT_EVIDENCE_LIMIT,
     DEFAULT_SEARCH_LIMIT, MAX_AUDIT_LIMIT, MAX_DOCUMENT_REVISION_LIMIT, MAX_EVIDENCE_LIMIT,
     MAX_SEARCH_LIMIT, WikiSpaceAccess, audit_log_page, checksum, clamp_limit_with_default,
-    markdown_to_html, normalize_attachment_file_name, normalize_document_type,
-    normalize_evidence_type, normalize_phase_key, normalize_required, normalize_space_key,
-    normalize_space_role, normalize_task_key, parse_audit_cursor, safe_download_filename, slugify,
-    snippet, space_role_allows,
+    dossier_catalog_limit, markdown_to_html, normalize_attachment_file_name,
+    normalize_document_type, normalize_evidence_type, normalize_phase_key, normalize_required,
+    normalize_space_key, normalize_space_role, normalize_task_key, parse_audit_cursor,
+    phase_summary_page, safe_download_filename, slugify, snippet, space_role_allows,
+    task_summary_page,
 };
 use axum::{
     Extension, Json,
@@ -2088,6 +2089,59 @@ pub async fn list_tasks(
 
 #[utoipa::path(
     get,
+    path = "/api/v1/spaces/{space_key}/task-summaries",
+    tag = "tasks",
+    params(("space_key" = String, Path), DossierCatalogQuery),
+    responses((status = 200, body = TaskSummaryListResponse)),
+    security(("bearer" = []))
+)]
+pub async fn list_task_summaries(
+    Path(space_key): Path<String>,
+    Query(query): Query<DossierCatalogQuery>,
+    Extension(backend): Extension<WikiBackend>,
+    Extension(claims): Extension<WikiClaims>,
+) -> Result<Json<TaskSummaryListResponse>, shared::AppError> {
+    if let Some(persistent) = backend.persistent_backend() {
+        return Ok(Json(
+            persistent
+                .list_task_summaries(&claims, &space_key, query)
+                .await?,
+        ));
+    }
+
+    let store = store().lock().expect("wiki store lock");
+    let key = normalize_space_key(&space_key)?;
+    ensure_space_access(&store, &key, &claims.user_id, WikiSpaceAccess::View)?;
+    let limit = dossier_catalog_limit(query.limit)?;
+    let cursor = query
+        .cursor
+        .as_deref()
+        .map(normalize_task_key)
+        .transpose()?;
+    let mut task_keys = BTreeSet::new();
+    for document in store
+        .documents
+        .values()
+        .filter(|item| item.space_key == key)
+    {
+        task_keys.extend(document.task_keys.iter().cloned());
+    }
+    for item in store.evidence.values().filter(|item| item.space_key == key) {
+        if let Some(task_key) = &item.task_key {
+            task_keys.insert(task_key.clone());
+        }
+    }
+    let tasks = task_keys
+        .into_iter()
+        .filter(|task_key| cursor.as_ref().is_none_or(|value| task_key > value))
+        .take(limit + 1)
+        .map(|task_key| task_summary(&store, &key, &task_key))
+        .collect();
+    Ok(Json(task_summary_page(tasks, limit)))
+}
+
+#[utoipa::path(
+    get,
     path = "/api/v1/spaces/{space_key}/tasks/{task_key}",
     tag = "tasks",
     params(("space_key" = String, Path), ("task_key" = String, Path)),
@@ -2274,6 +2328,59 @@ pub async fn list_phases(
         .map(|phase_key| phase_page(&store, &key, &phase_key))
         .collect();
     Ok(Json(PhasePageListResponse { phases }))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/spaces/{space_key}/phase-summaries",
+    tag = "phases",
+    params(("space_key" = String, Path), DossierCatalogQuery),
+    responses((status = 200, body = PhaseSummaryListResponse)),
+    security(("bearer" = []))
+)]
+pub async fn list_phase_summaries(
+    Path(space_key): Path<String>,
+    Query(query): Query<DossierCatalogQuery>,
+    Extension(backend): Extension<WikiBackend>,
+    Extension(claims): Extension<WikiClaims>,
+) -> Result<Json<PhaseSummaryListResponse>, shared::AppError> {
+    if let Some(persistent) = backend.persistent_backend() {
+        return Ok(Json(
+            persistent
+                .list_phase_summaries(&claims, &space_key, query)
+                .await?,
+        ));
+    }
+
+    let store = store().lock().expect("wiki store lock");
+    let key = normalize_space_key(&space_key)?;
+    ensure_space_access(&store, &key, &claims.user_id, WikiSpaceAccess::View)?;
+    let limit = dossier_catalog_limit(query.limit)?;
+    let cursor = query
+        .cursor
+        .as_deref()
+        .map(normalize_phase_key)
+        .transpose()?;
+    let mut phase_keys = BTreeSet::new();
+    for document in store
+        .documents
+        .values()
+        .filter(|item| item.space_key == key)
+    {
+        phase_keys.extend(document.phase_keys.iter().cloned());
+    }
+    for item in store.evidence.values().filter(|item| item.space_key == key) {
+        if let Some(phase_key) = &item.phase_key {
+            phase_keys.insert(phase_key.clone());
+        }
+    }
+    let phases = phase_keys
+        .into_iter()
+        .filter(|phase_key| cursor.as_ref().is_none_or(|value| phase_key > value))
+        .take(limit + 1)
+        .map(|phase_key| phase_summary(&store, &key, &phase_key))
+        .collect();
+    Ok(Json(phase_summary_page(phases, limit)))
 }
 
 #[utoipa::path(
@@ -3273,6 +3380,31 @@ fn task_page(store: &WikiStore, space_key: &str, task_key: &str) -> TaskPageResp
     }
 }
 
+fn task_summary(store: &WikiStore, space_key: &str, task_key: &str) -> TaskSummaryResponse {
+    let documents: Vec<_> = store
+        .documents
+        .values()
+        .filter(|document| {
+            document.space_key == space_key
+                && document.status != "archived"
+                && document.task_keys.iter().any(|key| key == task_key)
+        })
+        .collect();
+    TaskSummaryResponse {
+        space_key: space_key.to_string(),
+        task_key: task_key.to_string(),
+        title: documents.first().map(|document| document.title.clone()),
+        document_count: documents.len(),
+        evidence_count: store
+            .evidence
+            .values()
+            .filter(|item| {
+                item.space_key == space_key && item.task_key.as_deref() == Some(task_key)
+            })
+            .count(),
+    }
+}
+
 fn phase_page(store: &WikiStore, space_key: &str, phase_key: &str) -> PhasePageResponse {
     let documents: Vec<_> = store
         .documents
@@ -3291,6 +3423,30 @@ fn phase_page(store: &WikiStore, space_key: &str, phase_key: &str) -> PhasePageR
         evidence_count: evidence.len(),
         documents,
         evidence,
+    }
+}
+
+fn phase_summary(store: &WikiStore, space_key: &str, phase_key: &str) -> PhaseSummaryResponse {
+    PhaseSummaryResponse {
+        space_key: space_key.to_string(),
+        phase_key: phase_key.to_string(),
+        title: Some(phase_key.to_string()),
+        document_count: store
+            .documents
+            .values()
+            .filter(|document| {
+                document.space_key == space_key
+                    && document.status != "archived"
+                    && document.phase_keys.iter().any(|key| key == phase_key)
+            })
+            .count(),
+        evidence_count: store
+            .evidence
+            .values()
+            .filter(|item| {
+                item.space_key == space_key && item.phase_key.as_deref() == Some(phase_key)
+            })
+            .count(),
     }
 }
 

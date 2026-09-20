@@ -170,6 +170,8 @@ Unique: `(document_id, version)`.
 
 Unique: `(space_id, task_key)`.
 
+`task_dossiers_catalog_key_idx` covers `(space_id, task_key COLLATE "C")` for stable keyset catalog pages.
+
 ### phase_dossiers
 
 Срез документов/evidence по phase key.
@@ -184,6 +186,8 @@ Unique: `(space_id, task_key)`.
 | `updated_at` | timestamptz   | Обновление                                                      |
 
 Unique: `(space_id, phase_key)`.
+
+`phase_dossiers_catalog_key_idx` covers `(space_id, phase_key COLLATE "C")` for stable keyset catalog pages.
 
 ### document_task_links
 

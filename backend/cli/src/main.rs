@@ -249,6 +249,10 @@ enum TaskCommands {
     List {
         #[arg(long)]
         space: String,
+        #[arg(long)]
+        limit: Option<usize>,
+        #[arg(long)]
+        cursor: Option<String>,
     },
     Get(LinkTargetArgs),
     Docs(LinkTargetArgs),
@@ -261,6 +265,10 @@ enum PhaseCommands {
     List {
         #[arg(long)]
         space: String,
+        #[arg(long)]
+        limit: Option<usize>,
+        #[arg(long)]
+        cursor: Option<String>,
     },
     Get(LinkTargetArgs),
     Docs(LinkTargetArgs),
@@ -810,7 +818,15 @@ async fn execute_doc(api: &ApiClient, command: DocCommands) -> Result<Value> {
 
 async fn execute_task(api: &ApiClient, command: TaskCommands) -> Result<Value> {
     match command {
-        TaskCommands::List { space } => api.get(&format!("/spaces/{}/tasks", enc(&space))).await,
+        TaskCommands::List {
+            space,
+            limit,
+            cursor,
+        } => {
+            let query = query_string([("limit", limit.map(|n| n.to_string())), ("cursor", cursor)]);
+            api.get(&format!("/spaces/{}/task-summaries{query}", enc(&space)))
+                .await
+        }
         TaskCommands::Get(args) => api.get(&task_path(&args.space, &args.key)).await,
         TaskCommands::Docs(args) => {
             api.get(&format!("{}/documents", task_path(&args.space, &args.key)))
@@ -832,7 +848,15 @@ async fn execute_task(api: &ApiClient, command: TaskCommands) -> Result<Value> {
 
 async fn execute_phase(api: &ApiClient, command: PhaseCommands) -> Result<Value> {
     match command {
-        PhaseCommands::List { space } => api.get(&format!("/spaces/{}/phases", enc(&space))).await,
+        PhaseCommands::List {
+            space,
+            limit,
+            cursor,
+        } => {
+            let query = query_string([("limit", limit.map(|n| n.to_string())), ("cursor", cursor)]);
+            api.get(&format!("/spaces/{}/phase-summaries{query}", enc(&space)))
+                .await
+        }
         PhaseCommands::Get(args) => api.get(&phase_path(&args.space, &args.key)).await,
         PhaseCommands::Docs(args) => {
             api.get(&format!("{}/documents", phase_path(&args.space, &args.key)))
@@ -2119,6 +2143,8 @@ mod tests {
             Commands::Task {
                 command: TaskCommands::List {
                     space: "SDLC KB".to_string(),
+                    limit: Some(25),
+                    cursor: Some("SDLC/24".to_string()),
                 },
             },
         )
@@ -2174,6 +2200,8 @@ mod tests {
             Commands::Phase {
                 command: PhaseCommands::List {
                     space: "SDLC KB".to_string(),
+                    limit: Some(10),
+                    cursor: Some("phase-9".to_string()),
                 },
             },
         )
@@ -2243,7 +2271,10 @@ mod tests {
         let requests = server.requests();
         assert_eq!(requests.len(), 10);
         assert_eq!(requests[0].method, Method::GET);
-        assert_eq!(requests[0].path, "/api/v1/spaces/SDLC%20KB/tasks");
+        assert_eq!(
+            requests[0].path,
+            "/api/v1/spaces/SDLC%20KB/task-summaries?limit=25&cursor=SDLC%2F24"
+        );
         assert!(requests[0].idempotency_key.is_none());
         assert_eq!(requests[1].method, Method::GET);
         assert_eq!(requests[1].path, "/api/v1/spaces/SDLC%20KB/tasks/SDLC-42");
@@ -2270,7 +2301,10 @@ mod tests {
         assert_eq!(body["document_id"], "product requirements");
 
         assert_eq!(requests[5].method, Method::GET);
-        assert_eq!(requests[5].path, "/api/v1/spaces/SDLC%20KB/phases");
+        assert_eq!(
+            requests[5].path,
+            "/api/v1/spaces/SDLC%20KB/phase-summaries?limit=10&cursor=phase-9"
+        );
         assert!(requests[5].idempotency_key.is_none());
         assert_eq!(requests[6].method, Method::GET);
         assert_eq!(

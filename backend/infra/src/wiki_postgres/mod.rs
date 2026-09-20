@@ -445,6 +445,15 @@ impl WikiBackendPort for PostgresWikiBackend {
         PostgresWikiBackend::list_tasks(self, claims, space_key).await
     }
 
+    async fn list_task_summaries(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        query: DossierCatalogQuery,
+    ) -> Result<TaskSummaryListResponse, shared::AppError> {
+        PostgresWikiBackend::list_task_summaries(self, claims, space_key, query).await
+    }
+
     async fn get_task(
         &self,
         claims: &WikiClaims,
@@ -488,6 +497,15 @@ impl WikiBackendPort for PostgresWikiBackend {
         space_key: &str,
     ) -> Result<PhasePageListResponse, shared::AppError> {
         PostgresWikiBackend::list_phases(self, claims, space_key).await
+    }
+
+    async fn list_phase_summaries(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        query: DossierCatalogQuery,
+    ) -> Result<PhaseSummaryListResponse, shared::AppError> {
+        PostgresWikiBackend::list_phase_summaries(self, claims, space_key, query).await
     }
 
     async fn get_phase(

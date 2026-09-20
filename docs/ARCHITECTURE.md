@@ -12,6 +12,8 @@ Wiki - self-hosted база знаний для SDLC. Продукт храни�
 
 Wiki не владеет задачами, фазами, pipeline execution или Git-источниками. Она хранит только страницы, связи и подтверждающие материалы.
 
+Task/phase dossier catalogs use separate bounded summary reads: the repository selects `limit + 1` keys in `C` collation order, then computes title and counts only for that page. Detail endpoints retain their nested document/evidence payloads. Legacy unbounded list endpoints remain for existing clients until consumers migrate.
+
 ## 2. Клиенты и API
 
 ```text

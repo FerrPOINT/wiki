@@ -868,6 +868,14 @@ pub trait WikiDossierRepository {
         space_key: &'a str,
     ) -> WikiDossierRepositoryFuture<'a, Vec<shared::TaskPageResponse>>;
 
+    fn list_task_summaries<'a>(
+        &'a self,
+        space_id: Uuid,
+        space_key: &'a str,
+        cursor: Option<&'a str>,
+        limit: usize,
+    ) -> WikiDossierRepositoryFuture<'a, Vec<shared::TaskSummaryResponse>>;
+
     fn get_task<'a>(
         &'a self,
         space_id: Uuid,
@@ -900,6 +908,14 @@ pub trait WikiDossierRepository {
         space_id: Uuid,
         space_key: &'a str,
     ) -> WikiDossierRepositoryFuture<'a, Vec<shared::PhasePageResponse>>;
+
+    fn list_phase_summaries<'a>(
+        &'a self,
+        space_id: Uuid,
+        space_key: &'a str,
+        cursor: Option<&'a str>,
+        limit: usize,
+    ) -> WikiDossierRepositoryFuture<'a, Vec<shared::PhaseSummaryResponse>>;
 
     fn get_phase<'a>(
         &'a self,
@@ -947,6 +963,26 @@ impl<'a, R: WikiDossierRepository + ?Sized> WikiDossierUseCase<'a, R> {
         Ok(shared::TaskPageListResponse {
             tasks: self.repository.list_tasks(space_id, &key).await?,
         })
+    }
+
+    pub async fn list_task_summaries(
+        &self,
+        space_id: Uuid,
+        space_key: &str,
+        query: shared::DossierCatalogQuery,
+    ) -> Result<shared::TaskSummaryListResponse, AppError> {
+        let key = normalize_space_key(space_key)?;
+        let limit = dossier_catalog_limit(query.limit)?;
+        let cursor = query
+            .cursor
+            .as_deref()
+            .map(normalize_task_key)
+            .transpose()?;
+        let tasks = self
+            .repository
+            .list_task_summaries(space_id, &key, cursor.as_deref(), limit + 1)
+            .await?;
+        Ok(task_summary_page(tasks, limit))
     }
 
     pub async fn get_task(
@@ -1020,6 +1056,26 @@ impl<'a, R: WikiDossierRepository + ?Sized> WikiDossierUseCase<'a, R> {
         })
     }
 
+    pub async fn list_phase_summaries(
+        &self,
+        space_id: Uuid,
+        space_key: &str,
+        query: shared::DossierCatalogQuery,
+    ) -> Result<shared::PhaseSummaryListResponse, AppError> {
+        let key = normalize_space_key(space_key)?;
+        let limit = dossier_catalog_limit(query.limit)?;
+        let cursor = query
+            .cursor
+            .as_deref()
+            .map(normalize_phase_key)
+            .transpose()?;
+        let phases = self
+            .repository
+            .list_phase_summaries(space_id, &key, cursor.as_deref(), limit + 1)
+            .await?;
+        Ok(phase_summary_page(phases, limit))
+    }
+
     pub async fn get_phase(
         &self,
         space_id: Uuid,
@@ -1078,6 +1134,43 @@ impl<'a, R: WikiDossierRepository + ?Sized> WikiDossierUseCase<'a, R> {
                 .list_phase_evidence(space_id, &key, &phase_key)
                 .await?,
         })
+    }
+}
+
+pub fn dossier_catalog_limit(value: Option<usize>) -> Result<usize, AppError> {
+    let limit = value.unwrap_or(20);
+    if !(1..=100).contains(&limit) {
+        return Err(AppError::invalid_input(
+            "dossier catalog limit must be 1-100",
+        ));
+    }
+    Ok(limit)
+}
+
+pub fn task_summary_page(
+    mut tasks: Vec<shared::TaskSummaryResponse>,
+    limit: usize,
+) -> shared::TaskSummaryListResponse {
+    let has_more = tasks.len() > limit;
+    tasks.truncate(limit);
+    let next_cursor = has_more
+        .then(|| tasks.last().map(|task| task.task_key.clone()))
+        .flatten();
+    shared::TaskSummaryListResponse { tasks, next_cursor }
+}
+
+pub fn phase_summary_page(
+    mut phases: Vec<shared::PhaseSummaryResponse>,
+    limit: usize,
+) -> shared::PhaseSummaryListResponse {
+    let has_more = phases.len() > limit;
+    phases.truncate(limit);
+    let next_cursor = has_more
+        .then(|| phases.last().map(|phase| phase.phase_key.clone()))
+        .flatten();
+    shared::PhaseSummaryListResponse {
+        phases,
+        next_cursor,
     }
 }
 
@@ -2377,6 +2470,29 @@ mod tests {
             })
         }
 
+        fn list_task_summaries<'a>(
+            &'a self,
+            _space_id: Uuid,
+            _space_key: &'a str,
+            cursor: Option<&'a str>,
+            limit: usize,
+        ) -> WikiDossierRepositoryFuture<'a, Vec<shared::TaskSummaryResponse>> {
+            Box::pin(async move {
+                Ok(
+                    (cursor.is_none_or(|key| self.task.task_key.as_str() > key) && limit > 0)
+                        .then(|| shared::TaskSummaryResponse {
+                            space_key: self.task.space_key.clone(),
+                            task_key: self.task.task_key.clone(),
+                            title: self.task.title.clone(),
+                            document_count: self.task.document_count,
+                            evidence_count: self.task.evidence_count,
+                        })
+                        .into_iter()
+                        .collect(),
+                )
+            })
+        }
+
         fn get_task<'a>(
             &'a self,
             space_id: Uuid,
@@ -2447,6 +2563,29 @@ mod tests {
                     .expect("listed phases should be lockable")
                     .push((space_id, space_key.to_string()));
                 Ok(vec![self.phase.clone()])
+            })
+        }
+
+        fn list_phase_summaries<'a>(
+            &'a self,
+            _space_id: Uuid,
+            _space_key: &'a str,
+            cursor: Option<&'a str>,
+            limit: usize,
+        ) -> WikiDossierRepositoryFuture<'a, Vec<shared::PhaseSummaryResponse>> {
+            Box::pin(async move {
+                Ok(
+                    (cursor.is_none_or(|key| self.phase.phase_key.as_str() > key) && limit > 0)
+                        .then(|| shared::PhaseSummaryResponse {
+                            space_key: self.phase.space_key.clone(),
+                            phase_key: self.phase.phase_key.clone(),
+                            title: self.phase.title.clone(),
+                            document_count: self.phase.document_count,
+                            evidence_count: self.phase.evidence_count,
+                        })
+                        .into_iter()
+                        .collect(),
+                )
             })
         }
 
@@ -3912,6 +4051,99 @@ mod tests {
                 .await
                 .is_err()
         );
+    }
+
+    #[tokio::test]
+    async fn wiki_dossier_summary_catalog_validates_and_normalizes_cursors() {
+        let repository = recording_dossier_repository();
+        let use_case = WikiDossierUseCase::new(&repository);
+        let space_id = Uuid::now_v7();
+
+        let tasks = use_case
+            .list_task_summaries(
+                space_id,
+                " sdlc ",
+                shared::DossierCatalogQuery {
+                    limit: Some(1),
+                    cursor: Some(" SDLC-41 ".to_string()),
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(tasks.tasks[0].task_key, "SDLC-42");
+        assert_eq!(
+            tasks.tasks[0].document_count,
+            repository.task.document_count
+        );
+        assert!(tasks.next_cursor.is_none());
+
+        let phases = use_case
+            .list_phase_summaries(
+                space_id,
+                "SDLC",
+                shared::DossierCatalogQuery {
+                    limit: None,
+                    cursor: Some(" Implementation ".to_string()),
+                },
+            )
+            .await
+            .unwrap();
+        assert!(phases.phases.is_empty());
+        assert!(
+            use_case
+                .list_task_summaries(
+                    space_id,
+                    "SDLC",
+                    shared::DossierCatalogQuery {
+                        limit: Some(0),
+                        cursor: None,
+                    },
+                )
+                .await
+                .is_err()
+        );
+        assert!(
+            use_case
+                .list_phase_summaries(
+                    space_id,
+                    "SDLC",
+                    shared::DossierCatalogQuery {
+                        limit: Some(101),
+                        cursor: None,
+                    },
+                )
+                .await
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn wiki_dossier_summary_pages_keep_key_cursor_stable() {
+        let tasks: Vec<_> = (0..21)
+            .map(|index| shared::TaskSummaryResponse {
+                space_key: "SDLC".to_string(),
+                task_key: format!("SDLC-{index:02}"),
+                title: None,
+                document_count: 0,
+                evidence_count: 0,
+            })
+            .collect();
+        let page = task_summary_page(tasks, 20);
+        assert_eq!(page.tasks.len(), 20);
+        assert_eq!(page.next_cursor.as_deref(), Some("SDLC-19"));
+
+        let phases: Vec<_> = (0..3)
+            .map(|index| shared::PhaseSummaryResponse {
+                space_key: "SDLC".to_string(),
+                phase_key: format!("phase-{index}"),
+                title: None,
+                document_count: 0,
+                evidence_count: 0,
+            })
+            .collect();
+        let page = phase_summary_page(phases, 20);
+        assert_eq!(page.phases.len(), 3);
+        assert!(page.next_cursor.is_none());
     }
 
     #[tokio::test]
