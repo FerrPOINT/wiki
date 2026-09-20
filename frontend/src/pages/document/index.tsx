@@ -89,6 +89,7 @@ export function DocumentPage() {
   const [statusMessage, setStatusMessage] = useState('')
   const [isPublishingFlow, setIsPublishingFlow] = useState(false)
   const [loadedDocumentId, setLoadedDocumentId] = useState<string | null>(null)
+  const [selectedMode, setSelectedMode] = useState<'read' | 'edit' | null>(null)
 
   useEffect(() => {
     if (!document || loadedDocumentId === document.id) return
@@ -99,6 +100,7 @@ export function DocumentPage() {
     setStatusMessage('')
     setIsPublishingFlow(false)
     setSelectedRevisionId(null)
+    setSelectedMode(null)
     setLoadedDocumentId(document.id)
   }, [document, loadedDocumentId])
 
@@ -115,6 +117,13 @@ export function DocumentPage() {
   const isArchived = document.status === 'archived'
   const canEdit = document.can_edit && !isArchived
   const publishedHtml = document.body_html || document.current_revision?.body_html || ''
+  const currentMode = loadedDocumentId === document.id ? selectedMode : null
+  const isEditing = canEdit && (currentMode ?? (publishedHtml.trim() ? 'read' : 'edit')) === 'edit'
+  const draftChanged =
+    canEdit &&
+    loadedDocumentId === document.id &&
+    (draftTitle !== document.title ||
+      draftBody !== (document.draft_markdown || document.body_markdown))
   const currentParentId = document.parent_id ?? null
   const nextParentId = optional(parentId)
   const parentChanged = nextParentId !== currentParentId
@@ -215,7 +224,7 @@ export function DocumentPage() {
           <div className="text-sm text-text-muted">
             {document.space_key} / {formatDocumentType(document.document_type)} / {document.slug}
           </div>
-          <h1 className="mt-2 text-2xl font-bold">{document.title}</h1>
+          <h1 className="mt-2 break-words text-2xl font-bold">{document.title}</h1>
           <div className="mt-3 flex flex-wrap gap-2 text-xs text-text-secondary">
             <span className="inline-flex items-center gap-1 rounded bg-surface-raised px-2 py-1">
               <CheckCircle2 className="h-3.5 w-3.5 text-success" />
@@ -231,35 +240,68 @@ export function DocumentPage() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button asChild size="sm" variant="secondary">
+          <Button asChild size="sm" variant="secondary" className="h-10">
             <Link to="/documents/new">
               <FilePenLine className="h-4 w-4" />
               Новый документ
             </Link>
           </Button>
-          <Button asChild size="sm" variant="outline">
+          <Button asChild size="sm" variant="outline" className="h-10">
             <Link to="/evidence">
               <FileCheck2 className="h-4 w-4" />
               Материалы
             </Link>
           </Button>
-          {canEdit && (
+          {isEditing && (
             <Button
               type="button"
               size="sm"
-              variant="destructive"
+              variant="outline"
+              className="h-10 border-danger"
               disabled={archiveDocument.isPending}
               onClick={() => {
                 archiveDocument.reset()
                 setArchiveOpen(true)
               }}
             >
-              <Archive className="h-4 w-4" />
+              <Archive className="h-4 w-4 text-danger" />
               Архивировать
             </Button>
           )}
         </div>
       </section>
+
+      {canEdit && (
+        <div className="flex flex-wrap items-center gap-3">
+          <div
+            role="group"
+            aria-label="Режим документа"
+            className="inline-grid grid-cols-2 rounded-md border border-border bg-surface p-1"
+          >
+            <button
+              type="button"
+              aria-pressed={!isEditing}
+              className={`inline-flex min-h-10 items-center justify-center gap-2 rounded px-3 text-sm ${!isEditing ? 'bg-surface-raised font-medium text-text-primary' : 'text-text-muted'}`}
+              onClick={() => setSelectedMode('read')}
+            >
+              <Eye className="h-4 w-4" /> Просмотр
+            </button>
+            <button
+              type="button"
+              aria-pressed={isEditing}
+              className={`inline-flex min-h-10 items-center justify-center gap-2 rounded px-3 text-sm ${isEditing ? 'bg-surface-raised font-medium text-text-primary' : 'text-text-muted'}`}
+              onClick={() => setSelectedMode('edit')}
+            >
+              <FilePenLine className="h-4 w-4" /> Правка
+            </button>
+          </div>
+          {draftChanged && (
+            <span role="status" className="text-xs text-warning">
+              Несохранённые изменения в черновике
+            </span>
+          )}
+        </div>
+      )}
 
       <ConfirmDialog
         open={archiveOpen}
@@ -284,7 +326,7 @@ export function DocumentPage() {
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-4">
-          {canEdit && (
+          {isEditing && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Черновик</CardTitle>
@@ -295,6 +337,7 @@ export function DocumentPage() {
                     <Label htmlFor="document-edit-title">Название</Label>
                     <Input
                       id="document-edit-title"
+                      className="h-10"
                       value={draftTitle}
                       onChange={(event) => setDraftTitle(event.target.value)}
                       required
@@ -314,6 +357,7 @@ export function DocumentPage() {
                   <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto]">
                     <Input
                       value={publishSummary}
+                      className="h-10"
                       onChange={(event) => setPublishSummary(event.target.value)}
                       placeholder="Комментарий к публикации"
                       aria-label="Комментарий к публикации"
@@ -321,6 +365,7 @@ export function DocumentPage() {
                     <Button
                       type="submit"
                       variant="secondary"
+                      className="h-10"
                       disabled={
                         updateDraft.isPending || isPublishingFlow || draftTitle.trim().length === 0
                       }
@@ -330,6 +375,7 @@ export function DocumentPage() {
                     </Button>
                     <Button
                       type="button"
+                      className="h-10"
                       disabled={
                         updateDraft.isPending ||
                         publishDocument.isPending ||
@@ -350,17 +396,19 @@ export function DocumentPage() {
             </Card>
           )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Опубликованное содержание</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <RenderedDocumentBody
-                html={publishedHtml}
-                emptyMessage="В документе пока нет опубликованного содержания"
-              />
-            </CardContent>
-          </Card>
+          {!isEditing && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Опубликованное содержание</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <RenderedDocumentBody
+                  html={publishedHtml}
+                  emptyMessage="В документе пока нет опубликованного содержания"
+                />
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         <div className="space-y-4">
@@ -376,7 +424,7 @@ export function DocumentPage() {
             </Card>
           )}
 
-          {canEdit && (
+          {isEditing && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Положение в дереве</CardTitle>
@@ -387,6 +435,7 @@ export function DocumentPage() {
                     <Label htmlFor="document-parent">Родительский документ</Label>
                     <Input
                       id="document-parent"
+                      className="h-10"
                       value={parentId}
                       onChange={(event) => setParentId(event.target.value)}
                       placeholder="корень пространства"
@@ -396,6 +445,7 @@ export function DocumentPage() {
                     type="submit"
                     size="sm"
                     variant="secondary"
+                    className="h-10"
                     disabled={moveDocument.isPending || !parentChanged}
                   >
                     <MoveRight className="h-4 w-4" />
@@ -478,6 +528,7 @@ export function DocumentPage() {
                   <Button
                     type="button"
                     size="sm"
+                    className="h-10"
                     variant={selectedRevisionId === revision.id ? 'secondary' : 'outline'}
                     onClick={() => setSelectedRevisionId(revision.id)}
                   >
@@ -498,6 +549,7 @@ export function DocumentPage() {
                     type="button"
                     size="sm"
                     variant="ghost"
+                    className="h-10"
                     onClick={() => setSelectedRevisionId(null)}
                   >
                     <X className="h-4 w-4" />

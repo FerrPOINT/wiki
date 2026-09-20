@@ -138,12 +138,13 @@ describe('DocumentPage', () => {
     vi.clearAllMocks()
   })
 
-  it('renders document editor, revisions, linked dossiers and evidence', () => {
+  it('opens published content first, with revisions, linked dossiers and evidence', () => {
     setupDocument()
 
     expect(screen.getByRole('heading', { name: 'Требования Wiki' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Название')).toHaveValue('Требования Wiki')
-    expect(screen.getByLabelText('Markdown черновика')).toHaveValue('# Draft\n\nUpdated body')
+    expect(screen.getByRole('button', { name: 'Просмотр' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Правка' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.queryByLabelText('Markdown черновика')).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Published' })).toBeInTheDocument()
     expect(screen.getByText('Approved body')).toBeInTheDocument()
     expect(screen.getByText('Ревизия 2')).toBeInTheDocument()
@@ -154,6 +155,45 @@ describe('DocumentPage', () => {
       '/phases/implementation',
     )
     expect(screen.getByRole('link', { name: /Smoke proof/ })).toHaveAttribute('href', '/evidence')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
+    expect(screen.getByLabelText('Название')).toHaveValue('Требования Wiki')
+    expect(screen.getByLabelText('Markdown черновика')).toHaveValue('# Draft\n\nUpdated body')
+    expect(screen.queryByRole('heading', { name: 'Published' })).not.toBeInTheDocument()
+  })
+
+  it('starts an unpublished document in edit mode', () => {
+    setupDocument({
+      ...baseDocument,
+      body_html: '',
+      body_markdown: '',
+      current_revision: null,
+      status: 'draft',
+    })
+
+    expect(screen.getByRole('button', { name: 'Правка' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByLabelText('Markdown черновика')).toHaveValue('# Draft\n\nUpdated body')
+  })
+
+  it('preserves unsaved draft text when switching between edit and read modes', () => {
+    setupDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
+    fireEvent.change(screen.getByLabelText('Markdown черновика'), {
+      target: { value: '# Unsent change' },
+    })
+    expect(screen.getByRole('status')).toHaveTextContent('Несохранённые изменения в черновике')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Просмотр' }))
+    expect(screen.getByText('Approved body')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Markdown черновика')).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Несохранённые изменения в черновике')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
+    expect(screen.getByLabelText('Markdown черновика')).toHaveValue('# Unsent change')
+    expect(updateDraftMutate).not.toHaveBeenCalled()
+    expect(updateDraftMutateAsync).not.toHaveBeenCalled()
+    expect(publishMutateAsync).not.toHaveBeenCalled()
   })
 
   it('keeps viewer document access read-only without exposing the draft', () => {
@@ -170,6 +210,7 @@ describe('DocumentPage', () => {
     expect(screen.queryByLabelText('Markdown черновика')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Родительский документ')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Архивировать' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Режим документа' })).not.toBeInTheDocument()
   })
 
   it('opens a specific immutable revision through the revision detail hook', () => {
@@ -186,6 +227,7 @@ describe('DocumentPage', () => {
 
   it('sends draft and tree move mutations from visible form state', () => {
     setupDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
 
     fireEvent.change(screen.getByLabelText('Название'), {
       target: { value: 'Требования Wiki v2' },
@@ -222,6 +264,7 @@ describe('DocumentPage', () => {
 
   it('keeps archive confirmation open until the server confirms success', () => {
     setupDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
 
     fireEvent.click(screen.getByRole('button', { name: 'Архивировать' }))
     expect(archiveReset).toHaveBeenCalledOnce()
@@ -241,6 +284,7 @@ describe('DocumentPage', () => {
 
   it('shows archive errors inside the confirmation without closing it', () => {
     const view = setupDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
     fireEvent.click(screen.getByRole('button', { name: 'Архивировать' }))
     fireEvent.click(screen.getByRole('button', { name: 'Подтвердить' }))
 
@@ -275,6 +319,7 @@ describe('DocumentPage', () => {
       version: 3,
     })
     setupDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
 
     fireEvent.change(screen.getByLabelText('Название'), {
       target: { value: 'Требования Wiki v2' },
@@ -327,6 +372,7 @@ describe('DocumentPage', () => {
     expect(screen.queryByLabelText('Название')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Markdown черновика')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Родительский документ')).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Режим документа' })).not.toBeInTheDocument()
     expect(screen.getByText('Документ пока не связан с задачей или фазой')).toBeInTheDocument()
     expect(screen.getByText('Материалы пока не прикреплены')).toBeInTheDocument()
   })
