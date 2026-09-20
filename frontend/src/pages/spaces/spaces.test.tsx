@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -16,6 +16,7 @@ const useUpsertSpaceMember = vi.hoisted(() => vi.fn())
 const useUsers = vi.hoisted(() => vi.fn())
 
 const archiveMutate = vi.hoisted(() => vi.fn())
+const archiveReset = vi.hoisted(() => vi.fn())
 const createMutate = vi.hoisted(() => vi.fn())
 const deleteMemberMutate = vi.hoisted(() => vi.fn())
 const updateMutate = vi.hoisted(() => vi.fn())
@@ -58,6 +59,19 @@ const editorUser = {
   username: 'editor',
 }
 
+const baseSpace = {
+  id: 'space-sdlc',
+  key: 'BASE',
+  name: 'База знаний Base',
+  description: 'Основные документы продукта',
+  owner_id: 'user-admin',
+  status: 'active',
+  document_count: 2,
+  member_count: 2,
+  created_at: '2026-08-31T10:00:00Z',
+  updated_at: '2026-08-31T11:00:00Z',
+}
+
 function setupSpaces({
   membersOverrides = {},
   userOverrides = {},
@@ -83,20 +97,7 @@ function setupSpaces({
   })
   useSpaces.mockReturnValue({
     data: {
-      spaces: spaceList ?? [
-        {
-          id: 'space-sdlc',
-          key: 'BASE',
-          name: 'База знаний Base',
-          description: 'Основные документы продукта',
-          owner_id: 'user-admin',
-          status: 'active',
-          document_count: 2,
-          member_count: 2,
-          created_at: '2026-08-31T10:00:00Z',
-          updated_at: '2026-08-31T11:00:00Z',
-        },
-      ],
+      spaces: spaceList ?? [baseSpace],
     },
     isLoading: false,
     isError: false,
@@ -167,6 +168,7 @@ function setupSpaces({
   })
   useArchiveSpace.mockReturnValue({
     mutate: archiveMutate,
+    reset: archiveReset,
     isPending: false,
     isError: false,
     error: null,
@@ -184,7 +186,7 @@ function setupSpaces({
     error: null,
   })
 
-  render(
+  return render(
     <MemoryRouter>
       <SpacesPage />
     </MemoryRouter>,
@@ -220,7 +222,7 @@ describe('SpacesPage', () => {
     expect(useSpaceMembers).toHaveBeenCalledWith('BASE')
   })
 
-  it('submits space create, update, archive and member mutations', () => {
+  it('submits space create, update and member mutations', () => {
     setupSpaces()
     fireEvent.click(screen.getByRole('button', { name: 'Создать пространство' }))
     fireEvent.click(screen.getByRole('button', { name: /База знаний Base/ }))
@@ -256,9 +258,6 @@ describe('SpacesPage', () => {
       },
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Архивировать' }))
-    expect(archiveMutate).toHaveBeenCalledWith('BASE')
-
     fireEvent.change(screen.getByLabelText('Пользователь'), {
       target: { value: 'user-editor' },
     })
@@ -282,6 +281,120 @@ describe('SpacesPage', () => {
       spaceKey: 'BASE',
       userId: 'user-editor',
     })
+  })
+
+  it('confirms archive, allows cancellation, and keeps the archived space visible', () => {
+    const otherSpaces = Array.from({ length: 24 }, (_, index) => ({
+      ...baseSpace,
+      id: `space-${index + 1}`,
+      key: `S${index + 1}`,
+      name: `Space ${index + 1}`,
+      updated_at: '2026-09-01T11:00:00Z',
+    }))
+    const view = setupSpaces({ spaceList: [...otherSpaces, baseSpace] })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Статус пространства' }), {
+      target: { value: 'active' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
+    fireEvent.click(screen.getByRole('button', { name: /База знаний Base/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Архивировать' }))
+
+    let dialog = screen.getByRole('alertdialog')
+    expect(dialog).toHaveTextContent('База знаний Base')
+    expect(dialog).toHaveTextContent('Восстановление из интерфейса пока недоступно')
+    expect(archiveMutate).not.toHaveBeenCalled()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Отмена' }))
+    expect(archiveMutate).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Архивировать' }))
+    dialog = screen.getByRole('alertdialog')
+    expect(archiveReset).toHaveBeenCalledTimes(2)
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Подтвердить' }))
+    expect(archiveMutate).toHaveBeenCalledWith('BASE', { onSuccess: expect.any(Function) })
+    expect(dialog).toBeVisible()
+
+    const onSuccess = archiveMutate.mock.calls[0]![1].onSuccess as (space: typeof baseSpace) => void
+    act(() => onSuccess({ ...baseSpace, status: 'archived', updated_at: '2026-09-20T11:00:00Z' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Пространство «База знаний Base» архивировано',
+    )
+    expect(screen.getByRole('combobox', { name: 'Статус пространства' })).toHaveValue('all')
+    expect(screen.getByRole('button', { name: /База знаний Base/ })).toHaveTextContent(
+      'архивировано',
+    )
+    expect(screen.getByRole('navigation', { name: 'Страницы пространств' })).toHaveTextContent(
+      '1 / 3',
+    )
+    expect(screen.queryByRole('button', { name: 'Архивировать' })).not.toBeInTheDocument()
+
+    useSpaces.mockReturnValue({
+      data: {
+        spaces: [
+          ...otherSpaces,
+          { ...baseSpace, status: 'archived', updated_at: '2026-09-20T11:00:00Z' },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+      refetch: refetchSpaces,
+    })
+    view.rerender(
+      <MemoryRouter>
+        <SpacesPage />
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('button', { name: /База знаний Base/ })).toHaveTextContent(
+      'архивировано',
+    )
+  })
+
+  it('keeps archive confirmation open during pending and error states', () => {
+    const view = setupSpaces()
+    fireEvent.click(screen.getByRole('button', { name: /База знаний Base/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Архивировать' }))
+    fireEvent.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Подтвердить' }),
+    )
+
+    useArchiveSpace.mockReturnValue({
+      mutate: archiveMutate,
+      reset: archiveReset,
+      isPending: true,
+      isError: false,
+      error: null,
+    })
+    view.rerender(
+      <MemoryRouter>
+        <SpacesPage />
+      </MemoryRouter>,
+    )
+    expect(
+      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Отмена' }),
+    ).toBeDisabled()
+    expect(
+      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Загрузка...' }),
+    ).toBeDisabled()
+
+    useArchiveSpace.mockReturnValue({
+      mutate: archiveMutate,
+      reset: archiveReset,
+      isPending: false,
+      isError: true,
+      error: { code: 'FORBIDDEN' },
+    })
+    view.rerender(
+      <MemoryRouter>
+        <SpacesPage />
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('Недостаточно прав для действия')
+    expect(archiveMutate).toHaveBeenCalledOnce()
+    fireEvent.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Подтвердить' }),
+    )
+    expect(archiveMutate).toHaveBeenCalledTimes(2)
   })
 
   it('keeps member assignment available for space admins without the global user list', () => {
@@ -309,6 +422,15 @@ describe('SpacesPage', () => {
       },
       { onSuccess: expect.any(Function) },
     )
+  })
+
+  it('does not offer archive or member changes to a viewer', () => {
+    setupSpaces({ userOverrides: { data: editorUser } })
+    fireEvent.click(screen.getByRole('button', { name: /База знаний Base/ }))
+
+    expect(screen.queryByRole('button', { name: 'Архивировать' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Назначить' })).not.toBeInTheDocument()
+    expect(archiveMutate).not.toHaveBeenCalled()
   })
 
   it('shows member permission errors with a retry action', () => {

@@ -26,7 +26,7 @@ import {
   useUpsertSpaceMember,
   useUsers,
 } from '@/shared/api/hooks'
-import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
+import { ConfirmDialog, EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
 import { Button } from '@sdlc/ui/ui'
 import { Input } from '@sdlc/ui/ui'
 import { Label } from '@sdlc/ui/ui'
@@ -317,11 +317,13 @@ function SpaceMembers({
 function SpaceDetails({
   currentUserId,
   isSystemAdmin,
+  onArchived,
   space,
   users,
 }: {
   currentUserId?: string
   isSystemAdmin: boolean
+  onArchived: (space: Space) => void
   space: Space
   users: User[]
 }) {
@@ -335,6 +337,7 @@ function SpaceDetails({
       members.some((member) => member.user_id === currentUserId && member.role === 'admin'))
   const [name, setName] = useState(space.name)
   const [description, setDescription] = useState(space.description ?? '')
+  const [archiveOpen, setArchiveOpen] = useState(false)
   const changed =
     name.trim() !== space.name || nullableText(description) !== (space.description ?? null)
 
@@ -381,11 +384,14 @@ function SpaceDetails({
               type="button"
               size="sm"
               variant="destructive"
-              onClick={() => archiveSpace.mutate(space.key)}
+              onClick={() => {
+                archiveSpace.reset()
+                setArchiveOpen(true)
+              }}
               disabled={archiveSpace.isPending}
             >
               <Archive className="h-3.5 w-3.5" />
-              {archiveSpace.isPending ? 'Архивируем...' : 'Архивировать'}
+              Архивировать
             </Button>
           </div>
           {updateSpace.isError && (
@@ -393,13 +399,30 @@ function SpaceDetails({
               {formatApiErrorForUser(updateSpace.error, 'Не удалось обновить пространство')}
             </p>
           )}
-          {archiveSpace.isError && (
-            <p className="text-sm text-danger">
-              {formatApiErrorForUser(archiveSpace.error, 'Не удалось архивировать пространство')}
-            </p>
-          )}
         </form>
       )}
+
+      <ConfirmDialog
+        open={archiveOpen}
+        onOpenChange={setArchiveOpen}
+        title="Архивировать пространство?"
+        description={`«${space.name}» (${space.key}) останется доступным для чтения, но изменения документов, материалов и связей будут заблокированы. Восстановление из интерфейса пока недоступно.`}
+        onConfirm={() => {
+          if (!canManage || archiveSpace.isPending) return
+          archiveSpace.mutate(space.key, {
+            onSuccess: (archived) => {
+              setArchiveOpen(false)
+              onArchived(archived)
+            },
+          })
+        }}
+        isPending={archiveSpace.isPending}
+        error={
+          archiveSpace.error
+            ? formatApiErrorForUser(archiveSpace.error, 'Не удалось архивировать пространство')
+            : null
+        }
+      />
 
       <div className="space-y-2 rounded-md border border-border p-3">
         <div className="flex items-center gap-2 text-xs font-medium uppercase text-text-muted">
@@ -432,7 +455,10 @@ export function SpacesPage() {
   const isSystemAdmin = currentUserQuery.data?.is_system_admin === true
   const usersQuery = useUsers(isSystemAdmin)
   const users = usersQuery.data?.users ?? []
-  const spaces = spacesQuery.data?.spaces ?? []
+  const [recentlyArchived, setRecentlyArchived] = useState<Space | null>(null)
+  const spaces = (spacesQuery.data?.spaces ?? []).map((space) =>
+    space.key === recentlyArchived?.key ? recentlyArchived : space,
+  )
   const [showCreate, setShowCreate] = useState(false)
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
@@ -451,11 +477,15 @@ export function SpacesPage() {
           value.toLocaleLowerCase().includes(query),
         ),
     )
-    .sort((a, b) =>
-      sort === 'name'
+    .sort((a, b) => {
+      if (sort === 'updated' && recentlyArchived) {
+        if (a.key === recentlyArchived.key) return -1
+        if (b.key === recentlyArchived.key) return 1
+      }
+      return sort === 'name'
         ? a.name.localeCompare(b.name, 'ru')
-        : new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
-    )
+        : new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+    })
   const pageCount = Math.max(1, Math.ceil(filteredSpaces.length / 12))
   const currentPage = Math.min(page, pageCount)
   const visibleSpaces = filteredSpaces.slice((currentPage - 1) * 12, currentPage * 12)
@@ -463,6 +493,14 @@ export function SpacesPage() {
   function resetListPosition() {
     setPage(1)
     setExpandedKey(null)
+  }
+
+  function handleArchived(space: Space) {
+    setRecentlyArchived(space)
+    setStatus('all')
+    setSort('updated')
+    setPage(1)
+    setExpandedKey(space.key)
   }
 
   return (
@@ -494,6 +532,12 @@ export function SpacesPage() {
       </section>
 
       {isSystemAdmin && showCreate && <CreateSpaceForm onCreated={() => setShowCreate(false)} />}
+
+      {recentlyArchived && (
+        <p role="status" className="border-l-2 border-success bg-surface-raised px-3 py-2 text-sm">
+          Пространство «{recentlyArchived.name}» архивировано и остаётся доступным для чтения.
+        </p>
+      )}
 
       {spacesQuery.isLoading && <LoadingState message="Загружаем пространства" />}
       {spacesQuery.isError && (
@@ -630,6 +674,7 @@ export function SpacesPage() {
                         <SpaceDetails
                           currentUserId={currentUserQuery.data?.id}
                           isSystemAdmin={isSystemAdmin}
+                          onArchived={handleArchived}
                           space={space}
                           users={users}
                         />

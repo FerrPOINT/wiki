@@ -6,13 +6,14 @@ FROM node:22-slim AS builder
 
 RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
 
-WORKDIR /app
+# Preserve the workspace sibling layout so both pnpm's file dependency and
+# Tailwind's shared UI source path resolve the same way as a local checkout.
+WORKDIR /workspace/wiki/frontend
 COPY wiki/frontend/package.json wiki/frontend/pnpm-lock.yaml wiki/frontend/pnpm-workspace.yaml ./
-# @sdlc/ui is a file: dependency pointing at ../../services-base/frontend
-# relative to the wiki frontend dir (/app -> /services-base must exist).
-COPY services-base/frontend /services-base/frontend
-COPY wiki/openapi/openapi.json ../openapi/openapi.json
-RUN pnpm install --frozen-lockfile
+COPY services-base/frontend /workspace/services-base/frontend
+COPY wiki/openapi/openapi.json /workspace/wiki/openapi/openapi.json
+# pnpm resolves file: dependencies from the importer package root.
+RUN ln -s /workspace/services-base /workspace/wiki/services-base && pnpm install --frozen-lockfile
 
 COPY wiki/frontend/ ./
 ARG VITE_PLATFORM_BRANDING_URL=""
@@ -24,7 +25,7 @@ ENV VITE_AUTH_ISSUER=${VITE_AUTH_ISSUER}
 RUN pnpm build
 
 FROM nginx:alpine
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=builder /workspace/wiki/frontend/dist /usr/share/nginx/html
 COPY wiki/frontend/nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
