@@ -67,13 +67,18 @@ function RenderedDocumentBody({
 export function DocumentPage() {
   const { documentId = 'product-requirements' } = useParams()
   const documentQuery = useDocument(documentId)
-  const revisionsQuery = useDocumentRevisions(documentId)
+  const [revisionPage, setRevisionPage] = useState(0)
+  const revisionsQuery = useDocumentRevisions(documentId, {
+    limit: 21,
+    offset: revisionPage * 20,
+  })
   const updateDraft = useUpdateDocumentDraft()
   const publishDocument = usePublishDocument()
   const archiveDocument = useArchiveDocument()
   const moveDocument = useMoveDocument()
   const document = documentQuery.data
-  const revisions = revisionsQuery.data?.revisions ?? []
+  const revisions = revisionsQuery.data?.revisions.slice(0, 20) ?? []
+  const hasNextRevisionPage = (revisionsQuery.data?.revisions.length ?? 0) > 20
   const [selectedRevisionId, setSelectedRevisionId] = useState<string | null>(null)
   const selectedRevisionQuery = useDocumentRevision(
     documentId,
@@ -100,6 +105,7 @@ export function DocumentPage() {
     setStatusMessage('')
     setIsPublishingFlow(false)
     setSelectedRevisionId(null)
+    setRevisionPage(0)
     setSelectedMode(null)
     setLoadedDocumentId(document.id)
   }, [document, loadedDocumentId])
@@ -503,7 +509,9 @@ export function DocumentPage() {
                 />
               )}
               {!revisionsQuery.isLoading && !revisionsQuery.isError && revisions.length === 0 && (
-                <EmptyState message="Ревизий пока нет" />
+                <EmptyState
+                  message={revisionPage > 0 ? 'На этой странице ревизий нет' : 'Ревизий пока нет'}
+                />
               )}
               {revisions.map((revision) => (
                 <div
@@ -537,6 +545,40 @@ export function DocumentPage() {
                   </Button>
                 </div>
               ))}
+              {(revisionPage > 0 || hasNextRevisionPage) && (
+                <nav
+                  aria-label="Страницы ревизий"
+                  className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3"
+                >
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10"
+                    disabled={revisionPage === 0}
+                    onClick={() => {
+                      setSelectedRevisionId(null)
+                      setRevisionPage((page) => page - 1)
+                    }}
+                  >
+                    Предыдущая
+                  </Button>
+                  <span className="text-sm text-text-secondary">Страница {revisionPage + 1}</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10"
+                    disabled={
+                      !hasNextRevisionPage || revisionsQuery.isLoading || revisionsQuery.isError
+                    }
+                    onClick={() => {
+                      setSelectedRevisionId(null)
+                      setRevisionPage((page) => page + 1)
+                    }}
+                  >
+                    Следующая
+                  </Button>
+                </nav>
+              )}
             </CardContent>
           </Card>
 
