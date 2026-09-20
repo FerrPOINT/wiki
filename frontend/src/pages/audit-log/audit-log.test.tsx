@@ -269,6 +269,24 @@ describe('AuditLogPage', () => {
     )
   })
 
+  it('accepts a historical actor UUID even when the user directory loads', () => {
+    useAuditLog.mockReturnValue(queryResult({ entries, next_cursor: null }))
+    render(<AuditLogPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Фильтры' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Ввести UUID' }))
+    const historicalActorId = '00000000-0000-4000-8000-000000000099'
+    fireEvent.change(screen.getByLabelText('Участник'), { target: { value: historicalActorId } })
+    fireEvent.click(screen.getByRole('button', { name: 'Применить' }))
+
+    expect(useAuditLog).toHaveBeenLastCalledWith(
+      expect.objectContaining({ actor_id: historicalActorId }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Фильтры (1)' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Выбрать из списка' }))
+    expect(screen.getByLabelText('Участник')).toHaveValue(historicalActorId)
+  })
+
   it('keeps filters available after an empty filtered result', () => {
     useAuditLog.mockImplementation(({ action }: AuditLogParams) =>
       queryResult({ entries: action ? [] : entries, next_cursor: null }),
