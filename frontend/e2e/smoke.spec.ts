@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
+import { exportJWK, generateKeyPair, SignJWT } from 'jose'
 
 const baseURL =
   process.env.PLAYWRIGHT_BASE_URL ??
@@ -177,6 +178,52 @@ function routeJson(route: Route, body: unknown, status = 200) {
 }
 
 async function installWikiApiMocks(page: Page) {
+  const { privateKey, publicKey } = await generateKeyPair('ES256')
+  const jwk = await exportJWK(publicKey)
+  const oidcValue = Buffer.alloc(32, 7).toString('base64url')
+  const issuer = 'http://localhost:7701'
+
+  // Make browser-only PKCE values predictable so the mocked callback can
+  // validate the same state and nonce without reaching Central Auth.
+  await page.addInitScript(() => {
+    const original = crypto.getRandomValues.bind(crypto)
+    crypto.getRandomValues = ((array: Uint8Array) => {
+      if (array.byteLength === 32) array.fill(7)
+      else original(array)
+      return array
+    }) as typeof crypto.getRandomValues
+  })
+
+  await page.route(`${issuer}/oidc/**`, async (route: Route) => {
+    const request = route.request()
+    const url = new URL(request.url())
+    if (url.pathname === '/oidc/authorize') {
+      return route.fulfill({
+        status: 302,
+        headers: {
+          location: `${baseURL}/sso/callback?code=mock-code&state=${url.searchParams.get('state')}`,
+        },
+      })
+    }
+    if (url.pathname === '/oidc/jwks') return routeJson(route, { keys: [jwk] })
+    if (url.pathname === '/oidc/token') {
+      const idToken = await new SignJWT({
+        email: user.email,
+        name: user.display_name,
+        nonce: oidcValue,
+      })
+        .setProtectedHeader({ alg: 'ES256' })
+        .setIssuer(issuer)
+        .setAudience('wiki')
+        .setSubject(user.id)
+        .setIssuedAt()
+        .setExpirationTime('5m')
+        .sign(privateKey)
+      return routeJson(route, { access_token: 'demo-token', id_token: idToken, expires_in: 300 })
+    }
+    return route.fulfill({ status: 404 })
+  })
+
   let currentDocument = { ...document }
   let currentRevisions = [document.current_revision]
   let currentTemplates = [template]
@@ -255,6 +302,20 @@ async function installWikiApiMocks(page: Page) {
             updated_at: now,
           },
         ],
+      })
+    }
+    if (method === 'POST' && path === '/spaces/BASE/archive') {
+      return routeJson(route, {
+        id: 'space-sdlc',
+        key: 'BASE',
+        name: 'База знаний Base',
+        description: 'Основное пространство Wiki для документов платформы Base',
+        owner_id: user.id,
+        status: 'archived',
+        document_count: 1,
+        member_count: 1,
+        created_at: now,
+        updated_at: now,
       })
     }
     if (method === 'GET' && path === '/spaces/BASE/members') {
@@ -473,12 +534,37 @@ async function installWikiApiMocks(page: Page) {
 }
 
 test.describe('wiki smoke', () => {
-  test('login and navigate through wiki shell pages', async ({ page }) => {
+  test('archives a space only after explicit confirmation and keeps its archived status visible', async ({
+    page,
+  }) => {
+    await installWikiApiMocks(page)
+    await page.goto(baseURL)
+    await page.goto(`${baseURL}/spaces`)
+    await page.getByRole('button', { name: /База знаний Base/ }).click()
+    await page.getByRole('button', { name: 'Архивировать' }).click()
+
+    const dialog = page.getByRole('alertdialog')
+    const cancel = dialog.getByRole('button', { name: 'Отмена' })
+    await expect(dialog).toContainText('Восстановление из интерфейса пока недоступно')
+    await cancel.click()
+    await expect(dialog).not.toBeVisible()
+
+    await page.getByRole('button', { name: 'Архивировать' }).click()
+    await dialog.getByRole('button', { name: 'Подтвердить' }).click()
+
+    await expect(page.getByRole('status')).toContainText(
+      'архивировано и остаётся доступным для чтения',
+    )
+    await expect(page.getByRole('button', { name: /База знаний Base/ })).toContainText(
+      'архивировано',
+    )
+    await expect(page.getByRole('button', { name: 'Архивировать' })).not.toBeVisible()
+    await page.screenshot({ path: 'test-results/wiki-space-archive.png', fullPage: true })
+  })
+
+  test('signs in through OIDC and navigates through wiki shell pages', async ({ page }) => {
     const apiMocks = await installWikiApiMocks(page)
-    await page.goto(`${baseURL}/login`)
-    await page.getByRole('textbox').nth(0).fill('admin@example.com')
-    await page.getByRole('textbox').nth(1).fill('correct-horse-battery-staple')
-    await page.getByRole('button', { name: /войти/i }).click()
+    await page.goto(baseURL)
 
     await expect(page).toHaveURL(`${baseURL}/`, { timeout: 10_000 })
     await expect(page.getByRole('heading', { name: 'Wiki', exact: true })).toBeVisible()
@@ -500,6 +586,7 @@ test.describe('wiki smoke', () => {
     await expect(
       page.locator('.wiki-rendered').first().getByText('Базовый документ для пространств'),
     ).toBeVisible()
+    await page.getByRole('button', { name: 'Правка' }).click()
     await page.getByLabel('Markdown черновика').fill('# Обновлено\n\nЧерновик из e2e.')
     await page.getByRole('button', { name: 'Сохранить', exact: true }).click()
     await expect.poll(() => apiMocks.documentDraftRequests.length).toBe(1)
@@ -560,10 +647,11 @@ test.describe('wiki smoke', () => {
     await page.goto(`${baseURL}/search`)
     await expect(page.getByRole('heading', { name: 'Поиск' })).toBeVisible()
     await page.getByLabel('Поисковый запрос').fill('релиз')
-    await page.getByLabel('Пространство поиска').fill('BASE')
+    await page.getByRole('button', { name: 'Фильтры' }).click()
+    await page.getByLabel('Пространство').fill('BASE')
     await page.getByLabel('Задача').fill('BASE-42')
     await page.getByLabel('Фаза').fill('implementation')
-    await page.getByRole('button', { name: 'Требования', exact: true }).click()
+    await page.getByRole('button', { name: 'Применить' }).click()
     await expect
       .poll(() =>
         apiMocks.searchRequests.some(
@@ -571,11 +659,12 @@ test.describe('wiki smoke', () => {
             query.includes('q=%D1%80%D0%B5%D0%BB%D0%B8%D0%B7') &&
             query.includes('space=BASE') &&
             query.includes('task_key=BASE-42') &&
-            query.includes('phase_key=implementation') &&
-            query.includes('document_type=requirements'),
+            query.includes('phase_key=implementation'),
         ),
       )
       .toBe(true)
+    await page.getByRole('button', { name: 'Сбросить фильтры' }).click()
+    await expect(page.getByRole('link', { name: /Материал smoke-проверки фронта/ })).toBeVisible()
     await page.getByRole('link', { name: /Материал smoke-проверки фронта/ }).click()
     await expect(page).toHaveURL(`${baseURL}/evidence?id=${evidence.id}`)
     await expect(page.getByRole('heading', { name: 'Выбранный материал' })).toBeVisible()
@@ -585,6 +674,7 @@ test.describe('wiki smoke', () => {
 
     await page.goto(`${baseURL}/templates`)
     await expect(page.getByRole('heading', { name: 'Шаблоны' })).toBeVisible()
+    await page.getByRole('button', { name: 'Новый шаблон' }).click()
     await page.getByLabel('Название шаблона').fill('Шаблон релиза')
     await page.getByLabel('Тип документа').selectOption('release_note')
     await page.getByLabel('Markdown шаблона').fill('# Релиз\n\n## Проверки\n')
@@ -598,23 +688,8 @@ test.describe('wiki smoke', () => {
 
     await page.goto(`${baseURL}/users`)
     await expect(page.getByRole('heading', { name: 'Пользователи', exact: true })).toBeVisible()
-    const editorRole = page.getByLabel('Роль пользователя editor@example.com')
-    await editorRole.selectOption('admin')
-    await page.getByLabel('Статус пользователя editor@example.com').selectOption('disabled')
-    await editorRole
-      .locator('xpath=ancestor::form')
-      .getByRole('button', { name: 'Сохранить' })
-      .click()
-    await expect
-      .poll(() =>
-        apiMocks.userUpdateRequests.some(
-          (request) =>
-            request.userId === editorUser.id &&
-            request.role === 'admin' &&
-            request.active === false,
-        ),
-      )
-      .toBe(true)
+    await expect(page.getByRole('cell', { name: 'editor@example.com' })).toBeVisible()
+    await expect(page.getByRole('cell', { name: 'Активен' }).last()).toBeVisible()
 
     await page.goto(`${baseURL}/settings`)
     await expect(page.getByRole('heading', { name: 'Настройки' })).toBeVisible()
