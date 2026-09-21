@@ -47,6 +47,7 @@ describe('AppShell', () => {
 
     renderShell()
 
+    expect(screen.getByRole('img', { name: 'Wiki' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /обзор/i })).toHaveAttribute('href', '/')
     expect(screen.getByRole('link', { name: /пространства/i })).toHaveAttribute('href', '/spaces')
     expect(screen.getByRole('link', { name: /задачи/i })).toHaveAttribute('href', '/tasks')

@@ -128,7 +128,7 @@ export function AppShell() {
     <div className="min-h-screen bg-background text-text-primary">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[72px] flex-col border-r border-border bg-surface md:flex xl:w-[264px]">
         <div className="flex h-[60px] shrink-0 items-center justify-center border-b border-border px-3 xl:justify-start xl:px-5">
-          <div className="flex min-w-0 items-center gap-3" aria-label="Wiki">
+          <div className="flex min-w-0 items-center gap-3" role="img" aria-label="Wiki">
             <PlatformMark size="sm" withName={false} />
             <div className="hidden min-w-0 xl:block">
               <div className="truncate text-sm font-semibold">Wiki</div>
