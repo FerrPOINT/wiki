@@ -2424,6 +2424,44 @@ async fn wiki_memory_evidence_infers_document_space_and_claims_file_attachments(
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(limited_evidence["evidence"].as_array().unwrap().len(), 1);
+    let cursor = limited_evidence["next_cursor"].as_str().unwrap();
+    let (status, next_page) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/evidence?space={other_space_key}&limit=1&cursor={cursor}"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(next_page["evidence"].as_array().unwrap().len(), 1);
+    assert_ne!(
+        next_page["evidence"][0]["id"],
+        limited_evidence["evidence"][0]["id"]
+    );
+    assert!(next_page["next_cursor"].is_null());
+
+    let (status, searched) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/evidence?space={other_space_key}&q=INFERRED%20SPACE%20FILE"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(searched["evidence"].as_array().unwrap().len(), 1);
+    assert_eq!(searched["evidence"][0]["id"], file_evidence["id"]);
+
+    let (status, _) = call(
+        &app,
+        Method::GET,
+        "/api/v1/evidence?cursor=bad",
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
 
     let (status, metadata) = call(
         &app,
@@ -4502,6 +4540,101 @@ async fn wiki_postgres_audit_cursor_keeps_timestamp_ties_stable() {
     }
     let index_exists: bool = sqlx::query_scalar(
         "SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'audit_time_id_idx')",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(index_exists);
+    pool.close().await;
+}
+
+#[tokio::test]
+async fn wiki_postgres_evidence_search_and_cursor_keep_timestamp_ties_stable() {
+    let Ok(database_url) = env::var("WIKI_TEST_DATABASE_URL") else {
+        eprintln!("skipping postgres evidence cursor test: WIKI_TEST_DATABASE_URL is not set");
+        return;
+    };
+    reset_postgres(&database_url).await;
+    let storage_dir = env::temp_dir().join(format!("wiki-api-test-{}", Uuid::now_v7()));
+    let (app, _) = postgres_test_app(database_url.clone(), storage_dir).await;
+    let token = login_admin(&app).await;
+    let task_key = format!("SDLC-{}", &Uuid::now_v7().simple().to_string()[..12]);
+    let pool = PgPoolOptions::new()
+        .max_connections(1)
+        .connect(&database_url)
+        .await
+        .unwrap();
+    let future_at: chrono::DateTime<chrono::Utc> =
+        sqlx::query_scalar("SELECT now() + interval '1 hour'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    let mut ids = Vec::new();
+    for index in 0..3 {
+        let (status, item) = call(
+            &app,
+            Method::POST,
+            "/api/v1/evidence",
+            Some(&token),
+            Some(json!({
+                "space": "SDLC",
+                "task_key": task_key,
+                "title": format!("Cursor evidence {index}"),
+                "evidence_type": "external_url",
+                "url": format!("https://ci.local/jobs/cursor-{index}")
+            })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED);
+        let id = Uuid::parse_str(item["id"].as_str().unwrap()).unwrap();
+        sqlx::query("UPDATE evidence_items SET created_at = $1 WHERE id = $2")
+            .bind(future_at)
+            .bind(id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        ids.push(id);
+    }
+    ids.sort_by(|left, right| right.cmp(left));
+    let mut cursor: Option<String> = None;
+    for (index, expected_id) in ids.iter().enumerate() {
+        let path = cursor.as_ref().map_or_else(
+            || format!("/api/v1/evidence?space=SDLC&task_key={task_key}&q=CURSOR%20EVIDENCE&limit=1"),
+            |cursor| format!("/api/v1/evidence?space=SDLC&task_key={task_key}&q=CURSOR%20EVIDENCE&limit=1&cursor={cursor}"),
+        );
+        let (status, page) = call(&app, Method::GET, &path, Some(&token), None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(page["evidence"].as_array().unwrap().len(), 1);
+        assert_eq!(page["evidence"][0]["id"], expected_id.to_string());
+        cursor = page["next_cursor"].as_str().map(ToString::to_string);
+        assert_eq!(cursor.is_some(), index < 2);
+
+        if index == 0 {
+            let (status, newer) = call(
+                &app,
+                Method::POST,
+                "/api/v1/evidence",
+                Some(&token),
+                Some(json!({
+                    "space": "SDLC",
+                    "task_key": task_key,
+                    "title": "Cursor evidence newer",
+                    "evidence_type": "external_url",
+                    "url": "https://ci.local/jobs/cursor-newer"
+                })),
+            )
+            .await;
+            assert_eq!(status, StatusCode::CREATED);
+            sqlx::query("UPDATE evidence_items SET created_at = $1 WHERE id = $2")
+                .bind(future_at + chrono::Duration::minutes(1))
+                .bind(Uuid::parse_str(newer["id"].as_str().unwrap()).unwrap())
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+    }
+    let index_exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'evidence_time_id_idx')",
     )
     .fetch_one(&pool)
     .await

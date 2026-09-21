@@ -125,7 +125,10 @@ wiki evidence add-link --space SDLC --document <document-id> --task SDLC-42 --ph
 wiki evidence add-file --space SDLC --document <document-id> --task SDLC-42 --phase testing --file ./screen.png
 wiki evidence get <evidence-id>
 wiki evidence list --space SDLC --document <document-id> --limit 30
+wiki evidence list --space SDLC --query "smoke" --limit 20 --cursor <next_cursor>
 ```
+
+`wiki evidence list` returns `next_cursor` with the current page. Pass it as `--cursor` with unchanged filters to continue; `--query` searches the full accessible evidence registry, not only the current page.
 
 ### Attachments
 

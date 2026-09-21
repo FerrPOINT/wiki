@@ -85,7 +85,7 @@ MVP не включает:
 | REQ-PHASE-002 | Phase page       | Страница phase dossier показывает документы и evidence по phase key                                                                       |
 | REQ-EVID-001  | Link evidence    | Editor добавляет URL evidence к документу, задаче или фазе                                                                                |
 | REQ-EVID-002  | File evidence    | Editor загружает файл evidence с metadata и checksum                                                                                      |
-| REQ-EVID-003  | Evidence list    | Пользователь видит evidence по документу, задаче и фазе                                                                                   |
+| REQ-EVID-003  | Evidence list    | Пользователь видит evidence по документу, задаче и фазе, ищет по всему доступному реестру и переходит по страницам без дублей             |
 | REQ-SRCH-001  | Search           | Пользователь ищет по title/body документа                                                                                                 |
 | REQ-SRCH-002  | Search filters   | Поиск фильтруется по space, task key, phase key и document type                                                                           |
 | REQ-TPL-001   | Templates        | Editor создаёт документ из базового шаблона                                                                                               |

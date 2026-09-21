@@ -76,10 +76,12 @@ export type SearchParams = {
 }
 
 export type EvidenceListParams = {
+  q?: string
   space?: string
   document_id?: string
   task_key?: string
   phase_key?: string
+  cursor?: string
   limit?: number
 }
 

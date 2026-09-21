@@ -119,6 +119,7 @@ Current export surface of `domain` contains only Wiki value objects and shared v
 - document create/draft/publish/archive/move/revision history;
 - task and phase dossier document links;
 - URL/file evidence and attachment command assembly;
+- evidence registry criteria and cursor pagination by `(created_at DESC, id DESC)`; filters and case-insensitive substring search execute in PostgreSQL before the 20-row UI page is selected;
 - search criteria normalization and result shaping;
 - template create/list rules;
 - audit command normalization.

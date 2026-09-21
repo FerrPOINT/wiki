@@ -1006,6 +1006,7 @@ impl<'a, R: WikiDossierRepository + ?Sized> WikiDossierUseCase<'a, R> {
                 .repository
                 .list_task_evidence(space_id, &key, &task_key)
                 .await?,
+            next_cursor: None,
         })
     }
 
@@ -1077,6 +1078,7 @@ impl<'a, R: WikiDossierRepository + ?Sized> WikiDossierUseCase<'a, R> {
                 .repository
                 .list_phase_evidence(space_id, &key, &phase_key)
                 .await?,
+            next_cursor: None,
         })
     }
 }
@@ -1104,7 +1106,53 @@ pub struct WikiEvidenceQueryCriteria {
     pub task_key: Option<String>,
     pub phase_key: Option<String>,
     pub access_user_id: Option<Uuid>,
+    pub query: Option<String>,
+    pub cursor: Option<WikiEvidenceCursor>,
     pub limit: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiEvidenceCursor {
+    pub created_at: DateTime<Utc>,
+    pub id: Uuid,
+}
+
+pub fn parse_evidence_cursor(value: Option<&str>) -> Result<Option<WikiEvidenceCursor>, AppError> {
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    let (created_at, id) = value
+        .split_once('.')
+        .ok_or_else(|| AppError::invalid_input("invalid evidence cursor"))?;
+    let micros = created_at
+        .parse::<i64>()
+        .map_err(|_| AppError::invalid_input("invalid evidence cursor"))?;
+    let created_at = DateTime::<Utc>::from_timestamp_micros(micros)
+        .ok_or_else(|| AppError::invalid_input("invalid evidence cursor"))?;
+    let id = Uuid::parse_str(id).map_err(|_| AppError::invalid_input("invalid evidence cursor"))?;
+    Ok(Some(WikiEvidenceCursor { created_at, id }))
+}
+
+pub fn evidence_page(
+    mut evidence: Vec<shared::EvidenceResponse>,
+    limit: usize,
+) -> Result<shared::EvidenceListResponse, AppError> {
+    let has_more = evidence.len() > limit;
+    evidence.truncate(limit);
+    let next_cursor = if has_more {
+        let last = evidence
+            .last()
+            .ok_or_else(|| AppError::internal("invalid evidence page boundary"))?;
+        let created_at = DateTime::parse_from_rfc3339(&last.created_at)
+            .map_err(|_| AppError::internal("invalid stored evidence timestamp"))?;
+        Some(format!("{}.{}", created_at.timestamp_micros(), last.id))
+    } else {
+        None
+    };
+    Ok(shared::EvidenceListResponse {
+        evidence,
+        next_cursor,
+    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1230,25 +1278,43 @@ impl<'a, R: WikiEvidenceRepository + ?Sized> WikiEvidenceUseCase<'a, R> {
 
     pub async fn list(
         &self,
-        space_key: Option<&str>,
+        request: shared::EvidenceQuery,
         document_id: Option<Uuid>,
-        task_key: Option<&str>,
-        phase_key: Option<&str>,
         access_user_id: Option<Uuid>,
-        limit: Option<usize>,
     ) -> Result<shared::EvidenceListResponse, AppError> {
+        let limit =
+            clamp_limit_with_default(request.limit, DEFAULT_EVIDENCE_LIMIT, MAX_EVIDENCE_LIMIT);
+        let query = request
+            .q
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
+        if query.is_some_and(|value| value.chars().count() > 200) {
+            return Err(AppError::invalid_input("evidence query is too long"));
+        }
         let criteria = WikiEvidenceQueryCriteria {
-            space_key: space_key.map(normalize_space_key).transpose()?,
+            space_key: request
+                .space
+                .as_deref()
+                .map(normalize_space_key)
+                .transpose()?,
             document_id,
-            task_key: task_key.map(normalize_task_key).transpose()?,
-            phase_key: phase_key.map(normalize_phase_key).transpose()?,
+            task_key: request
+                .task_key
+                .as_deref()
+                .map(normalize_task_key)
+                .transpose()?,
+            phase_key: request
+                .phase_key
+                .as_deref()
+                .map(normalize_phase_key)
+                .transpose()?,
             access_user_id,
-            limit: clamp_limit_with_default(limit, DEFAULT_EVIDENCE_LIMIT, MAX_EVIDENCE_LIMIT)
-                as i64,
+            query: query.map(str::to_lowercase),
+            cursor: parse_evidence_cursor(request.cursor.as_deref())?,
+            limit: (limit + 1) as i64,
         };
-        Ok(shared::EvidenceListResponse {
-            evidence: self.repository.list_evidence(&criteria).await?,
-        })
+        evidence_page(self.repository.list_evidence(&criteria).await?, limit)
     }
 
     pub async fn get(&self, evidence_id: Uuid) -> Result<shared::EvidenceResponse, AppError> {
@@ -3965,12 +4031,16 @@ mod tests {
 
         let list = use_case
             .list(
-                Some("sdlc"),
+                shared::EvidenceQuery {
+                    space: Some("sdlc".to_string()),
+                    task_key: Some(" SDLC-42 ".to_string()),
+                    phase_key: Some(" Implementation ".to_string()),
+                    q: Some(" Build LOG ".to_string()),
+                    limit: Some(500),
+                    ..Default::default()
+                },
                 Some(document_id),
-                Some(" SDLC-42 "),
-                Some(" Implementation "),
                 Some(access_user_id),
-                Some(500),
             )
             .await
             .unwrap();
@@ -3987,12 +4057,14 @@ mod tests {
                 task_key: Some("SDLC-42".to_string()),
                 phase_key: Some("implementation".to_string()),
                 access_user_id: Some(access_user_id),
-                limit: MAX_EVIDENCE_LIMIT as i64,
+                query: Some("build log".to_string()),
+                cursor: None,
+                limit: (MAX_EVIDENCE_LIMIT + 1) as i64,
             }]
         );
 
         let list = use_case
-            .list(None, None, None, None, None, None)
+            .list(shared::EvidenceQuery::default(), None, None)
             .await
             .unwrap();
         assert_eq!(list.evidence.len(), 1);
@@ -4004,7 +4076,35 @@ mod tests {
                 .last()
                 .expect("default evidence list criteria should be recorded")
                 .limit,
-            DEFAULT_EVIDENCE_LIMIT as i64
+            (DEFAULT_EVIDENCE_LIMIT + 1) as i64
+        );
+
+        assert!(
+            use_case
+                .list(
+                    shared::EvidenceQuery {
+                        cursor: Some("bad".to_string()),
+                        ..Default::default()
+                    },
+                    None,
+                    None
+                )
+                .await
+                .is_err()
+        );
+        let long_query = "a".repeat(201);
+        assert!(
+            use_case
+                .list(
+                    shared::EvidenceQuery {
+                        q: Some(long_query),
+                        ..Default::default()
+                    },
+                    None,
+                    None
+                )
+                .await
+                .is_err()
         );
 
         assert_eq!(
@@ -4013,6 +4113,19 @@ mod tests {
         );
         assert_eq!(normalize_evidence_space_key(None, None).unwrap(), "SDLC");
         assert!(normalize_evidence_space_key(Some("bad space"), None).is_err());
+    }
+
+    #[test]
+    fn evidence_page_uses_last_visible_item_for_cursor() {
+        let entries: Vec<_> = (0..45)
+            .map(|index| evidence_response(&format!("Evidence {index}")))
+            .collect();
+        let page = evidence_page(entries, 20).unwrap();
+        assert_eq!(page.evidence.len(), 20);
+        let cursor = parse_evidence_cursor(page.next_cursor.as_deref())
+            .unwrap()
+            .unwrap();
+        assert_eq!(cursor.id.to_string(), page.evidence[19].id);
     }
 
     #[tokio::test]

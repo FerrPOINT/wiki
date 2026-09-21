@@ -2,6 +2,11 @@
 
 > Snapshot date: 2026-09-03. Authority is repository code and tests; update this file whenever capability state changes.
 
+## Pending Verification (2026-09-20)
+
+- Evidence registry now has server-side `q` and `(created_at, id)` cursor pagination, a 20-item UI page, explicit filters, responsive rows, lazy file metadata and confirmed create actions. Draft PR #23 passed docs/backend/frontend CI; isolated PostgreSQL smoke and live 375/1920/2560 screenshots are still required before it can be marked ready.
+- Local Rust/Node builds, browser tests and PostgreSQL smoke are deferred because drive C: had about 0.19 GB free; no existing caches or user data were deleted.
+
 ## Current Verified
 
 | Capability | Status | Notes |

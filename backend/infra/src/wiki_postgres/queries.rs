@@ -65,8 +65,11 @@ pub(super) const EVIDENCE_LIST_SQL: &str = r#"
           FROM space_members sm
           WHERE sm.space_id = e.space_id AND sm.user_id = $5
       ))
-    ORDER BY e.created_at DESC
-    LIMIT $6
+      AND ($6::text IS NULL OR strpos(lower(concat_ws(' ', e.title, e.document_id::text,
+          td.task_key, pd.phase_key, e.url, e.evidence_type, s.key)), $6) > 0)
+      AND ($7::timestamptz IS NULL OR (e.created_at, e.id) < ($7, $8::uuid))
+    ORDER BY e.created_at DESC, e.id DESC
+    LIMIT $9
 "#;
 
 pub(super) const EVIDENCE_TARGET_SQL: &str = r#"

@@ -658,6 +658,7 @@ pub struct EvidenceResponse {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct EvidenceListResponse {
     pub evidence: Vec<EvidenceResponse>,
+    pub next_cursor: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, ToSchema)]
@@ -674,12 +675,14 @@ pub struct CreateEvidenceRequest {
     pub checksum: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, IntoParams)]
+#[derive(Debug, Clone, Default, Deserialize, IntoParams)]
 pub struct EvidenceQuery {
     pub space: Option<String>,
     pub document_id: Option<String>,
     pub task_key: Option<String>,
     pub phase_key: Option<String>,
+    pub q: Option<String>,
+    pub cursor: Option<String>,
     #[param(minimum = 1, maximum = 100)]
     pub limit: Option<usize>,
 }

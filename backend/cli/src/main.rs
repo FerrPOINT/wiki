@@ -303,6 +303,10 @@ enum EvidenceCommands {
         #[arg(long)]
         phase: Option<String>,
         #[arg(long)]
+        query: Option<String>,
+        #[arg(long)]
+        cursor: Option<String>,
+        #[arg(long)]
         limit: Option<usize>,
     },
 }
@@ -904,6 +908,8 @@ async fn execute_evidence(api: &ApiClient, command: EvidenceCommands) -> Result<
             document,
             task,
             phase,
+            query,
+            cursor,
             limit,
         } => {
             let query = query_string([
@@ -911,6 +917,8 @@ async fn execute_evidence(api: &ApiClient, command: EvidenceCommands) -> Result<
                 ("document_id", document),
                 ("task_key", task),
                 ("phase_key", phase),
+                ("q", query),
+                ("cursor", cursor),
                 ("limit", limit.map(|value| value.to_string())),
             ]);
             api.get(&format!("/evidence{query}")).await
@@ -2421,6 +2429,8 @@ mod tests {
                     document: Some("product-requirements".to_string()),
                     task: Some("SDLC-42".to_string()),
                     phase: Some("testing".to_string()),
+                    query: Some("build log".to_string()),
+                    cursor: Some("123.abc".to_string()),
                     limit: Some(50),
                 },
             },
@@ -2434,7 +2444,7 @@ mod tests {
         assert_eq!(requests[0].method, Method::GET);
         assert_eq!(
             requests[0].path,
-            "/api/v1/evidence?space=SDLC%20KB&document_id=product-requirements&task_key=SDLC-42&phase_key=testing&limit=50"
+            "/api/v1/evidence?space=SDLC%20KB&document_id=product-requirements&task_key=SDLC-42&phase_key=testing&q=build%20log&cursor=123.abc&limit=50"
         );
         assert_eq!(
             requests[0].authorization.as_deref(),

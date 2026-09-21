@@ -2,10 +2,10 @@ use app::wiki::{
     DEFAULT_AUDIT_LIMIT, DEFAULT_DOCUMENT_REVISION_LIMIT, DEFAULT_EVIDENCE_LIMIT,
     DEFAULT_SEARCH_LIMIT, MAX_AUDIT_LIMIT, MAX_DOCUMENT_REVISION_LIMIT, MAX_EVIDENCE_LIMIT,
     MAX_SEARCH_LIMIT, WikiSpaceAccess, audit_log_page, checksum, clamp_limit_with_default,
-    markdown_to_html, normalize_attachment_file_name, normalize_document_type,
+    evidence_page, markdown_to_html, normalize_attachment_file_name, normalize_document_type,
     normalize_evidence_type, normalize_phase_key, normalize_required, normalize_space_key,
-    normalize_space_role, normalize_task_key, parse_audit_cursor, safe_download_filename, slugify,
-    snippet, space_role_allows,
+    normalize_space_role, normalize_task_key, parse_audit_cursor, parse_evidence_cursor,
+    safe_download_filename, slugify, snippet, space_role_allows,
 };
 use axum::{
     Extension, Json,
@@ -2233,6 +2233,7 @@ pub async fn list_task_evidence(
     ensure_space_access(&store, &key, &claims.user_id, WikiSpaceAccess::View)?;
     Ok(Json(EvidenceListResponse {
         evidence: evidence_for_task(&store, &key, &task_key),
+        next_cursor: None,
     }))
 }
 
@@ -2425,6 +2426,7 @@ pub async fn list_phase_evidence(
     ensure_space_access(&store, &key, &claims.user_id, WikiSpaceAccess::View)?;
     Ok(Json(EvidenceListResponse {
         evidence: evidence_for_phase(&store, &key, &phase_key),
+        next_cursor: None,
     }))
 }
 
@@ -2606,6 +2608,19 @@ pub async fn list_evidence(
         .as_deref()
         .map(normalize_phase_key)
         .transpose()?;
+    let search = query
+        .q
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if search.is_some_and(|value| value.chars().count() > 200) {
+        return Err(shared::AppError::invalid_input(
+            "evidence query is too long",
+        ));
+    }
+    let search = search.map(str::to_lowercase);
+    let cursor = parse_evidence_cursor(query.cursor.as_deref())?;
+    let limit = clamp_limit_with_default(query.limit, DEFAULT_EVIDENCE_LIMIT, MAX_EVIDENCE_LIMIT);
     let store = store().lock().expect("wiki store lock");
     if let Some(key) = &requested_space {
         ensure_space_access(&store, key, &claims.user_id, WikiSpaceAccess::View)?;
@@ -2635,15 +2650,46 @@ pub async fn list_evidence(
                 .as_ref()
                 .is_none_or(|key| item.phase_key.as_ref() == Some(key))
         })
+        .filter(|item| {
+            search.as_ref().is_none_or(|needle| {
+                [
+                    Some(item.title.as_str()),
+                    item.document_id.as_deref(),
+                    item.task_key.as_deref(),
+                    item.phase_key.as_deref(),
+                    item.url.as_deref(),
+                    Some(item.evidence_type.as_str()),
+                    Some(item.space_key.as_str()),
+                ]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>()
+                .join(" ")
+                .to_lowercase()
+                .contains(needle)
+            })
+        })
+        .filter(|item| {
+            cursor.as_ref().is_none_or(|cursor| {
+                evidence_cursor_key(item)
+                    .is_some_and(|key| key < (cursor.created_at.timestamp_micros(), cursor.id))
+            })
+        })
         .cloned()
         .collect();
-    items.sort_by(|a, b| b.created_at.cmp(&a.created_at));
-    items.truncate(clamp_limit_with_default(
-        query.limit,
-        DEFAULT_EVIDENCE_LIMIT,
-        MAX_EVIDENCE_LIMIT,
-    ));
-    Ok(Json(EvidenceListResponse { evidence: items }))
+    sort_evidence_for_page(&mut items);
+    items.truncate(limit + 1);
+    Ok(Json(evidence_page(items, limit)?))
+}
+
+fn evidence_cursor_key(item: &EvidenceResponse) -> Option<(i64, Uuid)> {
+    let created_at = DateTime::parse_from_rfc3339(&item.created_at).ok()?;
+    let id = Uuid::parse_str(&item.id).ok()?;
+    Some((created_at.timestamp_micros(), id))
+}
+
+fn sort_evidence_for_page(items: &mut [EvidenceResponse]) {
+    items.sort_by_key(|item| std::cmp::Reverse(evidence_cursor_key(item)));
 }
 
 #[utoipa::path(
@@ -3338,4 +3384,49 @@ fn now_iso() -> String {
 
 fn default_user_role() -> String {
     "viewer".to_string()
+}
+
+#[cfg(test)]
+mod evidence_cursor_tests {
+    use super::*;
+
+    #[test]
+    fn memory_evidence_paging_uses_uuid_when_nanoseconds_share_a_microsecond() {
+        let make_item = |id: &str, created_at: &str| EvidenceResponse {
+            id: id.to_string(),
+            space_key: "SDLC".to_string(),
+            document_id: None,
+            task_key: Some("SDLC-1".to_string()),
+            phase_key: None,
+            title: "Cursor tie".to_string(),
+            evidence_type: "external_url".to_string(),
+            url: Some("https://ci.local/jobs/1".to_string()),
+            attachment_id: None,
+            checksum: None,
+            created_by: Uuid::nil().to_string(),
+            created_at: created_at.to_string(),
+        };
+        let higher_id = "00000000-0000-0000-0000-000000000002";
+        let lower_id = "00000000-0000-0000-0000-000000000001";
+        let mut items = vec![
+            make_item(lower_id, "2026-09-20T12:00:00.123456900Z"),
+            make_item(higher_id, "2026-09-20T12:00:00.123456100Z"),
+        ];
+        sort_evidence_for_page(&mut items);
+        assert_eq!(items[0].id, higher_id);
+
+        let page = evidence_page(items.clone(), 1).unwrap();
+        let cursor = parse_evidence_cursor(page.next_cursor.as_deref())
+            .unwrap()
+            .unwrap();
+        let remaining: Vec<_> = items
+            .iter()
+            .filter(|item| {
+                evidence_cursor_key(item)
+                    .is_some_and(|key| key < (cursor.created_at.timestamp_micros(), cursor.id))
+            })
+            .collect();
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].id, lower_id);
+    }
 }
