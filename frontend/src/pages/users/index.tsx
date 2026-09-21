@@ -36,7 +36,7 @@ export function UsersPage() {
     <div className="min-w-0 space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Пользователи</h1>
+          <h1 className="text-2xl font-bold">Профили Wiki</h1>
           {!usersQuery.isLoading && !usersQuery.isError && (
             <p className="text-sm text-text-muted">{users.length} всего</p>
           )}
@@ -45,7 +45,7 @@ export function UsersPage() {
           <Button asChild variant="secondary">
             <a href={`${adminUrl.replace(/\/$/, '')}/users`}>
               <ExternalLink className="h-4 w-4" />
-              Управление пользователями
+              Учётные записи
             </a>
           </Button>
         )}
@@ -85,7 +85,7 @@ export function UsersPage() {
                     {user.display_name ?? user.username ?? user.email}
                   </span>
                   <span className="shrink-0 text-xs text-text-secondary">
-                    {user.active === false ? 'Неактивен' : 'Активен'}
+                    {user.active === false ? 'Профиль отключён' : 'Профиль доступен'}
                   </span>
                 </div>
                 <div className="break-all text-sm text-text-muted">{user.email}</div>
@@ -97,7 +97,7 @@ export function UsersPage() {
               <TableRow>
                 <TableHead>Имя</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead className="w-32">Статус</TableHead>
+                <TableHead className="w-44">Профиль Wiki</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -107,7 +107,9 @@ export function UsersPage() {
                     {user.display_name ?? user.username ?? user.email}
                   </TableCell>
                   <TableCell className="break-all">{user.email}</TableCell>
-                  <TableCell>{user.active === false ? 'Неактивен' : 'Активен'}</TableCell>
+                  <TableCell>
+                    {user.active === false ? 'Профиль отключён' : 'Профиль доступен'}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
