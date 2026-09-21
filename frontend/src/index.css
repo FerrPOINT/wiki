@@ -1,6 +1,6 @@
 @import 'tailwindcss';
 @import '@sdlc/ui/tokens.css';
-@source "../../services-base/frontend/src";
+@source "../node_modules/@sdlc/ui/src";
 
 body {
   background-color: var(--color-background);

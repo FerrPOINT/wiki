@@ -136,6 +136,10 @@ content-width scale.
 Product page details remain in `docs/PAGE_DESIGN.md`; this contract preserves
 Wiki's document-first visual language.
 
+**Статус 2026-09-21:** контракт реализован в `frontend/src/widgets/app-shell.tsx`;
+unit/Playwright regression и responsive evidence хранятся рядом с frontend
+тестами и в `docs/screenshots/2026-09-21-shell/`.
+
 ## 15. References
 
 - `docs/FRONTEND_ARCHITECTURE.md` — технический стек и структура.
