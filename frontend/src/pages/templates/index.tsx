@@ -1,10 +1,20 @@
 import { FormEvent, useState } from 'react'
 import { Link } from 'react-router'
-import { ChevronDown, ClipboardCheck, FileText, Plus, Search, ShieldCheck } from 'lucide-react'
-import { useCreateTemplate, useTemplates } from '@/shared/api/hooks'
+import {
+  CheckCircle2,
+  ChevronDown,
+  ClipboardCheck,
+  FileText,
+  Plus,
+  Search,
+  ShieldCheck,
+  X,
+} from 'lucide-react'
+import { useCreateTemplate, useCurrentUser, useTemplates } from '@/shared/api/hooks'
 import { Button, EmptyState, ErrorState, Input, Label, LoadingState, Textarea } from '@sdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDocumentType } from '@/shared/lib/wiki-format'
+import type { Template } from '@/api/wiki'
 
 const typeOptions = [
   'page',
@@ -26,9 +36,12 @@ function templateIcon(documentType: string) {
 
 export function TemplatesPage() {
   const templatesQuery = useTemplates()
+  const currentUserQuery = useCurrentUser()
   const createTemplate = useCreateTemplate()
+  const isSystemAdmin = !currentUserQuery.isError && currentUserQuery.data?.is_system_admin === true
   const templates = templatesQuery.data?.templates ?? []
   const [showCreate, setShowCreate] = useState(false)
+  const [createdTemplate, setCreatedTemplate] = useState<Template | null>(null)
   const [name, setName] = useState('')
   const [documentType, setDocumentType] = useState('requirements')
   const [body, setBody] = useState('')
@@ -56,6 +69,8 @@ export function TemplatesPage() {
 
   function handleCreateTemplate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (!isSystemAdmin || createTemplate.isPending) return
+    setCreatedTemplate(null)
     createTemplate.mutate(
       {
         name: name.trim(),
@@ -63,11 +78,12 @@ export function TemplatesPage() {
         body_markdown: body.trim(),
       },
       {
-        onSuccess: () => {
+        onSuccess: (template) => {
           setName('')
           setDocumentType('requirements')
           setBody('')
           setShowCreate(false)
+          setCreatedTemplate(template)
         },
       },
     )
@@ -81,17 +97,20 @@ export function TemplatesPage() {
           <p className="mt-1 text-sm text-text-muted">Стартовые структуры документов.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            size="sm"
-            className="min-h-10 sm:min-h-10"
-            aria-expanded={showCreate}
-            aria-controls="template-create"
-            onClick={() => setShowCreate((value) => !value)}
-          >
-            <Plus className="h-4 w-4" aria-hidden />
-            Новый шаблон
-          </Button>
+          {isSystemAdmin && (
+            <Button
+              type="button"
+              size="sm"
+              className="min-h-10 sm:min-h-10"
+              aria-expanded={showCreate}
+              aria-controls={showCreate ? 'template-create' : undefined}
+              disabled={createTemplate.isPending}
+              onClick={() => setShowCreate((value) => !value)}
+            >
+              <Plus className="h-4 w-4" aria-hidden />
+              {showCreate ? 'Свернуть форму' : 'Новый шаблон'}
+            </Button>
+          )}
           <Button asChild size="sm" variant="secondary" className="min-h-10 sm:min-h-10">
             <Link to="/documents/new">
               <FileText className="h-4 w-4" aria-hidden />
@@ -101,7 +120,41 @@ export function TemplatesPage() {
         </div>
       </header>
 
-      {showCreate && (
+      {currentUserQuery.isError && (
+        <ErrorState
+          message={`Не удалось проверить права. ${formatApiErrorForUser(currentUserQuery.error, 'Повторите запрос')}`}
+          onRetry={() => currentUserQuery.refetch()}
+        />
+      )}
+
+      {createdTemplate && (
+        <div
+          role="status"
+          className="flex flex-wrap items-center gap-2 border-y border-border py-3 text-sm text-text-secondary"
+        >
+          <CheckCircle2 className="h-4 w-4 text-success" aria-hidden />
+          <span className="mr-auto min-w-0 break-words">
+            Шаблон «{createdTemplate.name}» создан
+          </span>
+          <Button asChild size="sm" variant="outline">
+            <Link to={`/documents/new?template=${encodeURIComponent(createdTemplate.id)}`}>
+              Использовать
+            </Link>
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            aria-label="Закрыть уведомление"
+            title="Закрыть уведомление"
+            onClick={() => setCreatedTemplate(null)}
+          >
+            <X className="h-4 w-4" aria-hidden />
+          </Button>
+        </div>
+      )}
+
+      {isSystemAdmin && showCreate && (
         <form
           id="template-create"
           aria-label="Создание шаблона"
@@ -116,6 +169,7 @@ export function TemplatesPage() {
                 className="min-h-10"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
+                disabled={createTemplate.isPending}
                 required
               />
             </div>
@@ -126,6 +180,7 @@ export function TemplatesPage() {
                 className={selectClassName}
                 value={documentType}
                 onChange={(event) => setDocumentType(event.target.value)}
+                disabled={createTemplate.isPending}
               >
                 {typeOptions.map((type) => (
                   <option key={type} value={type}>
@@ -142,6 +197,7 @@ export function TemplatesPage() {
               className="min-h-32 font-mono text-sm"
               value={body}
               onChange={(event) => setBody(event.target.value)}
+              disabled={createTemplate.isPending}
               required
             />
           </div>
@@ -156,9 +212,10 @@ export function TemplatesPage() {
               size="sm"
               variant="outline"
               className="min-h-10 sm:min-h-10"
+              disabled={createTemplate.isPending}
               onClick={() => setShowCreate(false)}
             >
-              Отмена
+              Свернуть
             </Button>
             <Button
               type="submit"

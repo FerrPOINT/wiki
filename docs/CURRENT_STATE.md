@@ -89,3 +89,8 @@ Production/release gates still remain:
 - Execute a target-host/staging backup restore drill and target-host TLS/CORS/secrets review.
 - Replace handwritten frontend endpoint wrappers with a generated operation client after the API contract stabilizes.
 - Keep screenshots regenerated after any UI or route change.
+
+## Templates UI Verification Pending (2026-09-20)
+
+- The templates screen now limits creation to system admins in the UI, locks the create form during submission, preserves drafts on error and confirms successful saves even when a search filter hides the new item. Backend authorization remains the source of truth.
+- Local build and browser screenshot checks were deferred because drive C: had about 0.16 GB free. Remote CI and live 375/1920/2560 UI review are required before the draft PR can be marked ready.
