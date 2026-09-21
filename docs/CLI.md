@@ -102,6 +102,8 @@ wiki doc revision <document-id> <revision-id>
 
 ```bash
 wiki task list --space SDLC
+wiki task list --space SDLC --limit 20 --cursor SDLC-42
+wiki task list --space SDLC --q requirements
 wiki task get --space SDLC --key SDLC-42
 wiki task docs --space SDLC --key SDLC-42
 wiki task evidence --space SDLC --key SDLC-42
@@ -112,11 +114,15 @@ wiki task link-doc --space SDLC --key SDLC-42 --document <document-id>
 
 ```bash
 wiki phase list --space SDLC
+wiki phase list --space SDLC --limit 20 --cursor implementation
+wiki phase list --space SDLC --q review
 wiki phase get --space SDLC --key implementation
 wiki phase docs --space SDLC --key implementation
 wiki phase evidence --space SDLC --key implementation
 wiki phase link-doc --space SDLC --key implementation --document <document-id>
 ```
+
+`task list` и `phase list` возвращают компактную страницу из 20 записей по умолчанию и `total` совпадений во всём пространстве до применения курсора. `--q` ищет по ключу и названию во всём пространстве. Для следующей страницы передайте `next_cursor` из ответа через `--cursor` с тем же `--q`; допустимый `--limit` — 1–100. Детальные документы и материалы доступны через `get`, `docs` и `evidence`.
 
 ### Evidence
 
@@ -144,6 +150,8 @@ wiki template list
 wiki template create --name "Release note" --type release_note --from-file release-note.md
 wiki template apply requirements --space SDLC --title "Requirements"
 wiki search query "authorization" --space SDLC --type requirements --limit 20
+wiki search query "authorization" --space SDLC --result-type evidence --limit 20
+wiki search query "authorization" --space SDLC --result-type evidence --limit 20 --cursor '<next_cursor>'
 wiki search query "archived decision" --space SDLC --include-archived
 ```
 
@@ -153,12 +161,13 @@ wiki search query "archived decision" --space SDLC --include-archived
 wiki audit list
 wiki audit list --limit 25
 wiki audit list --limit 25 --cursor CURSOR_FROM_PREVIOUS_RESPONSE
+wiki audit list --action document.publish --entity-type document --actor-id UUID --from 2026-09-01T00:00:00Z --to 2026-09-02T00:00:00Z
 wiki settings get
 ```
 
-`wiki audit list` returns the API JSON as-is, including `request_id` and `next_cursor`. Pass `next_cursor` back as `--cursor` to read older events. Without `--limit`, the API returns the latest 50 events; `--limit` is clamped server-side to `1..200`.
+`wiki audit list` returns the API JSON as-is, including `request_id` and `next_cursor`. Pass `next_cursor` back as `--cursor` with the same filters to read older matching events. `--action`/`--entity-type` use exact matching, `--actor-id` expects UUID, and `--from`/`--to` define an RFC3339 `[from, to)` interval. Without `--limit`, the API returns the latest 50 events; `--limit` is clamped server-side to `1..200`.
 
-Bounded read commands use the same limits as the public API: `wiki doc history` defaults to 20, clamps to `1..100` and accepts `--offset` (default `0`) for older revisions; `wiki evidence list` defaults to 30 and clamps to `1..100`; `wiki search query` defaults to 20 and clamps to `1..100`.
+Bounded read commands use the same limits as the public API: `wiki doc history` defaults to 20, clamps to `1..100` and accepts `--offset` (default `0`) for older revisions; `wiki evidence list` defaults to 30 and clamps to `1..100`; `wiki search query` defaults to 20, clamps to `1..100`, accepts `--result-type document|evidence` and continues with the response `next_cursor` via `--cursor`.
 
 ## Contract Freeze
 

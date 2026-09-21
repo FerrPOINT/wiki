@@ -249,6 +249,12 @@ enum TaskCommands {
     List {
         #[arg(long)]
         space: String,
+        #[arg(long)]
+        limit: Option<usize>,
+        #[arg(long)]
+        cursor: Option<String>,
+        #[arg(long)]
+        q: Option<String>,
     },
     Get(LinkTargetArgs),
     Docs(LinkTargetArgs),
@@ -261,6 +267,12 @@ enum PhaseCommands {
     List {
         #[arg(long)]
         space: String,
+        #[arg(long)]
+        limit: Option<usize>,
+        #[arg(long)]
+        cursor: Option<String>,
+        #[arg(long)]
+        q: Option<String>,
     },
     Get(LinkTargetArgs),
     Docs(LinkTargetArgs),
@@ -404,9 +416,13 @@ enum SearchCommands {
         #[arg(long = "type")]
         document_type: Option<String>,
         #[arg(long)]
+        result_type: Option<String>,
+        #[arg(long)]
         include_archived: bool,
         #[arg(long)]
         limit: Option<usize>,
+        #[arg(long)]
+        cursor: Option<String>,
     },
 }
 
@@ -417,6 +433,16 @@ enum AuditCommands {
         limit: Option<usize>,
         #[arg(long)]
         cursor: Option<String>,
+        #[arg(long)]
+        action: Option<String>,
+        #[arg(long)]
+        entity_type: Option<String>,
+        #[arg(long)]
+        actor_id: Option<String>,
+        #[arg(long)]
+        from: Option<String>,
+        #[arg(long)]
+        to: Option<String>,
     },
 }
 
@@ -814,7 +840,20 @@ async fn execute_doc(api: &ApiClient, command: DocCommands) -> Result<Value> {
 
 async fn execute_task(api: &ApiClient, command: TaskCommands) -> Result<Value> {
     match command {
-        TaskCommands::List { space } => api.get(&format!("/spaces/{}/tasks", enc(&space))).await,
+        TaskCommands::List {
+            space,
+            limit,
+            cursor,
+            q,
+        } => {
+            let query = query_string([
+                ("limit", limit.map(|n| n.to_string())),
+                ("cursor", cursor),
+                ("q", q),
+            ]);
+            api.get(&format!("/spaces/{}/task-summaries{query}", enc(&space)))
+                .await
+        }
         TaskCommands::Get(args) => api.get(&task_path(&args.space, &args.key)).await,
         TaskCommands::Docs(args) => {
             api.get(&format!("{}/documents", task_path(&args.space, &args.key)))
@@ -836,7 +875,20 @@ async fn execute_task(api: &ApiClient, command: TaskCommands) -> Result<Value> {
 
 async fn execute_phase(api: &ApiClient, command: PhaseCommands) -> Result<Value> {
     match command {
-        PhaseCommands::List { space } => api.get(&format!("/spaces/{}/phases", enc(&space))).await,
+        PhaseCommands::List {
+            space,
+            limit,
+            cursor,
+            q,
+        } => {
+            let query = query_string([
+                ("limit", limit.map(|n| n.to_string())),
+                ("cursor", cursor),
+                ("q", q),
+            ]);
+            api.get(&format!("/spaces/{}/phase-summaries{query}", enc(&space)))
+                .await
+        }
         PhaseCommands::Get(args) => api.get(&phase_path(&args.space, &args.key)).await,
         PhaseCommands::Docs(args) => {
             api.get(&format!("{}/documents", phase_path(&args.space, &args.key)))
@@ -997,8 +1049,10 @@ async fn execute_search(api: &ApiClient, command: SearchCommands) -> Result<Valu
             task,
             phase,
             document_type,
+            result_type,
             include_archived,
             limit,
+            cursor,
         } => {
             let query = query_string([
                 ("q", Some(query)),
@@ -1006,11 +1060,13 @@ async fn execute_search(api: &ApiClient, command: SearchCommands) -> Result<Valu
                 ("task_key", task),
                 ("phase_key", phase),
                 ("document_type", document_type),
+                ("result_type", result_type),
                 (
                     "include_archived",
                     include_archived.then(|| "true".to_string()),
                 ),
                 ("limit", limit.map(|value| value.to_string())),
+                ("cursor", cursor),
             ]);
             api.get(&format!("/search{query}")).await
         }
@@ -1019,10 +1075,23 @@ async fn execute_search(api: &ApiClient, command: SearchCommands) -> Result<Valu
 
 async fn execute_audit(api: &ApiClient, command: AuditCommands) -> Result<Value> {
     match command {
-        AuditCommands::List { limit, cursor } => {
+        AuditCommands::List {
+            limit,
+            cursor,
+            action,
+            entity_type,
+            actor_id,
+            from,
+            to,
+        } => {
             let query = query_string([
                 ("limit", limit.map(|value| value.to_string())),
                 ("cursor", cursor),
+                ("action", action),
+                ("entity_type", entity_type),
+                ("actor_id", actor_id),
+                ("from", from),
+                ("to", to),
             ]);
             api.get(&format!("/audit-log{query}")).await
         }
@@ -1385,8 +1454,10 @@ mod tests {
                     task: Some("SDLC-42".to_string()),
                     phase: Some("testing".to_string()),
                     document_type: Some("requirements".to_string()),
+                    result_type: Some("document".to_string()),
                     include_archived: true,
                     limit: Some(25),
+                    cursor: Some("42.00000000-0000-0000-0000-000000000000.document".to_string()),
                 },
             },
         )
@@ -1399,7 +1470,7 @@ mod tests {
         assert_eq!(requests[0].method, Method::GET);
         assert_eq!(
             requests[0].path,
-            "/api/v1/search?q=release%20gate&space=SDLC%20KB&task_key=SDLC-42&phase_key=testing&document_type=requirements&include_archived=true&limit=25"
+            "/api/v1/search?q=release%20gate&space=SDLC%20KB&task_key=SDLC-42&phase_key=testing&document_type=requirements&result_type=document&include_archived=true&limit=25&cursor=42.00000000-0000-0000-0000-000000000000.document"
         );
         assert_eq!(
             requests[0].authorization.as_deref(),
@@ -2046,6 +2117,11 @@ mod tests {
                 command: AuditCommands::List {
                     limit: None,
                     cursor: None,
+                    action: None,
+                    entity_type: None,
+                    actor_id: None,
+                    from: None,
+                    to: None,
                 },
             },
         )
@@ -2096,6 +2172,11 @@ mod tests {
                 command: AuditCommands::List {
                     limit: Some(25),
                     cursor: Some("123.cursor-id".to_string()),
+                    action: Some("document.publish".to_string()),
+                    entity_type: Some("document".to_string()),
+                    actor_id: Some("00000000-0000-0000-0000-000000000000".to_string()),
+                    from: Some("2026-09-01T00:00:00Z".to_string()),
+                    to: Some("2026-09-02T00:00:00Z".to_string()),
                 },
             },
         )
@@ -2108,7 +2189,7 @@ mod tests {
         assert_eq!(requests[0].method, Method::GET);
         assert_eq!(
             requests[0].path,
-            "/api/v1/audit-log?limit=25&cursor=123.cursor-id"
+            "/api/v1/audit-log?limit=25&cursor=123.cursor-id&action=document.publish&entity_type=document&actor_id=00000000-0000-0000-0000-000000000000&from=2026-09-01T00%3A00%3A00Z&to=2026-09-02T00%3A00%3A00Z"
         );
         assert_eq!(
             requests[0].authorization.as_deref(),
@@ -2127,6 +2208,9 @@ mod tests {
             Commands::Task {
                 command: TaskCommands::List {
                     space: "SDLC KB".to_string(),
+                    limit: Some(25),
+                    cursor: Some("SDLC/24".to_string()),
+                    q: Some("Plan A".to_string()),
                 },
             },
         )
@@ -2182,6 +2266,9 @@ mod tests {
             Commands::Phase {
                 command: PhaseCommands::List {
                     space: "SDLC KB".to_string(),
+                    limit: Some(10),
+                    cursor: Some("phase-9".to_string()),
+                    q: Some("Review".to_string()),
                 },
             },
         )
@@ -2251,7 +2338,10 @@ mod tests {
         let requests = server.requests();
         assert_eq!(requests.len(), 10);
         assert_eq!(requests[0].method, Method::GET);
-        assert_eq!(requests[0].path, "/api/v1/spaces/SDLC%20KB/tasks");
+        assert_eq!(
+            requests[0].path,
+            "/api/v1/spaces/SDLC%20KB/task-summaries?limit=25&cursor=SDLC%2F24&q=Plan%20A"
+        );
         assert!(requests[0].idempotency_key.is_none());
         assert_eq!(requests[1].method, Method::GET);
         assert_eq!(requests[1].path, "/api/v1/spaces/SDLC%20KB/tasks/SDLC-42");
@@ -2278,7 +2368,10 @@ mod tests {
         assert_eq!(body["document_id"], "product requirements");
 
         assert_eq!(requests[5].method, Method::GET);
-        assert_eq!(requests[5].path, "/api/v1/spaces/SDLC%20KB/phases");
+        assert_eq!(
+            requests[5].path,
+            "/api/v1/spaces/SDLC%20KB/phase-summaries?limit=10&cursor=phase-9&q=Review"
+        );
         assert!(requests[5].idempotency_key.is_none());
         assert_eq!(requests[6].method, Method::GET);
         assert_eq!(

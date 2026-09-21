@@ -170,6 +170,8 @@ Unique: `(document_id, version)`.
 
 Unique: `(space_id, task_key)`.
 
+`task_dossiers_catalog_key_idx` covers `(space_id, task_key COLLATE "C")` for stable keyset catalog pages.
+
 ### phase_dossiers
 
 Срез документов/evidence по phase key.
@@ -184,6 +186,8 @@ Unique: `(space_id, task_key)`.
 | `updated_at` | timestamptz   | Обновление                                                      |
 
 Unique: `(space_id, phase_key)`.
+
+`phase_dossiers_catalog_key_idx` covers `(space_id, phase_key COLLATE "C")` for stable keyset catalog pages.
 
 ### document_task_links
 
@@ -308,6 +312,7 @@ Required constraint categories:
 - immutable revision version uniqueness per document;
 - FTS index for published revision search;
 - audit indexes by entity, actor and `(created_at DESC, id DESC)` for stable cursor pagination.
+- `documents_search_cursor_idx` on `(updated_at DESC, id DESC)` for search pagination; evidence cursor ordering uses `(created_at DESC, id DESC)` once the evidence-list index migration is applied.
 
 ## 5. Search
 

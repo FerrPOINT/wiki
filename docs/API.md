@@ -101,6 +101,7 @@ Task dossier в MVP - это представление документов/evi
 | Method | Path                                                   | Назначение                       |
 | ------ | ------------------------------------------------------ | -------------------------------- |
 | `GET`  | `/spaces/{space_key}/tasks`                            | Список task keys, известных Wiki |
+| `GET`  | `/spaces/{space_key}/task-summaries`                   | Компактный каталог task dossiers с cursor |
 | `GET`  | `/spaces/{space_key}/tasks/{task_key}`                 | Сводка по task key               |
 | `POST` | `/spaces/{space_key}/tasks/{task_key}/links/documents` | Привязать документ к task key    |
 | `GET`  | `/spaces/{space_key}/tasks/{task_key}/documents`       | Документы task key               |
@@ -113,10 +114,13 @@ Phase dossier в MVP - это представление документов/ev
 | Method | Path                                                     | Назначение                        |
 | ------ | -------------------------------------------------------- | --------------------------------- |
 | `GET`  | `/spaces/{space_key}/phases`                             | Список phase keys, известных Wiki |
+| `GET`  | `/spaces/{space_key}/phase-summaries`                    | Компактный каталог phase dossiers с cursor |
 | `GET`  | `/spaces/{space_key}/phases/{phase_key}`                 | Сводка по phase key               |
 | `POST` | `/spaces/{space_key}/phases/{phase_key}/links/documents` | Привязать документ к phase key    |
 | `GET`  | `/spaces/{space_key}/phases/{phase_key}/documents`       | Документы phase key               |
 | `GET`  | `/spaces/{space_key}/phases/{phase_key}/evidence`        | Evidence phase key                |
+
+`task-summaries` и `phase-summaries` возвращают только `space_key`, ключ, `title`, `document_count` и `evidence_count`, без вложенных документов или evidence. `limit` по умолчанию 20, допускается `1..100`; `cursor` — последний ключ предыдущей страницы, в ответе `next_cursor=null` означает конец. `total` — точное число совпадений во всём пространстве с учётом `q`, но без применения `cursor`; оно остаётся тем же даже на пустой странице после конца списка. Необязательный `q` ищет без учёта регистра по ключу, сохранённому названию и названиям связанных неархивных документов во всём пространстве до пагинации. Ключи сортируются в бинарном порядке, поэтому page boundary стабилен при совпадающих датах. Счётчик документов не включает архивные документы. Старые `/tasks` и `/phases` оставлены для совместимости, но новым каталогам следует использовать bounded summary endpoint.
 
 ## 10. Evidence and Attachments
 
@@ -135,9 +139,9 @@ Canonical `evidence_type` values for MVP are `external_url` and `uploaded_file`.
 
 | Method | Path      | Назначение       |
 | ------ | --------- | ---------------- |
-| `GET`  | `/search` | Поиск документов |
+| `GET`  | `/search` | Поиск документов и материалов |
 
-Фильтры MVP: `space`, `task_key`, `phase_key`, `document_type`, `include_archived`, `limit`. Без `limit` поиск возвращает 20 результатов; `limit` ограничивается диапазоном `1..100`.
+Фильтры MVP: `q`, `space`, `task_key`, `phase_key`, `document_type`, `result_type` (`document` или `evidence`), `include_archived`, `limit`, `cursor`. Без `limit` поиск возвращает 20 результатов; `limit` ограничивается диапазоном `1..100`. `result_type` применяется до ограничения страницы, поэтому вкладка материалов не зависит от числа более новых документов. Ответ содержит `results` и `next_cursor` (`null` на последней странице). Результаты отсортированы по `(updated_at DESC, id DESC, result_type DESC)`; клиент передаёт непрозрачный `next_cursor` с теми же фильтрами для следующей страницы. Общее количество совпадений API не обещает. Ссылки на документы используют UUID, чтобы одинаковые slug в разных пространствах не вели к чужому документу.
 
 Для опубликованных документов поиск использует текущую опубликованную ревизию. Если у опубликованного документа есть новый непубликованный draft, его текст не попадает в общий search response до следующей публикации.
 
@@ -148,11 +152,11 @@ Canonical `evidence_type` values for MVP are `external_url` and `uploaded_file`.
 | `GET`  | `/templates` | Список шаблонов                                                    |
 | `POST` | `/templates` | Создать шаблон, system admin only                                  |
 | `GET`  | `/settings`  | Admin-only read-only snapshot безопасных runtime настроек инстанса |
-| `GET`  | `/audit-log` | Страницы audit events для admin UI; `limit` clamps to `1..200`, необязательный `cursor` |
+| `GET`  | `/audit-log` | Страницы audit events для admin UI; `limit` clamps to `1..200`, необязательные `cursor`, `action`, `entity_type`, `actor_id`, `from`, `to` |
 
 `GET /settings` не возвращает секреты, connection strings, storage paths или bootstrap credentials. MVP endpoint показывает только значения, нужные UI/CLI: API path, регистрацию, storage/search backend, лимит загрузки, язык и timezone.
 
-`GET /audit-log` возвращает append-only события с `request_id` в порядке `(created_at DESC, id DESC)`. Endpoint всегда bounded: без параметра отдаёт последние 50 событий, `limit` ограничивается диапазоном `1..200`. Ответ содержит `next_cursor` (`null` на последней странице); для следующей страницы клиент передаёт его неизменённым в `cursor`. Неизвестный формат курсора даёт `400`. Keyset-пагинация сохраняет границы уже открытых страниц при появлении новых событий и различает записи с одинаковым временем. Для mutating HTTP-запросов audit entry использует тот же `X-Request-ID`, который backend вернул клиенту в response header; если запрос пришёл без валидного id, middleware создаёт `req_` id и он попадает в audit.
+`GET /audit-log` возвращает append-only события с `request_id` в порядке `(created_at DESC, id DESC)`. Endpoint всегда bounded: без параметра отдаёт последние 50 событий, `limit` ограничивается диапазоном `1..200`. Ответ содержит `next_cursor` (`null` на последней странице); для следующей страницы клиент передаёт его неизменённым в `cursor`. Необязательные `action` и `entity_type` сравниваются точно, `actor_id` принимает UUID, `from` и `to` принимают RFC3339 и задают полуоткрытый интервал `[from, to)` в UTC. Фильтры действуют на весь audit до cursor/limit; при переходе к следующей странице клиент сохраняет тот же набор фильтров. Неверные UUID/даты, обратный диапазон и неизвестный формат курсора дают `400`. Keyset-пагинация сохраняет границы уже открытых страниц при появлении новых событий и различает записи с одинаковым временем. Для mutating HTTP-запросов audit entry использует тот же `X-Request-ID`, который backend вернул клиенту в response header; если запрос пришёл без валидного id, middleware создаёт `req_` id и он попадает в audit.
 
 ## 13. Deferred API Areas
 

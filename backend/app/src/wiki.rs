@@ -868,6 +868,15 @@ pub trait WikiDossierRepository {
         space_key: &'a str,
     ) -> WikiDossierRepositoryFuture<'a, Vec<shared::TaskPageResponse>>;
 
+    fn list_task_summaries<'a>(
+        &'a self,
+        space_id: Uuid,
+        space_key: &'a str,
+        cursor: Option<&'a str>,
+        q: Option<&'a str>,
+        limit: usize,
+    ) -> WikiDossierRepositoryFuture<'a, (Vec<shared::TaskSummaryResponse>, usize)>;
+
     fn get_task<'a>(
         &'a self,
         space_id: Uuid,
@@ -900,6 +909,15 @@ pub trait WikiDossierRepository {
         space_id: Uuid,
         space_key: &'a str,
     ) -> WikiDossierRepositoryFuture<'a, Vec<shared::PhasePageResponse>>;
+
+    fn list_phase_summaries<'a>(
+        &'a self,
+        space_id: Uuid,
+        space_key: &'a str,
+        cursor: Option<&'a str>,
+        q: Option<&'a str>,
+        limit: usize,
+    ) -> WikiDossierRepositoryFuture<'a, (Vec<shared::PhaseSummaryResponse>, usize)>;
 
     fn get_phase<'a>(
         &'a self,
@@ -947,6 +965,27 @@ impl<'a, R: WikiDossierRepository + ?Sized> WikiDossierUseCase<'a, R> {
         Ok(shared::TaskPageListResponse {
             tasks: self.repository.list_tasks(space_id, &key).await?,
         })
+    }
+
+    pub async fn list_task_summaries(
+        &self,
+        space_id: Uuid,
+        space_key: &str,
+        query: shared::DossierCatalogQuery,
+    ) -> Result<shared::TaskSummaryListResponse, AppError> {
+        let key = normalize_space_key(space_key)?;
+        let limit = dossier_catalog_limit(query.limit)?;
+        let cursor = query
+            .cursor
+            .as_deref()
+            .map(normalize_task_key)
+            .transpose()?;
+        let q = normalize_dossier_catalog_search(query.q.as_deref())?;
+        let (tasks, total) = self
+            .repository
+            .list_task_summaries(space_id, &key, cursor.as_deref(), q.as_deref(), limit + 1)
+            .await?;
+        Ok(task_summary_page(tasks, limit, total))
     }
 
     pub async fn get_task(
@@ -1021,6 +1060,27 @@ impl<'a, R: WikiDossierRepository + ?Sized> WikiDossierUseCase<'a, R> {
         })
     }
 
+    pub async fn list_phase_summaries(
+        &self,
+        space_id: Uuid,
+        space_key: &str,
+        query: shared::DossierCatalogQuery,
+    ) -> Result<shared::PhaseSummaryListResponse, AppError> {
+        let key = normalize_space_key(space_key)?;
+        let limit = dossier_catalog_limit(query.limit)?;
+        let cursor = query
+            .cursor
+            .as_deref()
+            .map(normalize_phase_key)
+            .transpose()?;
+        let q = normalize_dossier_catalog_search(query.q.as_deref())?;
+        let (phases, total) = self
+            .repository
+            .list_phase_summaries(space_id, &key, cursor.as_deref(), q.as_deref(), limit + 1)
+            .await?;
+        Ok(phase_summary_page(phases, limit, total))
+    }
+
     pub async fn get_phase(
         &self,
         space_id: Uuid,
@@ -1080,6 +1140,58 @@ impl<'a, R: WikiDossierRepository + ?Sized> WikiDossierUseCase<'a, R> {
                 .await?,
             next_cursor: None,
         })
+    }
+}
+
+pub fn dossier_catalog_limit(value: Option<usize>) -> Result<usize, AppError> {
+    let limit = value.unwrap_or(20);
+    if !(1..=100).contains(&limit) {
+        return Err(AppError::invalid_input(
+            "dossier catalog limit must be 1-100",
+        ));
+    }
+    Ok(limit)
+}
+
+pub fn normalize_dossier_catalog_search(value: Option<&str>) -> Result<Option<String>, AppError> {
+    let q = value.unwrap_or_default().trim();
+    if q.len() > 100 || q.chars().any(char::is_control) {
+        return Err(AppError::invalid_input("invalid dossier catalog query"));
+    }
+    Ok((!q.is_empty()).then(|| q.to_string()))
+}
+
+pub fn task_summary_page(
+    mut tasks: Vec<shared::TaskSummaryResponse>,
+    limit: usize,
+    total: usize,
+) -> shared::TaskSummaryListResponse {
+    let has_more = tasks.len() > limit;
+    tasks.truncate(limit);
+    let next_cursor = has_more
+        .then(|| tasks.last().map(|task| task.task_key.clone()))
+        .flatten();
+    shared::TaskSummaryListResponse {
+        tasks,
+        next_cursor,
+        total,
+    }
+}
+
+pub fn phase_summary_page(
+    mut phases: Vec<shared::PhaseSummaryResponse>,
+    limit: usize,
+    total: usize,
+) -> shared::PhaseSummaryListResponse {
+    let has_more = phases.len() > limit;
+    phases.truncate(limit);
+    let next_cursor = has_more
+        .then(|| phases.last().map(|phase| phase.phase_key.clone()))
+        .flatten();
+    shared::PhaseSummaryListResponse {
+        phases,
+        next_cursor,
+        total,
     }
 }
 
@@ -1399,8 +1511,85 @@ pub struct WikiSearchCriteria {
     pub task_key: Option<String>,
     pub phase_key: Option<String>,
     pub document_type: Option<&'static str>,
+    pub result_type: Option<&'static str>,
     pub include_archived: bool,
     pub limit: i64,
+    pub cursor: Option<WikiSearchCursor>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct WikiSearchCursor {
+    pub updated_at: DateTime<Utc>,
+    pub id: Uuid,
+    pub result_type: String,
+}
+
+pub fn parse_search_cursor(value: Option<&str>) -> Result<Option<WikiSearchCursor>, AppError> {
+    let Some(value) = value else { return Ok(None) };
+    let mut parts = value.split('.');
+    let (Some(micros), Some(id), Some(result_type), None) =
+        (parts.next(), parts.next(), parts.next(), parts.next())
+    else {
+        return Err(AppError::invalid_input("invalid search cursor"));
+    };
+    let updated_at = micros
+        .parse::<i64>()
+        .ok()
+        .and_then(DateTime::<Utc>::from_timestamp_micros)
+        .ok_or_else(|| AppError::invalid_input("invalid search cursor"))?;
+    let id = Uuid::parse_str(id).map_err(|_| AppError::invalid_input("invalid search cursor"))?;
+    if !matches!(result_type, "document" | "evidence") {
+        return Err(AppError::invalid_input("invalid search cursor"));
+    }
+    Ok(Some(WikiSearchCursor {
+        updated_at,
+        id,
+        result_type: result_type.to_string(),
+    }))
+}
+
+pub fn search_result_page(
+    results: Vec<shared::SearchResultResponse>,
+    limit: usize,
+    cursor: Option<&WikiSearchCursor>,
+) -> Result<shared::SearchResponse, AppError> {
+    let mut keyed = results
+        .into_iter()
+        .map(|result| {
+            let updated_at = DateTime::parse_from_rfc3339(&result.updated_at)
+                .map_err(|_| AppError::internal("invalid stored search timestamp"))?
+                .with_timezone(&Utc);
+            let id = Uuid::parse_str(&result.id)
+                .map_err(|_| AppError::internal("invalid stored search id"))?;
+            let key = WikiSearchCursor {
+                updated_at: DateTime::<Utc>::from_timestamp_micros(updated_at.timestamp_micros())
+                    .ok_or_else(|| AppError::internal("invalid stored search timestamp"))?,
+                id,
+                result_type: result.result_type.clone(),
+            };
+            Ok((key, result))
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+    keyed.retain(|(key, _)| cursor.is_none_or(|cursor| key < cursor));
+    keyed.sort_by(|a, b| b.0.cmp(&a.0));
+    let has_more = keyed.len() > limit;
+    keyed.truncate(limit);
+    let next_cursor = if has_more {
+        keyed.last().map(|(key, _)| {
+            format!(
+                "{}.{}.{}",
+                key.updated_at.timestamp_micros(),
+                key.id,
+                key.result_type
+            )
+        })
+    } else {
+        None
+    };
+    Ok(shared::SearchResponse {
+        results: keyed.into_iter().map(|(_, result)| result).collect(),
+        next_cursor,
+    })
 }
 
 pub type WikiSearchRepositoryFuture<'a> =
@@ -1434,18 +1623,21 @@ impl<'a, R: WikiSearchRepository + ?Sized> WikiSearchUseCase<'a, R> {
         criteria: WikiSearchCriteria,
         restricted_user_id: Option<Uuid>,
     ) -> Result<shared::SearchResponse, AppError> {
-        let mut results = self
-            .repository
-            .search_documents(&criteria, restricted_user_id)
-            .await?;
-        results.extend(
+        let mut results = if criteria.result_type == Some("evidence") {
+            Vec::new()
+        } else {
             self.repository
-                .search_evidence(&criteria, restricted_user_id)
-                .await?,
-        );
-        results.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
-        results.truncate(criteria.limit as usize);
-        Ok(shared::SearchResponse { results })
+                .search_documents(&criteria, restricted_user_id)
+                .await?
+        };
+        if criteria.result_type != Some("document") {
+            results.extend(
+                self.repository
+                    .search_evidence(&criteria, restricted_user_id)
+                    .await?,
+            );
+        }
+        search_result_page(results, criteria.limit as usize, criteria.cursor.as_ref())
     }
 }
 
@@ -1555,11 +1747,92 @@ pub fn audit_log_page(
     })
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct WikiAuditFilter {
+    pub action: Option<String>,
+    pub entity_type: Option<String>,
+    pub actor_id: Option<Uuid>,
+    pub from: Option<DateTime<Utc>>,
+    pub to: Option<DateTime<Utc>>,
+}
+
+impl WikiAuditFilter {
+    pub fn from_query(query: &shared::AuditLogQuery) -> Result<Self, AppError> {
+        fn text(value: Option<&str>, name: &str) -> Result<Option<String>, AppError> {
+            value
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(|value| {
+                    if value.len() > 128 || value.chars().any(char::is_control) {
+                        Err(AppError::invalid_input(format!("invalid {name} filter")))
+                    } else {
+                        Ok(value.to_string())
+                    }
+                })
+                .transpose()
+        }
+
+        fn timestamp(value: Option<&str>, name: &str) -> Result<Option<DateTime<Utc>>, AppError> {
+            value
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(|value| {
+                    DateTime::parse_from_rfc3339(value)
+                        .map(|value| value.with_timezone(&Utc))
+                        .map_err(|_| AppError::invalid_input(format!("invalid {name} timestamp")))
+                })
+                .transpose()
+        }
+
+        let from = timestamp(query.from.as_deref(), "from")?;
+        let to = timestamp(query.to.as_deref(), "to")?;
+        if from
+            .as_ref()
+            .zip(to.as_ref())
+            .is_some_and(|(from, to)| from >= to)
+        {
+            return Err(AppError::invalid_input("from must be before to"));
+        }
+        Ok(Self {
+            action: text(query.action.as_deref(), "action")?,
+            entity_type: text(query.entity_type.as_deref(), "entity_type")?,
+            actor_id: query
+                .actor_id
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(|value| {
+                    Uuid::parse_str(value)
+                        .map_err(|_| AppError::invalid_input("invalid actor_id filter"))
+                })
+                .transpose()?,
+            from,
+            to,
+        })
+    }
+
+    pub fn matches(&self, entry: &shared::AuditEntryResponse, created_at: &DateTime<Utc>) -> bool {
+        self.action
+            .as_ref()
+            .is_none_or(|value| entry.action == value.as_str())
+            && self
+                .entity_type
+                .as_ref()
+                .is_none_or(|value| entry.entity_type == value.as_str())
+            && self
+                .actor_id
+                .is_none_or(|value| entry.actor_id == value.to_string())
+            && self.from.as_ref().is_none_or(|value| created_at >= value)
+            && self.to.as_ref().is_none_or(|value| created_at < value)
+    }
+}
+
 pub trait WikiAuditRepository {
     fn list_recent_entries(
         &self,
         limit: usize,
         cursor: Option<WikiAuditCursor>,
+        filter: WikiAuditFilter,
     ) -> WikiAuditRepositoryFuture<'_, Vec<shared::AuditEntryResponse>>;
 
     fn record_entry(&self, command: WikiAuditCommand) -> WikiAuditRepositoryFuture<'_, ()>;
@@ -1580,9 +1853,10 @@ impl<'a, R: WikiAuditRepository + ?Sized> WikiAuditUseCase<'a, R> {
     ) -> Result<shared::AuditLogResponse, AppError> {
         let limit = clamp_limit_with_default(query.limit, DEFAULT_AUDIT_LIMIT, MAX_AUDIT_LIMIT);
         let cursor = parse_audit_cursor(query.cursor.as_deref())?;
+        let filter = WikiAuditFilter::from_query(&query)?;
         let entries = self
             .repository
-            .list_recent_entries(limit + 1, cursor)
+            .list_recent_entries(limit + 1, cursor, filter)
             .await?;
         audit_log_page(entries, limit)
     }
@@ -1728,15 +2002,17 @@ pub fn build_wiki_search_criteria(
         document_type: document_type
             .map(|value| normalize_document_type(value, true))
             .transpose()?,
+        result_type: None,
         include_archived: include_archived.unwrap_or(false),
         limit: clamp_limit_with_default(limit, DEFAULT_SEARCH_LIMIT, MAX_SEARCH_LIMIT) as i64,
+        cursor: None,
     })
 }
 
 pub fn build_wiki_search_criteria_from_query(
     query: &shared::SearchQuery,
 ) -> Result<WikiSearchCriteria, AppError> {
-    build_wiki_search_criteria(
+    let mut criteria = build_wiki_search_criteria(
         query.q.as_deref(),
         query.space.as_deref(),
         query.task_key.as_deref(),
@@ -1744,7 +2020,15 @@ pub fn build_wiki_search_criteria_from_query(
         query.document_type.as_deref(),
         query.include_archived,
         query.limit,
-    )
+    )?;
+    criteria.result_type = match query.result_type.as_deref() {
+        None | Some("") => None,
+        Some("document") => Some("document"),
+        Some("evidence") => Some("evidence"),
+        _ => return Err(AppError::invalid_input("unsupported search result type")),
+    };
+    criteria.cursor = parse_search_cursor(query.cursor.as_deref())?;
+    Ok(criteria)
 }
 
 fn evidence_like_pattern(value: &str) -> String {
@@ -2443,6 +2727,40 @@ mod tests {
             })
         }
 
+        fn list_task_summaries<'a>(
+            &'a self,
+            _space_id: Uuid,
+            _space_key: &'a str,
+            cursor: Option<&'a str>,
+            q: Option<&'a str>,
+            limit: usize,
+        ) -> WikiDossierRepositoryFuture<'a, (Vec<shared::TaskSummaryResponse>, usize)> {
+            Box::pin(async move {
+                let matches = q.is_none_or(|value| {
+                    self.task
+                        .task_key
+                        .to_lowercase()
+                        .contains(&value.to_lowercase())
+                        || self.task.title.as_deref().is_some_and(|title| {
+                            title.to_lowercase().contains(&value.to_lowercase())
+                        })
+                });
+                let page = (matches
+                    && cursor.is_none_or(|key| self.task.task_key.as_str() > key)
+                    && limit > 0)
+                    .then(|| shared::TaskSummaryResponse {
+                        space_key: self.task.space_key.clone(),
+                        task_key: self.task.task_key.clone(),
+                        title: self.task.title.clone(),
+                        document_count: self.task.document_count,
+                        evidence_count: self.task.evidence_count,
+                    })
+                    .into_iter()
+                    .collect();
+                Ok((page, usize::from(matches)))
+            })
+        }
+
         fn get_task<'a>(
             &'a self,
             space_id: Uuid,
@@ -2513,6 +2831,40 @@ mod tests {
                     .expect("listed phases should be lockable")
                     .push((space_id, space_key.to_string()));
                 Ok(vec![self.phase.clone()])
+            })
+        }
+
+        fn list_phase_summaries<'a>(
+            &'a self,
+            _space_id: Uuid,
+            _space_key: &'a str,
+            cursor: Option<&'a str>,
+            q: Option<&'a str>,
+            limit: usize,
+        ) -> WikiDossierRepositoryFuture<'a, (Vec<shared::PhaseSummaryResponse>, usize)> {
+            Box::pin(async move {
+                let matches = q.is_none_or(|value| {
+                    self.phase
+                        .phase_key
+                        .to_lowercase()
+                        .contains(&value.to_lowercase())
+                        || self.phase.title.as_deref().is_some_and(|title| {
+                            title.to_lowercase().contains(&value.to_lowercase())
+                        })
+                });
+                let page = (matches
+                    && cursor.is_none_or(|key| self.phase.phase_key.as_str() > key)
+                    && limit > 0)
+                    .then(|| shared::PhaseSummaryResponse {
+                        space_key: self.phase.space_key.clone(),
+                        phase_key: self.phase.phase_key.clone(),
+                        title: self.phase.title.clone(),
+                        document_count: self.phase.document_count,
+                        evidence_count: self.phase.evidence_count,
+                    })
+                    .into_iter()
+                    .collect();
+                Ok((page, usize::from(matches)))
             })
         }
 
@@ -2703,6 +3055,7 @@ mod tests {
             &self,
             limit: usize,
             cursor: Option<WikiAuditCursor>,
+            filter: WikiAuditFilter,
         ) -> WikiAuditRepositoryFuture<'_, Vec<shared::AuditEntryResponse>> {
             Box::pin(async move {
                 let start = cursor
@@ -2717,6 +3070,12 @@ mod tests {
                     .entries
                     .iter()
                     .skip(start)
+                    .filter(|entry| {
+                        let created_at = DateTime::parse_from_rfc3339(&entry.created_at)
+                            .expect("valid audit fixture timestamp")
+                            .with_timezone(&Utc);
+                        filter.matches(entry, &created_at)
+                    })
                     .take(limit)
                     .cloned()
                     .collect())
@@ -3981,6 +4340,107 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn wiki_dossier_summary_catalog_validates_and_normalizes_cursors() {
+        let repository = recording_dossier_repository();
+        let use_case = WikiDossierUseCase::new(&repository);
+        let space_id = Uuid::now_v7();
+
+        let tasks = use_case
+            .list_task_summaries(
+                space_id,
+                " sdlc ",
+                shared::DossierCatalogQuery {
+                    limit: Some(1),
+                    cursor: Some(" SDLC-41 ".to_string()),
+                    q: Some("sdlc".to_string()),
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(tasks.tasks[0].task_key, "SDLC-42");
+        assert_eq!(
+            tasks.tasks[0].document_count,
+            repository.task.document_count
+        );
+        assert!(tasks.next_cursor.is_none());
+        assert_eq!(tasks.total, 1);
+
+        let phases = use_case
+            .list_phase_summaries(
+                space_id,
+                "SDLC",
+                shared::DossierCatalogQuery {
+                    limit: None,
+                    cursor: Some(" Implementation ".to_string()),
+                    q: None,
+                },
+            )
+            .await
+            .unwrap();
+        assert!(phases.phases.is_empty());
+        assert_eq!(phases.total, 1);
+        assert!(
+            use_case
+                .list_task_summaries(
+                    space_id,
+                    "SDLC",
+                    shared::DossierCatalogQuery {
+                        limit: Some(0),
+                        cursor: None,
+                        q: None,
+                    },
+                )
+                .await
+                .is_err()
+        );
+        assert!(
+            use_case
+                .list_phase_summaries(
+                    space_id,
+                    "SDLC",
+                    shared::DossierCatalogQuery {
+                        limit: Some(101),
+                        cursor: None,
+                        q: None,
+                    },
+                )
+                .await
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn wiki_dossier_summary_pages_keep_key_cursor_stable() {
+        let tasks: Vec<_> = (0..21)
+            .map(|index| shared::TaskSummaryResponse {
+                space_key: "SDLC".to_string(),
+                task_key: format!("SDLC-{index:02}"),
+                title: None,
+                document_count: 0,
+                evidence_count: 0,
+            })
+            .collect();
+        let page = task_summary_page(tasks, 20, 21);
+        assert_eq!(page.tasks.len(), 20);
+        assert_eq!(page.total, 21);
+        assert_eq!(page.next_cursor.as_deref(), Some("SDLC-19"));
+
+        let phases: Vec<_> = (0..3)
+            .map(|index| shared::PhaseSummaryResponse {
+                space_key: "SDLC".to_string(),
+                phase_key: format!("phase-{index}"),
+                title: None,
+                document_count: 0,
+                evidence_count: 0,
+            })
+            .collect();
+        let page = phase_summary_page(phases, 20, 3);
+        assert_eq!(page.phases.len(), 3);
+        assert_eq!(page.total, 3);
+        assert!(page.next_cursor.is_none());
+    }
+
+    #[tokio::test]
     async fn wiki_evidence_use_case_normalizes_create_and_list_requests() {
         let repository = recording_evidence_repository();
         let use_case = WikiEvidenceUseCase::new(&repository);
@@ -4357,20 +4817,20 @@ mod tests {
         let repository = StaticSearchRepository {
             documents: vec![
                 search_result(
-                    "doc-old",
+                    "00000000-0000-0000-0000-000000000001",
                     "document",
                     "Old document",
                     "2026-08-30T10:00:00Z",
                 ),
                 search_result(
-                    "doc-new",
+                    "00000000-0000-0000-0000-000000000003",
                     "document",
                     "New document",
                     "2026-09-01T10:00:00Z",
                 ),
             ],
             evidence: vec![search_result(
-                "evidence-mid",
+                "00000000-0000-0000-0000-000000000002",
                 "evidence",
                 "Middle evidence",
                 "2026-08-31T10:00:00Z",
@@ -4381,7 +4841,7 @@ mod tests {
                 .unwrap();
 
         let response = WikiSearchUseCase::new(&repository)
-            .execute(criteria, Some(Uuid::nil()))
+            .execute(criteria.clone(), Some(Uuid::nil()))
             .await
             .unwrap();
 
@@ -4391,8 +4851,51 @@ mod tests {
                 .iter()
                 .map(|result| result.id.as_str())
                 .collect::<Vec<_>>(),
-            vec!["doc-new", "evidence-mid"]
+            vec![
+                "00000000-0000-0000-0000-000000000003",
+                "00000000-0000-0000-0000-000000000002"
+            ]
         );
+        let cursor = response.next_cursor.expect("more search results");
+        let mut second_criteria = criteria;
+        second_criteria.cursor = parse_search_cursor(Some(&cursor)).unwrap();
+        let second = WikiSearchUseCase::new(&repository)
+            .execute(second_criteria, Some(Uuid::nil()))
+            .await
+            .unwrap();
+        assert_eq!(second.results.len(), 1);
+        assert_eq!(second.results[0].id, "00000000-0000-0000-0000-000000000001");
+        assert!(second.next_cursor.is_none());
+    }
+
+    #[test]
+    fn wiki_search_cursor_rejects_invalid_values_and_orders_microsecond_ties_by_id() {
+        for value in [
+            "invalid",
+            "0.invalid.document",
+            "0.00000000-0000-0000-0000-000000000001.other",
+        ] {
+            assert!(parse_search_cursor(Some(value)).is_err());
+        }
+        let results = vec![
+            search_result(
+                "00000000-0000-0000-0000-000000000001",
+                "document",
+                "First",
+                "2026-09-01T10:00:00.123456100Z",
+            ),
+            search_result(
+                "00000000-0000-0000-0000-000000000002",
+                "evidence",
+                "Second",
+                "2026-09-01T10:00:00.123456900Z",
+            ),
+        ];
+        let first = search_result_page(results.clone(), 1, None).unwrap();
+        assert_eq!(first.results[0].id, "00000000-0000-0000-0000-000000000002");
+        let cursor = parse_search_cursor(first.next_cursor.as_deref()).unwrap();
+        let second = search_result_page(results, 1, cursor.as_ref()).unwrap();
+        assert_eq!(second.results[0].id, "00000000-0000-0000-0000-000000000001");
     }
 
     #[tokio::test]
@@ -4460,6 +4963,7 @@ mod tests {
             .list_recent(shared::AuditLogQuery {
                 limit: None,
                 cursor: None,
+                ..Default::default()
             })
             .await
             .unwrap();
@@ -4518,6 +5022,7 @@ mod tests {
             .list_recent(shared::AuditLogQuery {
                 limit: Some(1),
                 cursor: None,
+                ..Default::default()
             })
             .await
             .unwrap();
@@ -4526,6 +5031,7 @@ mod tests {
             .list_recent(shared::AuditLogQuery {
                 limit: Some(1),
                 cursor: first.next_cursor,
+                ..Default::default()
             })
             .await
             .unwrap();
@@ -4534,6 +5040,7 @@ mod tests {
             .list_recent(shared::AuditLogQuery {
                 limit: Some(1),
                 cursor: second.next_cursor,
+                ..Default::default()
             })
             .await
             .unwrap();
@@ -4544,9 +5051,71 @@ mod tests {
             .list_recent(shared::AuditLogQuery {
                 limit: Some(1),
                 cursor: Some("not-a-cursor".to_string()),
+                ..Default::default()
             })
             .await;
         assert!(matches!(invalid, Err(AppError::InvalidInput(_))));
+    }
+
+    #[tokio::test]
+    async fn wiki_audit_filters_apply_before_cursor_and_validate_range() {
+        let mut entries = vec![
+            audit_entry("document.publish"),
+            audit_entry("document.edit"),
+            audit_entry("document.publish"),
+            audit_entry("document.publish"),
+            audit_entry("space.create"),
+        ];
+        for (index, entry) in entries.iter_mut().enumerate() {
+            entry.created_at = format!("2026-09-01T10:00:0{}Z", 4 - index);
+        }
+        entries[2].actor_id = Uuid::now_v7().to_string();
+        entries[4].entity_type = "space".to_string();
+        let repository = RecordingAuditRepository {
+            entries,
+            recorded: std::sync::Mutex::new(Vec::new()),
+        };
+        let use_case = WikiAuditUseCase::new(&repository);
+        let query = shared::AuditLogQuery {
+            limit: Some(1),
+            action: Some(" document.publish ".to_string()),
+            entity_type: Some("document".to_string()),
+            actor_id: Some(Uuid::nil().to_string()),
+            from: Some("2026-09-01T10:00:00Z".to_string()),
+            to: Some("2026-09-01T10:00:05Z".to_string()),
+            ..Default::default()
+        };
+        let first = use_case.list_recent(query.clone()).await.unwrap();
+        assert_eq!(first.entries[0].created_at, "2026-09-01T10:00:04Z");
+        let second = use_case
+            .list_recent(shared::AuditLogQuery {
+                cursor: first.next_cursor,
+                ..query.clone()
+            })
+            .await
+            .unwrap();
+        assert_eq!(second.entries[0].created_at, "2026-09-01T10:00:01Z");
+        assert!(second.next_cursor.is_none());
+
+        for invalid in [
+            shared::AuditLogQuery {
+                actor_id: Some("not-a-uuid".to_string()),
+                ..query.clone()
+            },
+            shared::AuditLogQuery {
+                from: Some("invalid".to_string()),
+                ..query.clone()
+            },
+            shared::AuditLogQuery {
+                to: Some("2026-09-01T09:00:00Z".to_string()),
+                ..query
+            },
+        ] {
+            assert!(matches!(
+                use_case.list_recent(invalid).await,
+                Err(AppError::InvalidInput(_))
+            ));
+        }
     }
 
     #[test]

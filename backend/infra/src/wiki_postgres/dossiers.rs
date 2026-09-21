@@ -181,6 +181,99 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
         })
     }
 
+    fn list_task_summaries<'a>(
+        &'a self,
+        space_id: Uuid,
+        space_key: &'a str,
+        cursor: Option<&'a str>,
+        q: Option<&'a str>,
+        limit: usize,
+    ) -> WikiDossierRepositoryFuture<'a, (Vec<TaskSummaryResponse>, usize)> {
+        Box::pin(async move {
+            let rows = sqlx::query(
+                r#"
+                WITH page AS (
+                    SELECT id, task_key, title_snapshot
+                    FROM task_dossiers
+                    WHERE space_id = $1
+                      AND ($2::text IS NULL OR task_key COLLATE "C" > $2::text COLLATE "C")
+                      AND ($4::text IS NULL
+                           OR strpos(lower(task_key), lower($4::text)) > 0
+                           OR strpos(lower(coalesce(title_snapshot, '')), lower($4::text)) > 0
+                           OR EXISTS (
+                               SELECT 1
+                               FROM document_task_links dtl
+                               JOIN documents d ON d.id = dtl.document_id
+                               WHERE dtl.task_dossier_id = task_dossiers.id
+                                 AND d.archived_at IS NULL
+                                 AND strpos(lower(d.title), lower($4::text)) > 0
+                           ))
+                    ORDER BY task_key COLLATE "C"
+                    LIMIT $3
+                ), total AS (
+                    SELECT count(*) AS total
+                    FROM task_dossiers
+                    WHERE space_id = $1
+                      AND ($4::text IS NULL
+                           OR strpos(lower(task_key), lower($4::text)) > 0
+                           OR strpos(lower(coalesce(title_snapshot, '')), lower($4::text)) > 0
+                           OR EXISTS (
+                               SELECT 1
+                               FROM document_task_links dtl
+                               JOIN documents d ON d.id = dtl.document_id
+                               WHERE dtl.task_dossier_id = task_dossiers.id
+                                 AND d.archived_at IS NULL
+                                 AND strpos(lower(d.title), lower($4::text)) > 0
+                           ))
+                )
+                SELECT total.total, page.task_key,
+                       COALESCE(page.title_snapshot, (
+                           SELECT d.title
+                           FROM document_task_links dtl
+                           JOIN documents d ON d.id = dtl.document_id
+                           WHERE dtl.task_dossier_id = page.id AND d.archived_at IS NULL
+                           ORDER BY d.updated_at DESC, d.id DESC
+                           LIMIT 1
+                       )) AS title,
+                       (SELECT count(*)
+                        FROM document_task_links dtl
+                        JOIN documents d ON d.id = dtl.document_id
+                        WHERE dtl.task_dossier_id = page.id AND d.archived_at IS NULL) AS document_count,
+                       (SELECT count(*) FROM evidence_items e
+                        WHERE e.task_dossier_id = page.id) AS evidence_count
+                FROM total LEFT JOIN page ON true
+                ORDER BY page.task_key COLLATE "C"
+                "#,
+            )
+            .bind(space_id)
+            .bind(cursor)
+            .bind(i64::try_from(limit).map_err(|_| shared::AppError::invalid_input("invalid limit"))?)
+            .bind(q)
+            .fetch_all(&self.backend.pool)
+            .await
+            .map_err(shared::AppError::database)?;
+
+            let total = usize::try_from(rows[0].get::<i64, _>("total"))
+                .map_err(|_| shared::AppError::internal("invalid task summary total"))?;
+            let tasks = rows
+                .iter()
+                .filter(|row| row.get::<Option<String>, _>("task_key").is_some())
+                .map(|row| {
+                    Ok(TaskSummaryResponse {
+                        space_key: space_key.to_string(),
+                        task_key: row.get("task_key"),
+                        title: row.get("title"),
+                        document_count: usize::try_from(row.get::<i64, _>("document_count"))
+                            .map_err(|_| shared::AppError::internal("invalid document count"))?,
+                        evidence_count: usize::try_from(row.get::<i64, _>("evidence_count"))
+                            .map_err(|_| shared::AppError::internal("invalid evidence count"))?,
+                    })
+                })
+                .collect::<Result<Vec<_>, shared::AppError>>()?;
+            Ok((tasks, total))
+        })
+    }
+
     fn get_task<'a>(
         &'a self,
         space_id: Uuid,
@@ -304,6 +397,92 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
         })
     }
 
+    fn list_phase_summaries<'a>(
+        &'a self,
+        space_id: Uuid,
+        space_key: &'a str,
+        cursor: Option<&'a str>,
+        q: Option<&'a str>,
+        limit: usize,
+    ) -> WikiDossierRepositoryFuture<'a, (Vec<PhaseSummaryResponse>, usize)> {
+        Box::pin(async move {
+            let rows = sqlx::query(
+                r#"
+                WITH page AS (
+                    SELECT id, phase_key, phase_name
+                    FROM phase_dossiers
+                    WHERE space_id = $1
+                      AND ($2::text IS NULL OR phase_key COLLATE "C" > $2::text COLLATE "C")
+                      AND ($4::text IS NULL
+                           OR strpos(lower(phase_key), lower($4::text)) > 0
+                           OR strpos(lower(coalesce(phase_name, '')), lower($4::text)) > 0
+                           OR EXISTS (
+                               SELECT 1
+                               FROM document_phase_links dpl
+                               JOIN documents d ON d.id = dpl.document_id
+                               WHERE dpl.phase_dossier_id = phase_dossiers.id
+                                 AND d.archived_at IS NULL
+                                 AND strpos(lower(d.title), lower($4::text)) > 0
+                           ))
+                    ORDER BY phase_key COLLATE "C"
+                    LIMIT $3
+                ), total AS (
+                    SELECT count(*) AS total
+                    FROM phase_dossiers
+                    WHERE space_id = $1
+                      AND ($4::text IS NULL
+                           OR strpos(lower(phase_key), lower($4::text)) > 0
+                           OR strpos(lower(coalesce(phase_name, '')), lower($4::text)) > 0
+                           OR EXISTS (
+                               SELECT 1
+                               FROM document_phase_links dpl
+                               JOIN documents d ON d.id = dpl.document_id
+                               WHERE dpl.phase_dossier_id = phase_dossiers.id
+                                 AND d.archived_at IS NULL
+                                 AND strpos(lower(d.title), lower($4::text)) > 0
+                           ))
+                )
+                SELECT total.total, page.phase_key,
+                       COALESCE(page.phase_name, page.phase_key) AS title,
+                       (SELECT count(*)
+                        FROM document_phase_links dpl
+                        JOIN documents d ON d.id = dpl.document_id
+                        WHERE dpl.phase_dossier_id = page.id AND d.archived_at IS NULL) AS document_count,
+                       (SELECT count(*) FROM evidence_items e
+                        WHERE e.phase_dossier_id = page.id) AS evidence_count
+                FROM total LEFT JOIN page ON true
+                ORDER BY page.phase_key COLLATE "C"
+                "#,
+            )
+            .bind(space_id)
+            .bind(cursor)
+            .bind(i64::try_from(limit).map_err(|_| shared::AppError::invalid_input("invalid limit"))?)
+            .bind(q)
+            .fetch_all(&self.backend.pool)
+            .await
+            .map_err(shared::AppError::database)?;
+
+            let total = usize::try_from(rows[0].get::<i64, _>("total"))
+                .map_err(|_| shared::AppError::internal("invalid phase summary total"))?;
+            let phases = rows
+                .iter()
+                .filter(|row| row.get::<Option<String>, _>("phase_key").is_some())
+                .map(|row| {
+                    Ok(PhaseSummaryResponse {
+                        space_key: space_key.to_string(),
+                        phase_key: row.get("phase_key"),
+                        title: row.get("title"),
+                        document_count: usize::try_from(row.get::<i64, _>("document_count"))
+                            .map_err(|_| shared::AppError::internal("invalid document count"))?,
+                        evidence_count: usize::try_from(row.get::<i64, _>("evidence_count"))
+                            .map_err(|_| shared::AppError::internal("invalid evidence count"))?,
+                    })
+                })
+                .collect::<Result<Vec<_>, shared::AppError>>()?;
+            Ok((phases, total))
+        })
+    }
+
     fn get_phase<'a>(
         &'a self,
         space_id: Uuid,
@@ -420,6 +599,26 @@ impl PostgresWikiBackend {
             .await
     }
 
+    pub(super) async fn list_task_summaries(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        query: DossierCatalogQuery,
+    ) -> Result<TaskSummaryListResponse, shared::AppError> {
+        let key = normalize_space_key(space_key)?;
+        let space_id = self
+            .ensure_space_access(claims, &key, SpaceAccess::View)
+            .await?;
+        let repository = PostgresWikiDossierRepository {
+            backend: self,
+            request_id: None,
+            include_document_drafts: false,
+        };
+        WikiDossierUseCase::new(&repository)
+            .list_task_summaries(space_id, &key, query)
+            .await
+    }
+
     pub(super) async fn get_task(
         &self,
         claims: &WikiClaims,
@@ -528,6 +727,26 @@ impl PostgresWikiBackend {
         };
         WikiDossierUseCase::new(&repository)
             .list_phases(space_id, &key)
+            .await
+    }
+
+    pub(super) async fn list_phase_summaries(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        query: DossierCatalogQuery,
+    ) -> Result<PhaseSummaryListResponse, shared::AppError> {
+        let key = normalize_space_key(space_key)?;
+        let space_id = self
+            .ensure_space_access(claims, &key, SpaceAccess::View)
+            .await?;
+        let repository = PostgresWikiDossierRepository {
+            backend: self,
+            request_id: None,
+            include_document_drafts: false,
+        };
+        WikiDossierUseCase::new(&repository)
+            .list_phase_summaries(space_id, &key, query)
             .await
     }
 

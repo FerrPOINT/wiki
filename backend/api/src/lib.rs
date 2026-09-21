@@ -143,11 +143,13 @@ pub use routes::*;
         routes::wiki::list_document_revisions,
         routes::wiki::get_document_revision,
         routes::wiki::list_tasks,
+        routes::wiki::list_task_summaries,
         routes::wiki::get_task,
         routes::wiki::link_task_document,
         routes::wiki::list_task_documents,
         routes::wiki::list_task_evidence,
         routes::wiki::list_phases,
+        routes::wiki::list_phase_summaries,
         routes::wiki::get_phase,
         routes::wiki::link_phase_document,
         routes::wiki::list_phase_documents,
@@ -194,8 +196,12 @@ pub use routes::*;
         routes::wiki::DocumentRevisionListResponse,
         routes::wiki::TaskPageResponse,
         routes::wiki::TaskPageListResponse,
+        routes::wiki::TaskSummaryResponse,
+        routes::wiki::TaskSummaryListResponse,
         routes::wiki::PhasePageResponse,
         routes::wiki::PhasePageListResponse,
+        routes::wiki::PhaseSummaryResponse,
+        routes::wiki::PhaseSummaryListResponse,
         routes::wiki::CreateEvidenceRequest,
         routes::wiki::EvidenceResponse,
         routes::wiki::EvidenceListResponse,
@@ -369,6 +375,10 @@ pub fn router_with_wiki(
         )
         .route("/spaces/{space_key}/tasks", get(routes::wiki::list_tasks))
         .route(
+            "/spaces/{space_key}/task-summaries",
+            get(routes::wiki::list_task_summaries),
+        )
+        .route(
             "/spaces/{space_key}/tasks/{task_key}",
             get(routes::wiki::get_task),
         )
@@ -385,6 +395,10 @@ pub fn router_with_wiki(
             get(routes::wiki::list_task_evidence),
         )
         .route("/spaces/{space_key}/phases", get(routes::wiki::list_phases))
+        .route(
+            "/spaces/{space_key}/phase-summaries",
+            get(routes::wiki::list_phase_summaries),
+        )
         .route(
             "/spaces/{space_key}/phases/{phase_key}",
             get(routes::wiki::get_phase),

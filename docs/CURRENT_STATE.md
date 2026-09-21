@@ -1,6 +1,6 @@
 # Current State - Wiki
 
-> Dossier UI update (2026-09-20): `/tasks` and `/phases` use compact server-side summary pages (12 per request) with space-wide `q` search, cursor navigation and exact `total`. Dashboard uses bounded summary previews and `total` instead of loading nested dossiers. Detail links open exact document/evidence records and no longer infer workflow readiness from item counts. This frontend depends on draft API PR #29; neither PR is ready to merge before dependency ordering and 375/1920/2560 live QA.
+> Search pagination change (2026-09-20): server-side `result_type` and stable keyset cursor implemented in draft PR. Local Rust/PostgreSQL runs and 375/1920/2560 live screenshots are pending because the current host has critically low C: free space; remote CI does not replace that release gate. This search PR assumes the evidence `(created_at DESC, id DESC)` index from the separate evidence pagination PR is merged first.
 
 > Snapshot date: 2026-09-03. Authority is repository code and tests; update this file whenever capability state changes.
 
@@ -39,7 +39,7 @@
 - Users and roles: global admin user list/create/update, space-admin member management and viewer/editor permission boundaries.
 - Spaces: list/create/update/archive, member list/upsert/delete and page tree.
 - Documents: create/get/draft/publish/archive/move, immutable revision detail, optional `base_revision_id` stale publish conflict and bounded latest-first revision history; archived documents and documents inside archived spaces reject write commands, including new evidence attached to archived pages.
-- Task/phase dossiers: list/detail, linked documents and linked evidence by external keys; archived documents and archived spaces are rejected on link commands.
+- Task/phase dossiers: legacy list/detail plus bounded summary catalogs (`limit`/key cursor), linked documents and linked evidence by external keys; archived documents and archived spaces are rejected on link commands. Summary catalog SQL reads one limited page without loading nested document/evidence payloads; UI migration from the legacy list is tracked separately.
 - Evidence and attachments: URL evidence, staged file upload, owner-bound file evidence claim, visible file checksum/metadata, authorized attachment download and idempotent retry protection for write responses.
 - Search: document/evidence search with MVP filters, bounded result windows and permission boundaries.
 - Search performance: document search uses PostgreSQL `tsvector`/GIN with title/body weighting and an env-gated `EXPLAIN` smoke for the filtered MVP query shape.
@@ -63,7 +63,7 @@
 
 ## Known Local Environment Limits
 
-- На 2026-09-20 в рабочем Windows-разделе осталось около 0,2 ГБ: для UI-подтверждения архивации пространства локальные install/build/Vitest/Playwright не запускаются до освобождения места. Проверка этой ветки выполняется удалённым CI; live UI-приёмка остаётся отдельным gate перед слиянием.
+- 2026-09-20 audit-filter change: local Rust build and live browser QA are deferred while C: has about 0.08 GB free. CI must run the isolated PostgreSQL tests and OpenAPI drift gate; no working Docker volumes are changed by this PR.
 - Native Windows Rust linking currently requires MSVC `link.exe`; backend checks are run through WSL on this host.
 - `pnpm add` is blocked on this host by Corepack/Node `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING`; existing package binaries under `frontend/node_modules/.bin` can still be used for TypeScript/tests/build/lint verification.
 - Docker PostgreSQL smoke can be run through `scripts/postgres-smoke.ps1` once Docker Desktop is available. In the last setup check, Docker CLI was installed, but the Docker daemon/service was stopped and could not be started from this process; the test Postgres port `3458` was closed.

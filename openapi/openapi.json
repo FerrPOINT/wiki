@@ -147,6 +147,61 @@
                 "null"
               ]
             }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "entity_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "actor_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           }
         ],
         "responses": {
@@ -929,6 +984,17 @@
             }
           },
           {
+            "name": "result_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
             "name": "include_archived",
             "in": "query",
             "required": false,
@@ -950,6 +1016,17 @@
               ],
               "maximum": 100,
               "minimum": 1
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
             }
           }
         ],
@@ -1356,6 +1433,76 @@
         ]
       }
     },
+    "/api/v1/spaces/{space_key}/phase-summaries": {
+      "get": {
+        "tags": [
+          "phases"
+        ],
+        "operationId": "list_phase_summaries",
+        "parameters": [
+          {
+            "name": "space_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "maximum": 100,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhaseSummaryListResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/spaces/{space_key}/phases": {
       "get": {
         "tags": [
@@ -1576,6 +1723,76 @@
           },
           "404": {
             "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/spaces/{space_key}/task-summaries": {
+      "get": {
+        "tags": [
+          "tasks"
+        ],
+        "operationId": "list_task_summaries",
+        "parameters": [
+          {
+            "name": "space_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "maximum": 100,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskSummaryListResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2658,6 +2875,62 @@
           }
         }
       },
+      "PhaseSummaryListResponse": {
+        "type": "object",
+        "required": [
+          "phases",
+          "total"
+        ],
+        "properties": {
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "phases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PhaseSummaryResponse"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "PhaseSummaryResponse": {
+        "type": "object",
+        "required": [
+          "space_key",
+          "phase_key",
+          "document_count",
+          "evidence_count"
+        ],
+        "properties": {
+          "document_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "evidence_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "phase_key": {
+            "type": "string"
+          },
+          "space_key": {
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "PublishDocumentRequest": {
         "type": "object",
         "properties": {
@@ -2681,6 +2954,12 @@
           "results"
         ],
         "properties": {
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "results": {
             "type": "array",
             "items": {
@@ -2922,6 +3201,62 @@
             "items": {
               "$ref": "#/components/schemas/EvidenceResponse"
             }
+          },
+          "evidence_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "space_key": {
+            "type": "string"
+          },
+          "task_key": {
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "TaskSummaryListResponse": {
+        "type": "object",
+        "required": [
+          "tasks",
+          "total"
+        ],
+        "properties": {
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskSummaryResponse"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "TaskSummaryResponse": {
+        "type": "object",
+        "required": [
+          "space_key",
+          "task_key",
+          "document_count",
+          "evidence_count"
+        ],
+        "properties": {
+          "document_count": {
+            "type": "integer",
+            "minimum": 0
           },
           "evidence_count": {
             "type": "integer",

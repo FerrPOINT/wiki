@@ -12,6 +12,8 @@ Wiki - self-hosted база знаний для SDLC. Продукт храни�
 
 Wiki не владеет задачами, фазами, pipeline execution или Git-источниками. Она хранит только страницы, связи и подтверждающие материалы.
 
+Task/phase dossier catalogs use separate bounded summary reads: the repository selects `limit + 1` keys in `C` collation order, then computes title and counts only for that page. Detail endpoints retain their nested document/evidence payloads. Legacy unbounded list endpoints remain for existing clients until consumers migrate.
+
 ## 2. Клиенты и API
 
 ```text
@@ -148,7 +150,9 @@ The PostgreSQL adapter is split by operation area:
 - idempotency records for protected write replay;
 - search.
 
-Audit is append-only, so the list uses a `(created_at, id)` keyset cursor rather than an offset. The UUID breaks timestamp ties, and newer writes do not shift an already opened older page. Clients treat `next_cursor` as opaque.
+Audit is append-only, so the list uses a `(created_at, id)` keyset cursor rather than an offset. The UUID breaks timestamp ties, and newer writes do not shift an already opened older page. Exact action/type/actor and timestamp-range filters are applied before the cursor in both memory and PostgreSQL paths. Clients treat `next_cursor` as opaque and retain the filters across pages.
+
+Search uses the same keyset principle across documents and evidence: repositories fetch at most `limit + 1` per allowed result type after `(updated_at, id, result_type)`, and the application layer merges, orders and emits the next cursor. The server applies `result_type` before limiting; there is no inferred total. Published-revision full-text matching remains in PostgreSQL, while the final result order is chronological rather than relevance-ranked.
 
 ## 9. API Layer
 

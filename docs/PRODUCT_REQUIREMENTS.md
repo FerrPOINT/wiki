@@ -97,7 +97,7 @@ MVP не включает:
 | REQ-TPL-001   | Templates        | Editor создаёт документ из базового шаблона                                                                                               |
 | REQ-SET-001   | Settings         | Admin видит безопасный runtime snapshot настроек инстанса: API path, регистрацию, storage/search backend, лимит загрузки, язык и timezone |
 | REQ-OPS-001   | Runtime health   | API отдаёт liveness/readiness для запуска, мониторинга и деплоя; отдельная UI-страница для этого не нужна                                  |
-| REQ-AUD-001   | Audit            | Система пишет audit для login/logout, document create/edit/publish/archive, evidence add, member/role changes                             |
+| REQ-AUD-001   | Audit            | Система пишет audit для login/logout, document create/edit/publish/archive, evidence add, member/role changes; admin фильтрует весь журнал по действию, типу сущности, автору и диапазону времени до cursor-пагинации |
 | REQ-API-001   | API              | Все MVP-операции доступны через `/api/v1`; protected domain/admin write-запросы с `Idempotency-Key` безопасны для retry без duplicate domain/audit writes |
 | REQ-CLI-001   | CLI              | CLI покрывает те же базовые операции, что и API, и возвращает JSON по умолчанию                                                           |
 | REQ-UI-001    | UI               | UI покрывает основные сценарии spaces, documents, task/phase dossiers, evidence, search и admin                                           |
@@ -186,6 +186,7 @@ API является единственным контрактом backend. UI �
 ### Task dossiers
 
 - `GET /api/v1/spaces/{space_key}/tasks`
+- `GET /api/v1/spaces/{space_key}/task-summaries` — компактный постраничный каталог без вложенных документов/evidence.
 - `GET /api/v1/spaces/{space_key}/tasks/{task_key}`
 - `POST /api/v1/spaces/{space_key}/tasks/{task_key}/links/documents`
 - `GET /api/v1/spaces/{space_key}/tasks/{task_key}/documents`
@@ -194,6 +195,7 @@ API является единственным контрактом backend. UI �
 ### Phase dossiers
 
 - `GET /api/v1/spaces/{space_key}/phases`
+- `GET /api/v1/spaces/{space_key}/phase-summaries` — компактный постраничный каталог без вложенных документов/evidence.
 - `GET /api/v1/spaces/{space_key}/phases/{phase_key}`
 - `POST /api/v1/spaces/{space_key}/phases/{phase_key}/links/documents`
 - `GET /api/v1/spaces/{space_key}/phases/{phase_key}/documents`
@@ -271,6 +273,7 @@ CLI requirements:
 - Списки имеют pagination или limit.
 - Открытие обычной страницы до 200 KB должно быть интерактивным.
 - Поиск MVP реализуется через PostgreSQL full-text search.
+- Поиск документов и материалов фильтруется по типу на сервере и листается стабильным курсором без ложного нуля при большом числе документов; UI не выдаёт размер одной страницы за общее число результатов.
 
 ## 11. Критерии приёмки MVP
 

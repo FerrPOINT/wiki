@@ -2102,6 +2102,163 @@ async fn wiki_memory_search_filters_document_type_task_phase_archived_and_permis
 }
 
 #[tokio::test]
+async fn wiki_memory_dossier_summaries_page_without_nested_payloads() {
+    let app = test_app();
+    let token = login_memory_admin(&app).await;
+    let short = Uuid::now_v7().simple().to_string();
+    let space_key = format!("CAT-{}", &short[..12]).to_ascii_uppercase();
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces",
+        Some(&token),
+        Some(json!({ "key": space_key, "name": "Catalog test" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let (status, document) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/spaces/{space_key}/documents"),
+        Some(&token),
+        Some(json!({
+            "title": "Catalog document",
+            "slug": format!("catalog-document-{short}"),
+            "document_type": "requirements",
+            "content_markdown": "# Catalog"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let document_id = document["id"].as_str().unwrap();
+
+    for index in 0..3 {
+        let task_key = format!("TASK-{index}");
+        let phase_key = format!("phase-{index}");
+        for path in [
+            format!("/api/v1/spaces/{space_key}/tasks/{task_key}/links/documents"),
+            format!("/api/v1/spaces/{space_key}/phases/{phase_key}/links/documents"),
+        ] {
+            let (status, _) = call(
+                &app,
+                Method::POST,
+                &path,
+                Some(&token),
+                Some(json!({ "document_id": document_id })),
+            )
+            .await;
+            assert_eq!(status, StatusCode::OK);
+        }
+    }
+
+    for (kind, key_name) in [("task", "task_key"), ("phase", "phase_key")] {
+        let path = format!("/api/v1/spaces/{space_key}/{kind}-summaries?limit=2");
+        let (status, first) = call(&app, Method::GET, &path, Some(&token), None).await;
+        assert_eq!(status, StatusCode::OK);
+        let collection = if kind == "task" { "tasks" } else { "phases" };
+        assert_eq!(first[collection].as_array().unwrap().len(), 2);
+        assert_eq!(first["total"], 3);
+        assert_eq!(first[collection][0]["document_count"], 1);
+        assert_eq!(first[collection][0]["evidence_count"], 0);
+        assert!(first[collection][0].get("documents").is_none());
+        let cursor = first["next_cursor"].as_str().unwrap();
+        assert_eq!(first[collection][1][key_name].as_str(), Some(cursor));
+
+        let (status, second) = call(
+            &app,
+            Method::GET,
+            &format!("{path}&cursor={cursor}"),
+            Some(&token),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(second[collection].as_array().unwrap().len(), 1);
+        assert_eq!(second["total"], 3);
+        assert!(second["next_cursor"].is_null());
+        let (status, empty) = call(
+            &app,
+            Method::GET,
+            &format!("{path}&cursor=ZZZ"),
+            Some(&token),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(empty[collection].as_array().unwrap().is_empty());
+        assert_eq!(empty["total"], 3);
+        let (status, _) = call(
+            &app,
+            Method::GET,
+            &format!("/api/v1/spaces/{space_key}/{kind}-summaries?limit=0"),
+            Some(&token),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        let (status, _) = call(&app, Method::GET, &path, None, None).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+    }
+
+    let (status, searched) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}/task-summaries?limit=1&q=task-2"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(searched["tasks"].as_array().unwrap().len(), 1);
+    assert_eq!(searched["total"], 1);
+    assert_eq!(searched["tasks"][0]["task_key"], "TASK-2");
+    assert!(searched["next_cursor"].is_null());
+    let (status, searched) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}/phase-summaries?limit=1&q=CATALOG"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(searched["phases"].as_array().unwrap().len(), 1);
+    assert_eq!(searched["total"], 3);
+    assert!(searched["next_cursor"].is_string());
+
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/documents/{document_id}/archive"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, page) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}/task-summaries?limit=1"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(page["tasks"][0]["document_count"], 0);
+    let (status, searched) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}/task-summaries?q=CATALOG"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(searched["tasks"].as_array().unwrap().is_empty());
+    assert_eq!(searched["total"], 0);
+}
+
+#[tokio::test]
 async fn wiki_memory_task_phase_document_links_enforce_space_boundary() {
     let app = test_app();
     let token = login_memory_admin(&app).await;
@@ -3916,6 +4073,98 @@ async fn wiki_postgres_search_uses_fts_index_when_database_available() {
 }
 
 #[tokio::test]
+async fn wiki_postgres_search_pages_and_filters_result_type_when_database_available() {
+    let Ok(database_url) = env::var("WIKI_TEST_DATABASE_URL") else {
+        eprintln!("skipping postgres search cursor test: WIKI_TEST_DATABASE_URL is not set");
+        return;
+    };
+    reset_postgres(&database_url).await;
+    let storage_dir = env::temp_dir().join(format!("wiki-api-test-{}", Uuid::now_v7()));
+    let (app, _) = postgres_test_app(database_url, storage_dir).await;
+    let token = login_admin(&app).await;
+    let suffix = Uuid::now_v7().simple().to_string();
+    let short = &suffix[..12];
+    let needle = format!("searchcursor{short}");
+
+    let (status, evidence) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(&token),
+        Some(json!({
+            "space": "SDLC", "task_key": format!("SRCH-{short}"),
+            "title": format!("{needle} material"),
+            "evidence_type": "external_url", "url": "https://ci.local/jobs/search-cursor"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let evidence_id = evidence["id"].as_str().unwrap();
+
+    for index in 0..2 {
+        let (status, document) = call(
+            &app,
+            Method::POST,
+            "/api/v1/spaces/SDLC/documents",
+            Some(&token),
+            Some(json!({
+                "title": format!("{needle} document {index}"),
+                "slug": format!("search-cursor-{short}-{index}"),
+                "document_type": "page",
+                "content_markdown": format!("# {needle} document {index}"),
+            })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED);
+        let document_id = document["id"].as_str().unwrap();
+        let (status, _) = call(
+            &app,
+            Method::POST,
+            &format!("/api/v1/documents/{document_id}/publish"),
+            Some(&token),
+            Some(json!({ "summary": "Search cursor smoke" })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+    }
+
+    let mut cursor = None;
+    let mut found = Vec::new();
+    for _ in 0..3 {
+        let path = match cursor.as_deref() {
+            Some(cursor) => format!("/api/v1/search?q={needle}&space=SDLC&limit=1&cursor={cursor}"),
+            None => format!("/api/v1/search?q={needle}&space=SDLC&limit=1"),
+        };
+        let (status, page) = call(&app, Method::GET, &path, Some(&token), None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(page["results"].as_array().unwrap().len(), 1);
+        found.push(page["results"][0]["id"].as_str().unwrap().to_string());
+        if page["results"][0]["result_type"] == "document" {
+            assert_eq!(
+                page["results"][0]["url"],
+                format!("/documents/{}", found.last().unwrap())
+            );
+        }
+        cursor = page["next_cursor"].as_str().map(str::to_string);
+    }
+    assert_eq!(found.len(), 3);
+    assert!(found.contains(&evidence_id.to_string()));
+    assert!(cursor.is_none());
+
+    let (status, materials) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/search?q={needle}&space=SDLC&result_type=evidence&limit=1"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(materials["results"][0]["id"], evidence_id);
+    assert!(materials["next_cursor"].is_null());
+}
+
+#[tokio::test]
 async fn wiki_api_propagates_request_id_header() {
     let app = test_app();
 
@@ -4347,6 +4596,37 @@ async fn wiki_audit_log_honors_bounded_limit_query() {
     assert_eq!(entries.len(), 1);
     assert_eq!(entries[0]["action"], "document.create");
     assert_eq!(entries[0]["entity_id"], document_id);
+    let actor_id = entries[0]["actor_id"].as_str().unwrap();
+    let (status, filtered) = call(
+        &app,
+        Method::GET,
+        &format!(
+            "/api/v1/audit-log?limit=1&action=document.create&entity_type=document&actor_id={actor_id}"
+        ),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(filtered["entries"][0]["entity_id"], document_id);
+    let (status, empty) = call(
+        &app,
+        Method::GET,
+        "/api/v1/audit-log?action=document.missing",
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(empty["entries"].as_array().unwrap().is_empty());
+    for path in [
+        "/api/v1/audit-log?actor_id=invalid",
+        "/api/v1/audit-log?from=invalid",
+        "/api/v1/audit-log?from=2026-09-02T00:00:00Z&to=2026-09-01T00:00:00Z",
+    ] {
+        let (status, _) = call(&app, Method::GET, path, Some(&token), None).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
 }
 
 #[tokio::test]
@@ -4499,12 +4779,17 @@ async fn wiki_postgres_audit_cursor_keeps_timestamp_ties_stable() {
             .fetch_one(&pool)
             .await
             .unwrap();
+    let actor_id: Uuid = sqlx::query_scalar("SELECT id FROM users LIMIT 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     let ids: Vec<Uuid> = (0..3).map(|_| Uuid::now_v7()).collect();
     for id in &ids {
         sqlx::query(
-            "INSERT INTO audit_log (id, action, entity_type, entity_id, request_id, created_at) VALUES ($1, 'audit.page', 'test', $2, $3, $4)",
+            "INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, request_id, created_at) VALUES ($1, $2, 'audit.page', 'test', $3, $4, $5)",
         )
         .bind(id)
+        .bind(actor_id)
         .bind(Uuid::now_v7())
         .bind(format!("audit-page-{id}"))
         .bind(future_at)
@@ -4538,6 +4823,25 @@ async fn wiki_postgres_audit_cursor_keeps_timestamp_ties_stable() {
             .unwrap();
         }
     }
+    let from = (future_at - chrono::Duration::seconds(1))
+        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let to = (future_at + chrono::Duration::minutes(2))
+        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let filtered_path = format!(
+        "/api/v1/audit-log?limit=1&action=audit.page&entity_type=test&actor_id={actor_id}&from={from}&to={to}"
+    );
+    let mut cursor: Option<String> = None;
+    for expected_id in expected {
+        let path = cursor.as_ref().map_or_else(
+            || filtered_path.clone(),
+            |cursor| format!("{filtered_path}&cursor={cursor}"),
+        );
+        let (status, page) = call(&app, Method::GET, &path, Some(token), None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(page["entries"][0]["id"], expected_id.to_string());
+        cursor = page["next_cursor"].as_str().map(ToString::to_string);
+    }
+    assert!(cursor.is_none());
     let index_exists: bool = sqlx::query_scalar(
         "SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'audit_time_id_idx')",
     )
@@ -4549,97 +4853,206 @@ async fn wiki_postgres_audit_cursor_keeps_timestamp_ties_stable() {
 }
 
 #[tokio::test]
-async fn wiki_postgres_evidence_search_and_cursor_keep_timestamp_ties_stable() {
+async fn wiki_postgres_dossier_summaries_page_and_count_without_nested_payloads() {
     let Ok(database_url) = env::var("WIKI_TEST_DATABASE_URL") else {
-        eprintln!("skipping postgres evidence cursor test: WIKI_TEST_DATABASE_URL is not set");
+        eprintln!("skipping postgres dossier catalog test: WIKI_TEST_DATABASE_URL is not set");
         return;
     };
     reset_postgres(&database_url).await;
     let storage_dir = env::temp_dir().join(format!("wiki-api-test-{}", Uuid::now_v7()));
     let (app, _) = postgres_test_app(database_url.clone(), storage_dir).await;
     let token = login_admin(&app).await;
-    let task_key = format!("SDLC-{}", &Uuid::now_v7().simple().to_string()[..12]);
+    let short = Uuid::now_v7().simple().to_string();
+    let space_key = format!("CAT-{}", &short[..12]).to_ascii_uppercase();
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        "/api/v1/spaces",
+        Some(&token),
+        Some(json!({ "key": space_key, "name": "PG catalog test" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
     let pool = PgPoolOptions::new()
         .max_connections(1)
         .connect(&database_url)
         .await
         .unwrap();
-    let future_at: chrono::DateTime<chrono::Utc> =
-        sqlx::query_scalar("SELECT now() + interval '1 hour'")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-    let mut ids = Vec::new();
-    for index in 0..3 {
-        let (status, item) = call(
+    let space_id: Uuid = sqlx::query_scalar("SELECT id FROM spaces WHERE key = $1")
+        .bind(&space_key)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    for index in (0..3).rev() {
+        sqlx::query(
+            "INSERT INTO task_dossiers (id, space_id, task_key, title_snapshot) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(Uuid::now_v7())
+        .bind(space_id)
+        .bind(format!("TASK-{index}"))
+        .bind(format!("Task {index}"))
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO phase_dossiers (id, space_id, phase_key, phase_name) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(Uuid::now_v7())
+        .bind(space_id)
+        .bind(format!("phase-{index}"))
+        .bind(format!("Phase {index}"))
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+    let (status, document) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/spaces/{space_key}/documents"),
+        Some(&token),
+        Some(json!({
+            "title": "Linked document",
+            "slug": format!("catalog-pg-document-{short}"),
+            "document_type": "requirements",
+            "content_markdown": "# Linked"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let document_id = document["id"].as_str().unwrap();
+    for path in [
+        format!("/api/v1/spaces/{space_key}/tasks/TASK-0/links/documents"),
+        format!("/api/v1/spaces/{space_key}/phases/phase-0/links/documents"),
+    ] {
+        let (status, _) = call(
             &app,
             Method::POST,
-            "/api/v1/evidence",
+            &path,
             Some(&token),
-            Some(json!({
-                "space": "SDLC",
-                "task_key": task_key,
-                "title": format!("Cursor evidence {index}"),
-                "evidence_type": "external_url",
-                "url": format!("https://ci.local/jobs/cursor-{index}")
-            })),
+            Some(json!({ "document_id": document_id })),
         )
         .await;
-        assert_eq!(status, StatusCode::CREATED);
-        let id = Uuid::parse_str(item["id"].as_str().unwrap()).unwrap();
-        sqlx::query("UPDATE evidence_items SET created_at = $1 WHERE id = $2")
-            .bind(future_at)
-            .bind(id)
-            .execute(&pool)
-            .await
-            .unwrap();
-        ids.push(id);
-    }
-    ids.sort_by(|left, right| right.cmp(left));
-    let mut cursor: Option<String> = None;
-    for (index, expected_id) in ids.iter().enumerate() {
-        let path = cursor.as_ref().map_or_else(
-            || format!("/api/v1/evidence?space=SDLC&task_key={task_key}&q=CURSOR%20EVIDENCE&limit=1"),
-            |cursor| format!("/api/v1/evidence?space=SDLC&task_key={task_key}&q=CURSOR%20EVIDENCE&limit=1&cursor={cursor}"),
-        );
-        let (status, page) = call(&app, Method::GET, &path, Some(&token), None).await;
         assert_eq!(status, StatusCode::OK);
-        assert_eq!(page["evidence"].as_array().unwrap().len(), 1);
-        assert_eq!(page["evidence"][0]["id"], expected_id.to_string());
-        cursor = page["next_cursor"].as_str().map(ToString::to_string);
-        assert_eq!(cursor.is_some(), index < 2);
-
-        if index == 0 {
-            let (status, newer) = call(
-                &app,
-                Method::POST,
-                "/api/v1/evidence",
-                Some(&token),
-                Some(json!({
-                    "space": "SDLC",
-                    "task_key": task_key,
-                    "title": "Cursor evidence newer",
-                    "evidence_type": "external_url",
-                    "url": "https://ci.local/jobs/cursor-newer"
-                })),
-            )
-            .await;
-            assert_eq!(status, StatusCode::CREATED);
-            sqlx::query("UPDATE evidence_items SET created_at = $1 WHERE id = $2")
-                .bind(future_at + chrono::Duration::minutes(1))
-                .bind(Uuid::parse_str(newer["id"].as_str().unwrap()).unwrap())
-                .execute(&pool)
-                .await
-                .unwrap();
-        }
     }
-    let index_exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'evidence_time_id_idx')",
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        "/api/v1/evidence",
+        Some(&token),
+        Some(json!({
+            "space": space_key,
+            "task_key": "TASK-0",
+            "phase_key": "phase-0",
+            "title": "Catalog evidence",
+            "evidence_type": "external_url",
+            "url": "https://ci.local/catalog-evidence"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    for (kind, collection, key) in [
+        ("task", "tasks", "task_key"),
+        ("phase", "phases", "phase_key"),
+    ] {
+        let path = format!("/api/v1/spaces/{space_key}/{kind}-summaries?limit=2");
+        let (status, first) = call(&app, Method::GET, &path, Some(&token), None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(first[collection].as_array().unwrap().len(), 2);
+        assert_eq!(first["total"], 3);
+        assert_eq!(first[collection][0]["document_count"], 1);
+        assert_eq!(first[collection][0]["evidence_count"], 1);
+        assert!(first[collection][0].get("documents").is_none());
+        let cursor = first["next_cursor"].as_str().unwrap();
+        assert_eq!(first[collection][1][key].as_str(), Some(cursor));
+        let (status, second) = call(
+            &app,
+            Method::GET,
+            &format!("{path}&cursor={cursor}"),
+            Some(&token),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(second[collection].as_array().unwrap().len(), 1);
+        assert_eq!(second["total"], 3);
+        assert!(second["next_cursor"].is_null());
+        let (status, empty) = call(
+            &app,
+            Method::GET,
+            &format!("{path}&cursor=ZZZ"),
+            Some(&token),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(empty[collection].as_array().unwrap().is_empty());
+        assert_eq!(empty["total"], 3);
+    }
+
+    let (status, searched) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}/task-summaries?limit=1&q=task%202"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(searched["tasks"].as_array().unwrap().len(), 1);
+    assert_eq!(searched["total"], 1);
+    assert_eq!(searched["tasks"][0]["title"], "Task 2");
+    let (status, searched) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}/phase-summaries?q=LINKED"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(searched["phases"].as_array().unwrap().len(), 1);
+    assert_eq!(searched["total"], 1);
+    assert_eq!(searched["phases"][0]["phase_key"], "phase-0");
+
+    let indexes: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM pg_indexes WHERE schemaname = 'public' AND indexname IN ('task_dossiers_catalog_key_idx', 'phase_dossiers_catalog_key_idx')",
     )
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert!(index_exists);
+    assert_eq!(indexes, 2);
+    let (status, _) = call(
+        &app,
+        Method::POST,
+        &format!("/api/v1/documents/{document_id}/archive"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, page) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}/task-summaries?limit=1"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(page["tasks"][0]["document_count"], 0);
+    assert_eq!(page["tasks"][0]["evidence_count"], 1);
+    let (status, searched) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/spaces/{space_key}/phase-summaries?q=LINKED"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(searched["phases"].as_array().unwrap().is_empty());
+    assert_eq!(searched["total"], 0);
     pool.close().await;
 }
 
