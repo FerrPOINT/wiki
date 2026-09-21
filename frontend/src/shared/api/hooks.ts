@@ -24,9 +24,9 @@ import {
   listAuditLog,
   listDocumentRevisions,
   listEvidence,
-  listPhases,
+  listPhaseSummaries,
   listSpaces,
-  listTasks,
+  listTaskSummaries,
   listTemplates,
   listUsers,
   moveDocument,
@@ -38,6 +38,7 @@ import {
   type CreateEvidenceRequest,
   type Document,
   type DocumentRevisionListParams,
+  type DossierCatalogParams,
   type EvidenceListParams,
   type LinkDocumentRequest,
   type MoveDocumentRequest,
@@ -75,9 +76,13 @@ export const wikiKeys = {
   documentRevision: (documentId: string, revisionId: string) =>
     ['wiki', 'documents', documentId, 'revisions', revisionId] as const,
   tasks: (spaceKey: string) => ['wiki', 'spaces', spaceKey, 'tasks'] as const,
+  taskSummaryList: (spaceKey: string, params: DossierCatalogParams) =>
+    ['wiki', 'spaces', spaceKey, 'tasks', 'summaries', params] as const,
   task: (spaceKey: string, taskKey: string) =>
     ['wiki', 'spaces', spaceKey, 'tasks', taskKey] as const,
   phases: (spaceKey: string) => ['wiki', 'spaces', spaceKey, 'phases'] as const,
+  phaseSummaryList: (spaceKey: string, params: DossierCatalogParams) =>
+    ['wiki', 'spaces', spaceKey, 'phases', 'summaries', params] as const,
   phase: (spaceKey: string, phaseKey: string) =>
     ['wiki', 'spaces', spaceKey, 'phases', phaseKey] as const,
   evidence: (params: EvidenceListParams) => ['wiki', 'evidence', params] as const,
@@ -286,10 +291,10 @@ export function useDocumentRevision(documentId: string, revisionId: string, enab
   })
 }
 
-export function useTasks(spaceKey = defaultSpaceKey) {
+export function useTaskSummaries(spaceKey: string, params: DossierCatalogParams) {
   return useQuery({
-    queryKey: wikiKeys.tasks(spaceKey),
-    queryFn: () => listTasks(spaceKey),
+    queryKey: wikiKeys.taskSummaryList(spaceKey, params),
+    queryFn: () => listTaskSummaries(spaceKey, params),
     enabled: Boolean(spaceKey),
   })
 }
@@ -325,10 +330,10 @@ export function useLinkTaskDocument() {
   })
 }
 
-export function usePhases(spaceKey = defaultSpaceKey) {
+export function usePhaseSummaries(spaceKey: string, params: DossierCatalogParams) {
   return useQuery({
-    queryKey: wikiKeys.phases(spaceKey),
-    queryFn: () => listPhases(spaceKey),
+    queryKey: wikiKeys.phaseSummaryList(spaceKey, params),
+    queryFn: () => listPhaseSummaries(spaceKey, params),
     enabled: Boolean(spaceKey),
   })
 }

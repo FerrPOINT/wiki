@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { ArrowRight, FilePlus2, FileText, GitBranch, Library, Search } from 'lucide-react'
-import { usePhases, useSpaces, useTasks, useWikiSearch } from '@/shared/api/hooks'
+import { usePhaseSummaries, useSpaces, useTaskSummaries, useWikiSearch } from '@/shared/api/hooks'
 import { Button, EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime } from '@/shared/lib/wiki-format'
@@ -22,23 +22,19 @@ export function DashboardPage() {
     { space: activeSpaceKey || undefined, limit: 100 },
     Boolean(activeSpaceKey),
   )
-  const tasksQuery = useTasks(activeSpaceKey)
-  const phasesQuery = usePhases(activeSpaceKey)
+  const tasksQuery = useTaskSummaries(activeSpaceKey, { limit: 4 })
+  const phasesQuery = usePhaseSummaries(activeSpaceKey, { limit: 1 })
   const recentDocuments = (searchQuery.data?.results ?? [])
     .filter((result) => result.result_type === 'document')
     .slice(0, 4)
-  const focusTasks = (tasksQuery.data?.tasks ?? []).slice(0, 4)
+  const focusTasks = tasksQuery.data?.tasks ?? []
   const documentCount = spaces.reduce((sum, space) => sum + space.document_count, 0)
   const stats = [
     { label: 'Пространства', value: spaces.length, icon: Library },
     { label: 'Документы всего', value: documentCount, icon: FileText },
     {
       label: 'Задачи в пространстве',
-      value: tasksQuery.isLoading
-        ? '…'
-        : tasksQuery.isError
-          ? '—'
-          : (tasksQuery.data?.tasks.length ?? 0),
+      value: tasksQuery.isLoading ? '…' : tasksQuery.isError ? '—' : (tasksQuery.data?.total ?? 0),
       icon: FileText,
     },
     {
@@ -47,7 +43,7 @@ export function DashboardPage() {
         ? '…'
         : phasesQuery.isError
           ? '—'
-          : (phasesQuery.data?.phases.length ?? 0),
+          : (phasesQuery.data?.total ?? 0),
       icon: GitBranch,
     },
   ]
@@ -207,7 +203,7 @@ export function DashboardPage() {
                       Задачи в Wiki
                     </h2>
                     <Link
-                      to="/tasks"
+                      to={`/tasks?space=${encodeURIComponent(activeSpaceKey)}`}
                       className="inline-flex min-h-10 items-center gap-1 text-sm text-accent hover:underline"
                     >
                       Все <ArrowRight className="h-4 w-4" aria-hidden />
@@ -238,7 +234,7 @@ export function DashboardPage() {
                                 {task.title || task.task_key}
                               </span>
                               <span className="block text-xs text-text-muted">
-                                {task.task_key} · {task.document_count} документов
+                                {task.task_key} · Документы: {task.document_count}
                               </span>
                             </span>
                             <ArrowRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
