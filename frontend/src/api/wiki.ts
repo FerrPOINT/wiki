@@ -111,6 +111,11 @@ export type DocumentRevisionListParams = {
 export type AuditLogParams = {
   limit?: number
   cursor?: string
+  action?: string
+  entity_type?: string
+  actor_id?: string
+  from?: string
+  to?: string
 }
 
 function queryString(params: Record<string, string | number | boolean | null | undefined>): string {
