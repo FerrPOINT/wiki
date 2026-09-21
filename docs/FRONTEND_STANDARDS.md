@@ -111,7 +111,32 @@ features/
 - Ключи именуются в kebab-case: `documents.create.title`.
 - Тексты не хардкодятся в компонентах.
 
-## 13. References
+## 14. UI Shell Contract
+
+Wiki follows the Base [UI Shell Standard](https://github.com/FerrPOINT/services-base/blob/main/docs/platform/UI_SHELL_STANDARD.md).
+`AppLayout` owns the shared 264 px/72 px left sidebar, 60 px global header and
+full-width right work area. Routes use only the common modes `wide`,
+`reading/form` and `detail-with-aside`; they do not define a Wiki-local shell or
+content-width scale.
+
+- Dashboard, spaces, document catalog, search, audit and administration use
+  `wide`. Dense lists stay lists/tables and retain local overflow only where
+  technical data needs it.
+- Document reading and editing use `reading/form`; an optional metadata/outline
+  rail uses `detail-with-aside` and moves below content on narrow screens.
+- Settings and focused forms use `reading/form`, with only the inner 760 px
+  column bounded rather than catalog or search routes.
+- The same route order and active state appear in the 264 px desktop sidebar,
+  72 px compact tablet rail and mobile drawer below 768 px.
+- Global controls stay in the one-row header. Page title, breadcrumbs, document
+  actions and filters are page-owned rows below it.
+- Shell/layout verification covers 375, 1440 and 2560 px, direct-route active
+  navigation, keyboard drawer flow, header alignment and no body overflow.
+
+Product page details remain in `docs/PAGE_DESIGN.md`; this contract preserves
+Wiki's document-first visual language.
+
+## 15. References
 
 - `docs/FRONTEND_ARCHITECTURE.md` — технический стек и структура.
 - `docs/DESIGN_TOKENS.md` — токены дизайна.
