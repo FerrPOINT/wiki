@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { ThemeProvider } from '@sdlc/ui/lib'
@@ -47,6 +47,7 @@ describe('AppShell', () => {
 
     renderShell()
 
+    expect(screen.getByRole('img', { name: 'Wiki' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /обзор/i })).toHaveAttribute('href', '/')
     expect(screen.getByRole('link', { name: /пространства/i })).toHaveAttribute('href', '/spaces')
     expect(screen.getByRole('link', { name: /задачи/i })).toHaveAttribute('href', '/tasks')
@@ -85,5 +86,34 @@ describe('AppShell', () => {
 
     await user.click(screen.getByRole('menuitem', { name: /выйти/i }))
     expect(logoutMutate).toHaveBeenCalledTimes(1)
+  })
+
+  it('marks a parent section active on a direct nested route', () => {
+    mockHooks()
+
+    renderShell('/tasks/BASE-42')
+
+    expect(screen.getByRole('link', { name: 'Задачи' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: 'Обзор' })).not.toHaveAttribute('aria-current')
+  })
+
+  it('keeps focus inside the mobile drawer and restores it after Escape', async () => {
+    const user = userEvent.setup()
+    mockHooks()
+    renderShell('/tasks/BASE-42')
+    const trigger = screen.getByRole('button', { name: 'Открыть навигацию' })
+
+    await user.click(trigger)
+
+    const dialog = await screen.findByRole('dialog', { name: 'Навигация Wiki' })
+    expect(within(dialog).getByRole('navigation', { name: 'Основная навигация' })).toBeVisible()
+    expect(dialog.contains(document.activeElement)).toBe(true)
+
+    await user.keyboard('{Escape}')
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Навигация Wiki' })).not.toBeInTheDocument(),
+    )
+    expect(trigger).toHaveFocus()
   })
 })

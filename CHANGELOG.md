@@ -16,6 +16,9 @@
 - Product-metrics counters (PR #5).
 - Root AGENTS.md и SECURITY.md (стандарты Base).
 ### Changed
+- Общая оболочка Wiki приведена к платформенному контракту: header 60 px,
+  sidebar 264 px, tablet rail 72 px и доступный mobile drawer с focus trap;
+  рабочая область больше не ограничена shell-level `max-w-7xl`.
 - Поиск Wiki получил компактную выдачу, раскрываемые фильтры и постраничную навигацию с явным лимитом первых 100 результатов.
 - Удалён неиспользуемый Lighthouse CI CLI; уязвимые транзитивные зависимости frontend build/test закреплены на исправленных версиях (`pnpm audit`: 0 известных уязвимостей).
 - Мобильные галереи и auth-кадры удалены из README — desktop-only evidence.

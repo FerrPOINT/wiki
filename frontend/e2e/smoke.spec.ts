@@ -198,11 +198,11 @@ async function installWikiApiMocks(page: Page) {
     const request = route.request()
     const url = new URL(request.url())
     if (url.pathname === '/oidc/authorize') {
+      const callbackUrl = `${baseURL}/sso/callback?code=mock-code&state=${url.searchParams.get('state')}`
       return route.fulfill({
-        status: 302,
-        headers: {
-          location: `${baseURL}/sso/callback?code=mock-code&state=${url.searchParams.get('state')}`,
-        },
+        status: 200,
+        contentType: 'text/html',
+        body: `<!doctype html><script>location.replace(${JSON.stringify(callbackUrl)})</script>`,
       })
     }
     if (url.pathname === '/oidc/jwks') return routeJson(route, { keys: [jwk] })
@@ -533,13 +533,47 @@ async function installWikiApiMocks(page: Page) {
   }
 }
 
+async function gotoWiki(page: Page, path = '/') {
+  const target = new URL(path, `${baseURL}/`).toString()
+  await page.goto(target)
+  await expect(page).toHaveURL(target, { timeout: 10_000 })
+}
+
 test.describe('wiki smoke', () => {
+  test('keeps the platform shell active-route and keyboard drawer contract', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 })
+    await installWikiApiMocks(page)
+    await gotoWiki(page)
+    await gotoWiki(page, '/tasks/BASE-42')
+    await expect(page.getByRole('heading', { name: 'BASE-42' })).toBeVisible()
+
+    const trigger = page.getByRole('button', { name: 'Открыть навигацию' })
+    await trigger.click()
+    const dialog = page.getByRole('dialog', { name: 'Навигация Wiki' })
+
+    await expect(dialog).toBeVisible()
+    await expect(dialog.getByRole('link', { name: 'Задачи' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    await expect
+      .poll(() => dialog.evaluate((element) => element.contains(document.activeElement)))
+      .toBe(true)
+    await page.keyboard.press('Shift+Tab')
+    await expect
+      .poll(() => dialog.evaluate((element) => element.contains(document.activeElement)))
+      .toBe(true)
+    await page.keyboard.press('Escape')
+    await expect(dialog).toBeHidden()
+    await expect(trigger).toBeFocused()
+  })
+
   test('archives a space only after explicit confirmation and keeps its archived status visible', async ({
     page,
   }) => {
     await installWikiApiMocks(page)
-    await page.goto(baseURL)
-    await page.goto(`${baseURL}/spaces`)
+    await gotoWiki(page)
+    await gotoWiki(page, '/spaces')
     await page.getByRole('button', { name: /База знаний Base/ }).click()
     await page.getByRole('button', { name: 'Архивировать' }).click()
 
@@ -564,19 +598,19 @@ test.describe('wiki smoke', () => {
 
   test('signs in through OIDC and navigates through wiki shell pages', async ({ page }) => {
     const apiMocks = await installWikiApiMocks(page)
-    await page.goto(baseURL)
+    await gotoWiki(page)
 
     await expect(page).toHaveURL(`${baseURL}/`, { timeout: 10_000 })
     await expect(page.getByRole('heading', { name: 'Wiki', exact: true })).toBeVisible()
 
-    await page.goto(`${baseURL}/spaces`)
+    await gotoWiki(page, '/spaces')
     await expect(page.getByRole('heading', { name: 'Пространства' })).toBeVisible()
     await expect(page.getByText('База знаний Base')).toBeVisible()
 
-    await page.goto(`${baseURL}/documents/new`)
+    await gotoWiki(page, '/documents/new')
     await expect(page.getByRole('heading', { name: 'Новый документ' })).toBeVisible()
 
-    await page.goto(`${baseURL}/documents/product-requirements`)
+    await gotoWiki(page, '/documents/product-requirements')
     await expect(
       page.locator('article > section').first().getByRole('heading', {
         name: 'Требования к Wiki MVP',
@@ -605,7 +639,7 @@ test.describe('wiki smoke', () => {
     await expect(page.getByRole('heading', { name: 'Снимок ревизии' })).toBeVisible()
     await expect(page.getByText('Ревизия 2: Требования к Wiki MVP')).toBeVisible()
 
-    await page.goto(`${baseURL}/tasks/BASE-42`)
+    await gotoWiki(page, '/tasks/BASE-42')
     await expect(page.getByRole('heading', { name: 'BASE-42' })).toBeVisible()
     await page.getByLabel('Документ для задачи').fill('product-requirements')
     await page.getByRole('button', { name: 'Привязать' }).click()
@@ -618,7 +652,7 @@ test.describe('wiki smoke', () => {
       .toBe(true)
     await expect(page.getByText('Документ привязан к задаче')).toBeVisible()
 
-    await page.goto(`${baseURL}/phases/implementation`)
+    await gotoWiki(page, '/phases/implementation')
     await expect(page.getByRole('heading', { name: 'implementation' })).toBeVisible()
     await page.getByLabel('Документ для фазы').fill('product-requirements')
     await page.getByRole('button', { name: 'Привязать' }).click()
@@ -631,11 +665,14 @@ test.describe('wiki smoke', () => {
       .toBe(true)
     await expect(page.getByText('Документ привязан к фазе')).toBeVisible()
 
-    await page.goto(`${baseURL}/evidence`)
+    await gotoWiki(page, '/evidence')
     await expect(page.getByRole('heading', { name: 'Материалы' })).toBeVisible()
+    await page.getByRole('button', { name: 'Открыть материал Лог сборки' }).click()
+    await expect(page.getByRole('heading', { name: 'Выбранный материал' })).toBeVisible()
     await expect(page.getByText(fileAttachment.checksum)).toBeVisible()
     await expect(page.getByText(fileAttachment.file_name)).toBeVisible()
     await page.getByLabel('Фильтр документа').fill('product-requirements')
+    await page.getByRole('button', { name: 'Найти' }).click()
     await expect
       .poll(() =>
         apiMocks.evidenceRequests.some((query) =>
@@ -644,7 +681,7 @@ test.describe('wiki smoke', () => {
       )
       .toBe(true)
 
-    await page.goto(`${baseURL}/search`)
+    await gotoWiki(page, '/search')
     await expect(page.getByRole('heading', { name: 'Поиск' })).toBeVisible()
     await page.getByLabel('Поисковый запрос').fill('релиз')
     await page.getByRole('button', { name: 'Фильтры' }).click()
@@ -667,12 +704,18 @@ test.describe('wiki smoke', () => {
     await expect(page.getByRole('link', { name: /Материал smoke-проверки фронта/ })).toBeVisible()
     await page.getByRole('link', { name: /Материал smoke-проверки фронта/ }).click()
     await expect(page).toHaveURL(`${baseURL}/evidence?id=${evidence.id}`)
-    await expect(page.getByRole('heading', { name: 'Выбранный материал' })).toBeVisible()
-    await expect(page.getByText('документ product-requirements')).toBeVisible()
-    await expect(page.getByText('задача BASE-42')).toBeVisible()
-    await expect(page.getByText('фаза implementation')).toBeVisible()
+    const selectedMaterial = page
+      .getByRole('heading', { name: 'Выбранный материал' })
+      .locator('..')
+      .locator('..')
+    await expect(selectedMaterial).toBeVisible()
+    await expect(
+      selectedMaterial.getByRole('link', { name: 'документ product-requirements' }),
+    ).toBeVisible()
+    await expect(selectedMaterial.getByRole('link', { name: 'задача BASE-42' })).toBeVisible()
+    await expect(selectedMaterial.getByRole('link', { name: 'фаза implementation' })).toBeVisible()
 
-    await page.goto(`${baseURL}/templates`)
+    await gotoWiki(page, '/templates')
     await expect(page.getByRole('heading', { name: 'Шаблоны' })).toBeVisible()
     await page.getByRole('button', { name: 'Новый шаблон' }).click()
     await page.getByLabel('Название шаблона').fill('Шаблон релиза')
@@ -684,18 +727,20 @@ test.describe('wiki smoke', () => {
         apiMocks.templateCreateRequests.some((request) => request.name === 'Шаблон релиза'),
       )
       .toBe(true)
-    await expect(page.getByText('Шаблон релиза')).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: 'Показать содержимое шаблона Шаблон релиза' }),
+    ).toBeVisible()
 
-    await page.goto(`${baseURL}/users`)
-    await expect(page.getByRole('heading', { name: 'Пользователи', exact: true })).toBeVisible()
+    await gotoWiki(page, '/users')
+    await expect(page.getByRole('heading', { name: 'Профили Wiki', exact: true })).toBeVisible()
     await expect(page.getByRole('cell', { name: 'editor@example.com' })).toBeVisible()
-    await expect(page.getByRole('cell', { name: 'Активен' }).last()).toBeVisible()
+    await expect(page.getByRole('cell', { name: 'Профиль доступен' }).last()).toBeVisible()
 
-    await page.goto(`${baseURL}/settings`)
+    await gotoWiki(page, '/settings')
     await expect(page.getByRole('heading', { name: 'Настройки' })).toBeVisible()
-    await expect(page.locator('input[value="PostgreSQL FTS"]')).toBeVisible()
+    await expect(page.getByText('PostgreSQL FTS')).toBeVisible()
 
-    await page.goto(`${baseURL}/admin`)
+    await gotoWiki(page, '/admin')
     await expect(page.getByRole('heading', { name: 'Администрирование' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Состояние инстанса' })).toBeVisible()
     await expect(page.getByText('Файлы до 25 МБ')).toBeVisible()

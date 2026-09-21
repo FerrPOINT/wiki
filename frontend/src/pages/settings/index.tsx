@@ -77,7 +77,7 @@ export function SettingsPage() {
     : []
 
   return (
-    <div className="min-w-0 space-y-5">
+    <div className="min-w-0 max-w-screen-2xl space-y-5">
       <h1 className="text-2xl font-bold">Настройки</h1>
 
       {settingsQuery.isLoading && <LoadingState message="Загружаем настройки" />}
