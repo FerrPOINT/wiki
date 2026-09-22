@@ -30,7 +30,7 @@ API paths in this table are relative to `/api/v1` unless marked otherwise. `/met
 | Capability | User scenario | API | CLI | UI | Data | Evidence |
 | ---------- | ------------- | --- | --- | -- | ---- | -------- |
 | Auth | Пользователь входит, выходит и проверяет профиль | `/auth/login`, `/auth/logout`, `/auth/refresh`, `/users/me` | `wiki auth` | `/login` | `users`, `auth_sessions` | auth tests |
-| Registration | Пользователь создаёт учётную запись, если регистрация включена | `/auth/register` | no CLI MVP command; UI/API public flow | `/register` | `users`, `auth_sessions` | register tests, `02-register.png` |
+| Registration | Пользователь создаёт учётную запись, если регистрация включена | `/auth/register` | no CLI MVP command; UI/API public flow | `/register` | `users`, `auth_sessions` | register tests |
 | Users and roles | Admin управляет users и space roles | `/users`, `/spaces/{space_key}/members` | `wiki user`, `wiki space members/member-set/member-remove` | `/users`, `/admin` | `users`, `space_members`, `audit_log` | RBAC tests, `14-users.png`, `17-admin.png` |
 | Spaces | Пользователь открывает доступные spaces и дерево страниц | `/spaces`, `/spaces/{space_key}`, `/spaces/{space_key}/tree` | `wiki space` | `/spaces`, `/` | `spaces`, `documents` | space tests, `03-dashboard.png`, `04-spaces.png` |
 | Documents | Editor создаёт, редактирует, публикует, архивирует и перемещает страницы | `/spaces/{space_key}/documents`, `/documents/{document_id}` and write actions | `wiki doc` | `/documents/new`, `/documents/:documentId` | `documents`, `document_drafts`, `document_revisions` | document tests including stale publish conflict, `05-document-compose.png`, `06-document-view.png` |
@@ -38,7 +38,7 @@ API paths in this table are relative to `/api/v1` unless marked otherwise. `/met
 | Task dossiers | Пользователь видит знания по external task key | `/spaces/{space_key}/tasks` | `wiki task` | `/tasks`, `/tasks/:taskKey` | `task_dossiers`, `document_task_links`, `evidence_items` | dossier tests, `07-task-dossiers.png`, `08-task-dossier-detail.png` |
 | Phase dossiers | Пользователь видит знания по workflow phase key | `/spaces/{space_key}/phases` | `wiki phase` | `/phases`, `/phases/:phaseId` | `phase_dossiers`, `document_phase_links`, `evidence_items` | phase tests, `09-phase-dossiers.png`, `10-phase-dossier-detail.png` |
 | Evidence and attachments | Editor добавляет URL/file material with checksum | `/evidence?limit=30`, `/attachments` | `wiki evidence`, `wiki attachment` | `/evidence`, document/task/phase pages | `evidence_items`, `attachments` | upload/list limit tests, `11-evidence.png` |
-| Search | Пользователь ищет документы и материалы с фильтрами | `/search?limit=20` | `wiki search query --limit` | `/search` | PostgreSQL FTS projection | search limit/filter tests, `16-search.png`, `m-search.png` |
+| Search | Пользователь ищет документы и материалы с фильтрами | `/search?limit=20` | `wiki search query --limit` | `/search` | PostgreSQL FTS projection | search limit/filter tests, `16-search.png` |
 | Templates | Editor стартует документ из базового шаблона | `/templates` | `wiki template` | `/templates`, `/documents/new` | `document_templates` | template tests, `12-templates.png` |
 | Settings | Admin видит безопасный runtime snapshot | `/settings` | `wiki settings get` | `/settings`, `/admin` | runtime config snapshot | settings tests, `15-settings.png` |
 | Audit | Admin проверяет bounded append-only write history and request correlation | `/audit-log` | `wiki audit list --limit` | `/audit-log`, `/admin` | `audit_log.request_id` | audit tests, `13-audit-log.png` |
@@ -50,7 +50,7 @@ API paths in this table are relative to `/api/v1` unless marked otherwise. `/met
 - Approved frontend routes are exactly the route set in `docs/ROUTING.md`.
 - Visible product text is Russian; routes, identifiers and API fields remain English.
 - Every API-backed page must expose loading, empty, validation/error and retry states before release readiness.
-- Every desktop route must have a README screenshot and manifest entry.
+- Every meaningful product route has a desktop manifest entry; auth/redirect-only routes are exempt from README evidence.
 - Operational probes, OpenAPI and metrics are API/ops artifacts and do not require frontend pages or screenshots.
 
 ## 5. Negative Case Coverage

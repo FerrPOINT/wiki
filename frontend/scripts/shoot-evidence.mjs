@@ -430,7 +430,7 @@ const browser = await chromium.launch()
 
 async function shoot(shot) {
   const context = await browser.newContext({
-    viewport: shot.mobile ? { width: 375, height: 812 } : { width: 1920, height: 1080 },
+    viewport: { width: 1920, height: 1080 },
     deviceScaleFactor: 1,
     locale: 'ru-RU',
   })

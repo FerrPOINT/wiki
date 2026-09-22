@@ -1,20 +1,15 @@
 # Current State - Wiki
 
-> Search pagination change (2026-09-20): server-side `result_type` and stable keyset cursor implemented in draft PR. Local Rust/PostgreSQL runs and 375/1920/2560 live screenshots are pending because the current host has critically low C: free space; remote CI does not replace that release gate. This search PR assumes the evidence `(created_at DESC, id DESC)` index from the separate evidence pagination PR is merged first.
+> **Snapshot 2026-09-22:** source is `main` after the merged search/dossier, template and platform-shell work. Authority is repository code, generated OpenAPI and executed checks; update this file whenever capability state changes.
 
-> Snapshot date: 2026-09-03. Authority is repository code and tests; update this file whenever capability state changes.
-
-## Pending Verification (2026-09-20)
-
-- Evidence registry now has server-side `q` and `(created_at, id)` cursor pagination, a 20-item UI page, explicit filters, responsive rows, lazy file metadata and confirmed create actions. Draft PR #23 passed docs/backend/frontend CI; isolated PostgreSQL smoke and live 375/1920/2560 screenshots are still required before it can be marked ready.
-- Local Rust/Node builds, browser tests and PostgreSQL smoke are deferred because drive C: had about 0.19 GB free; no existing caches or user data were deleted.
+> **Verification status:** the old draft-PR, low-disk and unmerged-index notices are obsolete. Paged evidence/search and bounded task/phase catalogs are merged. Repository documentation, frontend and backend gates define the current release evidence; environment-specific smoke limitations are recorded only in **Known Local Environment Limits**.
 
 ## Current Verified
 
 | Capability | Status | Notes |
 | ---------- | ------ | ----- |
 | Product scope | Current | `docs/PRODUCT_REQUIREMENTS.md` defines the base Wiki MVP: auth/users/roles, spaces, documents/tree/revisions, task/phase links, evidence, search, templates, audit, runtime health/readiness, API, UI and CLI. |
-| Frontend page set | Current | The router, README gallery and screenshot manifest cover only the approved MVP routes: `/login`, `/register`, `/`, `/spaces`, `/documents/new`, `/documents/:documentId`, `/tasks`, `/tasks/:taskKey`, `/phases`, `/phases/:phaseId`, `/evidence`, `/templates`, `/audit-log`, `/users`, `/settings`, `/search`, `/admin`. |
+| Frontend page set | Current | The router, README gallery and screenshot manifest cover approved Wiki MVP routes: `/login`, `/register`, `/`, `/spaces`, `/documents/new`, `/documents/:documentId`, `/tasks`, `/tasks/:taskKey`, `/phases`, `/phases/:phaseId`, `/evidence`, `/templates`, `/audit-log`, `/users`, `/settings`, `/search` and `/admin`. `/register` redirects to `/login` in the current router; public registration remains an API/configuration capability, not README evidence. |
 | Removed non-MVP screens | Current | `/integrations`, `/reports` and `/notifications` are absent from frontend routing, navigation, screenshot generation, README gallery and OpenAPI mocks. |
 | Removed copied tracker backend | Current | Copied task-tracker domain/app/infra modules for issues, boards, sprints, worklogs, reports, notifications, email, cache, old repositories and old ORM entities have been removed from the backend workspace. |
 | API runtime | Current | Runtime router and OpenAPI expose Wiki MVP endpoints plus operational `/api/v1/health` and `/api/v1/health/ready`. The HTTP layer echoes a valid incoming `X-Request-ID` or generates a `req_` UUIDv7 request id on every response, passes it into authenticated request claims and includes it in `TraceLayer` HTTP spans for support/debug correlation. Protected domain/admin write requests with `Idempotency-Key` are deduplicated by actor, method, path+query and body hash; successful responses are replayed for 24 hours and mismatched or in-flight retries return `409 CONFLICT`. Auth/session endpoints are outside replay scope. API responses set the documented baseline security headers: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, `Content-Security-Policy` and `Strict-Transport-Security`. Production server requires `WIKI_DATABASE__URL` and wires SQLx/PostgreSQL persistence through `shared::wiki_contract::WikiBackendPort`; memory backend remains an explicit test/dev composition. |

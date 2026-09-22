@@ -33,19 +33,6 @@
 | [16-search.png](../../screenshots/16-search.png)                             | `/search`                         | Поиск по документам, задачам, фазам и материалам | 1920x1080 |
 | [17-admin.png](../../screenshots/17-admin.png)                               | `/admin`                          | Администрирование                                | 1920x1080 |
 
-## Повторная проверка поиска, 2026-09-19
-
-Полностраничные снимки Playwright Chromium из локального развёртывания.
-Для плотной выдачи подставлены ответы `GET /api/v1/search`; вход через SSO и
-первый запрос поиска выполнены на живых сервисах. Изменяющих запросов нет.
-
-| Файл | Экран | Состояние |
-| --- | --- | --- |
-| [search-375.png](2026-09-19-search/search-375.png) | 375x812 | Результаты, фильтры закрыты |
-| [search-1920.png](2026-09-19-search/search-1920.png) | 1920x900 | Результаты, фильтры закрыты |
-| [search-2560.png](2026-09-19-search/search-2560.png) | 2560x900 | Результаты, фильтры закрыты |
-| [search-filters-375.png](2026-09-19-search/search-filters-375.png) | 375x812 | Фильтры применены |
-
 ## Review checklist
 
 - Every route listed in `README.md` has a desktop screenshot.
