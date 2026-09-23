@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
+import { MemoryRouter, useLocation, useNavigate } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AuditEntry, AuditLogParams } from '@/api/wiki'
@@ -10,6 +11,31 @@ const useUsers = vi.hoisted(() => vi.fn())
 const usersRefetch = vi.hoisted(() => vi.fn())
 
 vi.mock('@/shared/api/hooks', () => ({ useAuditLog, useUsers }))
+
+function RouterState() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  return (
+    <>
+      <div data-testid="router-location">{`${location.pathname}${location.search}`}</div>
+      <button type="button" onClick={() => navigate(-1)}>
+        История назад
+      </button>
+      <button type="button" onClick={() => navigate(1)}>
+        История вперёд
+      </button>
+    </>
+  )
+}
+
+function renderAuditLog(initialEntry = '/audit-log') {
+  return render(
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <AuditLogPage />
+      <RouterState />
+    </MemoryRouter>,
+  )
+}
 
 const actorId = '00000000-0000-4000-8000-000000000001'
 
@@ -73,7 +99,7 @@ describe('AuditLogPage', () => {
           : { entries, next_cursor: 'cursor-1' },
       ),
     )
-    render(<AuditLogPage />)
+    renderAuditLog()
 
     expect(useAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({ limit: 20, cursor: undefined }),
@@ -95,6 +121,7 @@ describe('AuditLogPage', () => {
     expect(useAuditLog).toHaveBeenLastCalledWith(
       expect.objectContaining({ limit: 20, cursor: 'cursor-1' }),
     )
+    expect(screen.getByTestId('router-location')).toHaveTextContent('/audit-log?cursor=cursor-1')
     expect(screen.getByRole('navigation', { name: 'Страницы аудита' })).toHaveTextContent(
       'Страница 2',
     )
@@ -105,6 +132,7 @@ describe('AuditLogPage', () => {
     expect(useAuditLog).toHaveBeenLastCalledWith(
       expect.objectContaining({ limit: 20, cursor: undefined }),
     )
+    expect(screen.getByTestId('router-location')).toHaveTextContent('/audit-log')
     expect(screen.getByRole('navigation', { name: 'Страницы аудита' })).toHaveTextContent(
       'Страница 1',
     )
@@ -123,7 +151,7 @@ describe('AuditLogPage', () => {
           }
         : queryResult({ entries, next_cursor: 'cursor-1' }),
     )
-    render(<AuditLogPage />)
+    renderAuditLog()
 
     fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
     expect(screen.getByRole('alert')).toBeInTheDocument()
@@ -139,7 +167,7 @@ describe('AuditLogPage', () => {
 
   it('does not show zero totals or pagination for an empty history', () => {
     useAuditLog.mockReturnValue(queryResult({ entries: [], next_cursor: null }))
-    render(<AuditLogPage />)
+    renderAuditLog()
 
     expect(screen.getByText('Событий аудита пока нет')).toBeInTheDocument()
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
@@ -152,11 +180,38 @@ describe('AuditLogPage', () => {
         cursor ? { entries: [], next_cursor: null } : { entries, next_cursor: 'cursor-1' },
       ),
     )
-    render(<AuditLogPage />)
+    renderAuditLog()
 
     fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
     expect(screen.getByText('На этой странице событий больше нет')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Назад' })).toBeEnabled()
+  })
+
+  it('serializes multi-page cursor history without dropping neighboring parameters', () => {
+    useAuditLog.mockImplementation(({ cursor }: AuditLogParams) =>
+      queryResult({
+        entries,
+        next_cursor: cursor === 'cursor-2' ? null : cursor === 'cursor-1' ? 'cursor-2' : 'cursor-1',
+      }),
+    )
+    renderAuditLog('/audit-log?keep=1')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
+    expect(screen.getByTestId('router-location')).toHaveTextContent(
+      '/audit-log?keep=1&cursor=cursor-2&previous_cursor=cursor-1',
+    )
+    expect(screen.getByRole('navigation', { name: 'Страницы аудита' })).toHaveTextContent(
+      'Страница 3',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }))
+    expect(screen.getByTestId('router-location')).toHaveTextContent(
+      '/audit-log?keep=1&cursor=cursor-1',
+    )
+    expect(screen.getByRole('navigation', { name: 'Страницы аудита' })).toHaveTextContent(
+      'Страница 2',
+    )
   })
 
   it('falls back to the original code for an unknown action', () => {
@@ -164,7 +219,7 @@ describe('AuditLogPage', () => {
       queryResult({ entries: [{ ...entries[0]!, action: 'integration.sync' }], next_cursor: null }),
     )
 
-    render(<AuditLogPage />)
+    renderAuditLog()
 
     expect(screen.getAllByText('integration.sync')).toHaveLength(3)
   })
@@ -177,7 +232,7 @@ describe('AuditLogPage', () => {
           : { entries, next_cursor: 'cursor-1' },
       ),
     )
-    render(<AuditLogPage />)
+    renderAuditLog()
 
     fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
     expect(screen.getByRole('navigation', { name: 'Страницы аудита' })).toHaveTextContent(
@@ -227,9 +282,103 @@ describe('AuditLogPage', () => {
     expect(screen.getByRole('button', { name: 'Фильтры' })).toBeInTheDocument()
   })
 
+  it('restores filters and cursor history from a direct URL', () => {
+    useAuditLog.mockReturnValue(queryResult({ entries, next_cursor: null }))
+    const from = new Date('2026-09-20T10:00').toISOString()
+    const to = new Date('2026-09-21T10:00').toISOString()
+    const params = new URLSearchParams({
+      keep: '1',
+      action: 'integration.sync',
+      entity_type: 'integration',
+      actor_id: actorId.toUpperCase(),
+      from,
+      to,
+      cursor: 'cursor-2',
+    })
+    params.append('previous_cursor', 'cursor-1')
+
+    renderAuditLog(`/audit-log?${params}`)
+
+    expect(useAuditLog).toHaveBeenLastCalledWith({
+      limit: 20,
+      cursor: 'cursor-2',
+      action: 'integration.sync',
+      entity_type: 'integration',
+      actor_id: actorId,
+      from,
+      to,
+    })
+    expect(screen.getByRole('button', { name: 'Фильтры (5)' })).toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: 'Страницы аудита' })).toHaveTextContent(
+      'Страница 3',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Фильтры (5)' }))
+    expect(screen.getByLabelText('Действие')).toHaveValue('integration.sync')
+    expect(screen.getByLabelText('Тип объекта')).toHaveValue('integration')
+    expect(screen.getByLabelText('Участник')).toHaveValue(actorId)
+    expect(screen.getByLabelText('С даты (местное время)')).toHaveValue('2026-09-20T10:00')
+    expect(screen.getByLabelText('До даты (не включая)')).toHaveValue('2026-09-21T10:00')
+    expect(screen.getByTestId('router-location')).toHaveTextContent('keep=1')
+  })
+
+  it('restores applied filters through browser Back and Forward', () => {
+    useAuditLog.mockReturnValue(queryResult({ entries, next_cursor: null }))
+    renderAuditLog('/audit-log?keep=1')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Фильтры' }))
+    fireEvent.change(screen.getByLabelText('Действие'), { target: { value: 'document.publish' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Применить' }))
+    expect(screen.getByTestId('router-location')).toHaveTextContent(
+      '/audit-log?keep=1&action=document.publish',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'История назад' }))
+    expect(screen.getByRole('button', { name: 'Фильтры' })).toBeInTheDocument()
+    expect(useAuditLog).toHaveBeenLastCalledWith(expect.objectContaining({ action: '' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'История вперёд' }))
+    expect(screen.getByRole('button', { name: 'Фильтры (1)' })).toBeInTheDocument()
+    expect(useAuditLog).toHaveBeenLastCalledWith(
+      expect.objectContaining({ action: 'document.publish' }),
+    )
+  })
+
+  it('canonicalizes invalid URL state without dropping neighboring parameters', () => {
+    useAuditLog.mockReturnValue(queryResult({ entries, next_cursor: null }))
+    renderAuditLog(
+      '/audit-log?keep=1&action=%20document.publish%20&actor_id=bad&actor_id=duplicate&from=bad&to=bad&cursor=%20&previous_cursor=cursor-1',
+    )
+
+    expect(screen.getByTestId('router-location')).toHaveTextContent(
+      '/audit-log?keep=1&action=document.publish',
+    )
+    expect(useAuditLog).toHaveBeenLastCalledWith({
+      limit: 20,
+      cursor: undefined,
+      action: 'document.publish',
+      entity_type: '',
+      actor_id: '',
+      from: '',
+      to: '',
+    })
+  })
+
+  it('keeps audit controls at the platform target size', () => {
+    useAuditLog.mockReturnValue(queryResult({ entries, next_cursor: null }))
+    renderAuditLog()
+
+    const filterButton = screen.getByRole('button', { name: 'Фильтры' })
+    expect(filterButton).toHaveClass('h-10')
+    fireEvent.click(filterButton)
+    expect(screen.getByRole('button', { name: 'Ввести UUID' })).toHaveClass('h-10')
+    expect(screen.getByRole('button', { name: 'Сбросить' })).toHaveClass('h-10')
+    expect(screen.getByRole('button', { name: 'Применить' })).toHaveClass('h-10')
+  })
+
   it('blocks an inverted date range without changing the audit request', () => {
     useAuditLog.mockReturnValue(queryResult({ entries, next_cursor: null }))
-    render(<AuditLogPage />)
+    renderAuditLog()
 
     fireEvent.click(screen.getByRole('button', { name: 'Фильтры' }))
     fireEvent.change(screen.getByLabelText('С даты (местное время)'), {
@@ -252,7 +401,7 @@ describe('AuditLogPage', () => {
       refetch: usersRefetch,
     })
     useAuditLog.mockReturnValue(queryResult({ entries, next_cursor: null }))
-    render(<AuditLogPage />)
+    renderAuditLog()
 
     fireEvent.click(screen.getByRole('button', { name: 'Фильтры' }))
     expect(screen.getByText('Каталог пользователей недоступен; укажите UUID')).toBeInTheDocument()
@@ -271,7 +420,7 @@ describe('AuditLogPage', () => {
 
   it('accepts a historical actor UUID even when the user directory loads', () => {
     useAuditLog.mockReturnValue(queryResult({ entries, next_cursor: null }))
-    render(<AuditLogPage />)
+    renderAuditLog()
 
     fireEvent.click(screen.getByRole('button', { name: 'Фильтры' }))
     fireEvent.click(screen.getByRole('button', { name: 'Ввести UUID' }))
@@ -291,7 +440,7 @@ describe('AuditLogPage', () => {
     useAuditLog.mockImplementation(({ action }: AuditLogParams) =>
       queryResult({ entries: action ? [] : entries, next_cursor: null }),
     )
-    render(<AuditLogPage />)
+    renderAuditLog()
 
     fireEvent.click(screen.getByRole('button', { name: 'Фильтры' }))
     fireEvent.change(screen.getByLabelText('Действие'), { target: { value: 'document.publish' } })

@@ -1,0 +1,25 @@
+{
+  "afterApply": {
+    "url": "http://localhost:7732/audit-log?keep=1",
+    "button": "Фильтры (2)"
+  },
+  "afterReload": {
+    "url": "http://localhost:7732/audit-log?keep=1",
+    "button": "Фильтры",
+    "action": "",
+    "entityType": ""
+  },
+  "directUrl": {
+    "url": "http://localhost:7732/audit-log?keep=1&action=document.publish&entity_type=document",
+    "button": "Фильтры",
+    "action": "",
+    "entityType": ""
+  },
+  "filterTarget": {
+    "width": 100.65625,
+    "height": 32
+  },
+  "rootOverflow": 0,
+  "pageErrors": [],
+  "httpErrors": []
+}

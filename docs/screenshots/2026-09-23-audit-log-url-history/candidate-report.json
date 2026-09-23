@@ -1,0 +1,162 @@
+{
+  "functional": {
+    "afterApplyUrl": "http://localhost:7732/audit-log?keep=1&action=document.publish&entity_type=document",
+    "afterReloadUrl": "http://localhost:7732/audit-log?keep=1&action=document.publish&entity_type=document",
+    "afterBackUrl": "http://localhost:7732/audit-log?keep=1",
+    "afterForwardUrl": "http://localhost:7732/audit-log?keep=1&action=document.publish&entity_type=document",
+    "directUrl": "http://localhost:7732/audit-log?keep=1&action=document.publish&entity_type=document",
+    "canonicalUrl": "http://localhost:7732/audit-log?keep=1&action=document.publish",
+    "cursorPage3Url": "http://localhost:7732/audit-log?keep=1&action=document.publish&cursor=cursor-2&previous_cursor=cursor-1",
+    "cursorForwardUrl": "http://localhost:7732/audit-log?keep=1&action=document.publish&cursor=cursor-2&previous_cursor=cursor-1"
+  },
+  "visualStates": [
+    {
+      "state": "closed",
+      "theme": "light",
+      "width": 375,
+      "rootOverflow": 0,
+      "smallTargets": [],
+      "seriousCritical": []
+    },
+    {
+      "state": "open",
+      "theme": "light",
+      "width": 375,
+      "rootOverflow": 0,
+      "smallTargets": [],
+      "seriousCritical": []
+    },
+    {
+      "state": "closed",
+      "theme": "light",
+      "width": 1920,
+      "rootOverflow": 0,
+      "smallTargets": [],
+      "seriousCritical": []
+    },
+    {
+      "state": "open",
+      "theme": "light",
+      "width": 1920,
+      "rootOverflow": 0,
+      "smallTargets": [],
+      "seriousCritical": []
+    },
+    {
+      "state": "closed",
+      "theme": "light",
+      "width": 2560,
+      "rootOverflow": 0,
+      "smallTargets": [],
+      "seriousCritical": []
+    },
+    {
+      "state": "open",
+      "theme": "light",
+      "width": 2560,
+      "rootOverflow": 0,
+      "smallTargets": [],
+      "seriousCritical": []
+    },
+    {
+      "state": "closed",
+      "theme": "gray",
+      "width": 375,
+      "rootOverflow": 0,
+      "smallTargets": [],
+      "seriousCritical": []
+    },
+    {
+      "state": "open",
+      "theme": "gray",
+      "width": 375,
+      "rootOverflow": 0,
+      "smallTargets": [],
+      "seriousCritical": []
+    },
+    {
+      "state": "closed",
+      "theme": "gray",
+      "width": 1920,
+      "rootOverflow": 0,
+      "smallTargets": [],
+      "seriousCritical": []
+    },
+    {
+      "state": "open",
+      "theme": "gray",
+      "width": 1920,
+      "rootOverflow": 0,
+      "smallTargets": [],
+      "seriousCritical": []
+    },
+    {
+      "state": "closed",
+      "theme": "gray",
+      "width": 2560,
+      "rootOverflow": 0,
+      "smallTargets": [],
+      "seriousCritical": []
+    },
+    {
+      "state": "open",
+      "theme": "gray",
+      "width": 2560,
+      "rootOverflow": 0,
+      "smallTargets": [],
+      "seriousCritical": []
+    },
+    {
+      "state": "closed",
+      "theme": "dark",
+      "width": 375,
+      "rootOverflow": 0,
+      "smallTargets": [],
+      "seriousCritical": []
+    },
+    {
+      "state": "open",
+      "theme": "dark",
+      "width": 375,
+      "rootOverflow": 0,
+      "smallTargets": [],
+      "seriousCritical": []
+    },
+    {
+      "state": "closed",
+      "theme": "dark",
+      "width": 1920,
+      "rootOverflow": 0,
+      "smallTargets": [],
+      "seriousCritical": []
+    },
+    {
+      "state": "open",
+      "theme": "dark",
+      "width": 1920,
+      "rootOverflow": 0,
+      "smallTargets": [],
+      "seriousCritical": []
+    },
+    {
+      "state": "closed",
+      "theme": "dark",
+      "width": 2560,
+      "rootOverflow": 0,
+      "smallTargets": [],
+      "seriousCritical": []
+    },
+    {
+      "state": "open",
+      "theme": "dark",
+      "width": 2560,
+      "rootOverflow": 0,
+      "smallTargets": [],
+      "seriousCritical": []
+    }
+  ],
+  "pageErrors": [],
+  "consoleErrors": [],
+  "httpErrors": [],
+  "writeRequests": []
+}
