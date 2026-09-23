@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import {
   Archive,
@@ -14,7 +14,6 @@ import {
   MoveRight,
   Save,
   Send,
-  X,
 } from 'lucide-react'
 import {
   useArchiveDocument,
@@ -28,6 +27,7 @@ import {
 import { ConfirmDialog, EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
 import { Button } from '@sdlc/ui/ui'
 import { Card, CardContent, CardHeader, CardTitle } from '@sdlc/ui/ui'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@sdlc/ui/ui'
 import { Input } from '@sdlc/ui/ui'
 import { Label } from '@sdlc/ui/ui'
 import { Textarea } from '@sdlc/ui/ui'
@@ -81,6 +81,7 @@ export function DocumentPage() {
   const revisions = revisionsQuery.data?.revisions.slice(0, 20) ?? []
   const hasNextRevisionPage = (revisionsQuery.data?.revisions.length ?? 0) > 20
   const [selectedRevisionId, setSelectedRevisionId] = useState<string | null>(null)
+  const revisionTriggerRef = useRef<HTMLButtonElement | null>(null)
   const selectedRevisionQuery = useDocumentRevision(
     documentId,
     selectedRevisionId ?? '',
@@ -325,6 +326,64 @@ export function DocumentPage() {
         }
       />
 
+      <Dialog
+        open={selectedRevisionId !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedRevisionId(null)
+        }}
+      >
+        <DialogContent
+          className="max-w-4xl gap-0 p-0 sm:p-0"
+          aria-describedby="revision-snapshot-description"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            revisionTriggerRef.current?.focus()
+          }}
+        >
+          <DialogHeader className="border-b border-border p-4 pr-14 sm:p-6 sm:pr-14">
+            <DialogTitle>Снимок ревизии</DialogTitle>
+            <p id="revision-snapshot-description" className="text-sm text-text-secondary">
+              Неизменяемая опубликованная версия документа.
+            </p>
+          </DialogHeader>
+          <div className="space-y-4 p-4 sm:p-6">
+            {selectedRevisionQuery.isLoading && <LoadingState message="Загружаем снимок ревизии" />}
+            {selectedRevisionQuery.isError && (
+              <ErrorState
+                message={formatApiErrorForUser(
+                  selectedRevisionQuery.error,
+                  'Не удалось открыть ревизию',
+                )}
+                onRetry={() => selectedRevisionQuery.refetch()}
+              />
+            )}
+            {selectedRevision && (
+              <>
+                <div className="space-y-1 text-sm">
+                  <div className="font-medium">
+                    Ревизия {selectedRevision.version}: {selectedRevision.title}
+                  </div>
+                  <div className="text-xs text-text-muted">
+                    {formatDateTime(selectedRevision.published_at)} · автор{' '}
+                    {selectedRevision.author_id}
+                  </div>
+                  <p className="text-xs text-text-secondary">
+                    {shortText(selectedRevision.summary, 'Без описания изменений')}
+                  </p>
+                </div>
+                <div className="rounded-md border border-border bg-surface p-3">
+                  <RenderedDocumentBody
+                    html={selectedRevision.body_html}
+                    emptyMessage="В ревизии нет опубликованного содержания"
+                    compact
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {(statusMessage || mutationError) && (
         <section className="rounded-md border border-border bg-surface p-3 text-sm">
           {statusMessage && <p className="text-success">{statusMessage}</p>}
@@ -520,30 +579,36 @@ export function DocumentPage() {
                   key={revision.id}
                   role="group"
                   aria-label={`Ревизия ${revision.version}`}
-                  className="space-y-3 rounded-md border border-border p-3"
+                  className="flex items-start gap-3 border-b border-border py-3 last:border-b-0"
                 >
-                  <div className="flex items-center justify-between gap-3 text-sm font-medium">
-                    <span className="inline-flex items-center gap-2">
-                      <History className="h-4 w-4 text-accent" />
-                      Ревизия {revision.version}
-                    </span>
-                    <span className="text-xs text-text-muted">
-                      {formatDateTime(revision.published_at)}
-                    </span>
+                  <History className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm font-medium">
+                      <span>Ревизия {revision.version}</span>
+                      <span className="text-xs font-normal text-text-muted">
+                        {formatDateTime(revision.published_at)}
+                      </span>
+                    </div>
+                    <p className="mt-1 truncate text-xs text-text-secondary">
+                      {shortText(revision.summary, 'Без описания изменений')}
+                    </p>
+                    <p className="mt-1 truncate text-xs text-text-muted" title={revision.author_id}>
+                      {revision.author_id}
+                    </p>
                   </div>
-                  <p className="mt-1 text-xs text-text-secondary">
-                    {shortText(revision.summary, 'Без описания изменений')}
-                  </p>
-                  <p className="mt-1 text-xs text-text-muted">{revision.author_id}</p>
                   <Button
                     type="button"
-                    size="sm"
-                    className="h-10"
-                    variant={selectedRevisionId === revision.id ? 'secondary' : 'outline'}
-                    onClick={() => setSelectedRevisionId(revision.id)}
+                    size="icon"
+                    className="h-10 w-10 shrink-0"
+                    variant="outline"
+                    aria-label={`Открыть ревизию ${revision.version}`}
+                    title={`Открыть ревизию ${revision.version}`}
+                    onClick={(event) => {
+                      revisionTriggerRef.current = event.currentTarget
+                      setSelectedRevisionId(revision.id)
+                    }}
                   >
-                    <Eye className="h-3.5 w-3.5" />
-                    Открыть
+                    <Eye className="h-4 w-4" />
                   </Button>
                 </div>
               ))}
@@ -587,63 +652,6 @@ export function DocumentPage() {
               )}
             </CardContent>
           </Card>
-
-          {selectedRevisionId && (
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between gap-3">
-                  <CardTitle className="text-base">Снимок ревизии</CardTitle>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="h-10"
-                    onClick={() => setSelectedRevisionId(null)}
-                  >
-                    <X className="h-4 w-4" />
-                    Закрыть
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {selectedRevisionQuery.isLoading && (
-                  <LoadingState message="Загружаем снимок ревизии" />
-                )}
-                {selectedRevisionQuery.isError && (
-                  <ErrorState
-                    message={formatApiErrorForUser(
-                      selectedRevisionQuery.error,
-                      'Не удалось открыть ревизию',
-                    )}
-                    onRetry={() => selectedRevisionQuery.refetch()}
-                  />
-                )}
-                {selectedRevision && (
-                  <>
-                    <div className="space-y-1 text-sm">
-                      <div className="font-medium">
-                        Ревизия {selectedRevision.version}: {selectedRevision.title}
-                      </div>
-                      <div className="text-xs text-text-muted">
-                        {formatDateTime(selectedRevision.published_at)} · автор{' '}
-                        {selectedRevision.author_id}
-                      </div>
-                      <p className="text-xs text-text-secondary">
-                        {shortText(selectedRevision.summary, 'Без описания изменений')}
-                      </p>
-                    </div>
-                    <div className="max-h-96 overflow-auto rounded-md border border-border bg-surface p-3">
-                      <RenderedDocumentBody
-                        html={selectedRevision.body_html}
-                        emptyMessage="В ревизии нет опубликованного содержания"
-                        compact
-                      />
-                    </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          )}
         </div>
       </section>
 
