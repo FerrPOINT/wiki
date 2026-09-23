@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import {
   Archive,
@@ -54,10 +54,22 @@ function RenderedDocumentBody({
   emptyMessage: string
   compact?: boolean
 }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    for (const region of container.querySelectorAll<HTMLElement>('pre, table')) {
+      region.tabIndex = 0
+    }
+  })
+
   if (html.trim().length === 0) return <EmptyState message={emptyMessage} />
 
   return (
     <div
+      ref={containerRef}
       className={compact ? 'wiki-rendered wiki-rendered-compact' : 'wiki-rendered'}
       dangerouslySetInnerHTML={{ __html: html }}
     />
@@ -225,9 +237,9 @@ export function DocumentPage() {
 
   return (
     <article className="space-y-5">
-      <section className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <div className="text-sm text-text-muted">
+      <section className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="break-words text-sm text-text-muted">
             {document.space_key} / {formatDocumentType(document.document_type)} / {document.slug}
           </div>
           <h1 className="mt-2 break-words text-2xl font-bold">{document.title}</h1>
@@ -331,7 +343,7 @@ export function DocumentPage() {
       )}
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           {isEditing && (
             <Card>
               <CardHeader>
@@ -417,7 +429,7 @@ export function DocumentPage() {
           )}
         </div>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           {!canEdit && (
             <Card>
               <CardHeader>
@@ -474,20 +486,20 @@ export function DocumentPage() {
                 <Link
                   key={taskKey}
                   to={`/tasks/${taskKey}`}
-                  className="flex items-center gap-2 rounded-md border border-border p-3 hover:bg-surface-raised"
+                  className="flex min-w-0 items-start gap-2 rounded-md border border-border p-3 hover:bg-surface-raised"
                 >
-                  <FileText className="h-4 w-4 text-accent" />
-                  {taskKey}
+                  <FileText className="h-4 w-4 shrink-0 text-accent" />
+                  <span className="min-w-0 break-words">{taskKey}</span>
                 </Link>
               ))}
               {document.phase_keys.map((phaseKey) => (
                 <Link
                   key={phaseKey}
                   to={`/phases/${phaseKey}`}
-                  className="flex items-center gap-2 rounded-md border border-border p-3 hover:bg-surface-raised"
+                  className="flex min-w-0 items-start gap-2 rounded-md border border-border p-3 hover:bg-surface-raised"
                 >
-                  <GitBranch className="h-4 w-4 text-accent" />
-                  {phaseKey}
+                  <GitBranch className="h-4 w-4 shrink-0 text-accent" />
+                  <span className="min-w-0 break-words">{phaseKey}</span>
                 </Link>
               ))}
             </CardContent>
@@ -655,11 +667,11 @@ export function DocumentPage() {
             <Link
               key={item.id}
               to="/evidence"
-              className="rounded-md border border-border p-3 hover:bg-surface-raised"
+              className="min-w-0 rounded-md border border-border p-3 hover:bg-surface-raised"
             >
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <Link2 className="h-4 w-4 text-accent" />
-                {item.title}
+              <div className="flex min-w-0 items-start gap-2 text-sm font-medium">
+                <Link2 className="h-4 w-4 shrink-0 text-accent" />
+                <span className="min-w-0 break-words">{item.title}</span>
               </div>
               <div className="mt-2 text-xs text-text-muted">
                 {formatEvidenceType(item.evidence_type)}
