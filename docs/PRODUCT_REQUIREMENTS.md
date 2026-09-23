@@ -69,40 +69,42 @@ MVP не включает:
 
 ## 5. Функциональные требования MVP
 
-| REQ-ID        | Capability       | Требование                                                                                                                                |
-| ------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| REQ-AUTH-001  | Auth             | Пользователь может войти, выйти и получить текущий профиль                                                                                |
-| REQ-AUTH-002  | Roles            | В интегрированном UI нет назначения локальных ролей; Central Auth владеет пользователями                                                   |
-| REQ-AUTH-003  | Registration     | В интегрированном режиме локальная регистрация отключена; исторический standalone-контракт остаётся совместимым                           |
-| REQ-SPC-001   | Spaces           | Вошедший центральный пользователь видит все spaces без ограничения по членству                                                             |
-| REQ-SPC-002   | Space management | Вошедший центральный пользователь создаёт, редактирует и архивирует space; архивный space блокирует content writes                       |
-| REQ-SPC-003   | Space members    | Исторические записи и API сохраняются; управление участниками не показывается в интегрированном UI                                        |
-| REQ-DOC-001   | Documents        | Editor создаёт страницу с title, slug, type и Markdown body                                                                               |
-| REQ-DOC-002   | Document view    | Viewer открывает опубликованную страницу без доступа к неопубликованному `draft_markdown`                                                  |
-| REQ-DOC-003   | Draft edit       | Editor редактирует черновик страницы; `draft_markdown` в `DocumentResponse` заполняется только при `can_edit=true`                         |
-| REQ-DOC-004   | Publish          | Публикация создаёт неизменяемую ревизию и при переданном `base_revision_id` отклоняет устаревший черновик через `409 CONFLICT`             |
-| REQ-DOC-005   | Revision history | Пользователь видит список ревизий и открывает конкретную ревизию                                                                          |
-| REQ-DOC-006   | Archive          | Editor архивирует документ; archived pages скрыты из обычного дерева и не принимают draft/publish/move/archive/link write-команды         |
-| REQ-TREE-001  | Page tree        | Документы имеют parent/child структуру внутри space                                                                                       |
-| REQ-TREE-002  | Move page        | Editor перемещает страницу внутри одного space                                                                                            |
-| REQ-TASK-001  | Task link        | Документ можно связать с внешним task key, например `SDLC-42`                                                                             |
-| REQ-TASK-002  | Task page        | Страница task dossier показывает документы и evidence по task key                                                                         |
-| REQ-PHASE-001 | Phase link       | Документ/evidence можно связать с phase key                                                                                               |
-| REQ-PHASE-002 | Phase page       | Страница phase dossier показывает документы и evidence по phase key                                                                       |
-| REQ-EVID-001  | Link evidence    | Editor добавляет URL evidence к документу, задаче или фазе                                                                                |
-| REQ-EVID-002  | File evidence    | Editor загружает файл evidence с metadata и checksum                                                                                      |
-| REQ-EVID-003  | Evidence list    | Пользователь видит evidence по документу, задаче и фазе, ищет по всему доступному реестру и переходит по страницам без дублей             |
-| REQ-SRCH-001  | Search           | Пользователь ищет по title/body документа                                                                                                 |
-| REQ-SRCH-002  | Search filters   | Поиск фильтруется по space, task key, phase key и document type                                                                           |
-| REQ-TPL-001   | Templates        | Editor создаёт документ из базового шаблона                                                                                               |
-| REQ-SET-001   | Settings         | Admin видит безопасный runtime snapshot настроек инстанса: API path, регистрацию, storage/search backend, лимит загрузки, язык и timezone |
-| REQ-OPS-001   | Runtime health   | API отдаёт liveness/readiness для запуска, мониторинга и деплоя; отдельная UI-страница для этого не нужна                                  |
+| REQ-ID        | Capability       | Требование                                                                                                                                                                                                            |
+| ------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| REQ-AUTH-001  | Auth             | Пользователь может войти, выйти и получить текущий профиль                                                                                                                                                            |
+| REQ-AUTH-002  | Roles            | В интегрированном UI нет назначения локальных ролей; Central Auth владеет пользователями                                                                                                                              |
+| REQ-AUTH-003  | Registration     | В интегрированном режиме локальная регистрация отключена; исторический standalone-контракт остаётся совместимым                                                                                                       |
+| REQ-SPC-001   | Spaces           | Вошедший центральный пользователь видит все spaces без ограничения по членству                                                                                                                                        |
+| REQ-SPC-002   | Space management | Вошедший центральный пользователь создаёт, редактирует и архивирует space; архивный space блокирует content writes                                                                                                    |
+| REQ-SPC-003   | Space members    | Исторические записи и API сохраняются; управление участниками не показывается в интегрированном UI                                                                                                                    |
+| REQ-DOC-001   | Documents        | Editor создаёт страницу с title, slug, type и Markdown body                                                                                                                                                           |
+| REQ-DOC-002   | Document view    | Viewer открывает опубликованную страницу без доступа к неопубликованному `draft_markdown`                                                                                                                             |
+| REQ-DOC-003   | Draft edit       | Editor редактирует черновик страницы; `draft_markdown` в `DocumentResponse` заполняется только при `can_edit=true`                                                                                                    |
+| REQ-DOC-004   | Publish          | Публикация создаёт неизменяемую ревизию и при переданном `base_revision_id` отклоняет устаревший черновик через `409 CONFLICT`                                                                                        |
+| REQ-DOC-005   | Revision history | Пользователь видит список ревизий и открывает конкретную ревизию                                                                                                                                                      |
+| REQ-DOC-006   | Archive          | Editor архивирует документ; archived pages скрыты из обычного дерева и не принимают draft/publish/move/archive/link write-команды                                                                                     |
+| REQ-TREE-001  | Page tree        | Документы имеют parent/child структуру внутри space                                                                                                                                                                   |
+| REQ-TREE-002  | Move page        | Editor перемещает страницу внутри одного space                                                                                                                                                                        |
+| REQ-TASK-001  | Task link        | Документ можно связать с внешним task key, например `SDLC-42`                                                                                                                                                         |
+| REQ-TASK-002  | Task page        | Страница task dossier показывает документы и evidence по task key                                                                                                                                                     |
+| REQ-PHASE-001 | Phase link       | Документ/evidence можно связать с phase key                                                                                                                                                                           |
+| REQ-PHASE-002 | Phase page       | Страница phase dossier показывает документы и evidence по phase key                                                                                                                                                   |
+| REQ-EVID-001  | Link evidence    | Editor добавляет URL evidence к документу, задаче или фазе                                                                                                                                                            |
+| REQ-EVID-002  | File evidence    | Editor загружает файл evidence с metadata и checksum                                                                                                                                                                  |
+| REQ-EVID-003  | Evidence list    | Пользователь видит evidence по документу, задаче и фазе, ищет по всему доступному реестру и переходит по страницам без дублей                                                                                         |
+| REQ-SRCH-001  | Search           | Пользователь ищет по title/body документа                                                                                                                                                                             |
+| REQ-SRCH-002  | Search filters   | Поиск фильтруется по space, task key, phase key и document type                                                                                                                                                       |
+| REQ-TPL-001   | Templates        | Editor создаёт документ из базового шаблона                                                                                                                                                                           |
+| REQ-SET-001   | Settings         | Admin видит безопасный runtime snapshot настроек инстанса: API path, регистрацию, storage/search backend, лимит загрузки, язык и timezone                                                                             |
+| REQ-OPS-001   | Runtime health   | API отдаёт liveness/readiness для запуска, мониторинга и деплоя; отдельная UI-страница для этого не нужна                                                                                                             |
 | REQ-AUD-001   | Audit            | Система пишет audit для login/logout, document create/edit/publish/archive, evidence add, member/role changes; admin фильтрует весь журнал по действию, типу сущности, автору и диапазону времени до cursor-пагинации |
-| REQ-API-001   | API              | Все MVP-операции доступны через `/api/v1`; protected domain/admin write-запросы с `Idempotency-Key` безопасны для retry без duplicate domain/audit writes |
-| REQ-CLI-001   | CLI              | CLI покрывает те же базовые операции, что и API, и возвращает JSON по умолчанию                                                           |
-| REQ-UI-001    | UI               | UI покрывает основные сценарии spaces, documents, task/phase dossiers, evidence, search и admin                                           |
+| REQ-API-001   | API              | Все MVP-операции доступны через `/api/v1`; protected domain/admin write-запросы с `Idempotency-Key` безопасны для retry без duplicate domain/audit writes                                                             |
+| REQ-CLI-001   | CLI              | CLI покрывает те же базовые операции, что и API, и возвращает JSON по умолчанию                                                                                                                                       |
+| REQ-UI-001    | UI               | UI покрывает основные сценарии spaces, documents, task/phase dossiers, evidence, search и admin                                                                                                                       |
 
 На странице опубликованного документа содержание открывается первым, а editor явно переключается в режим редактирования. Документ без публикации открывается в редакторе. Переключение между режимами не сохраняет и не теряет локальные изменения черновика; пока они не сохранены, UI показывает предупреждение. Viewer и архивный документ остаются только в режиме чтения.
+
+Опубликованный Markdown не расширяет страницу за пределы viewport: длинные слова, ссылки и идентификаторы переносятся, а широкие таблицы и блоки кода прокручиваются внутри документа и доступны с клавиатуры. Медиа ограничиваются шириной области чтения.
 
 При конфликте публикации с новой ревизией другого пользователя UI сообщает,
 что черновик сохранён, позволяет проверить актуальную опубликованную версию без
@@ -226,20 +228,20 @@ API является единственным контрактом backend. UI �
 
 CLI повторяет базовые группы API:
 
-| Группа     | Команды MVP                                                       |
-| ---------- | ----------------------------------------------------------------- |
-| `auth`     | `login`, `logout`, `whoami`                                       |
-| `user`     | `list`, `create`, `update`                                        |
-| `space`    | `list`, `create`, `update`, `archive`, `get`, `tree`, `members`, `member-set`, `member-remove` |
-| `doc`      | `create`, `get`, `draft`, `publish`, `archive`, `move`, `history`, `revision` |
-| `task`     | `list`, `get`, `docs`, `evidence`, `link-doc`                     |
-| `phase`    | `list`, `get`, `docs`, `evidence`, `link-doc`                     |
-| `evidence` | `add-link`, `add-file`, `get`, `list`                             |
-| `attachment` | `get`, `download`                                               |
-| `template` | `list`, `create`, `apply`                                         |
-| `audit`    | `list`                                                            |
-| `search`   | `query`                                                           |
-| `settings` | `get`                                                             |
+| Группа       | Команды MVP                                                                                    |
+| ------------ | ---------------------------------------------------------------------------------------------- |
+| `auth`       | `login`, `logout`, `whoami`                                                                    |
+| `user`       | `list`, `create`, `update`                                                                     |
+| `space`      | `list`, `create`, `update`, `archive`, `get`, `tree`, `members`, `member-set`, `member-remove` |
+| `doc`        | `create`, `get`, `draft`, `publish`, `archive`, `move`, `history`, `revision`                  |
+| `task`       | `list`, `get`, `docs`, `evidence`, `link-doc`                                                  |
+| `phase`      | `list`, `get`, `docs`, `evidence`, `link-doc`                                                  |
+| `evidence`   | `add-link`, `add-file`, `get`, `list`                                                          |
+| `attachment` | `get`, `download`                                                                              |
+| `template`   | `list`, `create`, `apply`                                                                      |
+| `audit`      | `list`                                                                                         |
+| `search`     | `query`                                                                                        |
+| `settings`   | `get`                                                                                          |
 
 CLI requirements:
 
