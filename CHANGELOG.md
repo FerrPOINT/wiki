@@ -9,6 +9,9 @@
 ### Added
 - Streamlined поиск по Wiki (#13); searchable/compact каталог шаблонов (#12).
 ### Fixed
+- Фильтры и cursor-pagination журнала аудита сохраняются в URL и корректно
+  восстанавливаются после direct link, reload и browser Back/Forward; цели
+  фильтров приведены к платформенному минимуму 40 px.
 - Удалён неиспользуемый LHCI, патч аудита зависимостей (#14).
 ### Added
 - Управление пространствами: streamlined UX (#10).
