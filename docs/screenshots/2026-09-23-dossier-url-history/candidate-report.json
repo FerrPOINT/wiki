@@ -1,0 +1,226 @@
+{
+  "generatedAt": "2026-09-23T17:54:24.106Z",
+  "functional": [
+    {
+      "route": "tasks",
+      "finalUrl": "http://localhost:7732/tasks?space=BASE&q=task&keep=1&cursor=task-24&previous_cursor=task-12"
+    },
+    {
+      "route": "phases",
+      "finalUrl": "http://localhost:7732/phases?space=BASE&q=phase&keep=1&cursor=phase-24&previous_cursor=phase-12"
+    }
+  ],
+  "states": [
+    {
+      "route": "tasks",
+      "theme": "light",
+      "width": 375,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 1197,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "route": "tasks",
+      "theme": "light",
+      "width": 1920,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 1105,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "route": "tasks",
+      "theme": "light",
+      "width": 2560,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 1105,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "route": "tasks",
+      "theme": "gray",
+      "width": 375,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 1197,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "route": "tasks",
+      "theme": "gray",
+      "width": 1920,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 1105,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "route": "tasks",
+      "theme": "gray",
+      "width": 2560,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 1105,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "route": "tasks",
+      "theme": "dark",
+      "width": 375,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 1197,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "route": "tasks",
+      "theme": "dark",
+      "width": 1920,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 1105,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "route": "tasks",
+      "theme": "dark",
+      "width": 2560,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 1105,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "route": "phases",
+      "theme": "light",
+      "width": 375,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 1177,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "route": "phases",
+      "theme": "light",
+      "width": 1920,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 1105,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "route": "phases",
+      "theme": "light",
+      "width": 2560,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 1105,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "route": "phases",
+      "theme": "gray",
+      "width": 375,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 1177,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "route": "phases",
+      "theme": "gray",
+      "width": 1920,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 1105,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "route": "phases",
+      "theme": "gray",
+      "width": 2560,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 1105,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "route": "phases",
+      "theme": "dark",
+      "width": 375,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 1177,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "route": "phases",
+      "theme": "dark",
+      "width": 1920,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 1105,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "route": "phases",
+      "theme": "dark",
+      "width": 2560,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 1105,
+        "smallTargets": []
+      },
+      "axe": []
+    }
+  ],
+  "pageErrors": [],
+  "httpErrors": [],
+  "writes": [],
+  "summary": {
+    "functionalCount": 2,
+    "stateCount": 18,
+    "overflowStates": 0,
+    "smallTargetStates": 0,
+    "axeStates": 0,
+    "pageErrorCount": 0,
+    "httpErrorCount": 0,
+    "writeCount": 0
+  }
+}

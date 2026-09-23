@@ -156,6 +156,47 @@ describe('EvidencePage', () => {
     })
   })
 
+  it('keeps evidence controls at the platform target size', () => {
+    setupEvidence()
+
+    for (const label of [
+      'Поиск материалов',
+      'Фильтр пространства',
+      'Фильтр документа',
+      'Фильтр задачи',
+      'Фильтр фазы',
+    ]) {
+      expect(screen.getByLabelText(label)).toHaveClass('min-h-10')
+    }
+    for (const name of ['Добавить материал', 'Найти', 'Сбросить']) {
+      expect(screen.getByRole('button', { name })).toHaveClass('min-h-10')
+    }
+    for (const link of screen.getAllByRole('link', { name: 'Сборка прошла' })) {
+      expect(link).toHaveClass('min-h-10')
+    }
+    for (const link of screen.getAllByRole('link', { name: 'задача BASE-42' })) {
+      expect(link).toHaveClass('min-h-10')
+    }
+    for (const button of screen.getAllByRole('button', { name: 'Открыть материал Лог сборки' })) {
+      expect(button).toHaveClass('h-10', 'w-10', 'shrink-0', 'sm:min-w-10')
+    }
+
+    openCreateForm()
+    for (const label of [
+      'Пространство',
+      'Документ',
+      'Название',
+      'Задача',
+      'Фаза',
+      'URL материала',
+    ]) {
+      expect(screen.getByLabelText(label)).toHaveClass('min-h-10')
+    }
+    for (const name of ['Ссылка', 'Файл', 'Сохранить материал']) {
+      expect(screen.getByRole('button', { name })).toHaveClass('min-h-10')
+    }
+  })
+
   it('applies server search only on submit and resets the cursor with filters', () => {
     setupEvidence()
     fireEvent.change(screen.getByLabelText('Поиск материалов'), { target: { value: 'лог' } })

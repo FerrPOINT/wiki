@@ -1,8 +1,24 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router'
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { PhaseDossierPage, PhaseDossiersPage } from './'
+
+function RouterState() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  return (
+    <>
+      <output data-testid="router-location">{`${location.pathname}${location.search}`}</output>
+      <button type="button" onClick={() => navigate(-1)}>
+        История назад
+      </button>
+      <button type="button" onClick={() => navigate(1)}>
+        История вперёд
+      </button>
+    </>
+  )
+}
 
 const useLinkPhaseDocument = vi.hoisted(() => vi.fn())
 const usePhase = vi.hoisted(() => vi.fn())
@@ -78,6 +94,7 @@ function renderPhaseList(
     evidence_count: number
   }>,
   nextPageState: 'normal' | 'error' | 'empty' = 'normal',
+  initialEntry = '/phases?space=DOCS',
 ) {
   usePhaseSummaries.mockImplementation(
     (_spaceKey, params: { limit: number; cursor?: string; q?: string }) => {
@@ -131,9 +148,17 @@ function renderPhaseList(
     isLoading: false,
   })
   render(
-    <MemoryRouter initialEntries={['/phases?space=DOCS']}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
-        <Route path="/phases" element={<PhaseDossiersPage />} />
+        <Route
+          path="/phases"
+          element={
+            <>
+              <PhaseDossiersPage />
+              <RouterState />
+            </>
+          }
+        />
       </Routes>
     </MemoryRouter>,
   )
@@ -195,7 +220,7 @@ describe('PhaseDossierPage', () => {
   })
 
   it('opens exact document and evidence records in the selected space', () => {
-    renderPhasePage({}, '/phases/testing?space=DOCS', {
+    renderPhasePage({}, '/phases/testing?space=DOCS&q=proof&cursor=phase-12&keep=1', {
       ...phasePage,
       phase_key: 'testing',
       document_count: 1,
@@ -229,7 +254,7 @@ describe('PhaseDossierPage', () => {
     )
     expect(screen.getByRole('link', { name: 'К фазам' })).toHaveAttribute(
       'href',
-      '/phases?space=DOCS',
+      '/phases?space=DOCS&q=proof&cursor=phase-12&keep=1',
     )
     expect(screen.queryByText('Заполненность')).not.toBeInTheDocument()
   })
@@ -283,7 +308,11 @@ describe('PhaseDossiersPage', () => {
     expect(screen.getByText('Фазы: 12 из 25')).toBeInTheDocument()
     expect(screen.getAllByRole('listitem')).toHaveLength(12)
     const pagination = screen.getByRole('navigation', { name: 'Страницы фаз' })
-    fireEvent.click(within(pagination).getByRole('button', { name: 'Далее' }))
+    const previousButton = within(pagination).getByRole('button', { name: 'Назад' })
+    const nextButton = within(pagination).getByRole('button', { name: 'Далее' })
+    expect(previousButton).toHaveClass('min-h-10', 'sm:min-h-10')
+    expect(nextButton).toHaveClass('min-h-10', 'sm:min-h-10')
+    fireEvent.click(nextButton)
     expect(screen.getByText('Страница 2')).toBeInTheDocument()
     expect(usePhaseSummaries).toHaveBeenLastCalledWith('DOCS', {
       limit: 12,
@@ -302,7 +331,7 @@ describe('PhaseDossiersPage', () => {
     expect(screen.getByText('Фазы: 1 из 1')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /phase-25/ })).toHaveAttribute(
       'href',
-      '/phases/phase-25?space=DOCS',
+      '/phases/phase-25?space=DOCS&q=phase-25',
     )
     expect(screen.queryByRole('navigation', { name: 'Страницы фаз' })).not.toBeInTheDocument()
 
@@ -331,6 +360,49 @@ describe('PhaseDossiersPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Назад' }))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.getByText('Фазы: 12 из 13')).toBeInTheDocument()
+  })
+
+  it('restores search and cursor history from the URL and browser navigation', () => {
+    renderPhaseList(
+      Array.from({ length: 37 }, (_, index) => ({
+        phase_key: `phase-${String(index + 1).padStart(2, '0')}`,
+        title: `Фаза ${index + 1}`,
+        document_count: 1,
+        evidence_count: 1,
+      })),
+      'normal',
+      '/phases?space=DOCS&q=phase&keep=1',
+    )
+
+    expect(screen.getByRole('searchbox', { name: 'Найти фазу' })).toHaveValue('phase')
+    fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
+    expect(screen.getByTestId('router-location')).toHaveTextContent(
+      '/phases?space=DOCS&q=phase&keep=1&cursor=phase-12',
+    )
+    expect(screen.getByText('Страница 2')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'История назад' }))
+    expect(screen.getByTestId('router-location')).toHaveTextContent(
+      '/phases?space=DOCS&q=phase&keep=1',
+    )
+    expect(screen.queryByText('Страница 2')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'История вперёд' }))
+    expect(screen.getByText('Страница 2')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
+    expect(screen.getByTestId('router-location')).toHaveTextContent(
+      '/phases?space=DOCS&q=phase&keep=1&cursor=phase-24&previous_cursor=phase-12',
+    )
+    expect(screen.getByText('Страница 3')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }))
+    expect(screen.getByTestId('router-location')).toHaveTextContent(
+      '/phases?space=DOCS&q=phase&keep=1&cursor=phase-12',
+    )
+    expect(screen.getByText('Страница 2')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /phase-13/ })).toHaveAttribute(
+      'href',
+      '/phases/phase-13?space=DOCS&q=phase&keep=1&cursor=phase-12',
+    )
   })
 
   it('keeps back navigation when a later page becomes empty', () => {

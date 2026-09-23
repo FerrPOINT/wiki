@@ -1,4 +1,5 @@
-import { type FormEvent, useRef, useState } from 'react'
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router'
 import { ChevronLeft, ChevronRight, ListFilter, RefreshCw } from 'lucide-react'
 import { useAuditLog, useUsers } from '@/shared/api/hooks'
 import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
@@ -48,22 +49,171 @@ const entityTypes = [
 ] as const
 const emptyFilters = { action: '', entity_type: '', actor_id: '', from: '', to: '' }
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const previousCursorParam = 'previous_cursor'
+type AuditFilters = typeof emptyFilters
+type AuditFilterName = keyof AuditFilters
+
+function normalized(value: string | null): string {
+  return value?.trim() ?? ''
+}
+
+function canonicalDate(value: string | null): string {
+  const normalizedValue = normalized(value)
+  if (!normalizedValue) return ''
+  const date = new Date(normalizedValue)
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString()
+}
+
+function toLocalDateTimeInput(value: string): string {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+  return localDate.toISOString().slice(0, 16)
+}
+
+function setOptionalParam(params: URLSearchParams, name: string, value: string): void {
+  if (value) params.set(name, value)
+  else params.delete(name)
+}
+
+function useAuditLogUrl() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const action = normalized(searchParams.get('action'))
+  const entityType = normalized(searchParams.get('entity_type'))
+  const requestedActorId = normalized(searchParams.get('actor_id'))
+  const actorId = uuidPattern.test(requestedActorId) ? requestedActorId.toLowerCase() : ''
+  const requestedFrom = canonicalDate(searchParams.get('from'))
+  const requestedTo = canonicalDate(searchParams.get('to'))
+  const hasInvalidRange =
+    Boolean(requestedFrom && requestedTo) &&
+    new Date(requestedFrom).getTime() >= new Date(requestedTo).getTime()
+  const from = hasInvalidRange ? '' : requestedFrom
+  const to = hasInvalidRange ? '' : requestedTo
+  const cursor = normalized(searchParams.get('cursor')) || undefined
+  const previousCursors = useMemo(
+    () =>
+      searchParams
+        .getAll(previousCursorParam)
+        .map((value) => value.trim())
+        .filter(Boolean),
+    [searchParams],
+  )
+  const appliedFilters = useMemo(
+    () => ({ action, entity_type: entityType, actor_id: actorId, from, to }),
+    [action, actorId, entityType, from, to],
+  )
+  const filtersForForm = useMemo(
+    () => ({ ...appliedFilters, from: toLocalDateTimeInput(from), to: toLocalDateTimeInput(to) }),
+    [appliedFilters, from, to],
+  )
+
+  useEffect(() => {
+    const canonicalValues: Record<AuditFilterName | 'cursor', string> = {
+      ...appliedFilters,
+      cursor: cursor ?? '',
+    }
+    const canonicalPrevious = cursor ? previousCursors : []
+    const shouldCanonicalize =
+      Object.entries(canonicalValues).some(
+        ([name, value]) =>
+          searchParams.getAll(name).length !== (value ? 1 : 0) ||
+          searchParams.get(name) !== (value || null),
+      ) ||
+      searchParams.getAll(previousCursorParam).length !== canonicalPrevious.length ||
+      searchParams
+        .getAll(previousCursorParam)
+        .some((value, index) => value !== canonicalPrevious[index])
+    if (!shouldCanonicalize) return
+
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current)
+        for (const [name, value] of Object.entries(canonicalValues)) {
+          setOptionalParam(next, name, value)
+        }
+        next.delete(previousCursorParam)
+        for (const previousCursor of canonicalPrevious) {
+          next.append(previousCursorParam, previousCursor)
+        }
+        return next
+      },
+      { replace: true },
+    )
+  }, [appliedFilters, cursor, previousCursors, searchParams, setSearchParams])
+
+  function setFilters(filters: AuditFilters) {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      for (const [name, value] of Object.entries(filters)) {
+        setOptionalParam(next, name, value)
+      }
+      next.delete('cursor')
+      next.delete(previousCursorParam)
+      return next
+    })
+  }
+
+  function changePage(direction: 'previous' | 'next', nextCursor?: string) {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      const currentCursor = normalized(next.get('cursor'))
+      const history = next
+        .getAll(previousCursorParam)
+        .map((value) => value.trim())
+        .filter(Boolean)
+
+      next.delete(previousCursorParam)
+      if (direction === 'next') {
+        const normalizedNextCursor = nextCursor?.trim() ?? ''
+        if (!normalizedNextCursor) return current
+        if (currentCursor) history.push(currentCursor)
+        next.set('cursor', normalizedNextCursor)
+      } else {
+        setOptionalParam(next, 'cursor', history.pop() ?? '')
+      }
+      for (const previousCursor of history) next.append(previousCursorParam, previousCursor)
+      return next
+    })
+  }
+
+  return {
+    appliedFilters,
+    changePage,
+    currentPage: cursor ? previousCursors.length + 2 : 1,
+    cursor,
+    filtersForForm,
+    hasPreviousPage: Boolean(cursor),
+    setFilters,
+  }
+}
 
 export function AuditLogPage() {
   const [showFilters, setShowFilters] = useState(false)
   const [manualActorId, setManualActorId] = useState(false)
-  const [draftFilters, setDraftFilters] = useState(emptyFilters)
-  const [appliedFilters, setAppliedFilters] = useState(emptyFilters)
+  const {
+    appliedFilters,
+    changePage: changeUrlPage,
+    currentPage,
+    cursor,
+    filtersForForm,
+    hasPreviousPage,
+    setFilters,
+  } = useAuditLogUrl()
+  const [draftFilters, setDraftFilters] = useState(filtersForForm)
   const [filterError, setFilterError] = useState('')
-  const [cursors, setCursors] = useState<(string | null)[]>([null])
   const eventsRef = useRef<HTMLElement>(null)
-  const cursor = cursors[cursors.length - 1] ?? undefined
   const auditQuery = useAuditLog({ limit: PAGE_SIZE, cursor, ...appliedFilters })
   const usersQuery = useUsers(showFilters)
   const entries = auditQuery.data?.entries ?? []
   const nextCursor = auditQuery.data?.next_cursor
   const users = usersQuery.data?.users ?? []
   const activeFilterCount = Object.values(appliedFilters).filter(Boolean).length
+
+  useEffect(() => {
+    setDraftFilters(filtersForForm)
+    setFilterError('')
+  }, [filtersForForm])
 
   function updateDraft(name: keyof typeof emptyFilters, value: string) {
     setDraftFilters((current) => ({ ...current, [name]: value }))
@@ -90,27 +240,25 @@ export function AuditLogPage() {
       setFilterError('Дата начала должна быть раньше даты окончания')
       return
     }
-    setAppliedFilters({
+    setFilters({
       action: draftFilters.action,
       entity_type: draftFilters.entity_type,
       actor_id: actorId,
       from: fromDate?.toISOString() ?? '',
       to: toDate?.toISOString() ?? '',
     })
-    setCursors([null])
     setFilterError('')
     setShowFilters(false)
   }
 
   function clearFilters() {
     setDraftFilters(emptyFilters)
-    setAppliedFilters(emptyFilters)
-    setCursors([null])
+    setFilters(emptyFilters)
     setFilterError('')
   }
 
-  function changePage(nextCursors: (string | null)[]) {
-    setCursors(nextCursors)
+  function changePage(direction: 'previous' | 'next', nextCursor?: string) {
+    changeUrlPage(direction, nextCursor)
     eventsRef.current?.scrollIntoView?.({ block: 'start' })
   }
 
@@ -123,7 +271,7 @@ export function AuditLogPage() {
           type="button"
           size="sm"
           variant="outline"
-          className="min-h-10"
+          className="h-10"
           aria-expanded={showFilters}
           onClick={() => setShowFilters((value) => !value)}
         >
@@ -148,6 +296,9 @@ export function AuditLogPage() {
                   onChange={(event) => updateDraft('action', event.target.value)}
                 >
                   <option value="">Все действия</option>
+                  {draftFilters.action && !actionLabels[draftFilters.action] && (
+                    <option value={draftFilters.action}>{draftFilters.action}</option>
+                  )}
                   {Object.entries(actionLabels).map(([value, label]) => (
                     <option key={value} value={value}>
                       {label}
@@ -166,6 +317,10 @@ export function AuditLogPage() {
                   onChange={(event) => updateDraft('entity_type', event.target.value)}
                 >
                   <option value="">Все типы</option>
+                  {draftFilters.entity_type &&
+                    !entityTypes.some(([value]) => value === draftFilters.entity_type) && (
+                      <option value={draftFilters.entity_type}>{draftFilters.entity_type}</option>
+                    )}
                   {entityTypes.map(([value, label]) => (
                     <option key={value} value={value}>
                       {label}
@@ -194,7 +349,7 @@ export function AuditLogPage() {
                           type="button"
                           size="icon"
                           variant="outline"
-                          className="min-h-10 min-w-10"
+                          className="h-10 w-10"
                           title="Повторить загрузку пользователей"
                           aria-label="Повторить загрузку пользователей"
                           onClick={() => usersQuery.refetch()}
@@ -213,7 +368,7 @@ export function AuditLogPage() {
                         type="button"
                         size="sm"
                         variant="ghost"
-                        className="h-8 px-0"
+                        className="h-10 px-0"
                         onClick={() => setManualActorId(false)}
                       >
                         Выбрать из списка
@@ -246,7 +401,7 @@ export function AuditLogPage() {
                       type="button"
                       size="sm"
                       variant="ghost"
-                      className="h-8 px-0"
+                      className="h-10 px-0"
                       onClick={() => setManualActorId(true)}
                     >
                       Ввести UUID
@@ -285,10 +440,10 @@ export function AuditLogPage() {
               </p>
             )}
             <div className="flex flex-wrap justify-end gap-2">
-              <Button type="button" variant="outline" className="min-h-10" onClick={clearFilters}>
+              <Button type="button" variant="outline" className="h-10" onClick={clearFilters}>
                 Сбросить
               </Button>
-              <Button type="submit" className="min-h-10">
+              <Button type="submit" className="h-10">
                 Применить
               </Button>
             </div>
@@ -312,7 +467,7 @@ export function AuditLogPage() {
         {!auditQuery.isLoading && !auditQuery.isError && entries.length === 0 && (
           <EmptyState
             message={
-              cursors.length > 1
+              hasPreviousPage
                 ? 'На этой странице событий больше нет'
                 : activeFilterCount > 0
                   ? 'Событий по фильтрам не найдено'
@@ -369,12 +524,12 @@ export function AuditLogPage() {
                 <TableBody>
                   {entries.map((event) => (
                     <TableRow key={event.id}>
-                      <TableCell className="break-all">
+                      <TableCell className="break-words">
                         <span className="block text-sm font-medium">
                           {actionLabels[event.action] ?? event.action}
                         </span>
                         {actionLabels[event.action] && (
-                          <code className="text-xs text-text-muted">{event.action}</code>
+                          <code className="break-all text-xs text-text-muted">{event.action}</code>
                         )}
                       </TableCell>
                       <TableCell className="break-all">{event.actor_id}</TableCell>
@@ -395,18 +550,18 @@ export function AuditLogPage() {
             </div>
           </>
         )}
-        {(cursors.length > 1 || nextCursor) && (
+        {(hasPreviousPage || nextCursor) && (
           <nav
             aria-label="Страницы аудита"
             className="mt-4 flex flex-wrap items-center gap-3 border-t border-border pt-3"
           >
-            <span className="mr-auto text-sm text-text-secondary">Страница {cursors.length}</span>
+            <span className="mr-auto text-sm text-text-secondary">Страница {currentPage}</span>
             <Button
               type="button"
               variant="outline"
               className="h-10"
-              disabled={cursors.length === 1 || auditQuery.isLoading || auditQuery.isFetching}
-              onClick={() => changePage(cursors.slice(0, -1))}
+              disabled={!hasPreviousPage || auditQuery.isLoading || auditQuery.isFetching}
+              onClick={() => changePage('previous')}
             >
               <ChevronLeft className="h-4 w-4" />
               Назад
@@ -418,7 +573,7 @@ export function AuditLogPage() {
               disabled={
                 !nextCursor || auditQuery.isLoading || auditQuery.isFetching || auditQuery.isError
               }
-              onClick={() => nextCursor && changePage([...cursors, nextCursor])}
+              onClick={() => nextCursor && changePage('next', nextCursor)}
             >
               Далее
               <ChevronRight className="h-4 w-4" />

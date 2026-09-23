@@ -1,0 +1,648 @@
+{
+  "generatedAt": "2026-09-23T16:35:22.069Z",
+  "states": [
+    {
+      "theme": "light",
+      "width": 375,
+      "checks": {
+        "direct": true,
+        "documents": true,
+        "materials": true,
+        "back": true,
+        "forward": true,
+        "filtered": true,
+        "reload": true
+      },
+      "transitions": {
+        "direct": {
+          "search": "?q=Wiki&keep=1",
+          "query": "Wiki",
+          "resultType": "Все",
+          "filterLabel": "Фильтры"
+        },
+        "documents": {
+          "search": "?q=Wiki&keep=1&result_type=document",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры"
+        },
+        "materials": {
+          "search": "?q=Wiki&keep=1&result_type=evidence",
+          "query": "Wiki",
+          "resultType": "Материалы",
+          "filterLabel": "Фильтры"
+        },
+        "afterBack": {
+          "search": "?q=Wiki&keep=1&result_type=document",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры"
+        },
+        "afterForward": {
+          "search": "?q=Wiki&keep=1&result_type=evidence",
+          "query": "Wiki",
+          "resultType": "Материалы",
+          "filterLabel": "Фильтры"
+        },
+        "filtered": {
+          "search": "?q=Wiki&keep=1&result_type=document&task_key=BASE-42&phase_key=testing&document_type=test_plan",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры (3)"
+        },
+        "reloaded": {
+          "search": "?q=Wiki&keep=1&result_type=document&task_key=BASE-42&phase_key=testing&document_type=test_plan",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры (3)"
+        }
+      },
+      "restoredFilters": {
+        "space": "",
+        "task": "BASE-42",
+        "phase": "testing",
+        "documentType": "test_plan"
+      },
+      "layout": {
+        "rootOverflow": 0,
+        "documentWidth": 375,
+        "pageHeight": 812,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "theme": "light",
+      "width": 1920,
+      "checks": {
+        "direct": true,
+        "documents": true,
+        "materials": true,
+        "back": true,
+        "forward": true,
+        "filtered": true,
+        "reload": true
+      },
+      "transitions": {
+        "direct": {
+          "search": "?q=Wiki&keep=1",
+          "query": "Wiki",
+          "resultType": "Все",
+          "filterLabel": "Фильтры"
+        },
+        "documents": {
+          "search": "?q=Wiki&keep=1&result_type=document",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры"
+        },
+        "materials": {
+          "search": "?q=Wiki&keep=1&result_type=evidence",
+          "query": "Wiki",
+          "resultType": "Материалы",
+          "filterLabel": "Фильтры"
+        },
+        "afterBack": {
+          "search": "?q=Wiki&keep=1&result_type=document",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры"
+        },
+        "afterForward": {
+          "search": "?q=Wiki&keep=1&result_type=evidence",
+          "query": "Wiki",
+          "resultType": "Материалы",
+          "filterLabel": "Фильтры"
+        },
+        "filtered": {
+          "search": "?q=Wiki&keep=1&result_type=document&task_key=BASE-42&phase_key=testing&document_type=test_plan",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры (3)"
+        },
+        "reloaded": {
+          "search": "?q=Wiki&keep=1&result_type=document&task_key=BASE-42&phase_key=testing&document_type=test_plan",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры (3)"
+        }
+      },
+      "restoredFilters": {
+        "space": "",
+        "task": "BASE-42",
+        "phase": "testing",
+        "documentType": "test_plan"
+      },
+      "layout": {
+        "rootOverflow": 0,
+        "documentWidth": 1920,
+        "pageHeight": 900,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "theme": "light",
+      "width": 2560,
+      "checks": {
+        "direct": true,
+        "documents": true,
+        "materials": true,
+        "back": true,
+        "forward": true,
+        "filtered": true,
+        "reload": true
+      },
+      "transitions": {
+        "direct": {
+          "search": "?q=Wiki&keep=1",
+          "query": "Wiki",
+          "resultType": "Все",
+          "filterLabel": "Фильтры"
+        },
+        "documents": {
+          "search": "?q=Wiki&keep=1&result_type=document",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры"
+        },
+        "materials": {
+          "search": "?q=Wiki&keep=1&result_type=evidence",
+          "query": "Wiki",
+          "resultType": "Материалы",
+          "filterLabel": "Фильтры"
+        },
+        "afterBack": {
+          "search": "?q=Wiki&keep=1&result_type=document",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры"
+        },
+        "afterForward": {
+          "search": "?q=Wiki&keep=1&result_type=evidence",
+          "query": "Wiki",
+          "resultType": "Материалы",
+          "filterLabel": "Фильтры"
+        },
+        "filtered": {
+          "search": "?q=Wiki&keep=1&result_type=document&task_key=BASE-42&phase_key=testing&document_type=test_plan",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры (3)"
+        },
+        "reloaded": {
+          "search": "?q=Wiki&keep=1&result_type=document&task_key=BASE-42&phase_key=testing&document_type=test_plan",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры (3)"
+        }
+      },
+      "restoredFilters": {
+        "space": "",
+        "task": "BASE-42",
+        "phase": "testing",
+        "documentType": "test_plan"
+      },
+      "layout": {
+        "rootOverflow": 0,
+        "documentWidth": 2560,
+        "pageHeight": 900,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "theme": "gray",
+      "width": 375,
+      "checks": {
+        "direct": true,
+        "documents": true,
+        "materials": true,
+        "back": true,
+        "forward": true,
+        "filtered": true,
+        "reload": true
+      },
+      "transitions": {
+        "direct": {
+          "search": "?q=Wiki&keep=1",
+          "query": "Wiki",
+          "resultType": "Все",
+          "filterLabel": "Фильтры"
+        },
+        "documents": {
+          "search": "?q=Wiki&keep=1&result_type=document",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры"
+        },
+        "materials": {
+          "search": "?q=Wiki&keep=1&result_type=evidence",
+          "query": "Wiki",
+          "resultType": "Материалы",
+          "filterLabel": "Фильтры"
+        },
+        "afterBack": {
+          "search": "?q=Wiki&keep=1&result_type=document",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры"
+        },
+        "afterForward": {
+          "search": "?q=Wiki&keep=1&result_type=evidence",
+          "query": "Wiki",
+          "resultType": "Материалы",
+          "filterLabel": "Фильтры"
+        },
+        "filtered": {
+          "search": "?q=Wiki&keep=1&result_type=document&task_key=BASE-42&phase_key=testing&document_type=test_plan",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры (3)"
+        },
+        "reloaded": {
+          "search": "?q=Wiki&keep=1&result_type=document&task_key=BASE-42&phase_key=testing&document_type=test_plan",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры (3)"
+        }
+      },
+      "restoredFilters": {
+        "space": "",
+        "task": "BASE-42",
+        "phase": "testing",
+        "documentType": "test_plan"
+      },
+      "layout": {
+        "rootOverflow": 0,
+        "documentWidth": 375,
+        "pageHeight": 812,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "theme": "gray",
+      "width": 1920,
+      "checks": {
+        "direct": true,
+        "documents": true,
+        "materials": true,
+        "back": true,
+        "forward": true,
+        "filtered": true,
+        "reload": true
+      },
+      "transitions": {
+        "direct": {
+          "search": "?q=Wiki&keep=1",
+          "query": "Wiki",
+          "resultType": "Все",
+          "filterLabel": "Фильтры"
+        },
+        "documents": {
+          "search": "?q=Wiki&keep=1&result_type=document",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры"
+        },
+        "materials": {
+          "search": "?q=Wiki&keep=1&result_type=evidence",
+          "query": "Wiki",
+          "resultType": "Материалы",
+          "filterLabel": "Фильтры"
+        },
+        "afterBack": {
+          "search": "?q=Wiki&keep=1&result_type=document",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры"
+        },
+        "afterForward": {
+          "search": "?q=Wiki&keep=1&result_type=evidence",
+          "query": "Wiki",
+          "resultType": "Материалы",
+          "filterLabel": "Фильтры"
+        },
+        "filtered": {
+          "search": "?q=Wiki&keep=1&result_type=document&task_key=BASE-42&phase_key=testing&document_type=test_plan",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры (3)"
+        },
+        "reloaded": {
+          "search": "?q=Wiki&keep=1&result_type=document&task_key=BASE-42&phase_key=testing&document_type=test_plan",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры (3)"
+        }
+      },
+      "restoredFilters": {
+        "space": "",
+        "task": "BASE-42",
+        "phase": "testing",
+        "documentType": "test_plan"
+      },
+      "layout": {
+        "rootOverflow": 0,
+        "documentWidth": 1920,
+        "pageHeight": 900,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "theme": "gray",
+      "width": 2560,
+      "checks": {
+        "direct": true,
+        "documents": true,
+        "materials": true,
+        "back": true,
+        "forward": true,
+        "filtered": true,
+        "reload": true
+      },
+      "transitions": {
+        "direct": {
+          "search": "?q=Wiki&keep=1",
+          "query": "Wiki",
+          "resultType": "Все",
+          "filterLabel": "Фильтры"
+        },
+        "documents": {
+          "search": "?q=Wiki&keep=1&result_type=document",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры"
+        },
+        "materials": {
+          "search": "?q=Wiki&keep=1&result_type=evidence",
+          "query": "Wiki",
+          "resultType": "Материалы",
+          "filterLabel": "Фильтры"
+        },
+        "afterBack": {
+          "search": "?q=Wiki&keep=1&result_type=document",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры"
+        },
+        "afterForward": {
+          "search": "?q=Wiki&keep=1&result_type=evidence",
+          "query": "Wiki",
+          "resultType": "Материалы",
+          "filterLabel": "Фильтры"
+        },
+        "filtered": {
+          "search": "?q=Wiki&keep=1&result_type=document&task_key=BASE-42&phase_key=testing&document_type=test_plan",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры (3)"
+        },
+        "reloaded": {
+          "search": "?q=Wiki&keep=1&result_type=document&task_key=BASE-42&phase_key=testing&document_type=test_plan",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры (3)"
+        }
+      },
+      "restoredFilters": {
+        "space": "",
+        "task": "BASE-42",
+        "phase": "testing",
+        "documentType": "test_plan"
+      },
+      "layout": {
+        "rootOverflow": 0,
+        "documentWidth": 2560,
+        "pageHeight": 900,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "checks": {
+        "direct": true,
+        "documents": true,
+        "materials": true,
+        "back": true,
+        "forward": true,
+        "filtered": true,
+        "reload": true
+      },
+      "transitions": {
+        "direct": {
+          "search": "?q=Wiki&keep=1",
+          "query": "Wiki",
+          "resultType": "Все",
+          "filterLabel": "Фильтры"
+        },
+        "documents": {
+          "search": "?q=Wiki&keep=1&result_type=document",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры"
+        },
+        "materials": {
+          "search": "?q=Wiki&keep=1&result_type=evidence",
+          "query": "Wiki",
+          "resultType": "Материалы",
+          "filterLabel": "Фильтры"
+        },
+        "afterBack": {
+          "search": "?q=Wiki&keep=1&result_type=document",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры"
+        },
+        "afterForward": {
+          "search": "?q=Wiki&keep=1&result_type=evidence",
+          "query": "Wiki",
+          "resultType": "Материалы",
+          "filterLabel": "Фильтры"
+        },
+        "filtered": {
+          "search": "?q=Wiki&keep=1&result_type=document&task_key=BASE-42&phase_key=testing&document_type=test_plan",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры (3)"
+        },
+        "reloaded": {
+          "search": "?q=Wiki&keep=1&result_type=document&task_key=BASE-42&phase_key=testing&document_type=test_plan",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры (3)"
+        }
+      },
+      "restoredFilters": {
+        "space": "",
+        "task": "BASE-42",
+        "phase": "testing",
+        "documentType": "test_plan"
+      },
+      "layout": {
+        "rootOverflow": 0,
+        "documentWidth": 375,
+        "pageHeight": 812,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "theme": "dark",
+      "width": 1920,
+      "checks": {
+        "direct": true,
+        "documents": true,
+        "materials": true,
+        "back": true,
+        "forward": true,
+        "filtered": true,
+        "reload": true
+      },
+      "transitions": {
+        "direct": {
+          "search": "?q=Wiki&keep=1",
+          "query": "Wiki",
+          "resultType": "Все",
+          "filterLabel": "Фильтры"
+        },
+        "documents": {
+          "search": "?q=Wiki&keep=1&result_type=document",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры"
+        },
+        "materials": {
+          "search": "?q=Wiki&keep=1&result_type=evidence",
+          "query": "Wiki",
+          "resultType": "Материалы",
+          "filterLabel": "Фильтры"
+        },
+        "afterBack": {
+          "search": "?q=Wiki&keep=1&result_type=document",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры"
+        },
+        "afterForward": {
+          "search": "?q=Wiki&keep=1&result_type=evidence",
+          "query": "Wiki",
+          "resultType": "Материалы",
+          "filterLabel": "Фильтры"
+        },
+        "filtered": {
+          "search": "?q=Wiki&keep=1&result_type=document&task_key=BASE-42&phase_key=testing&document_type=test_plan",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры (3)"
+        },
+        "reloaded": {
+          "search": "?q=Wiki&keep=1&result_type=document&task_key=BASE-42&phase_key=testing&document_type=test_plan",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры (3)"
+        }
+      },
+      "restoredFilters": {
+        "space": "",
+        "task": "BASE-42",
+        "phase": "testing",
+        "documentType": "test_plan"
+      },
+      "layout": {
+        "rootOverflow": 0,
+        "documentWidth": 1920,
+        "pageHeight": 900,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "theme": "dark",
+      "width": 2560,
+      "checks": {
+        "direct": true,
+        "documents": true,
+        "materials": true,
+        "back": true,
+        "forward": true,
+        "filtered": true,
+        "reload": true
+      },
+      "transitions": {
+        "direct": {
+          "search": "?q=Wiki&keep=1",
+          "query": "Wiki",
+          "resultType": "Все",
+          "filterLabel": "Фильтры"
+        },
+        "documents": {
+          "search": "?q=Wiki&keep=1&result_type=document",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры"
+        },
+        "materials": {
+          "search": "?q=Wiki&keep=1&result_type=evidence",
+          "query": "Wiki",
+          "resultType": "Материалы",
+          "filterLabel": "Фильтры"
+        },
+        "afterBack": {
+          "search": "?q=Wiki&keep=1&result_type=document",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры"
+        },
+        "afterForward": {
+          "search": "?q=Wiki&keep=1&result_type=evidence",
+          "query": "Wiki",
+          "resultType": "Материалы",
+          "filterLabel": "Фильтры"
+        },
+        "filtered": {
+          "search": "?q=Wiki&keep=1&result_type=document&task_key=BASE-42&phase_key=testing&document_type=test_plan",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры (3)"
+        },
+        "reloaded": {
+          "search": "?q=Wiki&keep=1&result_type=document&task_key=BASE-42&phase_key=testing&document_type=test_plan",
+          "query": "Wiki",
+          "resultType": "Документы",
+          "filterLabel": "Фильтры (3)"
+        }
+      },
+      "restoredFilters": {
+        "space": "",
+        "task": "BASE-42",
+        "phase": "testing",
+        "documentType": "test_plan"
+      },
+      "layout": {
+        "rootOverflow": 0,
+        "documentWidth": 2560,
+        "pageHeight": 900,
+        "smallTargets": []
+      },
+      "axe": []
+    }
+  ],
+  "pageErrors": [],
+  "httpErrors": [],
+  "writes": [],
+  "summary": {
+    "stateCount": 9,
+    "passedStates": 9,
+    "overflowStates": 0,
+    "smallTargetStates": 0,
+    "axeStates": 0,
+    "pageErrorCount": 0,
+    "httpErrorCount": 0,
+    "writeCount": 0
+  }
+}
