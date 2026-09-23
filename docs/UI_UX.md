@@ -39,6 +39,7 @@ Wiki is an operational knowledge tool. It should feel quiet, readable and effici
 - Use compact tables/lists for operational data.
 - Avoid oversized hero sections.
 - Text must fit at mobile and desktop widths.
+- Long Markdown words and links wrap; wide tables and code blocks use keyboard-accessible local scrolling instead of expanding the page.
 - Every icon-only action needs accessible label.
 
 ## 5. Ready Criteria
