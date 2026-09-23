@@ -1,14 +1,31 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import { MemoryRouter } from 'react-router'
+import { MemoryRouter, useLocation, useNavigate } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { TemplatesPage } from './'
+
+function RouterState() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  return (
+    <>
+      <div data-testid="router-location">{`${location.pathname}${location.search}`}</div>
+      <button type="button" onClick={() => navigate(-1)}>
+        История назад
+      </button>
+      <button type="button" onClick={() => navigate(1)}>
+        История вперёд
+      </button>
+    </>
+  )
+}
 
 const useCreateTemplate = vi.hoisted(() => vi.fn())
 const useCurrentUser = vi.hoisted(() => vi.fn())
 const useTemplates = vi.hoisted(() => vi.fn())
 
 const createTemplateMutate = vi.hoisted(() => vi.fn())
+const createTemplateReset = vi.hoisted(() => vi.fn())
 const templatesRefetch = vi.hoisted(() => vi.fn())
 const currentUserRefetch = vi.hoisted(() => vi.fn())
 
@@ -21,10 +38,12 @@ vi.mock('@/shared/api/hooks', () => ({
 function setupTemplates({
   createOverrides = {},
   currentUserOverrides = {},
+  initialEntry = '/templates',
   templatesOverrides = {},
 }: {
   createOverrides?: Record<string, unknown>
   currentUserOverrides?: Record<string, unknown>
+  initialEntry?: string
   templatesOverrides?: Record<string, unknown>
 } = {}) {
   useCurrentUser.mockReturnValue({
@@ -52,6 +71,7 @@ function setupTemplates({
   })
   useCreateTemplate.mockReturnValue({
     mutate: createTemplateMutate,
+    reset: createTemplateReset,
     isPending: false,
     isError: false,
     error: null,
@@ -59,14 +79,16 @@ function setupTemplates({
   })
 
   render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <TemplatesPage />
+      <RouterState />
     </MemoryRouter>,
   )
 }
 
 describe('TemplatesPage', () => {
   afterEach(() => {
+    vi.useRealTimers()
     vi.resetAllMocks()
   })
 
@@ -118,6 +140,51 @@ describe('TemplatesPage', () => {
     expect(screen.getByRole('link', { name: 'Использовать' })).toHaveAttribute(
       'href',
       '/documents/new?template=release-plan',
+    )
+    expect(screen.getByRole('link', { name: 'Использовать' })).toHaveClass(
+      'min-h-10',
+      'sm:min-h-10',
+    )
+    expect(screen.getByRole('button', { name: 'Закрыть уведомление' })).toHaveClass(
+      'min-h-10',
+      'min-w-10',
+      'sm:min-h-10',
+      'sm:min-w-10',
+    )
+  })
+
+  it('rejects whitespace-only required fields before calling the API', () => {
+    setupTemplates()
+    fireEvent.click(screen.getByRole('button', { name: 'Новый шаблон' }))
+    expect(createTemplateReset).toHaveBeenCalledTimes(1)
+
+    const nameInput = screen.getByLabelText('Название шаблона')
+    const bodyInput = screen.getByLabelText('Markdown шаблона')
+    fireEvent.change(nameInput, { target: { value: '   ' } })
+    fireEvent.change(bodyInput, { target: { value: '   ' } })
+    fireEvent.submit(screen.getByRole('form', { name: 'Создание шаблона' }))
+
+    expect(createTemplateMutate).not.toHaveBeenCalled()
+    expect(nameInput).toHaveAttribute('aria-invalid', 'true')
+    expect(bodyInput).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByText('Введите название шаблона.')).toBeInTheDocument()
+    expect(screen.getByText('Введите содержимое шаблона.')).toBeInTheDocument()
+    expect(nameInput).toHaveFocus()
+
+    fireEvent.change(nameInput, { target: { value: 'План релиза' } })
+    fireEvent.submit(screen.getByRole('form', { name: 'Создание шаблона' }))
+    expect(screen.queryByText('Введите название шаблона.')).not.toBeInTheDocument()
+    expect(bodyInput).toHaveFocus()
+
+    fireEvent.change(bodyInput, { target: { value: '# Релиз' } })
+    fireEvent.submit(screen.getByRole('form', { name: 'Создание шаблона' }))
+    expect(createTemplateMutate).toHaveBeenCalledWith(
+      {
+        name: 'План релиза',
+        document_type: 'requirements',
+        body_markdown: '# Релиз',
+      },
+      { onSuccess: expect.any(Function) },
     )
   })
 
@@ -286,6 +353,63 @@ describe('TemplatesPage', () => {
     })
     expect(screen.queryByRole('navigation', { name: 'Страницы шаблонов' })).not.toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: /Использовать шаблон/ })).toHaveLength(1)
+  })
+
+  it('restores filters and pagination from the URL and browser history', () => {
+    vi.useFakeTimers()
+    setupTemplates({
+      initialEntry: '/templates?keep=1&q=Template&type=page&page=2',
+      templatesOverrides: {
+        data: {
+          templates: Array.from({ length: 25 }, (_, index) => ({
+            id: `template-${index + 1}`,
+            name: `Template ${String(index + 1).padStart(2, '0')}`,
+            document_type: 'page',
+            body_markdown: `# Template ${index + 1}`,
+          })),
+        },
+      },
+    })
+
+    expect(screen.getByRole('searchbox', { name: 'Найти шаблон' })).toHaveValue('Template')
+    expect(screen.getByRole('combobox', { name: 'Тип шаблона' })).toHaveValue('page')
+    expect(screen.getByText('2 / 3')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
+    expect(screen.getByTestId('router-location')).toHaveTextContent(
+      '/templates?keep=1&q=Template&type=page&page=3',
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'История назад' }))
+    expect(screen.getByText('2 / 3')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'История вперёд' }))
+    expect(screen.getByText('3 / 3')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Тип шаблона' }), {
+      target: { value: 'requirements' },
+    })
+    expect(screen.getByTestId('router-location')).toHaveTextContent(
+      '/templates?keep=1&q=Template&type=requirements',
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'История назад' }))
+    expect(screen.getByRole('combobox', { name: 'Тип шаблона' })).toHaveValue('page')
+    expect(screen.getByText('3 / 3')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Найти шаблон' }), {
+      target: { value: 'Template 25' },
+    })
+    act(() => vi.advanceTimersByTime(300))
+    expect(screen.getByTestId('router-location')).toHaveTextContent(
+      '/templates?keep=1&q=Template+25&type=page',
+    )
+    expect(screen.queryByRole('navigation', { name: 'Страницы шаблонов' })).not.toBeInTheDocument()
+  })
+
+  it('canonicalizes invalid catalog parameters without dropping neighbors', () => {
+    setupTemplates({ initialEntry: '/templates?keep=1&q=%20%20&type=unknown&page=0' })
+
+    expect(screen.getByTestId('router-location')).toHaveTextContent('/templates?keep=1')
+    expect(screen.getByRole('searchbox', { name: 'Найти шаблон' })).toHaveValue('')
+    expect(screen.getByRole('combobox', { name: 'Тип шаблона' })).toHaveValue('all')
   })
 
   it('renders template query errors with retry', () => {

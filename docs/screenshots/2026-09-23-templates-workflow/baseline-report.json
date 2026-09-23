@@ -1,0 +1,27 @@
+{
+  "initialUrl": "http://localhost:7732/templates?keep=1",
+  "afterSearchUrl": "http://localhost:7732/templates?keep=1",
+  "afterSearchReload": {
+    "url": "http://localhost:7732/templates?keep=1",
+    "search": ""
+  },
+  "afterNextUrl": "http://localhost:7732/templates?keep=1",
+  "pageAfterReload": "1 / 3",
+  "afterTypeUrl": "http://localhost:7732/templates?keep=1",
+  "interceptedCreates": [
+    {
+      "name": "",
+      "document_type": "requirements",
+      "body_markdown": ""
+    }
+  ],
+  "pageErrors": [],
+  "httpErrors": [
+    {
+      "method": "POST",
+      "path": "/api/v1/templates",
+      "status": 422
+    }
+  ],
+  "realWrites": []
+}
