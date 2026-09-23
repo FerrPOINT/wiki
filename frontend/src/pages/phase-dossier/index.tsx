@@ -1,18 +1,17 @@
-import { type FormEvent, useEffect, useRef, useState } from 'react'
+import { type FormEvent, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { FileCheck2, FileText, Link2, Search } from 'lucide-react'
-import {
-  defaultSpaceKey,
-  useLinkPhaseDocument,
-  usePhase,
-  usePhaseSummaries,
-  useSpaces,
-} from '@/shared/api/hooks'
+import { useLinkPhaseDocument, usePhase, usePhaseSummaries, useSpaces } from '@/shared/api/hooks'
 import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
 import { Button } from '@sdlc/ui/ui'
 import { Input } from '@sdlc/ui/ui'
 import { Label } from '@sdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
+import {
+  clearDossierCatalogParams,
+  pathWithSearchParams,
+  useDossierCatalogUrl,
+} from '@/shared/lib/dossier-catalog-url'
 import { resolveSpaceKey } from '@/shared/lib/space-selection'
 import {
   formatDateTime,
@@ -41,17 +40,16 @@ function useSelectedSpaceKey() {
 
   function setSelectedSpaceKey(spaceKey: string) {
     const normalized = spaceKey.trim().toUpperCase()
-    const nextParams = new URLSearchParams(searchParams)
-    if (normalized) nextParams.set('space', normalized)
-    else nextParams.delete('space')
-    setSearchParams(nextParams, { replace: true })
+    setSearchParams((current) => {
+      const nextParams = new URLSearchParams(current)
+      if (normalized) nextParams.set('space', normalized)
+      else nextParams.delete('space')
+      clearDossierCatalogParams(nextParams)
+      return nextParams
+    })
   }
 
-  return [selectedSpaceKey, setSelectedSpaceKey, spacesQuery] as const
-}
-
-function scopedPath(path: string, spaceKey: string): string {
-  return spaceKey === defaultSpaceKey ? path : `${path}?space=${encodeURIComponent(spaceKey)}`
+  return [selectedSpaceKey, setSelectedSpaceKey, spacesQuery, searchParams] as const
 }
 
 function evidencePhasePath(spaceKey: string, phaseKey: string, evidenceId: string): string {
@@ -95,11 +93,17 @@ function SpaceSelector({
 }
 
 function PhaseCatalog({ spaceKey }: { spaceKey: string }) {
-  const [search, setSearch] = useState('')
-  const [appliedSearch, setAppliedSearch] = useState('')
-  const [cursors, setCursors] = useState<(string | null)[]>([null])
+  const {
+    appliedSearch,
+    changePage,
+    currentPage,
+    cursor,
+    hasPreviousPage,
+    search,
+    searchParams,
+    setSearch,
+  } = useDossierCatalogUrl()
   const listRef = useRef<HTMLElement>(null)
-  const cursor = cursors[cursors.length - 1] ?? undefined
   const phasesQuery = usePhaseSummaries(spaceKey, {
     limit: pageSize,
     cursor,
@@ -108,17 +112,8 @@ function PhaseCatalog({ spaceKey }: { spaceKey: string }) {
   const phases = phasesQuery.data?.phases ?? []
   const nextCursor = phasesQuery.data?.next_cursor
 
-  useEffect(() => {
-    if (search.trim() === appliedSearch) return
-    const timeout = window.setTimeout(() => {
-      setAppliedSearch(search.trim())
-      setCursors([null])
-    }, 300)
-    return () => window.clearTimeout(timeout)
-  }, [search, appliedSearch])
-
-  function changePage(nextCursors: (string | null)[]) {
-    setCursors(nextCursors)
+  function navigatePage(direction: 'previous' | 'next') {
+    changePage(direction, direction === 'next' ? (nextCursor ?? undefined) : undefined)
     listRef.current?.scrollIntoView?.({ block: 'start' })
   }
 
@@ -149,7 +144,7 @@ function PhaseCatalog({ spaceKey }: { spaceKey: string }) {
       {!phasesQuery.isLoading && !phasesQuery.isError && phases.length === 0 && (
         <EmptyState
           message={
-            cursors.length > 1
+            cursor
               ? 'На этой странице фаз больше нет'
               : appliedSearch
                 ? 'По запросу фазы не найдены'
@@ -166,7 +161,7 @@ function PhaseCatalog({ spaceKey }: { spaceKey: string }) {
             {phases.map((phase) => (
               <li key={phase.phase_key}>
                 <Link
-                  to={scopedPath(`/phases/${phase.phase_key}`, spaceKey)}
+                  to={pathWithSearchParams(`/phases/${phase.phase_key}`, searchParams)}
                   className="flex min-h-16 min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 px-2 py-3 hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
                 >
                   <span className="min-w-0">
@@ -186,28 +181,28 @@ function PhaseCatalog({ spaceKey }: { spaceKey: string }) {
           </ul>
         </>
       )}
-      {(cursors.length > 1 || nextCursor) && (
+      {(hasPreviousPage || nextCursor) && (
         <nav aria-label="Страницы фаз" className="flex items-center justify-end gap-2">
           <Button
             type="button"
             size="sm"
             variant="outline"
-            className="min-h-10"
-            disabled={cursors.length === 1 || phasesQuery.isLoading || phasesQuery.isFetching}
-            onClick={() => changePage(cursors.slice(0, -1))}
+            className="min-h-10 sm:min-h-10"
+            disabled={!hasPreviousPage || phasesQuery.isLoading || phasesQuery.isFetching}
+            onClick={() => navigatePage('previous')}
           >
             Назад
           </Button>
-          <span className="text-sm text-text-muted">Страница {cursors.length}</span>
+          <span className="text-sm text-text-muted">Страница {currentPage}</span>
           <Button
             type="button"
             size="sm"
             variant="outline"
-            className="min-h-10"
+            className="min-h-10 sm:min-h-10"
             disabled={
               !nextCursor || phasesQuery.isLoading || phasesQuery.isFetching || phasesQuery.isError
             }
-            onClick={() => nextCursor && changePage([...cursors, nextCursor])}
+            onClick={() => navigatePage('next')}
           >
             Далее
           </Button>
@@ -249,7 +244,7 @@ export function PhaseDossiersPage() {
 
 export function PhaseDossierPage() {
   const { phaseId = 'implementation' } = useParams()
-  const [selectedSpaceKey, setSelectedSpaceKey, spacesQuery] = useSelectedSpaceKey()
+  const [selectedSpaceKey, setSelectedSpaceKey, spacesQuery, searchParams] = useSelectedSpaceKey()
   const phaseQuery = usePhase(phaseId, selectedSpaceKey)
   const linkDocument = useLinkPhaseDocument()
   const [documentId, setDocumentId] = useState('')
@@ -304,7 +299,7 @@ export function PhaseDossierPage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <Link
-              to={scopedPath('/phases', selectedSpaceKey)}
+              to={pathWithSearchParams('/phases', searchParams)}
               className="inline-flex min-h-10 items-center text-sm text-accent hover:text-accent-hover"
             >
               К фазам
