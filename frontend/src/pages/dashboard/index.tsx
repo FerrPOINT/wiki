@@ -1,6 +1,16 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
-import { ArrowRight, FilePlus2, FileText, GitBranch, Library, Search } from 'lucide-react'
+import {
+  ArrowRight,
+  FilePlus2,
+  FileText,
+  GitBranch,
+  Library,
+  Loader2,
+  RotateCcw,
+  Search,
+  type LucideIcon,
+} from 'lucide-react'
 import { usePhaseSummaries, useSpaces, useTaskSummaries, useWikiSearch } from '@/shared/api/hooks'
 import { Button, EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
@@ -9,6 +19,67 @@ import { resolveSpaceKey } from '@/shared/lib/space-selection'
 
 const selectClassName =
   'min-h-10 rounded-md border border-border bg-surface px-3 text-sm text-text-primary focus-visible:outline-2 focus-visible:outline-accent'
+
+interface DashboardMetricProps {
+  error?: string
+  icon: LucideIcon
+  isLoading?: boolean
+  label: string
+  onRetry?: () => void
+  value: number
+}
+
+function DashboardMetric({
+  error,
+  icon: Icon,
+  isLoading = false,
+  label,
+  onRetry,
+  value,
+}: DashboardMetricProps) {
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      <Icon className="h-5 w-5 shrink-0 text-accent" aria-hidden />
+      <div className="min-w-0">
+        <div className="flex min-h-7 items-center gap-1">
+          {isLoading ? (
+            <Loader2
+              className="h-4 w-4 animate-spin text-text-muted"
+              aria-label={`Загружаем показатель «${label}»`}
+            />
+          ) : error ? (
+            <>
+              <span
+                role="alert"
+                aria-label={error}
+                title={error}
+                className="text-xs font-medium text-danger"
+              >
+                Не загружено
+              </span>
+              {onRetry && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0"
+                  aria-label={`Повторить загрузку: ${label}`}
+                  title="Повторить"
+                  onClick={onRetry}
+                >
+                  <RotateCcw className="h-4 w-4" aria-hidden />
+                </Button>
+              )}
+            </>
+          ) : (
+            <span className="text-lg font-semibold">{value}</span>
+          )}
+        </div>
+        <div className="text-xs text-text-muted">{label}</div>
+      </div>
+    </div>
+  )
+}
 
 export function DashboardPage() {
   const [requestedSpaceKey, setRequestedSpaceKey] = useState('')
@@ -29,22 +100,27 @@ export function DashboardPage() {
     .slice(0, 4)
   const focusTasks = tasksQuery.data?.tasks ?? []
   const documentCount = spaces.reduce((sum, space) => sum + space.document_count, 0)
-  const stats = [
+  const stats: DashboardMetricProps[] = [
     { label: 'Пространства', value: spaces.length, icon: Library },
     { label: 'Документы всего', value: documentCount, icon: FileText },
     {
       label: 'Задачи в пространстве',
-      value: tasksQuery.isLoading ? '…' : tasksQuery.isError ? '—' : (tasksQuery.data?.total ?? 0),
+      value: tasksQuery.data?.total ?? 0,
       icon: FileText,
+      isLoading: tasksQuery.isLoading,
+      error: tasksQuery.isError
+        ? formatApiErrorForUser(tasksQuery.error, 'Не удалось загрузить задачи')
+        : undefined,
     },
     {
       label: 'Фазы в пространстве',
-      value: phasesQuery.isLoading
-        ? '…'
-        : phasesQuery.isError
-          ? '—'
-          : (phasesQuery.data?.total ?? 0),
+      value: phasesQuery.data?.total ?? 0,
       icon: GitBranch,
+      isLoading: phasesQuery.isLoading,
+      error: phasesQuery.isError
+        ? formatApiErrorForUser(phasesQuery.error, 'Не удалось загрузить фазы')
+        : undefined,
+      onRetry: phasesQuery.isError ? () => void phasesQuery.refetch() : undefined,
     },
   ]
 
@@ -116,24 +192,10 @@ export function DashboardPage() {
                 aria-label="Показатели Wiki"
                 className="grid grid-cols-2 gap-x-5 gap-y-3 border-b border-border pb-4 lg:grid-cols-4"
               >
-                {stats.map(({ label, value, icon: Icon }, index) => (
-                  <div key={label} className="flex items-center gap-3">
-                    <Icon className="h-5 w-5 shrink-0 text-accent" aria-hidden />
-                    <div>
-                      <div className="text-lg font-semibold">
-                        {spacesQuery.isLoading && index < 2 ? '…' : value}
-                      </div>
-                      <div className="text-xs text-text-muted">{label}</div>
-                    </div>
-                  </div>
+                {stats.map((metric) => (
+                  <DashboardMetric key={metric.label} {...metric} />
                 ))}
               </section>
-              {phasesQuery.isError && (
-                <ErrorState
-                  message={formatApiErrorForUser(phasesQuery.error, 'Не удалось загрузить фазы')}
-                  onRetry={() => void phasesQuery.refetch()}
-                />
-              )}
 
               <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
                 <section aria-labelledby="recent-documents" className="min-w-0">

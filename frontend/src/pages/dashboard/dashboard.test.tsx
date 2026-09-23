@@ -105,7 +105,7 @@ describe('DashboardPage', () => {
       'href',
       '/tasks/BASE-42?space=BASE',
     )
-    const stats = within(screen.getByRole('region', { name: 'Показатели Wiki' }))
+    const stats = within(await screen.findByRole('region', { name: 'Показатели Wiki' }))
     expect(stats.getByText('7')).toBeInTheDocument()
     expect(stats.getByText('3')).toBeInTheDocument()
     expect(listTaskSummaries).toHaveBeenCalledWith('BASE', { limit: 4 })
@@ -151,23 +151,79 @@ describe('DashboardPage', () => {
     expect(screen.getByRole('link', { name: /BASE-42/ })).toBeInTheDocument()
   })
 
-  it('shows a separate retry for the phase count', async () => {
+  it('keeps a phase-count failure compact and retries only that metric', async () => {
     listSpaces.mockResolvedValue({
       spaces: [{ key: 'BASE', name: 'Base', document_count: 1 }],
     })
-    searchWiki.mockResolvedValue({ results: [] })
-    listTaskSummaries.mockResolvedValue({ tasks: [], next_cursor: null, total: 0 })
+    searchWiki.mockResolvedValue({
+      results: [
+        {
+          id: 'release-plan',
+          result_type: 'document',
+          title: 'План релиза',
+          url: '/documents/release-plan',
+          updated_at: '2026-09-19T10:00:00Z',
+        },
+      ],
+    })
+    listTaskSummaries.mockResolvedValue({
+      tasks: [{ task_key: 'BASE-42', title: 'Проверить релиз', document_count: 1 }],
+      next_cursor: null,
+      total: 1,
+    })
     listPhaseSummaries.mockRejectedValueOnce(new Error('Phases unavailable'))
     listPhaseSummaries.mockResolvedValue({ phases: [], next_cursor: null, total: 0 })
 
     render(wrapper(<DashboardPage />))
 
-    expect(await screen.findByText('Phases unavailable')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /повторить/i }))
+    const stats = within(await screen.findByRole('region', { name: 'Показатели Wiki' }))
+    expect(await stats.findByRole('alert', { name: 'Phases unavailable' })).toHaveTextContent(
+      'Не загружено',
+    )
+    expect(screen.getByText('План релиза')).toBeInTheDocument()
+    expect(screen.getByText('Проверить релиз')).toBeInTheDocument()
+
+    fireEvent.click(stats.getByRole('button', { name: 'Повторить загрузку: Фазы в пространстве' }))
     await waitFor(() => expect(listPhaseSummaries).toHaveBeenCalledTimes(2))
     expect(listSpaces).toHaveBeenCalledTimes(1)
     expect(searchWiki).toHaveBeenCalledTimes(1)
     expect(listTaskSummaries).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps documents usable when tasks fail and retries only the task section', async () => {
+    listSpaces.mockResolvedValue({
+      spaces: [{ key: 'BASE', name: 'Base', document_count: 1 }],
+    })
+    searchWiki.mockResolvedValue({
+      results: [
+        {
+          id: 'release-plan',
+          result_type: 'document',
+          title: 'План релиза',
+          url: '/documents/release-plan',
+          updated_at: '2026-09-19T10:00:00Z',
+        },
+      ],
+    })
+    listTaskSummaries.mockRejectedValueOnce(new Error('Tasks unavailable'))
+    listTaskSummaries.mockResolvedValue({ tasks: [], next_cursor: null, total: 0 })
+    listPhaseSummaries.mockResolvedValue({ phases: [], next_cursor: null, total: 2 })
+
+    render(wrapper(<DashboardPage />))
+
+    expect(await screen.findByText('План релиза')).toBeInTheDocument()
+    const stats = within(screen.getByRole('region', { name: 'Показатели Wiki' }))
+    expect(stats.getByRole('alert', { name: 'Tasks unavailable' })).toHaveTextContent(
+      'Не загружено',
+    )
+    const tasks = within(screen.getByRole('region', { name: 'Задачи в Wiki' }))
+    expect(tasks.getByText('Tasks unavailable')).toBeInTheDocument()
+
+    fireEvent.click(tasks.getByRole('button', { name: /повторить/i }))
+    await waitFor(() => expect(listTaskSummaries).toHaveBeenCalledTimes(2))
+    expect(listSpaces).toHaveBeenCalledTimes(1)
+    expect(searchWiki).toHaveBeenCalledTimes(1)
+    expect(listPhaseSummaries).toHaveBeenCalledTimes(1)
   })
 
   it('switches the scoped overview between spaces', async () => {
