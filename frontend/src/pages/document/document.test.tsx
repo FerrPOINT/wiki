@@ -413,6 +413,49 @@ describe('DocumentPage', () => {
     })
   })
 
+  it('explains a stale publish conflict and preserves the local draft while reviewing', async () => {
+    updateDraftMutateAsync.mockResolvedValueOnce({
+      ...baseDocument,
+      current_revision: {
+        ...baseRevision,
+        id: 'revision-3',
+        version: 3,
+      },
+      draft_markdown: '# Local draft',
+    })
+    publishMutateAsync.mockRejectedValueOnce({
+      code: 'CONFLICT',
+      message: 'document draft is based on a stale revision',
+    })
+    setupDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
+    fireEvent.change(screen.getByLabelText('Markdown черновика'), {
+      target: { value: '# Local draft' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Опубликовать' }))
+
+    await waitFor(() => expect(publishMutateAsync).toHaveBeenCalledOnce())
+    usePublishDocument.mockReturnValue({
+      mutateAsync: publishMutateAsync,
+      isPending: false,
+      error: {
+        code: 'CONFLICT',
+        message: 'document draft is based on a stale revision',
+      },
+    })
+    fireEvent.change(screen.getByLabelText('Комментарий к публикации'), {
+      target: { value: ' ' },
+    })
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Другой пользователь уже опубликовал новую ревизию. Ваш черновик сохранён.',
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Показать актуальную версию' }))
+    expect(screen.getByText('Approved body')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
+    expect(screen.getByLabelText('Markdown черновика')).toHaveValue('# Local draft')
+  })
+
   it('keeps archived documents read-only in the editor and tree controls', () => {
     setupDocument({
       ...baseDocument,
