@@ -700,6 +700,63 @@ test.describe('wiki smoke', () => {
     }
   })
 
+  test('explains a stale publish conflict without losing the saved draft', async ({ page }) => {
+    await installWikiApiMocks(page)
+    const newerRevision = {
+      ...document.current_revision,
+      id: 'revision-newer',
+      version: 2,
+      body_markdown: '# Published elsewhere',
+      body_html: '<h1>Published elsewhere</h1><p>Current published body.</p>',
+      summary: 'Concurrent publication',
+    }
+    await page.route(/\/api\/v1\/documents\/product-requirements\/draft$/, async (route) => {
+      const body = route.request().postDataJSON() as {
+        title: string
+        content_markdown: string
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ...document,
+          body_markdown: newerRevision.body_markdown,
+          body_html: newerRevision.body_html,
+          current_revision: newerRevision,
+          draft_markdown: body.content_markdown,
+          title: body.title,
+        }),
+      })
+    })
+    await page.route('**/api/v1/documents/product-requirements/publish', async (route) => {
+      await route.fulfill({
+        status: 409,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: {
+            code: 'CONFLICT',
+            message: 'document draft is based on a stale revision',
+          },
+        }),
+      })
+    })
+
+    await gotoWiki(page, '/documents/product-requirements')
+    await page.getByRole('button', { name: 'Правка' }).click()
+    await page.getByLabel('Markdown черновика').fill('# Local draft after concurrent publish')
+    await page.getByRole('button', { name: 'Опубликовать', exact: true }).click()
+
+    const alert = page.getByRole('alert')
+    await expect(alert).toContainText('Другой пользователь уже опубликовал новую ревизию')
+    await expect(alert).toContainText('Ваш черновик сохранён')
+    await alert.getByRole('button', { name: 'Показать актуальную версию' }).click()
+    await expect(page.getByRole('heading', { name: 'Published elsewhere' })).toBeVisible()
+    await page.getByRole('button', { name: 'Правка' }).click()
+    await expect(page.getByLabel('Markdown черновика')).toHaveValue(
+      '# Local draft after concurrent publish',
+    )
+  })
+
   test('signs in through OIDC and navigates through wiki shell pages', async ({ page }) => {
     const apiMocks = await installWikiApiMocks(page)
     await gotoWiki(page)
@@ -739,9 +796,14 @@ test.describe('wiki smoke', () => {
     await expect(page.getByText('Опубликована ревизия 2')).toBeVisible()
     const revisionTwo = page.getByRole('group', { name: 'Ревизия 2' })
     await expect(revisionTwo).toBeVisible()
-    await revisionTwo.getByRole('button', { name: 'Открыть' }).click()
-    await expect(page.getByRole('heading', { name: 'Снимок ревизии' })).toBeVisible()
-    await expect(page.getByText('Ревизия 2: Требования к Wiki MVP')).toBeVisible()
+    const openRevision = revisionTwo.getByRole('button', { name: 'Открыть ревизию 2' })
+    await openRevision.click()
+    const revisionDialog = page.getByRole('dialog', { name: 'Снимок ревизии' })
+    await expect(revisionDialog).toBeVisible()
+    await expect(revisionDialog.getByText('Ревизия 2: Требования к Wiki MVP')).toBeVisible()
+    await revisionDialog.getByRole('button', { name: 'Закрыть' }).click()
+    await expect(revisionDialog).toBeHidden()
+    await expect(openRevision).toBeFocused()
 
     await gotoWiki(page, '/tasks/BASE-42')
     await expect(page.getByRole('heading', { name: 'BASE-42' })).toBeVisible()
