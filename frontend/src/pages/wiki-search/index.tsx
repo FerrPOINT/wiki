@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { FileCheck2, FileText, GitBranch, ListFilter, Search } from 'lucide-react'
 import { useWikiSearch } from '@/shared/api/hooks'
 import { Button, EmptyState, ErrorState, Input, Label, LoadingState } from '@sdlc/ui/ui'
@@ -21,6 +21,8 @@ const documentTypes = [
   'test_plan',
   'release_note',
 ] as const
+type ResultTypeFilter = (typeof resultTypes)[number]['value']
+type DocumentTypeFilter = (typeof documentTypes)[number]
 const pageSize = 20
 const selectClassName =
   'min-h-10 w-full rounded-md border border-border-strong bg-surface px-3 text-sm text-text-primary focus-visible:outline-2 focus-visible:outline-accent'
@@ -42,88 +44,176 @@ function optional(value: string) {
   return value.trim() || undefined
 }
 
+function resultTypeFrom(value: string | null): ResultTypeFilter {
+  return resultTypes.some((item) => item.value === value) ? (value as ResultTypeFilter) : 'all'
+}
+
+function documentTypeFrom(value: string | null): DocumentTypeFilter {
+  return documentTypes.includes(value as DocumentTypeFilter) ? (value as DocumentTypeFilter) : 'all'
+}
+
+function setOptionalParam(params: URLSearchParams, key: string, value: string) {
+  const normalized = value.trim()
+  if (normalized) params.set(key, normalized)
+  else params.delete(key)
+}
+
 export function WikiSearchPage() {
-  const [query, setQuery] = useState('')
-  const [appliedQuery, setAppliedQuery] = useState('')
-  const [spaceFilter, setSpaceFilter] = useState('')
-  const [taskFilter, setTaskFilter] = useState('')
-  const [phaseFilter, setPhaseFilter] = useState('')
-  const [appliedFilters, setAppliedFilters] = useState({
-    space: '',
-    task: '',
-    phase: '',
-    documentType: 'all',
-  })
-  const [resultTypeFilter, setResultTypeFilter] =
-    useState<(typeof resultTypes)[number]['value']>('all')
-  const [documentTypeFilter, setDocumentTypeFilter] = useState<string>('all')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const appliedQuery = searchParams.get('q')?.trim() ?? ''
+  const appliedSpace = searchParams.get('space')?.trim().toUpperCase() ?? ''
+  const appliedTask = searchParams.get('task_key')?.trim() ?? ''
+  const appliedPhase = searchParams.get('phase_key')?.trim() ?? ''
+  const resultTypeFilter = resultTypeFrom(searchParams.get('result_type'))
+  const documentTypeFilter =
+    resultTypeFilter === 'evidence' ? 'all' : documentTypeFrom(searchParams.get('document_type'))
+  const [query, setQuery] = useState(appliedQuery)
+  const [spaceFilter, setSpaceFilter] = useState(appliedSpace)
+  const [taskFilter, setTaskFilter] = useState(appliedTask)
+  const [phaseFilter, setPhaseFilter] = useState(appliedPhase)
+  const [documentTypeDraft, setDocumentTypeDraft] = useState<DocumentTypeFilter>(documentTypeFilter)
   const [showFilters, setShowFilters] = useState(false)
-  const [pageCursors, setPageCursors] = useState<(string | undefined)[]>([undefined])
+  const criteriaKey = JSON.stringify([
+    appliedQuery,
+    appliedSpace,
+    appliedTask,
+    appliedPhase,
+    resultTypeFilter,
+    documentTypeFilter,
+  ])
+  const [paging, setPaging] = useState({
+    criteriaKey,
+    cursors: [undefined] as (string | undefined)[],
+  })
+  const pageCursors = useMemo<(string | undefined)[]>(
+    () => (paging.criteriaKey === criteriaKey ? paging.cursors : [undefined]),
+    [criteriaKey, paging.criteriaKey, paging.cursors],
+  )
   const currentPage = pageCursors.length
   const resultsSection = useRef<HTMLElement>(null)
 
   useEffect(() => {
+    setQuery(appliedQuery)
+  }, [appliedQuery])
+
+  useEffect(() => {
+    setSpaceFilter(appliedSpace)
+    setTaskFilter(appliedTask)
+    setPhaseFilter(appliedPhase)
+    setDocumentTypeDraft(documentTypeFilter)
+  }, [appliedSpace, appliedTask, appliedPhase, documentTypeFilter])
+
+  useEffect(() => {
+    if (paging.criteriaKey !== criteriaKey) {
+      setPaging({ criteriaKey, cursors: [undefined] })
+    }
+  }, [criteriaKey, paging.criteriaKey])
+
+  useEffect(() => {
+    const rawResultType = searchParams.get('result_type')
+    const rawDocumentType = searchParams.get('document_type')
+    const invalidResultType = rawResultType !== null && resultTypeFilter === 'all'
+    const invalidDocumentType =
+      rawDocumentType !== null && documentTypeFrom(rawDocumentType) === 'all'
+    const incompatibleDocumentType = resultTypeFilter === 'evidence' && rawDocumentType !== null
+    if (!invalidResultType && !invalidDocumentType && !incompatibleDocumentType) return
+
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current)
+        if (invalidResultType) next.delete('result_type')
+        if (invalidDocumentType || incompatibleDocumentType) next.delete('document_type')
+        return next
+      },
+      { replace: true },
+    )
+  }, [resultTypeFilter, searchParams, setSearchParams])
+
+  useEffect(() => {
+    const normalizedQuery = query.trim()
+    if (normalizedQuery === appliedQuery) return
     const timeout = window.setTimeout(() => {
-      if (query.trim() !== appliedQuery) {
-        setAppliedQuery(query.trim())
-        setPageCursors([undefined])
-      }
+      setSearchParams(
+        (current) => {
+          const next = new URLSearchParams(current)
+          setOptionalParam(next, 'q', normalizedQuery)
+          return next
+        },
+        { replace: true },
+      )
     }, 300)
     return () => window.clearTimeout(timeout)
-  }, [query, appliedQuery])
+  }, [query, appliedQuery, setSearchParams])
 
-  const searchParams: SearchParams = useMemo(
+  const requestParams: SearchParams = useMemo(
     () => ({
       q: appliedQuery,
-      space: optional(appliedFilters.space),
-      task_key: optional(appliedFilters.task),
-      phase_key: optional(appliedFilters.phase),
-      document_type:
-        appliedFilters.documentType === 'all' ? undefined : appliedFilters.documentType,
+      space: optional(appliedSpace),
+      task_key: optional(appliedTask),
+      phase_key: optional(appliedPhase),
+      document_type: documentTypeFilter === 'all' ? undefined : documentTypeFilter,
       result_type: resultTypeFilter === 'all' ? undefined : resultTypeFilter,
       limit: pageSize,
       cursor: pageCursors[currentPage - 1],
     }),
-    [appliedFilters, appliedQuery, resultTypeFilter, pageCursors, currentPage],
+    [
+      appliedPhase,
+      appliedQuery,
+      appliedSpace,
+      appliedTask,
+      documentTypeFilter,
+      resultTypeFilter,
+      pageCursors,
+      currentPage,
+    ],
   )
-  const searchQuery = useWikiSearch(searchParams)
+  const searchQuery = useWikiSearch(requestParams)
   const results = searchQuery.data?.results ?? []
   const nextCursor = searchQuery.data?.next_cursor
   const activeFilterCount =
-    [appliedFilters.space, appliedFilters.task, appliedFilters.phase].filter(
-      (value) => value.trim() !== '',
-    ).length + (appliedFilters.documentType === 'all' ? 0 : 1)
+    [appliedSpace, appliedTask, appliedPhase].filter((value) => value.trim() !== '').length +
+    (documentTypeFilter === 'all' ? 0 : 1)
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setAppliedQuery(query.trim())
-    setPageCursors([undefined])
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      setOptionalParam(next, 'q', query)
+      return next
+    })
   }
 
   function applyFilters(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setAppliedFilters({
-      space: spaceFilter.trim(),
-      task: taskFilter.trim(),
-      phase: phaseFilter.trim(),
-      documentType: documentTypeFilter,
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      setOptionalParam(next, 'q', query)
+      setOptionalParam(next, 'space', spaceFilter.toUpperCase())
+      setOptionalParam(next, 'task_key', taskFilter)
+      setOptionalParam(next, 'phase_key', phaseFilter)
+      if (documentTypeDraft === 'all') next.delete('document_type')
+      else next.set('document_type', documentTypeDraft)
+      if (documentTypeDraft !== 'all') next.set('result_type', 'document')
+      return next
     })
-    if (documentTypeFilter !== 'all') setResultTypeFilter('document')
-    setPageCursors([undefined])
   }
 
-  function selectResultType(value: (typeof resultTypes)[number]['value']) {
-    setResultTypeFilter(value)
-    if (value === 'evidence') {
-      setDocumentTypeFilter('all')
-      setAppliedFilters((filters) => ({ ...filters, documentType: 'all' }))
-    }
-    setPageCursors([undefined])
+  function selectResultType(value: ResultTypeFilter) {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      if (value === 'all') next.delete('result_type')
+      else next.set('result_type', value)
+      if (value === 'evidence') next.delete('document_type')
+      return next
+    })
   }
 
   function changePage(direction: 'previous' | 'next') {
-    if (direction === 'previous') setPageCursors((cursors) => cursors.slice(0, -1))
-    else if (nextCursor) setPageCursors((cursors) => [...cursors, nextCursor])
+    if (direction === 'previous') {
+      setPaging({ criteriaKey, cursors: pageCursors.slice(0, -1) })
+    } else if (nextCursor) {
+      setPaging({ criteriaKey, cursors: [...pageCursors, nextCursor] })
+    }
     resultsSection.current?.scrollIntoView?.({ block: 'start' })
   }
 
@@ -210,9 +300,9 @@ export function WikiSearchPage() {
               <select
                 id="search-document-type"
                 className={selectClassName}
-                value={documentTypeFilter}
+                value={documentTypeDraft}
                 onChange={(event) => {
-                  setDocumentTypeFilter(event.target.value)
+                  setDocumentTypeDraft(event.target.value as DocumentTypeFilter)
                 }}
               >
                 {documentTypes.map((type) => (
@@ -227,7 +317,7 @@ export function WikiSearchPage() {
                 spaceFilter ||
                 taskFilter ||
                 phaseFilter ||
-                documentTypeFilter !== 'all') && (
+                documentTypeDraft !== 'all') && (
                 <Button
                   type="button"
                   size="sm"
@@ -237,10 +327,20 @@ export function WikiSearchPage() {
                     setSpaceFilter('')
                     setTaskFilter('')
                     setPhaseFilter('')
-                    setDocumentTypeFilter('all')
-                    setAppliedFilters({ space: '', task: '', phase: '', documentType: 'all' })
-                    setResultTypeFilter('all')
-                    setPageCursors([undefined])
+                    setDocumentTypeDraft('all')
+                    setSearchParams((current) => {
+                      const next = new URLSearchParams(current)
+                      for (const key of [
+                        'space',
+                        'task_key',
+                        'phase_key',
+                        'document_type',
+                        'result_type',
+                      ]) {
+                        next.delete(key)
+                      }
+                      return next
+                    })
                   }}
                 >
                   Сбросить фильтры
