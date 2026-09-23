@@ -1,23 +1,14 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter } from 'react-router'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { DocumentComposePage } from './'
 
-const navigate = vi.hoisted(() => vi.fn())
 const useCreateDocument = vi.hoisted(() => vi.fn())
 const useSpaces = vi.hoisted(() => vi.fn())
 const useTemplates = vi.hoisted(() => vi.fn())
 
 const createDocumentMutate = vi.hoisted(() => vi.fn())
-
-vi.mock('react-router', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('react-router')>()
-  return {
-    ...actual,
-    useNavigate: () => navigate,
-  }
-})
 
 vi.mock('@/shared/api/hooks', () => ({
   defaultSpaceKey: 'BASE',
@@ -72,11 +63,15 @@ function setupCompose(
     ...createOverrides,
   })
 
-  render(
-    <MemoryRouter initialEntries={[initialRoute]}>
-      <DocumentComposePage />
-    </MemoryRouter>,
+  const router = createMemoryRouter(
+    [
+      { path: '/documents/new', element: <DocumentComposePage /> },
+      { path: '*', element: <div>Destination</div> },
+    ],
+    { initialEntries: [initialRoute] },
   )
+  render(<RouterProvider router={router} />)
+  return router
 }
 
 describe('DocumentComposePage', () => {
@@ -84,8 +79,8 @@ describe('DocumentComposePage', () => {
     vi.clearAllMocks()
   })
 
-  it('creates a document through the shared API hook and navigates to the result', () => {
-    setupCompose()
+  it('creates a document through the shared API hook and navigates to the result', async () => {
+    const router = setupCompose()
 
     fireEvent.change(screen.getByLabelText('Название'), {
       target: { value: '  Новый регламент  ' },
@@ -114,8 +109,48 @@ describe('DocumentComposePage', () => {
       { onSuccess: expect.any(Function) },
     )
 
-    createDocumentMutate.mock.calls[0]?.[1]?.onSuccess({ slug: 'new-policy' })
-    expect(navigate).toHaveBeenCalledWith('/documents/new-policy')
+    act(() => createDocumentMutate.mock.calls[0]?.[1]?.onSuccess({ slug: 'new-policy' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/documents/new-policy'))
+  })
+
+  it('opens the preview from the page action', () => {
+    setupCompose()
+    fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Новый регламент' } })
+    fireEvent.change(screen.getByLabelText('Markdown документа'), {
+      target: { value: '# Содержание' },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Предпросмотр' }))
+
+    expect(screen.getByRole('tab', { name: 'Просмотр' })).toHaveAttribute('data-state', 'active')
+    expect(screen.getByText('# Содержание')).toBeVisible()
+  })
+
+  it('keeps an unsaved draft when navigation is cancelled and leaves after confirmation', async () => {
+    const router = setupCompose()
+    const cleanUnloadEvent = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(cleanUnloadEvent)
+    expect(cleanUnloadEvent.defaultPrevented).toBe(false)
+
+    fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Черновик' } })
+    const dirtyUnloadEvent = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(dirtyUnloadEvent)
+    expect(dirtyUnloadEvent.defaultPrevented).toBe(true)
+
+    await act(async () => router.navigate('/spaces'))
+    const dialog = screen.getByRole('alertdialog')
+    expect(dialog).toHaveTextContent('Несохранённые изменения будут потеряны')
+    expect(router.state.location.pathname).toBe('/documents/new')
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Отмена' }))
+    expect(screen.getByLabelText('Название')).toHaveValue('Черновик')
+    expect(router.state.location.pathname).toBe('/documents/new')
+
+    await act(async () => router.navigate('/spaces'))
+    fireEvent.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Подтвердить' }),
+    )
+    await waitFor(() => expect(router.state.location.pathname).toBe('/spaces'))
   })
 
   it('applies the requested template from URL without filling demo task links', async () => {
