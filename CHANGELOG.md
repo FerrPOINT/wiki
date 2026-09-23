@@ -16,6 +16,7 @@
 - Product-metrics counters (PR #5).
 - Root AGENTS.md и SECURITY.md (стандарты Base).
 ### Changed
+- Каталог профилей Wiki сохраняет поиск и страницу в URL, ограничивает выдачу 25 строками и передаёт управление учётными записями в Admin Panel.
 - Общая оболочка Wiki приведена к платформенному контракту: header 60 px,
   sidebar 264 px, tablet rail 72 px и доступный mobile drawer с focus trap;
   рабочая область больше не ограничена shell-level `max-w-7xl`.
