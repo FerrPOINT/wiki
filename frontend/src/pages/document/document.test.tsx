@@ -171,6 +171,19 @@ describe('DocumentPage', () => {
     expect(screen.queryByRole('heading', { name: 'Published' })).not.toBeInTheDocument()
   })
 
+  it('makes wide Markdown tables and code blocks keyboard focusable', async () => {
+    const view = setupDocument({
+      ...baseDocument,
+      body_html:
+        '<table><tbody><tr><td>Long table value</td></tr></tbody></table><pre><code>long-command</code></pre>',
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('table')).toHaveAttribute('tabindex', '0')
+      expect(view.container.querySelector('pre')).toHaveAttribute('tabindex', '0')
+    })
+  })
+
   it('starts an unpublished document in edit mode', () => {
     setupDocument({
       ...baseDocument,
