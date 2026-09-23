@@ -1,0 +1,199 @@
+{
+  "generatedAt": "2026-09-23T17:10:33.533Z",
+  "label": "candidate",
+  "states": [
+    {
+      "theme": "light",
+      "width": 375,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 5146,
+        "rowCount": 20,
+        "visibleControlCount": 117,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "theme": "light",
+      "width": 768,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 3854,
+        "rowCount": 20,
+        "visibleControlCount": 117,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "theme": "light",
+      "width": 1280,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 2679,
+        "rowCount": 20,
+        "visibleControlCount": 117,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "theme": "light",
+      "width": 1920,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 1783,
+        "rowCount": 20,
+        "visibleControlCount": 117,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "theme": "light",
+      "width": 2560,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 1783,
+        "rowCount": 20,
+        "visibleControlCount": 117,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "theme": "gray",
+      "width": 375,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 5146,
+        "rowCount": 20,
+        "visibleControlCount": 117,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "theme": "gray",
+      "width": 768,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 3854,
+        "rowCount": 20,
+        "visibleControlCount": 117,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "theme": "gray",
+      "width": 1280,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 2679,
+        "rowCount": 20,
+        "visibleControlCount": 117,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "theme": "gray",
+      "width": 1920,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 1783,
+        "rowCount": 20,
+        "visibleControlCount": 117,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "theme": "gray",
+      "width": 2560,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 1783,
+        "rowCount": 20,
+        "visibleControlCount": 117,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "theme": "dark",
+      "width": 375,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 5146,
+        "rowCount": 20,
+        "visibleControlCount": 117,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "theme": "dark",
+      "width": 768,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 3854,
+        "rowCount": 20,
+        "visibleControlCount": 117,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "theme": "dark",
+      "width": 1280,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 2679,
+        "rowCount": 20,
+        "visibleControlCount": 117,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "theme": "dark",
+      "width": 1920,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 1783,
+        "rowCount": 20,
+        "visibleControlCount": 117,
+        "smallTargets": []
+      },
+      "axe": []
+    },
+    {
+      "theme": "dark",
+      "width": 2560,
+      "layout": {
+        "rootOverflow": 0,
+        "pageHeight": 1783,
+        "rowCount": 20,
+        "visibleControlCount": 117,
+        "smallTargets": []
+      },
+      "axe": []
+    }
+  ],
+  "pageErrors": [],
+  "httpErrors": [],
+  "writes": [],
+  "summary": {
+    "stateCount": 15,
+    "overflowStates": 0,
+    "smallTargetStates": 0,
+    "maxSmallTargets": 0,
+    "axeStates": 0,
+    "pageErrorCount": 0,
+    "httpErrorCount": 0,
+    "writeCount": 0
+  }
+}

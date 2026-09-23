@@ -97,7 +97,13 @@ function AttachmentMetadata({ item }: { item: Evidence }) {
         </div>
       )}
       {attachmentQuery.isError && (
-        <Button type="button" size="sm" variant="outline" onClick={() => attachmentQuery.refetch()}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="min-h-10 sm:min-h-10"
+          onClick={() => attachmentQuery.refetch()}
+        >
           Повторить загрузку метаданных
         </Button>
       )}
@@ -108,6 +114,7 @@ function AttachmentMetadata({ item }: { item: Evidence }) {
         type="button"
         size="sm"
         variant="outline"
+        className="min-h-10 sm:min-h-10"
         onClick={handleDownload}
         disabled={downloadAttachment.isPending}
         aria-label={`Скачать ${item.title}`}
@@ -126,11 +133,11 @@ function AttachmentMetadata({ item }: { item: Evidence }) {
 
 function EvidenceTargetLinks({ item }: { item: Evidence }) {
   return (
-    <div className="flex min-w-0 flex-wrap gap-x-3 gap-y-1 text-sm">
+    <div className="flex min-w-0 flex-wrap gap-x-3 text-sm">
       {item.document_id && (
         <Link
           to={`/documents/${item.document_id}`}
-          className="min-w-0 break-all text-accent hover:text-accent-hover"
+          className="inline-flex min-h-10 min-w-0 items-center break-all text-accent hover:text-accent-hover"
         >
           документ {item.document_id}
         </Link>
@@ -138,7 +145,7 @@ function EvidenceTargetLinks({ item }: { item: Evidence }) {
       {item.task_key && (
         <Link
           to={scopedDossierPath(`/tasks/${item.task_key}`, item.space_key)}
-          className="min-w-0 break-all text-accent hover:text-accent-hover"
+          className="inline-flex min-h-10 min-w-0 items-center break-all text-accent hover:text-accent-hover"
         >
           задача {item.task_key}
         </Link>
@@ -146,7 +153,7 @@ function EvidenceTargetLinks({ item }: { item: Evidence }) {
       {item.phase_key && (
         <Link
           to={scopedDossierPath(`/phases/${item.phase_key}`, item.space_key)}
-          className="min-w-0 break-all text-accent hover:text-accent-hover"
+          className="inline-flex min-h-10 min-w-0 items-center break-all text-accent hover:text-accent-hover"
         >
           фаза {item.phase_key}
         </Link>
@@ -162,7 +169,7 @@ function EvidenceTitle({ item, onSelect }: { item: Evidence; onSelect: (id: stri
         href={item.url}
         target="_blank"
         rel="noreferrer"
-        className="min-w-0 break-words font-medium text-accent hover:text-accent-hover"
+        className="inline-flex min-h-10 min-w-0 items-center break-words font-medium text-accent hover:text-accent-hover"
       >
         {item.title}
       </a>
@@ -172,7 +179,7 @@ function EvidenceTitle({ item, onSelect }: { item: Evidence; onSelect: (id: stri
     <button
       type="button"
       onClick={() => onSelect(item.id)}
-      className="min-w-0 break-words text-left font-medium text-accent hover:text-accent-hover"
+      className="min-h-10 min-w-0 break-words text-left font-medium text-accent hover:text-accent-hover"
     >
       {item.title}
     </button>
@@ -347,6 +354,7 @@ export function EvidencePage() {
         <h1 className="text-2xl font-bold">Материалы</h1>
         <Button
           type="button"
+          className="min-h-10 sm:min-h-10"
           onClick={() => setCreateOpen((open) => !open)}
           disabled={isSaving}
           aria-expanded={isCreateOpen}
@@ -370,6 +378,7 @@ export function EvidencePage() {
             type="button"
             size="sm"
             variant="outline"
+            className="min-h-10 sm:min-h-10"
             onClick={() => selectEvidence(createdEvidence.id)}
           >
             Открыть
@@ -378,6 +387,7 @@ export function EvidencePage() {
             type="button"
             size="icon"
             variant="ghost"
+            className="h-10 w-10"
             aria-label="Закрыть уведомление"
             title="Закрыть уведомление"
             onClick={() => setCreatedEvidence(null)}
@@ -397,6 +407,7 @@ export function EvidencePage() {
             <Button
               type="button"
               size="sm"
+              className="min-h-10 sm:min-h-10"
               variant={mode === 'external_url' ? 'default' : 'secondary'}
               onClick={() => setMode('external_url')}
               disabled={isSaving}
@@ -408,6 +419,7 @@ export function EvidencePage() {
             <Button
               type="button"
               size="sm"
+              className="min-h-10 sm:min-h-10"
               variant={mode === 'uploaded_file' ? 'default' : 'secondary'}
               onClick={() => setMode('uploaded_file')}
               disabled={isSaving}
@@ -422,6 +434,7 @@ export function EvidencePage() {
               <Label htmlFor="evidence-space">Пространство</Label>
               <Input
                 id="evidence-space"
+                className="min-h-10"
                 value={space}
                 onChange={(event) => setSpace(event.target.value.toUpperCase())}
                 disabled={isSaving}
@@ -432,6 +445,7 @@ export function EvidencePage() {
               <Label htmlFor="evidence-document">Документ</Label>
               <Input
                 id="evidence-document"
+                className="min-h-10"
                 value={documentId}
                 onChange={(event) => {
                   setDocumentId(event.target.value)
@@ -445,6 +459,7 @@ export function EvidencePage() {
               <Label htmlFor="evidence-title">Название</Label>
               <Input
                 id="evidence-title"
+                className="min-h-10"
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
                 disabled={isSaving}
@@ -455,6 +470,7 @@ export function EvidencePage() {
               <Label htmlFor="evidence-task">Задача</Label>
               <Input
                 id="evidence-task"
+                className="min-h-10"
                 value={task}
                 onChange={(event) => {
                   setTask(event.target.value)
@@ -467,6 +483,7 @@ export function EvidencePage() {
               <Label htmlFor="evidence-phase">Фаза</Label>
               <Input
                 id="evidence-phase"
+                className="min-h-10"
                 value={phase}
                 onChange={(event) => {
                   setPhase(event.target.value)
@@ -480,6 +497,7 @@ export function EvidencePage() {
             {mode === 'external_url' ? (
               <Input
                 type="url"
+                className="min-h-10"
                 value={url}
                 onChange={(event) => setUrl(event.target.value)}
                 disabled={isSaving}
@@ -491,13 +509,16 @@ export function EvidencePage() {
               <Input
                 ref={fileInputRef}
                 type="file"
+                className="min-h-10"
                 aria-label="Файл материала"
                 onChange={(event) => setFile(event.target.files?.[0] ?? null)}
                 disabled={isSaving}
                 required
               />
             )}
-            <Button disabled={isSaving}>{isSaving ? 'Сохраняем...' : 'Сохранить материал'}</Button>
+            <Button className="min-h-10 sm:min-h-10" disabled={isSaving}>
+              {isSaving ? 'Сохраняем...' : 'Сохранить материал'}
+            </Button>
           </div>
           {targetError && (
             <p role="alert" className="text-sm text-danger">
@@ -518,6 +539,7 @@ export function EvidencePage() {
         className="grid gap-2 border-y border-border py-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-[minmax(12rem,1fr)_8rem_12rem_10rem_10rem_auto_auto]"
       >
         <Input
+          className="min-h-10"
           value={filterQuery}
           onChange={(event) => setFilterQuery(event.target.value)}
           maxLength={200}
@@ -525,6 +547,7 @@ export function EvidencePage() {
           aria-label="Поиск материалов"
         />
         <Input
+          className="min-h-10"
           value={filterSpace}
           onChange={(event) => {
             setFilterSpace(event.target.value.toUpperCase())
@@ -535,28 +558,37 @@ export function EvidencePage() {
           aria-label="Фильтр пространства"
         />
         <Input
+          className="min-h-10"
           value={filterDocument}
           onChange={(event) => setFilterDocument(event.target.value)}
           placeholder="Документ"
           aria-label="Фильтр документа"
         />
         <Input
+          className="min-h-10"
           value={filterTask}
           onChange={(event) => setFilterTask(event.target.value)}
           placeholder="Задача"
           aria-label="Фильтр задачи"
         />
         <Input
+          className="min-h-10"
           value={filterPhase}
           onChange={(event) => setFilterPhase(event.target.value)}
           placeholder="Фаза"
           aria-label="Фильтр фазы"
         />
-        <Button type="submit" size="sm">
+        <Button type="submit" size="sm" className="min-h-10 sm:min-h-10">
           <Search className="h-4 w-4" />
           Найти
         </Button>
-        <Button type="button" size="sm" variant="outline" onClick={resetFilters}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="min-h-10 sm:min-h-10"
+          onClick={resetFilters}
+        >
           <RotateCcw className="h-4 w-4" />
           Сбросить
         </Button>
@@ -608,7 +640,7 @@ export function EvidencePage() {
                         href={selectedEvidence.url}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-2 text-sm text-accent hover:text-accent-hover"
+                        className="inline-flex min-h-10 items-center gap-2 text-sm text-accent hover:text-accent-hover"
                       >
                         <ExternalLink className="h-4 w-4" />
                         Открыть ссылку
@@ -624,7 +656,13 @@ export function EvidencePage() {
             {!selectedEvidenceQuery.isLoading &&
               !selectedEvidenceQuery.isError &&
               !selectedEvidence && <EmptyState message="Материал не найден в текущем доступе" />}
-            <Button type="button" size="sm" variant="outline" onClick={() => selectEvidence(null)}>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="min-h-10 sm:min-h-10"
+              onClick={() => selectEvidence(null)}
+            >
               Снять выделение
             </Button>
           </CardContent>
@@ -670,6 +708,7 @@ export function EvidencePage() {
                         type="button"
                         size="icon"
                         variant="ghost"
+                        className="h-10 w-10 shrink-0 sm:min-h-10 sm:min-w-10"
                         aria-label={`Открыть материал ${item.title}`}
                         title="Открыть материал"
                         onClick={() => selectEvidence(item.id)}
@@ -723,6 +762,7 @@ export function EvidencePage() {
                             type="button"
                             size="icon"
                             variant="ghost"
+                            className="h-10 w-10 shrink-0 sm:min-h-10 sm:min-w-10"
                             aria-label={`Открыть материал ${item.title}`}
                             title="Открыть материал"
                             onClick={() => selectEvidence(item.id)}
