@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatApiErrorForUser, formatFirstApiErrorForUser } from './api-error'
+import { formatApiErrorForUser, formatFirstApiErrorForUser, hasApiErrorCode } from './api-error'
 
 describe('formatApiErrorForUser', () => {
   it('renders permission failures as a Russian user-facing message', () => {
@@ -45,5 +45,11 @@ describe('formatApiErrorForUser', () => {
 
   it('returns an empty message when aggregate page queries have no error', () => {
     expect(formatFirstApiErrorForUser([null, undefined, false], 'fallback')).toBe('')
+  })
+
+  it('identifies a specific API error code without trusting arbitrary values', () => {
+    expect(hasApiErrorCode({ code: 'CONFLICT' }, 'CONFLICT')).toBe(true)
+    expect(hasApiErrorCode({ code: 'FORBIDDEN' }, 'CONFLICT')).toBe(false)
+    expect(hasApiErrorCode(new Error('CONFLICT'), 'CONFLICT')).toBe(false)
   })
 })

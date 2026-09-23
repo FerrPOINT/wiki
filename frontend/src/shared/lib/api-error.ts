@@ -52,6 +52,11 @@ export function formatFirstApiErrorForUser(errors: unknown[], fallback: string):
   return error ? formatApiErrorForUser(error, fallback) : ''
 }
 
+export function hasApiErrorCode(error: unknown, expectedCode: string): boolean {
+  const apiError = readApiErrorLike(error)
+  return Boolean(apiError && readString(apiError.code) === expectedCode)
+}
+
 function readApiErrorLike(error: unknown): ApiErrorLike | null {
   if (!error || typeof error !== 'object') return null
   return error as ApiErrorLike
