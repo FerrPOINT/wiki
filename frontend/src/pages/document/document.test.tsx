@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router'
+import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { Document, DocumentRevision } from '@/api/wiki'
@@ -131,13 +131,15 @@ function setupDocument(document: Document = baseDocument, revisionHistory?: Docu
     error: null,
   })
 
-  return render(
-    <MemoryRouter initialEntries={['/documents/product-requirements']}>
-      <Routes>
-        <Route path="/documents/:documentId" element={<DocumentPage />} />
-      </Routes>
-    </MemoryRouter>,
+  const router = createMemoryRouter(
+    [
+      { path: '/documents/:documentId', element: <DocumentPage /> },
+      { path: '*', element: <div>Destination</div> },
+    ],
+    { initialEntries: ['/documents/product-requirements'] },
   )
+  const view = render(<RouterProvider router={router} />)
+  return { ...view, router }
 }
 
 describe('DocumentPage', () => {
@@ -214,6 +216,23 @@ describe('DocumentPage', () => {
     expect(updateDraftMutate).not.toHaveBeenCalled()
     expect(updateDraftMutateAsync).not.toHaveBeenCalled()
     expect(publishMutateAsync).not.toHaveBeenCalled()
+  })
+
+  it('blocks navigation until the editor confirms losing an unsaved draft', async () => {
+    const view = setupDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
+    fireEvent.change(screen.getByLabelText('Название'), {
+      target: { value: 'Несохранённый заголовок' },
+    })
+
+    await act(async () => view.router.navigate('/evidence'))
+    expect(screen.getByRole('alertdialog')).toHaveTextContent(
+      'Несохранённые изменения будут потеряны',
+    )
+    expect(view.router.state.location.pathname).toBe('/documents/product-requirements')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Подтвердить' }))
+    await waitFor(() => expect(view.router.state.location.pathname).toBe('/evidence'))
   })
 
   it('keeps viewer document access read-only without exposing the draft', () => {
@@ -340,7 +359,7 @@ describe('DocumentPage', () => {
   })
 
   it('shows archive errors inside the confirmation without closing it', () => {
-    const view = setupDocument()
+    setupDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
     fireEvent.click(screen.getByRole('button', { name: 'Архивировать' }))
     fireEvent.click(screen.getByRole('button', { name: 'Подтвердить' }))
@@ -351,13 +370,9 @@ describe('DocumentPage', () => {
       isPending: false,
       error: { code: 'FORBIDDEN' },
     })
-    view.rerender(
-      <MemoryRouter initialEntries={['/documents/product-requirements']}>
-        <Routes>
-          <Route path="/documents/:documentId" element={<DocumentPage />} />
-        </Routes>
-      </MemoryRouter>,
-    )
+    fireEvent.change(screen.getByLabelText('Название'), {
+      target: { value: 'Требования Wiki v2' },
+    })
 
     expect(screen.getByRole('alertdialog')).toBeVisible()
     expect(screen.getByRole('alertdialog')).toHaveTextContent('Недостаточно прав для действия')

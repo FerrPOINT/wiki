@@ -32,6 +32,7 @@ import { Input } from '@sdlc/ui/ui'
 import { Label } from '@sdlc/ui/ui'
 import { Textarea } from '@sdlc/ui/ui'
 import { formatApiErrorForUser, formatFirstApiErrorForUser } from '@/shared/lib/api-error'
+import { UnsavedChangesGuard } from '@/shared/ui/unsaved-changes-guard'
 import {
   formatDateTime,
   formatDocumentStatus,
@@ -237,6 +238,7 @@ export function DocumentPage() {
 
   return (
     <article className="space-y-5">
+      <UnsavedChangesGuard when={draftChanged} />
       <section className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="break-words text-sm text-text-muted">
