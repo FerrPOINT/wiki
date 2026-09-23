@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@sdlc/ui/ui'
 import { Textarea } from '@sdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDocumentType } from '@/shared/lib/wiki-format'
+import { UnsavedChangesGuard } from '@/shared/ui/unsaved-changes-guard'
 
 const typeOptions = [
   'page',
@@ -39,6 +40,8 @@ export function DocumentComposePage() {
   const [taskKey, setTaskKey] = useState('')
   const [phaseKey, setPhaseKey] = useState('')
   const [appliedTemplateId, setAppliedTemplateId] = useState('')
+  const [editorTab, setEditorTab] = useState<'write' | 'preview'>('write')
+  const [createdDocumentPath, setCreatedDocumentPath] = useState<string | null>(null)
   const spacesQuery = useSpaces()
   const templatesQuery = useTemplates()
   const createDocument = useCreateDocument()
@@ -60,6 +63,20 @@ export function DocumentComposePage() {
     setAppliedTemplateId(template.id)
   }, [appliedTemplateId, requestedTemplateId, templatesQuery.data?.templates])
 
+  useEffect(() => {
+    if (createdDocumentPath) navigate(createdDocumentPath)
+  }, [createdDocumentPath, navigate])
+
+  const hasUnsavedChanges =
+    createdDocumentPath === null &&
+    (title.trim().length > 0 ||
+      body.trim().length > 0 ||
+      spaceKey !== initialSpace ||
+      documentType !== 'page' ||
+      slug.trim().length > 0 ||
+      taskKey.trim().length > 0 ||
+      phaseKey.trim().length > 0)
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     createDocument.mutate(
@@ -76,13 +93,14 @@ export function DocumentComposePage() {
         },
       },
       {
-        onSuccess: (document) => navigate(`/documents/${document.slug}`),
+        onSuccess: (document) => setCreatedDocumentPath(`/documents/${document.slug}`),
       },
     )
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      <UnsavedChangesGuard when={hasUnsavedChanges} />
       <section className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Новый документ</h1>
@@ -91,7 +109,12 @@ export function DocumentComposePage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" variant="secondary">
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={() => setEditorTab('preview')}
+          >
             <FileText className="h-4 w-4" />
             Предпросмотр
           </Button>
@@ -150,7 +173,7 @@ export function DocumentComposePage() {
                 <button
                   key={template.id}
                   type="button"
-                  className="rounded-md border border-border px-2.5 py-1.5 text-xs text-text-secondary hover:bg-surface-raised hover:text-text-primary"
+                  className="min-h-10 rounded-md border border-border px-2.5 py-1.5 text-xs text-text-secondary hover:bg-surface-raised hover:text-text-primary"
                   onClick={() => applyTemplate(template.id)}
                 >
                   {template.name}
@@ -158,7 +181,10 @@ export function DocumentComposePage() {
               ))}
             </div>
 
-            <Tabs defaultValue="write">
+            <Tabs
+              value={editorTab}
+              onValueChange={(value) => setEditorTab(value as 'write' | 'preview')}
+            >
               <TabsList>
                 <TabsTrigger value="write">Markdown</TabsTrigger>
                 <TabsTrigger value="preview">Просмотр</TabsTrigger>
