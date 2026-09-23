@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -239,16 +239,20 @@ describe('DocumentPage', () => {
     expect(screen.queryByRole('group', { name: 'Режим документа' })).not.toBeInTheDocument()
   })
 
-  it('opens a specific immutable revision through the revision detail hook', () => {
+  it('opens a specific immutable revision in a dialog', async () => {
     setupDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Открыть' }))
+    const trigger = screen.getByRole('button', { name: 'Открыть ревизию 2' })
+    fireEvent.click(trigger)
 
     expect(useDocumentRevision).toHaveBeenLastCalledWith('product-requirements', 'revision-2', true)
-    expect(screen.getByRole('heading', { name: 'Снимок ревизии' })).toBeInTheDocument()
-    expect(screen.getByText('Ревизия 2: Требования Wiki')).toBeInTheDocument()
-    expect(screen.getAllByRole('heading', { name: 'Published' })).toHaveLength(2)
-    expect(screen.getAllByText('Approved body')).toHaveLength(2)
+    const dialog = screen.getByRole('dialog', { name: 'Снимок ревизии' })
+    expect(within(dialog).getByText('Ревизия 2: Требования Wiki')).toBeInTheDocument()
+    expect(within(dialog).getByRole('heading', { name: 'Published' })).toBeInTheDocument()
+    expect(within(dialog).getByText('Approved body')).toBeInTheDocument()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Закрыть' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
   it('pages through the complete revision history without showing the sentinel item', () => {
