@@ -122,6 +122,30 @@ const document = {
   created_at: now,
   updated_at: now,
 }
+const longUnbrokenValue = 'very-long-unbroken-identifier-'.repeat(18)
+const longContentHtml = `
+  <h1>${longUnbrokenValue}</h1>
+  <p>Long link <a href="https://example.invalid/${longUnbrokenValue}">${longUnbrokenValue}</a> and <code>${longUnbrokenValue}</code>.</p>
+  <table><thead><tr><th>Environment</th><th>Identifier</th><th>Owner</th><th>Updated</th></tr></thead><tbody><tr><td>production</td><td>${longUnbrokenValue}</td><td>owner@example.invalid</td><td>2026-09-23T10:20:30Z</td></tr></tbody></table>
+  <pre><code>curl --header "X-Debug-Token: ${longUnbrokenValue}" https://example.invalid/${longUnbrokenValue}</code></pre>
+`
+const longContentDocument = {
+  ...document,
+  id: 'long-content',
+  slug: 'long-content',
+  title: 'Длинный документ',
+  body_html: longContentHtml,
+  current_revision: {
+    ...document.current_revision,
+    id: 'revision-long-content-1',
+    document_id: 'long-content',
+    title: 'Длинный документ',
+    body_html: longContentHtml,
+  },
+  task_keys: [`TASK-${longUnbrokenValue}`],
+  phase_keys: [`PHASE-${longUnbrokenValue}`],
+  evidence: [{ ...evidence, id: 'evidence-long-content', title: longUnbrokenValue }],
+}
 const documentSummary = {
   id: document.id,
   slug: document.slug,
@@ -348,6 +372,12 @@ async function installWikiApiMocks(page: Page) {
       return revision
         ? routeJson(route, revision)
         : routeJson(route, { code: 'NOT_FOUND', message: 'Revision not found' }, 404)
+    }
+    if (method === 'GET' && path === '/documents/long-content') {
+      return routeJson(route, longContentDocument)
+    }
+    if (method === 'GET' && path === '/documents/long-content/revisions') {
+      return routeJson(route, { revisions: [longContentDocument.current_revision] })
     }
     if (method === 'PUT' && path === '/documents/product-requirements/draft') {
       const body = request.postDataJSON() as { title?: string; content_markdown: string }
@@ -628,6 +658,46 @@ test.describe('wiki smoke', () => {
     )
     await expect(page.getByRole('button', { name: 'Архивировать' })).not.toBeVisible()
     await page.screenshot({ path: 'test-results/wiki-space-archive.png', fullPage: true })
+  })
+
+  test('keeps long published Markdown inside the viewport with keyboard-scrollable regions', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 812 })
+    await installWikiApiMocks(page)
+    await gotoWiki(page, '/documents/long-content')
+
+    await expect(page.getByRole('heading', { name: 'Длинный документ' })).toBeVisible()
+    const layout = await page.evaluate(() => ({
+      documentScrollWidth: document.documentElement.scrollWidth,
+      viewportWidth: innerWidth,
+      offenders: [...document.querySelectorAll<HTMLElement>('body *')]
+        .map((element) => {
+          const rect = element.getBoundingClientRect()
+          return {
+            tag: element.tagName.toLowerCase(),
+            className: element.className.toString().slice(0, 100),
+            right: Math.round(rect.right),
+            scrollWidth: element.scrollWidth,
+            width: Math.round(rect.width),
+          }
+        })
+        .filter((item) => item.right > innerWidth + 1)
+        .slice(0, 12),
+    }))
+    expect(
+      layout.documentScrollWidth,
+      JSON.stringify(layout.offenders, null, 2),
+    ).toBeLessThanOrEqual(layout.viewportWidth)
+
+    for (const region of [
+      page.locator('.wiki-rendered table'),
+      page.locator('.wiki-rendered pre'),
+    ]) {
+      await expect(region).toHaveAttribute('tabindex', '0')
+      await region.focus()
+      await expect(region).toBeFocused()
+    }
   })
 
   test('explains a stale publish conflict without losing the saved draft', async ({ page }) => {
