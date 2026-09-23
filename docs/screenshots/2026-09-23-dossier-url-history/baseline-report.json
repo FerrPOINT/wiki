@@ -1,0 +1,17 @@
+{
+  "tasks": {
+    "afterSearchUrl": "http://localhost:7732/tasks?space=BASE&keep=1",
+    "afterNextUrl": "http://localhost:7732/tasks?space=BASE&keep=1",
+    "afterReloadUrl": "http://localhost:7732/tasks?space=BASE&keep=1",
+    "afterReloadSearch": "",
+    "afterReloadPageTwo": 0
+  },
+  "phases": {
+    "afterSearchUrl": "http://localhost:7732/phases?space=BASE&keep=1",
+    "afterNextUrl": "http://localhost:7732/phases?space=BASE&keep=1",
+    "afterReloadUrl": "http://localhost:7732/phases?space=BASE&keep=1",
+    "afterReloadSearch": "",
+    "afterReloadPageTwo": 0
+  },
+  "writes": []
+}

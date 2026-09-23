@@ -1,8 +1,24 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router'
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { TaskDossierPage, TaskDossiersPage } from './'
+
+function RouterState() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  return (
+    <>
+      <output data-testid="router-location">{`${location.pathname}${location.search}`}</output>
+      <button type="button" onClick={() => navigate(-1)}>
+        История назад
+      </button>
+      <button type="button" onClick={() => navigate(1)}>
+        История вперёд
+      </button>
+    </>
+  )
+}
 
 const useLinkTaskDocument = vi.hoisted(() => vi.fn())
 const useSpaces = vi.hoisted(() => vi.fn())
@@ -73,6 +89,7 @@ function renderTaskPage(
 function renderTaskList(
   tasks: Array<{ task_key: string; title: string; document_count: number; evidence_count: number }>,
   nextPageState: 'normal' | 'error' | 'empty' = 'normal',
+  initialEntry = '/tasks?space=DOCS',
 ) {
   useTaskSummaries.mockImplementation(
     (_spaceKey, params: { limit: number; cursor?: string; q?: string }) => {
@@ -126,9 +143,17 @@ function renderTaskList(
     isLoading: false,
   })
   render(
-    <MemoryRouter initialEntries={['/tasks?space=DOCS']}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
-        <Route path="/tasks" element={<TaskDossiersPage />} />
+        <Route
+          path="/tasks"
+          element={
+            <>
+              <TaskDossiersPage />
+              <RouterState />
+            </>
+          }
+        />
       </Routes>
     </MemoryRouter>,
   )
@@ -190,7 +215,7 @@ describe('TaskDossierPage', () => {
   })
 
   it('opens exact document and evidence records in the selected space', () => {
-    renderTaskPage({}, '/tasks/BASE-42?space=DOCS', {
+    renderTaskPage({}, '/tasks/BASE-42?space=DOCS&q=proof&cursor=DOCS-12&keep=1', {
       ...taskPage,
       document_count: 1,
       evidence_count: 1,
@@ -224,7 +249,7 @@ describe('TaskDossierPage', () => {
     )
     expect(screen.getByRole('link', { name: 'К задачам' })).toHaveAttribute(
       'href',
-      '/tasks?space=DOCS',
+      '/tasks?space=DOCS&q=proof&cursor=DOCS-12&keep=1',
     )
   })
 
@@ -277,7 +302,11 @@ describe('TaskDossiersPage', () => {
     expect(screen.getByText('Задачи: 12 из 25')).toBeInTheDocument()
     expect(screen.getAllByRole('listitem')).toHaveLength(12)
     const pagination = screen.getByRole('navigation', { name: 'Страницы задач' })
-    fireEvent.click(within(pagination).getByRole('button', { name: 'Далее' }))
+    const previousButton = within(pagination).getByRole('button', { name: 'Назад' })
+    const nextButton = within(pagination).getByRole('button', { name: 'Далее' })
+    expect(previousButton).toHaveClass('min-h-10', 'sm:min-h-10')
+    expect(nextButton).toHaveClass('min-h-10', 'sm:min-h-10')
+    fireEvent.click(nextButton)
     expect(screen.getByText('Страница 2')).toBeInTheDocument()
     expect(useTaskSummaries).toHaveBeenLastCalledWith('DOCS', {
       limit: 12,
@@ -296,7 +325,7 @@ describe('TaskDossiersPage', () => {
     expect(screen.getByText('Задачи: 1 из 1')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /DOCS-25/ })).toHaveAttribute(
       'href',
-      '/tasks/DOCS-25?space=DOCS',
+      '/tasks/DOCS-25?space=DOCS&q=DOCS-25',
     )
     expect(screen.queryByRole('navigation', { name: 'Страницы задач' })).not.toBeInTheDocument()
 
@@ -326,6 +355,49 @@ describe('TaskDossiersPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Назад' }))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.getByText('Задачи: 12 из 13')).toBeInTheDocument()
+  })
+
+  it('restores search and cursor history from the URL and browser navigation', () => {
+    renderTaskList(
+      Array.from({ length: 37 }, (_, index) => ({
+        task_key: `DOCS-${String(index + 1).padStart(2, '0')}`,
+        title: `Задача ${index + 1}`,
+        document_count: 1,
+        evidence_count: 1,
+      })),
+      'normal',
+      '/tasks?space=DOCS&q=DOCS&keep=1',
+    )
+
+    expect(screen.getByRole('searchbox', { name: 'Найти задачу' })).toHaveValue('DOCS')
+    fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
+    expect(screen.getByTestId('router-location')).toHaveTextContent(
+      '/tasks?space=DOCS&q=DOCS&keep=1&cursor=DOCS-12',
+    )
+    expect(screen.getByText('Страница 2')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'История назад' }))
+    expect(screen.getByTestId('router-location')).toHaveTextContent(
+      '/tasks?space=DOCS&q=DOCS&keep=1',
+    )
+    expect(screen.queryByText('Страница 2')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'История вперёд' }))
+    expect(screen.getByText('Страница 2')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
+    expect(screen.getByTestId('router-location')).toHaveTextContent(
+      '/tasks?space=DOCS&q=DOCS&keep=1&cursor=DOCS-24&previous_cursor=DOCS-12',
+    )
+    expect(screen.getByText('Страница 3')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }))
+    expect(screen.getByTestId('router-location')).toHaveTextContent(
+      '/tasks?space=DOCS&q=DOCS&keep=1&cursor=DOCS-12',
+    )
+    expect(screen.getByText('Страница 2')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /DOCS-13/ })).toHaveAttribute(
+      'href',
+      '/tasks/DOCS-13?space=DOCS&q=DOCS&keep=1&cursor=DOCS-12',
+    )
   })
 
   it('keeps back navigation when a later page becomes empty', () => {
