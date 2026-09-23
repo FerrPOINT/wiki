@@ -43,7 +43,7 @@ retry-сценариях. Полные измерения находятся в 
 ## Automated gates
 
 - Admin page tests: 2/2;
-- frontend suite: 24 файла / 157 тестов;
+- frontend suite: 24 файла / 161 тест;
 - TypeScript, ESLint, semantic color lint и production build: green;
 - OpenAPI schema и compatibility: green;
 - focused Prettier и `git diff --check`: green.
