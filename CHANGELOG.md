@@ -7,24 +7,35 @@
 ## [Unreleased]
 
 ### Added
+
 - Streamlined поиск по Wiki (#13); searchable/compact каталог шаблонов (#12).
+
 ### Fixed
+
 - Фильтры и cursor-pagination журнала аудита сохраняются в URL и корректно
   восстанавливаются после direct link, reload и browser Back/Forward; цели
   фильтров приведены к платформенному минимуму 40 px.
+- Редакторы нового и существующего документа предупреждают о потере несохранённого
+  черновика при переходе или перезагрузке; кнопка предпросмотра открывает режим
+  просмотра, а цели шаблонов получили стабильную высоту 40 px.
 - Удалён неиспользуемый LHCI, патч аудита зависимостей (#14).
+
 ### Added
+
 - Управление пространствами: streamlined UX (#10).
 - Обзор wiki стал space-aware — контекст активного пространства (#11).
 - Product-metrics counters (PR #5).
 - Root AGENTS.md и SECURITY.md (стандарты Base).
+
 ### Changed
+
 - Общая оболочка Wiki приведена к платформенному контракту: header 60 px,
   sidebar 264 px, tablet rail 72 px и доступный mobile drawer с focus trap;
   рабочая область больше не ограничена shell-level `max-w-7xl`.
 - Поиск Wiki получил компактную выдачу, раскрываемые фильтры и постраничную навигацию с явным лимитом первых 100 результатов.
 - Удалён неиспользуемый Lighthouse CI CLI; уязвимые транзитивные зависимости frontend build/test закреплены на исправленных версиях (`pnpm audit`: 0 известных уязвимостей).
 - Мобильные галереи и auth-кадры удалены из README — desktop-only evidence.
+
 ### Added
 
 - Frontend MVP pages подключены к публичному Wiki API для spaces, documents, tasks, phases, evidence, templates, users, audit и search.
