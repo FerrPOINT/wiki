@@ -1,5 +1,5 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { Document, DocumentRevision } from '@/api/wiki'
@@ -131,13 +131,15 @@ function setupDocument(document: Document = baseDocument, revisionHistory?: Docu
     error: null,
   })
 
-  return render(
-    <MemoryRouter initialEntries={['/documents/product-requirements']}>
-      <Routes>
-        <Route path="/documents/:documentId" element={<DocumentPage />} />
-      </Routes>
-    </MemoryRouter>,
+  const router = createMemoryRouter(
+    [
+      { path: '/documents/:documentId', element: <DocumentPage /> },
+      { path: '*', element: <div>Destination</div> },
+    ],
+    { initialEntries: ['/documents/product-requirements'] },
   )
+  const view = render(<RouterProvider router={router} />)
+  return { ...view, router }
 }
 
 describe('DocumentPage', () => {
@@ -203,6 +205,23 @@ describe('DocumentPage', () => {
     expect(publishMutateAsync).not.toHaveBeenCalled()
   })
 
+  it('blocks navigation until the editor confirms losing an unsaved draft', async () => {
+    const view = setupDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
+    fireEvent.change(screen.getByLabelText('Название'), {
+      target: { value: 'Несохранённый заголовок' },
+    })
+
+    await act(async () => view.router.navigate('/evidence'))
+    expect(screen.getByRole('alertdialog')).toHaveTextContent(
+      'Несохранённые изменения будут потеряны',
+    )
+    expect(view.router.state.location.pathname).toBe('/documents/product-requirements')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Подтвердить' }))
+    await waitFor(() => expect(view.router.state.location.pathname).toBe('/evidence'))
+  })
+
   it('keeps viewer document access read-only without exposing the draft', () => {
     setupDocument({
       ...baseDocument,
@@ -220,16 +239,20 @@ describe('DocumentPage', () => {
     expect(screen.queryByRole('group', { name: 'Режим документа' })).not.toBeInTheDocument()
   })
 
-  it('opens a specific immutable revision through the revision detail hook', () => {
+  it('opens a specific immutable revision in a dialog', async () => {
     setupDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Открыть' }))
+    const trigger = screen.getByRole('button', { name: 'Открыть ревизию 2' })
+    fireEvent.click(trigger)
 
     expect(useDocumentRevision).toHaveBeenLastCalledWith('product-requirements', 'revision-2', true)
-    expect(screen.getByRole('heading', { name: 'Снимок ревизии' })).toBeInTheDocument()
-    expect(screen.getByText('Ревизия 2: Требования Wiki')).toBeInTheDocument()
-    expect(screen.getAllByRole('heading', { name: 'Published' })).toHaveLength(2)
-    expect(screen.getAllByText('Approved body')).toHaveLength(2)
+    const dialog = screen.getByRole('dialog', { name: 'Снимок ревизии' })
+    expect(within(dialog).getByText('Ревизия 2: Требования Wiki')).toBeInTheDocument()
+    expect(within(dialog).getByRole('heading', { name: 'Published' })).toBeInTheDocument()
+    expect(within(dialog).getByText('Approved body')).toBeInTheDocument()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Закрыть' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
   it('pages through the complete revision history without showing the sentinel item', () => {
@@ -327,7 +350,7 @@ describe('DocumentPage', () => {
   })
 
   it('shows archive errors inside the confirmation without closing it', () => {
-    const view = setupDocument()
+    setupDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
     fireEvent.click(screen.getByRole('button', { name: 'Архивировать' }))
     fireEvent.click(screen.getByRole('button', { name: 'Подтвердить' }))
@@ -338,13 +361,9 @@ describe('DocumentPage', () => {
       isPending: false,
       error: { code: 'FORBIDDEN' },
     })
-    view.rerender(
-      <MemoryRouter initialEntries={['/documents/product-requirements']}>
-        <Routes>
-          <Route path="/documents/:documentId" element={<DocumentPage />} />
-        </Routes>
-      </MemoryRouter>,
-    )
+    fireEvent.change(screen.getByLabelText('Название'), {
+      target: { value: 'Требования Wiki v2' },
+    })
 
     expect(screen.getByRole('alertdialog')).toBeVisible()
     expect(screen.getByRole('alertdialog')).toHaveTextContent('Недостаточно прав для действия')
@@ -392,6 +411,49 @@ describe('DocumentPage', () => {
         summary: 'Clarified scope',
       },
     })
+  })
+
+  it('explains a stale publish conflict and preserves the local draft while reviewing', async () => {
+    updateDraftMutateAsync.mockResolvedValueOnce({
+      ...baseDocument,
+      current_revision: {
+        ...baseRevision,
+        id: 'revision-3',
+        version: 3,
+      },
+      draft_markdown: '# Local draft',
+    })
+    publishMutateAsync.mockRejectedValueOnce({
+      code: 'CONFLICT',
+      message: 'document draft is based on a stale revision',
+    })
+    setupDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
+    fireEvent.change(screen.getByLabelText('Markdown черновика'), {
+      target: { value: '# Local draft' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Опубликовать' }))
+
+    await waitFor(() => expect(publishMutateAsync).toHaveBeenCalledOnce())
+    usePublishDocument.mockReturnValue({
+      mutateAsync: publishMutateAsync,
+      isPending: false,
+      error: {
+        code: 'CONFLICT',
+        message: 'document draft is based on a stale revision',
+      },
+    })
+    fireEvent.change(screen.getByLabelText('Комментарий к публикации'), {
+      target: { value: ' ' },
+    })
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Другой пользователь уже опубликовал новую ревизию. Ваш черновик сохранён.',
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Показать актуальную версию' }))
+    expect(screen.getByText('Approved body')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
+    expect(screen.getByLabelText('Markdown черновика')).toHaveValue('# Local draft')
   })
 
   it('keeps archived documents read-only in the editor and tree controls', () => {
