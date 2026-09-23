@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { MemoryRouter } from 'react-router'
+import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { WikiSearchPage } from './'
@@ -33,6 +33,7 @@ const evidenceResult = {
 function setupSearch(
   results = [documentResult, evidenceResult],
   overrides: Record<string, unknown> = {},
+  initialEntry = '/search',
 ) {
   useWikiSearch.mockImplementation((params: { result_type?: string; cursor?: string }) => {
     const matching = results.filter(
@@ -52,11 +53,18 @@ function setupSearch(
     }
   })
 
-  render(
-    <MemoryRouter>
-      <WikiSearchPage />
-    </MemoryRouter>,
+  const router = createMemoryRouter(
+    [
+      {
+        path: '/search',
+        element: <WikiSearchPage />,
+      },
+    ],
+    { initialEntries: [initialEntry] },
   )
+
+  render(<RouterProvider router={router} />)
+  return router
 }
 
 describe('WikiSearchPage', () => {
@@ -65,7 +73,7 @@ describe('WikiSearchPage', () => {
   })
 
   it('sends result type and expanded filters to the API hook', async () => {
-    setupSearch()
+    const router = setupSearch()
 
     expect(screen.getByRole('link', { name: /Требования Wiki/ })).toHaveAttribute(
       'href',
@@ -112,6 +120,12 @@ describe('WikiSearchPage', () => {
         task_key: 'BASE-42',
       }),
     )
+    expect(router.state.location.search).toContain('q=%D1%80%D0%B5%D0%BB%D0%B8%D0%B7')
+    expect(router.state.location.search).toContain('space=ENG')
+    expect(router.state.location.search).toContain('task_key=BASE-42')
+    expect(router.state.location.search).toContain('phase_key=testing')
+    expect(router.state.location.search).toContain('document_type=test_plan')
+    expect(router.state.location.search).toContain('result_type=document')
     expect(screen.getByRole('button', { name: /Фильтры \(4\)/ })).toHaveAttribute(
       'aria-expanded',
       'true',
@@ -120,6 +134,67 @@ describe('WikiSearchPage', () => {
     expect(screen.getByLabelText('Пространство')).toHaveValue('')
     expect(screen.getByLabelText('Тип документа')).toHaveValue('all')
     expect(screen.getByRole('button', { name: 'Все' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('restores query and filters from a direct URL', () => {
+    setupSearch(
+      undefined,
+      {},
+      '/search?q=Wiki&space=eng&task_key=BASE-42&phase_key=testing&document_type=test_plan&result_type=document',
+    )
+
+    expect(screen.getByRole('searchbox', { name: 'Поисковый запрос' })).toHaveValue('Wiki')
+    expect(screen.getByRole('button', { name: 'Документы' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: 'Фильтры (4)' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Фильтры (4)' }))
+    expect(screen.getByLabelText('Пространство')).toHaveValue('ENG')
+    expect(screen.getByLabelText('Задача')).toHaveValue('BASE-42')
+    expect(screen.getByLabelText('Фаза')).toHaveValue('testing')
+    expect(screen.getByLabelText('Тип документа')).toHaveValue('test_plan')
+    expect(useWikiSearch).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        q: 'Wiki',
+        space: 'ENG',
+        task_key: 'BASE-42',
+        phase_key: 'testing',
+        document_type: 'test_plan',
+        result_type: 'document',
+      }),
+    )
+  })
+
+  it('restores result type through browser Back and Forward', async () => {
+    const router = setupSearch(undefined, {}, '/search?q=Wiki&keep=1')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Документы' }))
+    await waitFor(() =>
+      expect(router.state.location.search).toBe('?q=Wiki&keep=1&result_type=document'),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Материалы' }))
+    await waitFor(() =>
+      expect(router.state.location.search).toBe('?q=Wiki&keep=1&result_type=evidence'),
+    )
+
+    await router.navigate(-1)
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Документы' })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      ),
+    )
+    expect(screen.getByRole('searchbox', { name: 'Поисковый запрос' })).toHaveValue('Wiki')
+
+    await router.navigate(1)
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Материалы' })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      ),
+    )
+    expect(screen.getByRole('searchbox', { name: 'Поисковый запрос' })).toHaveValue('Wiki')
   })
 
   it('requests subsequent pages and displays only the current page range', () => {
