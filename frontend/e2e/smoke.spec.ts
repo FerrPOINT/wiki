@@ -568,6 +568,40 @@ test.describe('wiki smoke', () => {
     await expect(trigger).toBeFocused()
   })
 
+  test('previews a new document and protects its unsaved draft during navigation', async ({
+    page,
+  }) => {
+    await installWikiApiMocks(page)
+    await gotoWiki(page)
+    await gotoWiki(page, '/documents/new')
+
+    const templateButton = page.getByRole('button', { name: 'Требования', exact: true })
+    const templateButtonBox = await templateButton.boundingBox()
+    expect(templateButtonBox?.height).toBeGreaterThanOrEqual(40)
+
+    await page.getByLabel('Название').fill('Регламент релиза')
+    await templateButton.click()
+    await page.getByRole('button', { name: 'Предпросмотр' }).click()
+
+    const preview = page.getByRole('tabpanel')
+    await expect(preview.getByRole('heading', { name: 'Регламент релиза' })).toBeVisible()
+    await expect(preview).toContainText('# Требования')
+
+    await page.getByRole('link', { name: 'Пространства', exact: true }).click()
+    const dialog = page.getByRole('alertdialog')
+    await expect(dialog).toContainText('Несохранённые изменения будут потеряны')
+    await expect(page).toHaveURL(`${baseURL}/documents/new`)
+
+    await dialog.getByRole('button', { name: 'Отмена' }).click()
+    await expect(dialog).toBeHidden()
+    await expect(page).toHaveURL(`${baseURL}/documents/new`)
+    await page.screenshot({ path: 'test-results/wiki-document-draft-preview.png', fullPage: true })
+
+    await page.getByRole('link', { name: 'Пространства', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Подтвердить' }).click()
+    await expect(page).toHaveURL(`${baseURL}/spaces`)
+  })
+
   test('archives a space only after explicit confirmation and keeps its archived status visible', async ({
     page,
   }) => {
