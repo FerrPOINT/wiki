@@ -31,7 +31,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@sdlc/ui/ui'
 import { Input } from '@sdlc/ui/ui'
 import { Label } from '@sdlc/ui/ui'
 import { Textarea } from '@sdlc/ui/ui'
-import { formatApiErrorForUser, formatFirstApiErrorForUser } from '@/shared/lib/api-error'
+import {
+  formatApiErrorForUser,
+  formatFirstApiErrorForUser,
+  hasApiErrorCode,
+} from '@/shared/lib/api-error'
 import {
   formatDateTime,
   formatDocumentStatus,
@@ -133,10 +137,14 @@ export function DocumentPage() {
   const currentParentId = document.parent_id ?? null
   const nextParentId = optional(parentId)
   const parentChanged = nextParentId !== currentParentId
-  const mutationError = formatFirstApiErrorForUser(
-    [updateDraft.error, publishDocument.error, archiveDocument.error, moveDocument.error],
-    'Не удалось выполнить действие',
-  )
+  const hasPublishConflict =
+    !updateDraft.error && hasApiErrorCode(publishDocument.error, 'CONFLICT')
+  const mutationError = hasPublishConflict
+    ? 'Другой пользователь уже опубликовал новую ревизию. Ваш черновик сохранён. Проверьте актуальную версию и повторите публикацию.'
+    : formatFirstApiErrorForUser(
+        [updateDraft.error, publishDocument.error, archiveDocument.error, moveDocument.error],
+        'Не удалось выполнить действие',
+      )
 
   function handleSaveDraft(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -325,8 +333,31 @@ export function DocumentPage() {
 
       {(statusMessage || mutationError) && (
         <section className="rounded-md border border-border bg-surface p-3 text-sm">
-          {statusMessage && <p className="text-success">{statusMessage}</p>}
-          {mutationError && <p className="text-danger">{mutationError}</p>}
+          {statusMessage && (
+            <p role="status" className="text-success">
+              {statusMessage}
+            </p>
+          )}
+          {mutationError && (
+            <div
+              role="alert"
+              className="flex flex-col gap-2 text-danger sm:flex-row sm:items-center sm:justify-between"
+            >
+              <p>{mutationError}</p>
+              {hasPublishConflict && isEditing && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="min-h-10 shrink-0 text-text-primary"
+                  onClick={() => setSelectedMode('read')}
+                >
+                  <Eye className="h-4 w-4" />
+                  Показать актуальную версию
+                </Button>
+              )}
+            </div>
+          )}
         </section>
       )}
 
