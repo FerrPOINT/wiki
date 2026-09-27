@@ -4,11 +4,20 @@ import { mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from '@playwright/test'
+import { SignJWT, exportJWK, generateKeyPair } from 'jose'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const OUT = join(ROOT, 'docs', 'screenshots')
-const BASE = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:4174'
+const BASE = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:4174'
+const AUTH_ISSUER = 'http://localhost:7701'
 const now = '2026-08-31T10:00:00Z'
+const { privateKey, publicKey } = await generateKeyPair('ES256')
+const publicJwk = {
+  ...(await exportJWK(publicKey)),
+  alg: 'ES256',
+  kid: 'wiki-evidence',
+  use: 'sig',
+}
 
 mkdirSync(OUT, { recursive: true })
 
@@ -211,7 +220,6 @@ const shots = [
     name: '06-document-view.png',
     path: '/documents/product-requirements',
     title: 'Document view',
-    openRevision: true,
   },
   { name: '07-task-dossiers.png', path: '/tasks', title: 'Task pages' },
   { name: '08-task-dossier-detail.png', path: '/tasks/SDLC-42', title: 'Task page detail' },
@@ -230,6 +238,12 @@ const shots = [
   { name: '17-admin.png', path: '/admin', title: 'Administration' },
 ]
 
+const responsiveShots = [
+  { name: 'wide.png', path: '/', title: 'Wide layout' },
+  { name: 'reading.png', path: '/documents/new', title: 'Reading layout' },
+  { name: 'detail-with-aside.png', path: '/tasks/SDLC-42', title: 'Detail layout' },
+]
+
 function routeJson(route, body, status = 200) {
   return route.fulfill({
     status,
@@ -239,6 +253,47 @@ function routeJson(route, body, status = 200) {
 }
 
 async function installApiMocks(page) {
+  let nonce = ''
+  await page.route(`${AUTH_ISSUER}/oidc/**`, async (route) => {
+    const url = new URL(route.request().url())
+    if (url.pathname === '/oidc/authorize') {
+      nonce = url.searchParams.get('nonce') ?? ''
+      const callback = new URL(url.searchParams.get('redirect_uri'))
+      callback.searchParams.set('code', 'wiki-evidence-code')
+      callback.searchParams.set('state', url.searchParams.get('state') ?? '')
+      return route.fulfill({ status: 302, headers: { location: callback.toString() } })
+    }
+    if (url.pathname === '/oidc/token') {
+      const idToken = await new SignJWT({ email: user.email, name: user.display_name, nonce })
+        .setProtectedHeader({ alg: 'ES256', kid: publicJwk.kid })
+        .setIssuer(AUTH_ISSUER)
+        .setAudience('wiki')
+        .setSubject(user.id)
+        .setIssuedAt()
+        .setExpirationTime('10m')
+        .sign(privateKey)
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({
+          access_token: 'screenshot-token',
+          id_token: idToken,
+          expires_in: 900,
+        }),
+      })
+    }
+    if (url.pathname === '/oidc/jwks') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({ keys: [publicJwk] }),
+      })
+    }
+    return route.fulfill({ status: 404 })
+  })
+
   await page.route('**/api/v1/**', (route) => {
     const request = route.request()
     const url = new URL(request.url())
@@ -339,11 +394,17 @@ async function installApiMocks(page) {
     if (method === 'GET' && path === '/spaces/SDLC/tasks') {
       return routeJson(route, { tasks: [task] })
     }
+    if (method === 'GET' && path === '/spaces/SDLC/task-summaries') {
+      return routeJson(route, { tasks: [task], next_cursor: null, total: 1 })
+    }
     if (method === 'GET' && path === '/spaces/SDLC/tasks/SDLC-42') {
       return routeJson(route, task)
     }
     if (method === 'GET' && path === '/spaces/SDLC/phases') {
       return routeJson(route, { phases: [phase] })
+    }
+    if (method === 'GET' && path === '/spaces/SDLC/phase-summaries') {
+      return routeJson(route, { phases: [phase], next_cursor: null, total: 1 })
     }
     if (method === 'GET' && path === '/spaces/SDLC/phases/implementation') {
       return routeJson(route, phase)
@@ -428,34 +489,53 @@ async function installApiMocks(page) {
 
 const browser = await chromium.launch()
 
-async function shoot(shot) {
+async function shoot(shot, viewport, outputDir) {
   const context = await browser.newContext({
-    viewport: { width: 1920, height: 1080 },
+    viewport,
     deviceScaleFactor: 1,
     locale: 'ru-RU',
   })
   const page = await context.newPage()
-  await page.addInitScript((state) => {
+  await page.addInitScript(() => {
     localStorage.setItem('theme', 'dark')
-    localStorage.setItem('wiki-auth', JSON.stringify(state))
-  }, authState)
+  })
   await installApiMocks(page)
 
   try {
     await page.goto(`${BASE}${shot.path}`, { waitUntil: 'networkidle', timeout: 30_000 })
+    await page
+      .waitForURL((url) => url.port === new URL(BASE).port && url.pathname === shot.path, {
+        timeout: 10_000,
+      })
+      .catch((error) => {
+        throw new Error(`${shot.name} did not reach ${shot.path}; current URL: ${page.url()}`, {
+          cause: error,
+        })
+      })
+    await page.locator('[data-page-layout]').waitFor({ state: 'visible', timeout: 10_000 })
     if (shot.openRevision) {
-      await page.getByRole('button', { name: 'Открыть' }).first().click()
+      await page.getByRole('button', { name: /Открыть ревизию/ }).first().click()
       await page.getByRole('heading', { name: 'Снимок ревизии' }).waitFor({ timeout: 5_000 })
     }
     await page.waitForTimeout(1000)
-    await page.screenshot({ path: join(OUT, shot.name), fullPage: true })
+    const documentFits = await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    )
+    if (!documentFits) throw new Error(`${shot.name} has horizontal body overflow`)
+    await page.screenshot({ path: join(outputDir, shot.name), fullPage: true })
     console.log(`shot ${shot.name} ${shot.path} ${shot.title}`)
   } finally {
     await context.close()
   }
 }
 
-for (const shot of shots) await shoot(shot)
+for (const shot of shots) await shoot(shot, { width: 1920, height: 1080 }, OUT)
+
+const responsiveOutput = join(OUT, '375x812')
+mkdirSync(responsiveOutput, { recursive: true })
+for (const shot of responsiveShots) {
+  await shoot(shot, { width: 375, height: 812 }, responsiveOutput)
+}
 
 await browser.close()
-console.log(`done: ${shots.length}`)
+console.log(`done: ${shots.length + responsiveShots.length}`)

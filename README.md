@@ -128,7 +128,14 @@ pwsh -File scripts/backup-restore-smoke-wsl.ps1
 
 ## 🖼️ Визуальные доказательства
 
-Скриншоты — реальные страницы продукта. Desktop full-page. Полный реестр и параметры пересъёмки: [docs/assets/screens/manifest.md](docs/assets/screens/manifest.md).
+Скриншоты — реальные страницы продукта. Desktop full-page снят при `1920x1080`;
+mobile `375x812` подтверждает режимы `wide`, `reading` и `detail-with-aside`.
+Полный реестр и параметры пересъёмки:
+[docs/assets/screens/manifest.md](docs/assets/screens/manifest.md).
+
+| Wide | Reading | Detail with aside |
+|---|---|---|
+| ![Wiki dashboard, mobile](docs/screenshots/375x812/wide.png) | ![Создание документа, mobile](docs/screenshots/375x812/reading.png) | ![Task-досье, mobile](docs/screenshots/375x812/detail-with-aside.png) |
 
 ### Дашборд
 

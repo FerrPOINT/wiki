@@ -12,6 +12,7 @@
 | Theme            | Dark                                             |
 | Auth state       | Mocked authenticated user for private pages      |
 | Desktop viewport | 1920x1080                                        |
+| Mobile viewport  | 375x812                                          |
 
 ## Desktop pages
 
@@ -20,7 +21,7 @@
 | [03-dashboard.png](../../screenshots/03-dashboard.png)                       | `/`                               | Dashboard Wiki, последние документы и task-связи | 1920x1080 |
 | [04-spaces.png](../../screenshots/04-spaces.png)                             | `/spaces`                         | Пространства, дерево документов и доступы        | 1920x1080 |
 | [05-document-compose.png](../../screenshots/05-document-compose.png)         | `/documents/new`                  | Создание документа                               | 1920x1080 |
-| [06-document-view.png](../../screenshots/06-document-view.png)               | `/documents/product-requirements` | Просмотр, редактирование, публикация и ревизии   | 1920x1294 |
+| [06-document-view.png](../../screenshots/06-document-view.png)               | `/documents/product-requirements` | Просмотр, редактирование, публикация и ревизии   | 1920x1080 |
 | [07-task-dossiers.png](../../screenshots/07-task-dossiers.png)               | `/tasks`                          | Карточки задач                                   | 1920x1080 |
 | [08-task-dossier-detail.png](../../screenshots/08-task-dossier-detail.png)   | `/tasks/SDLC-42`                  | Документы и фазы задачи                          | 1920x1080 |
 | [09-phase-dossiers.png](../../screenshots/09-phase-dossiers.png)             | `/phases`                         | Карточки фаз workflow                            | 1920x1080 |
@@ -33,8 +34,17 @@
 | [16-search.png](../../screenshots/16-search.png)                             | `/search`                         | Поиск по документам, задачам, фазам и материалам | 1920x1080 |
 | [17-admin.png](../../screenshots/17-admin.png)                               | `/admin`                          | Администрирование                                | 1920x1080 |
 
+## Responsive modes
+
+| Файл | Route | Режим | Viewport |
+|---|---|---|---|
+| [wide.png](../../screenshots/375x812/wide.png) | `/` | `wide` | 375x812 |
+| [reading.png](../../screenshots/375x812/reading.png) | `/documents/new` | `reading` | 375x812 |
+| [detail-with-aside.png](../../screenshots/375x812/detail-with-aside.png) | `/tasks/SDLC-42` | `detail-with-aside` | 375x812 |
+
 ## Review checklist
 
-- Every route listed in `README.md` has a desktop screenshot.
+- Every product route listed in `README.md` has a desktop screenshot.
+- All three semantic page modes have mobile screenshot evidence.
 - Key authenticated flows are covered with deterministic mocked API responses.
 - Any frontend route change must update this manifest and regenerate screenshots.

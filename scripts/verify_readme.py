@@ -19,6 +19,9 @@ REQUIRED_ANCHORS = {
 }
 REQUIRED_PROOF = {
     "12-templates.png",
+    "375x812/detail-with-aside.png",
+    "375x812/reading.png",
+    "375x812/wide.png",
 }
 MD_IMAGE_RE = re.compile(r"!\[[^]]*\]\(([^)]+)\)")
 HTML_IMAGE_RE = re.compile(r"<img\b[^>]*\bsrc=[\"']([^\"']+)[\"']", re.IGNORECASE)

@@ -98,9 +98,9 @@ The PostgreSQL smoke suite must include an API-level matrix for outsider, viewer
 ## 9. Screenshot And Page Evidence
 
 - `frontend/scripts/shoot-evidence.mjs` covers the approved MVP route set from `docs/ROUTING.md`.
-- `README.md` renders a visible screenshot gallery for every desktop route.
-- `docs/assets/screens/manifest.md` references the same screenshot files as README.
-- Mobile smoke screenshots cover dashboard, spaces, document view, task dossier and search.
+- `README.md` renders a visible screenshot gallery for every desktop product route.
+- `docs/assets/screens/manifest.md` references the desktop gallery and representative mobile evidence.
+- Mobile smoke screenshots cover `wide`, `reading` and `detail-with-aside` at `375x812` without body overflow.
 - Operational `/api/v1/health` and `/api/v1/health/ready` probes are API-only and do not require screenshots.
 
 ## 10. Ops And Readiness Checks

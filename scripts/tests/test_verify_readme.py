@@ -33,8 +33,11 @@ class VerifyReadmeTests(unittest.TestCase):
             '<a name="quality"></a>\n'
             '<a name="license"></a>\n'
             '![templates](docs/screenshots/12-templates.png)\n'
+            '![wide](docs/screenshots/375x812/wide.png)\n'
+            '![reading](docs/screenshots/375x812/reading.png)\n'
+            '![detail](docs/screenshots/375x812/detail-with-aside.png)\n'
         )
-        for name in ["12-templates.png"]:
+        for name in validator.REQUIRED_PROOF:
             asset = root / "docs/screenshots" / name
             asset.parent.mkdir(parents=True, exist_ok=True)
             asset.write_bytes(b"png")
