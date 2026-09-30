@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  useLogout,
   useArchiveDocument,
   useCreateDocument,
   useCreateFileEvidence,
@@ -19,6 +20,10 @@ import {
   useUpdateDocumentDraft,
   wikiKeys,
 } from './hooks'
+import { useAuthStore } from '@/shared/auth/store'
+
+const sso = vi.hoisted(() => ({ endSso: vi.fn() }))
+vi.mock('@sdlc/ui/sso', () => ({ endSso: sso.endSso }))
 
 const archiveDocument = vi.hoisted(() => vi.fn())
 const createDocument = vi.hoisted(() => vi.fn())
@@ -118,6 +123,22 @@ function documentResponse(overrides: Record<string, unknown> = {}) {
 describe('wiki API hooks', () => {
   afterEach(() => {
     vi.clearAllMocks()
+    useAuthStore.setState({ token: null })
+  })
+
+  it('starts central logout without a transient local login redirect', async () => {
+    useAuthStore.setState({ token: 'test-token' })
+    const client = new QueryClient()
+    client.setQueryData(['existing'], { value: true })
+    const { result } = renderHook(() => useLogout(), { wrapper: wrapperFor(client) })
+
+    await act(async () => {
+      await result.current.mutateAsync()
+    })
+
+    expect(sso.endSso).toHaveBeenCalledOnce()
+    expect(useAuthStore.getState().token).toBe('test-token')
+    expect(client.getQueryData(['existing'])).toEqual({ value: true })
   })
 
   it('creates file evidence by claiming staged attachment without sending checksum', async () => {
