@@ -145,14 +145,9 @@ export function useCurrentUser() {
 }
 
 export function useLogout() {
-  const clearAuth = useAuthStore((state) => state.logout)
-  const queryClient = useQueryClient()
-
   return useMutation({
     mutationFn: async () => {},
     onSettled: () => {
-      clearAuth()
-      queryClient.clear()
       endSso(ssoConfig)
     },
   })

@@ -6,6 +6,8 @@
 
 ## [Unreleased]
 
+- Центральный выход больше не вызывает кратковременный локальный login redirect.
+
 ### Added
 
 - Streamlined поиск по Wiki (#13); searchable/compact каталог шаблонов (#12).
