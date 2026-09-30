@@ -96,7 +96,7 @@ features/
 - Unit/интеграционные — Vitest + React Testing Library.
 - E2E — Playwright.
 - Каждый feature покрывается через user-centric сценарии.
-- После UI-изменений — desktop full-page evidence `1920x1080`; narrow-viewport behavior проверяется UI tests и browser QA, а не README/manifest screenshots.
+- После UI-изменений — desktop full-page evidence `1920x1080` для route gallery и mobile `375x812` evidence для `wide`, `reading` и `detail-with-aside`.
 
 ## 11. Производительность
 

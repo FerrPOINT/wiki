@@ -169,7 +169,7 @@ export function AdminPage() {
   ]
 
   return (
-    <div className="min-w-0 max-w-screen-2xl space-y-6">
+    <div className="min-w-0 space-y-6">
       <header>
         <h1 className="text-2xl font-bold">Администрирование</h1>
         <p className="mt-1 max-w-3xl text-sm text-text-muted">

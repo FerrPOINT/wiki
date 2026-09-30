@@ -97,6 +97,17 @@ describe('AppShell', () => {
     expect(screen.getByRole('link', { name: 'Обзор' })).not.toHaveAttribute('aria-current')
   })
 
+  it('uses the shared readable mode for documents', () => {
+    mockHooks()
+
+    const { container } = renderShell('/documents/document-1')
+
+    expect(container.querySelector('[data-page-layout]')).toHaveAttribute(
+      'data-page-layout',
+      'reading',
+    )
+  })
+
   it('keeps focus inside the mobile drawer and restores it after Escape', async () => {
     const user = userEvent.setup()
     mockHooks()

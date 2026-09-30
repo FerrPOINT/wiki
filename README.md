@@ -128,67 +128,24 @@ pwsh -File scripts/backup-restore-smoke-wsl.ps1
 
 ## 🖼️ Визуальные доказательства
 
-Скриншоты — реальные страницы продукта. Desktop full-page. Полный реестр и параметры пересъёмки: [docs/assets/screens/manifest.md](docs/assets/screens/manifest.md).
+Скриншоты — реальные страницы продукта при `1920x1080` в default theme. Полный
+реестр маршрутов и параметры responsive QA, включая `375px`, хранятся в
+[manifest](docs/assets/screens/manifest.md).
 
-### Дашборд
+### Дашборд (`wide`)
 
 ![Дашборд](docs/screenshots/03-dashboard.png)
 
-### Пространства
-
-![Пространства](docs/screenshots/04-spaces.png)
-
-### Создание документа
+### Создание документа (`reading/form`)
 
 ![Создание документа](docs/screenshots/05-document-compose.png)
 
-### Просмотр документа
-
-![Просмотр документа](docs/screenshots/06-document-view.png)
-
-### Task-досье
-
-![Task-досье](docs/screenshots/07-task-dossiers.png)
-
-### Карточка task-досье
+### Карточка task-досье (`detail-with-aside`)
 
 ![Карточка task-досье](docs/screenshots/08-task-dossier-detail.png)
 
-### Phase-досье
-
-![Phase-досье](docs/screenshots/09-phase-dossiers.png)
-
-### Карточка phase-досье
-
-![Карточка phase-досье](docs/screenshots/10-phase-dossier-detail.png)
-
-### Evidence
-
-![Evidence](docs/screenshots/11-evidence.png)
-
-### Шаблоны
-
-![Шаблоны](docs/screenshots/12-templates.png)
-
-### Журнал аудита
-
-![Журнал аудита](docs/screenshots/13-audit-log.png)
-
-### Пользователи
-
-![Пользователи](docs/screenshots/14-users.png)
-
-### Настройки
-
-![Настройки](docs/screenshots/15-settings.png)
-
-### Поиск
-
-![Поиск](docs/screenshots/16-search.png)
-
-### Администрирование
-
-![Администрирование](docs/screenshots/17-admin.png)
+Остальные маршруты и снимки адаптивной проверки перечислены в
+[визуальном manifest](docs/assets/screens/manifest.md).
 
 <a name="cli"></a>
 
