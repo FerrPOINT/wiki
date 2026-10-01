@@ -235,7 +235,7 @@ export function TemplatesPage() {
               {showCreate ? 'Свернуть форму' : 'Новый шаблон'}
             </Button>
           )}
-          <Button asChild size="sm" variant="secondary" className="min-h-10 sm:min-h-10">
+          <Button asChild size="sm" variant="secondary" className="min-h-11 md:hidden">
             <Link to="/documents/new">
               <FileText className="h-4 w-4" aria-hidden />
               Создать документ

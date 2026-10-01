@@ -1,5 +1,11 @@
 # Current State - Wiki
 
+> **Header update 2026-10-01:** общий `PlatformHeader` и navigation-only sidebar;
+> команда создания сохранена в desktop Header и mobile drawer. Account identity
+> не дублирует email. API/SSO hook не меняются. Локальный frontend gate: 182/182;
+> актуальная live-приёмка и её границы фиксируются в
+> [плане Header](plan/2026-10-01-platform-header.md).
+
 > **Snapshot 2026-09-22:** source is `main` after the merged search/dossier, template and platform-shell work. Authority is repository code, generated OpenAPI and executed checks; update this file whenever capability state changes.
 
 > **Verification status:** the old draft-PR, low-disk and unmerged-index notices are obsolete. Paged evidence/search and bounded task/phase catalogs are merged. Repository documentation, frontend and backend gates define the current release evidence; environment-specific smoke limitations are recorded only in **Known Local Environment Limits**.

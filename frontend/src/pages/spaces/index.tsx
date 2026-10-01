@@ -363,7 +363,7 @@ export function SpacesPage() {
               <Plus className="h-4 w-4" /> Создать пространство
             </Button>
           )}
-          <Button asChild size="sm" className="min-h-10">
+          <Button asChild size="sm" className="min-h-11 md:hidden">
             <Link to="/documents/new">Новый документ</Link>
           </Button>
         </div>

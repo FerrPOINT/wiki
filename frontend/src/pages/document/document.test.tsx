@@ -176,6 +176,10 @@ describe('DocumentPage', () => {
     setupDocument()
 
     expect(screen.getByRole('heading', { name: 'Требования Wiki' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Новый документ' })).toHaveClass(
+      'md:hidden',
+      'min-h-11',
+    )
     expect(screen.getByRole('button', { name: 'Просмотр' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: 'Правка' })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.queryByLabelText('Markdown черновика')).not.toBeInTheDocument()

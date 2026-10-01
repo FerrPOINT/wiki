@@ -100,6 +100,10 @@ describe('DashboardPage', () => {
       'href',
       '/documents/new',
     )
+    expect(screen.getByRole('link', { name: /новый документ/i })).toHaveClass(
+      'md:hidden',
+      'min-h-11',
+    )
     expect(await screen.findAllByText('Требования к Wiki')).toHaveLength(2)
     expect(screen.getByRole('link', { name: /BASE-42/ })).toHaveAttribute(
       'href',

@@ -44,6 +44,9 @@
 
 ## Review checklist
 
+- Текущий общий Header: [live evidence 2026-10-01](2026-10-01-platform-header/README.md).
+  Основной реестр выше остаётся предыдущим snapshot, не текущей Header-приёмкой.
+
 - Every product route listed in `README.md` has a desktop screenshot.
 - All three semantic page modes have mobile screenshot evidence.
 - Key authenticated flows are covered with deterministic mocked API responses.

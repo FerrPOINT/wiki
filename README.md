@@ -132,6 +132,16 @@ pwsh -File scripts/backup-restore-smoke-wsl.ps1
 реестр маршрутов и параметры responsive QA, включая `375px`, хранятся в
 [manifest](docs/assets/screens/manifest.md).
 
+Общий Header принят отдельным live-прогоном 2026-10-01. Текущий пример при
+1920 px и default dark theme:
+
+![Общий Header Wiki](docs/assets/screens/2026-10-01-platform-header/spaces-dark-1920.png)
+
+Параметры образа, проверки и mobile/wide evidence находятся в
+[Header evidence](docs/assets/screens/2026-10-01-platform-header/README.md).
+Три примера ниже - предыдущий snapshot страниц до интеграции общего Header;
+они не являются доказательством его текущей геометрии.
+
 ### Дашборд (`wide`)
 
 ![Дашборд](docs/screenshots/03-dashboard.png)

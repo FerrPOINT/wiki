@@ -238,6 +238,8 @@ CLI returns JSON by default, exits non-zero on API errors and sends `Idempotency
 
 ## References
 
+- Общий Header: [решение и приёмка 2026-10-01](plan/2026-10-01-platform-header.md).
+
 - `docs/PRODUCT_REQUIREMENTS.md`
 - `docs/API.md`
 - `docs/CLI.md`

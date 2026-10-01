@@ -132,7 +132,7 @@ export function DashboardPage() {
           <p className="mt-1 text-sm text-text-muted">Документы, задачи и фазы процесса.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button asChild size="sm" className="min-h-10">
+          <Button asChild size="sm" className="min-h-11 md:hidden">
             <Link to="/documents/new">
               <FilePlus2 className="h-4 w-4" />
               Новый документ

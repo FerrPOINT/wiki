@@ -273,7 +273,7 @@ export function DocumentPage() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button asChild size="sm" variant="secondary" className="h-10">
+          <Button asChild size="sm" variant="secondary" className="min-h-11 md:hidden">
             <Link to="/documents/new">
               <FilePenLine className="h-4 w-4" />
               Новый документ
