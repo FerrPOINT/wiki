@@ -6,6 +6,14 @@
 
 ## [Unreleased]
 
+- Справка CLI скрывает значения token env variables, сохраняя имена переменных.
+
+- CLI поддерживает самостоятельный attachment upload, явный idempotency key, timeout, общий
+  SDLC_API_TOKEN, JSON errors/empty success и безопасный download. Повтор multipart upload с тем же
+  ключом определяется содержимым файла, а не случайным HTTP boundary; рабочие сценарии и ограничения
+  CLI документированы. Диагностика скрывает исходные и обрезанные credentials, включая newline в
+  secret stdin.
+
 - Центральный выход больше не вызывает кратковременный локальный login redirect.
 
 ### Added
