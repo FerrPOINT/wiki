@@ -165,6 +165,16 @@ function renderPhaseList(
 }
 
 describe('PhaseDossierPage', () => {
+  it('keeps documents and evidence as parallel primary content rather than an aside', () => {
+    renderPhasePage()
+    const documents = screen.getByRole('region', { name: 'Документы фазы' })
+    const layout = documents.parentElement!
+    expect(layout).toHaveAttribute('data-dossier-layout', 'parallel-content')
+    expect(layout).not.toHaveClass('page-split')
+    expect(within(layout).getByRole('region', { name: 'Материалы' })).toBeInTheDocument()
+    expect(within(layout).queryByRole('complementary')).not.toBeInTheDocument()
+  })
+
   afterEach(() => {
     vi.clearAllMocks()
   })

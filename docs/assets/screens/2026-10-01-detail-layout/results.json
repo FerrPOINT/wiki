@@ -1,0 +1,28 @@
+{
+  "captured_at": "2026-10-01",
+  "timezone": "Europe/Moscow",
+  "mode": "isolated production image, live APIs, no mocks",
+  "source_base": "86d37b921b71c5acc7f8afc0b86c25e032b90a59",
+  "image_id": "sha256:6b57e6437fd82767e77af00f7072eebb77b473f36bdfa227c469fb9e2998d07d",
+  "compose_config_hash": "8d890f6c922af3bba4ed6d092d41383e7b3ae2c4591ce50b3bc1cbc140565c13",
+  "browser": "Playwright 1.63.0, Chromium 153, axe-core 4.13.0",
+  "tests_passed": 2,
+  "retries": 0,
+  "duration_minutes": 3.5,
+  "detail_combinations": 108,
+  "main_route_combinations": 144,
+  "detail_widths": [375, 768, 1023, 1024, 1279, 1280, 1440, 1920, 2560],
+  "themes": ["light", "gray", "dark"],
+  "serious_or_critical_axe_violations": 0,
+  "page_overflow_errors": 0,
+  "console_or_network_errors": 0,
+  "detail_navigation_mutations": 0,
+  "source_sha256": {
+    "frontend/src/widgets/app-shell.tsx": "38e62f1dfdedbc44f5ab484f0060f2683b45fd2003237d8cb35b15d14fb188b9",
+    "frontend/src/pages/document/index.tsx": "3063c08309020c368d9c0c088d8ddc3443bc130c983e6d6c049df96912b11328",
+    "frontend/src/pages/task-dossier/index.tsx": "246dda66cd273971d12fb0c0ef8e2b460dec9a37c7500f0a3722e7c0edb56732",
+    "frontend/src/pages/phase-dossier/index.tsx": "25beee9b1a48dce5fda782ea8ab1e837215a870b7c011b6fc3b4148cae27417b"
+  },
+  "cleanup": "Only own fixture document/space archived; retained evidence/history isolated from user volumes",
+  "limitations": ["Not OCI revision attestation", "User deployment not rolled out", "Final platform release gate still required"]
+}

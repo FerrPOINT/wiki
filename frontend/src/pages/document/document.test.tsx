@@ -143,6 +143,31 @@ function setupDocument(document: Document = baseDocument, revisionHistory?: Docu
 }
 
 describe('DocumentPage', () => {
+  it('keeps a non-default space in task and phase context links', () => {
+    setupDocument({ ...baseDocument, space_key: 'DOCS' })
+    expect(screen.getByRole('link', { name: 'BASE-42' })).toHaveAttribute(
+      'href',
+      '/tasks/BASE-42?space=DOCS',
+    )
+    expect(screen.getByRole('link', { name: 'implementation' })).toHaveAttribute(
+      'href',
+      '/phases/implementation?space=DOCS',
+    )
+  })
+
+  it('keeps the document primary before its named shared context rail', () => {
+    setupDocument()
+    const rail = screen.getByRole('complementary', { name: 'Контекст документа' })
+    const layout = rail.parentElement!
+    expect(layout).toHaveClass('page-split', 'items-start')
+    expect(layout.lastElementChild).toBe(rail)
+    expect(
+      within(layout.firstElementChild as HTMLElement).getByText('Опубликованное содержание'),
+    ).toBeInTheDocument()
+    expect(layout.querySelector('.wiki-rendered')).toHaveClass('page-readable')
+    expect(within(rail).getByText('Ревизии')).toBeInTheDocument()
+  })
+
   afterEach(() => {
     vi.clearAllMocks()
   })
@@ -158,10 +183,13 @@ describe('DocumentPage', () => {
     expect(screen.getByText('Approved body')).toBeInTheDocument()
     expect(screen.getByText('Ревизия 2')).toBeInTheDocument()
     expect(screen.getByText('Утверждён MVP scope')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'BASE-42' })).toHaveAttribute('href', '/tasks/BASE-42')
+    expect(screen.getByRole('link', { name: 'BASE-42' })).toHaveAttribute(
+      'href',
+      '/tasks/BASE-42?space=BASE',
+    )
     expect(screen.getByRole('link', { name: 'implementation' })).toHaveAttribute(
       'href',
-      '/phases/implementation',
+      '/phases/implementation?space=BASE',
     )
     expect(screen.getByRole('link', { name: /Smoke proof/ })).toHaveAttribute('href', '/evidence')
 

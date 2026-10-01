@@ -570,7 +570,9 @@ async function gotoWiki(page: Page, path = '/') {
 }
 
 test.describe('wiki smoke', () => {
-  test('uses the shared work-area geometry across semantic page modes', async ({ page }, testInfo) => {
+  test('uses the shared work-area geometry across semantic page modes', async ({
+    page,
+  }, testInfo) => {
     await installWikiApiMocks(page)
 
     for (const viewport of [
@@ -957,6 +959,8 @@ test.describe('wiki smoke', () => {
     await gotoWiki(page, '/admin')
     await expect(page.getByRole('heading', { name: 'Администрирование' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Состояние инстанса' })).toBeVisible()
-    await expect(page.getByText('Файлы до 25 МБ')).toBeVisible()
+    await expect(
+      page.getByRole('region', { name: 'Состояние инстанса' }).getByText('Лимит файла: 25 МБ'),
+    ).toBeVisible()
   })
 })

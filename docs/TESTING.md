@@ -2,6 +2,33 @@
 
 ## 1. Principles
 
+### Live Detail Geometry
+
+На уже работающем локальном стенде:
+
+```powershell
+$env:SDLC_LIVE_QA = '1'
+$env:PLAYWRIGHT_BASE_URL = 'http://localhost:7732'
+pnpm --dir frontend exec playwright test e2e/detail-layout-live.spec.ts --project chromium --workers 1 --retries 0
+```
+
+Учётка читается из соседнего `services-base/deploy/.local/qa-session.json` либо
+явного `SDLC_QA_SESSION_FILE`. Секреты и trace не публикуются. Реальные API
+создают отдельные QA space/document/evidence и две ревизии; после проверки
+документ и пространство архивируются штатным API. Evidence и аудит сохраняются
+как исторические данные в собственном QA-пространстве до удаления изолированного
+Compose-проекта; удаление пользовательских volumes не требуется.
+
+Тест проверяет чтение/правку документа, задачу и фазу: 108 сочетаний в трёх темах,
+rail/gap/position и intentional wide columns, границы 1023/1024 и 1279/1280,
+ширину чтения не более 760 px, full-page screenshots и axe. Keyboard/touch
+проверяют revision dialog, Escape/focus return и переходы с сохранением space.
+При измерении страниц мутаций нет; fixture setup/cleanup отделены от UI-проверки.
+На том же образе повторяется существующая live route matrix Wiki из Task Tracker.
+
+Результат 1 октября: 2/2 теста, 252 сочетания, retries=0; выбранные full-page
+кадры и fingerprints: [evidence](assets/screens/2026-10-01-detail-layout/README.md).
+
 - Tests cover meaningful user paths and domain invariants.
 - Backend tests prefer real PostgreSQL for repositories and focused mocks for services.
 - Frontend tests use Vitest and Testing Library; E2E uses Playwright.

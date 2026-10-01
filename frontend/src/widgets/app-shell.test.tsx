@@ -97,15 +97,19 @@ describe('AppShell', () => {
     expect(screen.getByRole('link', { name: 'Обзор' })).not.toHaveAttribute('aria-current')
   })
 
-  it('uses the shared readable mode for documents', () => {
+  it.each([
+    ['/documents/document-1', 'detail-with-aside'],
+    ['/documents/new', 'reading'],
+    ['/settings', 'reading'],
+    ['/tasks/BASE-42', 'detail-with-aside'],
+    ['/phases/implementation', 'wide'],
+    ['/tasks', 'wide'],
+    ['/phases', 'wide'],
+    ['/spaces', 'wide'],
+  ])('uses the semantic mode %s -> %s', (route, mode) => {
     mockHooks()
-
-    const { container } = renderShell('/documents/document-1')
-
-    expect(container.querySelector('[data-page-layout]')).toHaveAttribute(
-      'data-page-layout',
-      'reading',
-    )
+    const { container } = renderShell(route)
+    expect(container.querySelector('[data-page-layout]')).toHaveAttribute('data-page-layout', mode)
   })
 
   it('keeps focus inside the mobile drawer and restores it after Escape', async () => {

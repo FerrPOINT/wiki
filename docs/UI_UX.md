@@ -51,7 +51,16 @@ Wiki is an operational knowledge tool. It should feel quiet, readable and effici
 - API-backed pages have clear loading, empty and error states; permission-denied states must stay explicit where access differs by role.
 - The page does not expose deferred reports, notifications, webhook delivery or runner controls.
 
-## 6. References
+## 6. Геометрия Detail
+
+Документ и задача используют общий `detail-with-aside`/`page-split` из Base:
+fluid primary + правый rail 320 px от 1024 px, ниже контекст следует за primary.
+Текст документа использует `page-readable` внутри primary; весь документ вместе
+с контекстом больше не ограничен reading-режимом. Досье фазы использует `wide`:
+документы и материалы являются равноправными рабочими областями, а не sidebar.
+Mapping и реальные проверки: [план](plans/2026-10-01-detail-layout-modes.md).
+
+## 7. References
 
 - `docs/PAGE_DESIGN.md`
 - `docs/FRONTEND_ARCHITECTURE.md`
