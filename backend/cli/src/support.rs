@@ -52,8 +52,11 @@ impl std::error::Error for ApiFailure {}
 fn redact(text: &str, secrets: &[String]) -> String {
     secrets
         .iter()
-        .filter(|s| !s.is_empty())
-        .fold(text.to_owned(), |t, s| t.replace(s, "[REDACTED]"))
+        .flat_map(|value| [value.as_str(), value.trim()])
+        .filter(|value| !value.is_empty())
+        .fold(text.to_owned(), |text, value| {
+            text.replace(value, "[REDACTED]")
+        })
 }
 pub fn report(error: &anyhow::Error, format: ErrorFormat, secrets: &[String]) {
     let failure = error.downcast_ref::<ApiFailure>();
@@ -184,10 +187,10 @@ pub fn parse_error(error: clap::Error) -> std::process::ExitCode {
     let mut secrets = Vec::new();
     for flag in ["--token", "--value", "--password", "--secret"] {
         for (index, arg) in args.iter().enumerate() {
-            if arg == flag {
-                if let Some(value) = args.get(index + 1) {
-                    secrets.push(value.clone());
-                }
+            if arg == flag
+                && let Some(value) = args.get(index + 1)
+            {
+                secrets.push(value.clone());
             }
             if let Some(value) = arg.strip_prefix(&format!("{flag}=")) {
                 secrets.push(value.to_string());
@@ -228,5 +231,6 @@ mod tests {
     #[test]
     fn credentials_are_redacted() {
         assert_eq!(redact("bad secret", &["secret".into()]), "bad [REDACTED]");
+        assert_eq!(redact("bad secret", &["secret\n".into()]), "bad [REDACTED]");
     }
 }

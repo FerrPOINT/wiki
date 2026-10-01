@@ -317,3 +317,37 @@ async fn token_priority_is_flag_then_wiki_then_shared() {
         );
     }
 }
+
+#[tokio::test]
+async fn trimmed_credential_in_api_error_is_redacted() {
+    let server = Server::start(vec![(
+        403,
+        json!({"error": {"code": "DENIED", "message": "fixture-token"}}),
+    )])
+    .await;
+    let url = format!("{}/api/v1", server.url);
+    let output = tokio::task::spawn_blocking(move || {
+        Command::new(env!("CARGO_BIN_EXE_wiki"))
+            .args([
+                "--api-url",
+                &url,
+                "--token",
+                " fixture-token ",
+                "--error-format",
+                "json",
+                "space",
+                "list",
+            ])
+            .env_remove("WIKI_TOKEN")
+            .env_remove("SDLC_API_TOKEN")
+            .output()
+            .unwrap()
+    })
+    .await
+    .unwrap();
+    assert!(!output.status.success());
+    assert!(output.stdout.is_empty());
+    let error: Value = serde_json::from_slice(&output.stderr).unwrap();
+    assert_eq!(error["error"]["status"], 403);
+    assert_eq!(error["error"]["message"], "[REDACTED]");
+}

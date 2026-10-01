@@ -581,7 +581,12 @@ async fn main() -> std::process::ExitCode {
         Err(error) => return support::parse_error(error),
     };
     let token = cli.token.or_else(|| std::env::var("SDLC_API_TOKEN").ok());
-    let secrets = token.clone().into_iter().collect::<Vec<_>>();
+    let secrets = token
+        .clone()
+        .into_iter()
+        .flat_map(|value| [value.trim().to_owned(), value])
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>();
     let mut secrets = secrets;
     match &cli.command {
         Commands::Auth {
