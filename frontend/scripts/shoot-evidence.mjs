@@ -514,7 +514,10 @@ async function shoot(shot, viewport, outputDir) {
       })
     await page.locator('[data-page-layout]').waitFor({ state: 'visible', timeout: 10_000 })
     if (shot.openRevision) {
-      await page.getByRole('button', { name: /Открыть ревизию/ }).first().click()
+      await page
+        .getByRole('button', { name: /Открыть ревизию/ })
+        .first()
+        .click()
       await page.getByRole('heading', { name: 'Снимок ревизии' }).waitFor({ timeout: 5_000 })
     }
     await page.waitForTimeout(1000)

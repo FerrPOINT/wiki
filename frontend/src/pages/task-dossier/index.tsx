@@ -349,7 +349,7 @@ export function TaskDossierPage() {
         />
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+      <div className="page-split items-start">
         <section className="min-w-0 space-y-3" aria-labelledby="task-documents-title">
           <h2 id="task-documents-title" className="text-base font-semibold">
             Документы задачи
@@ -416,7 +416,7 @@ export function TaskDossierPage() {
           )}
         </section>
 
-        <section className="min-w-0 space-y-3" aria-labelledby="task-phases-title">
+        <aside className="min-w-0 space-y-3" aria-labelledby="task-phases-title">
           <h2 id="task-phases-title" className="text-base font-semibold">
             Фазы материалов
           </h2>
@@ -437,7 +437,7 @@ export function TaskDossierPage() {
               ))}
             </ul>
           )}
-        </section>
+        </aside>
       </div>
 
       <section className="space-y-3" aria-labelledby="task-evidence-title">

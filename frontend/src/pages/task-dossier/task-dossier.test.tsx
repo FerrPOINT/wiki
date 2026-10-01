@@ -160,6 +160,17 @@ function renderTaskList(
 }
 
 describe('TaskDossierPage', () => {
+  it('uses a shared secondary rail for phases after the document primary', () => {
+    renderTaskPage()
+    const rail = screen.getByRole('complementary', { name: 'Фазы материалов' })
+    const layout = rail.parentElement!
+    expect(layout).toHaveClass('page-split', 'items-start')
+    expect(layout.lastElementChild).toBe(rail)
+    expect(
+      within(layout.firstElementChild as HTMLElement).getByText('Документы задачи'),
+    ).toBeInTheDocument()
+  })
+
   afterEach(() => {
     vi.clearAllMocks()
   })

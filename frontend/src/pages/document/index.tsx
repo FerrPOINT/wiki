@@ -75,7 +75,11 @@ function RenderedDocumentBody({
   return (
     <div
       ref={containerRef}
-      className={compact ? 'wiki-rendered wiki-rendered-compact' : 'wiki-rendered'}
+      className={
+        compact
+          ? 'wiki-rendered wiki-rendered-compact page-readable'
+          : 'wiki-rendered page-readable'
+      }
       dangerouslySetInnerHTML={{ __html: html }}
     />
   )
@@ -434,7 +438,7 @@ export function DocumentPage() {
         </section>
       )}
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
+      <section className="page-split items-start" aria-label="Документ и контекст">
         <div className="min-w-0 space-y-4">
           {isEditing && (
             <Card>
@@ -521,7 +525,7 @@ export function DocumentPage() {
           )}
         </div>
 
-        <div className="min-w-0 space-y-4">
+        <aside className="min-w-0 space-y-4" aria-label="Контекст документа">
           {!canEdit && (
             <Card>
               <CardHeader>
@@ -577,7 +581,10 @@ export function DocumentPage() {
               {document.task_keys.map((taskKey) => (
                 <Link
                   key={taskKey}
-                  to={`/tasks/${taskKey}`}
+                  to={{
+                    pathname: `/tasks/${encodeURIComponent(taskKey)}`,
+                    search: new URLSearchParams({ space: document.space_key }).toString(),
+                  }}
                   className="flex min-w-0 items-start gap-2 rounded-md border border-border p-3 hover:bg-surface-raised"
                 >
                   <FileText className="h-4 w-4 shrink-0 text-accent" />
@@ -587,7 +594,10 @@ export function DocumentPage() {
               {document.phase_keys.map((phaseKey) => (
                 <Link
                   key={phaseKey}
-                  to={`/phases/${phaseKey}`}
+                  to={{
+                    pathname: `/phases/${encodeURIComponent(phaseKey)}`,
+                    search: new URLSearchParams({ space: document.space_key }).toString(),
+                  }}
                   className="flex min-w-0 items-start gap-2 rounded-md border border-border p-3 hover:bg-surface-raised"
                 >
                   <GitBranch className="h-4 w-4 shrink-0 text-accent" />
@@ -695,7 +705,7 @@ export function DocumentPage() {
               )}
             </CardContent>
           </Card>
-        </div>
+        </aside>
       </section>
 
       <Card>

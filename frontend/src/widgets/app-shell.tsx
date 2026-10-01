@@ -126,11 +126,9 @@ export function AppShell() {
 
   const navItems = [...baseNavItems, ...(user?.is_system_admin ? adminNavItems : [])]
   const pageLayout =
-    location.pathname === '/settings' ||
-    location.pathname === '/documents/new' ||
-    /^\/documents\/[^/]+$/.test(location.pathname)
+    location.pathname === '/settings' || location.pathname === '/documents/new'
       ? 'reading'
-      : /^\/(tasks|phases)\/[^/]+$/.test(location.pathname)
+      : /^\/(documents|tasks)\/[^/]+$/.test(location.pathname)
         ? 'detail-with-aside'
         : 'wide'
 

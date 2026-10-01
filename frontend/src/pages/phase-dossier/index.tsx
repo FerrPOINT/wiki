@@ -334,7 +334,10 @@ export function PhaseDossierPage() {
         />
       )}
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div
+        className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
+        data-dossier-layout="parallel-content"
+      >
         <section className="min-w-0 space-y-3" aria-labelledby="phase-documents-title">
           <h2 id="phase-documents-title" className="text-base font-semibold">
             Документы фазы
