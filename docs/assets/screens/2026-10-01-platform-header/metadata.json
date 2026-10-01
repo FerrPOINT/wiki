@@ -1,0 +1,49 @@
+{
+  "captured_date": "2026-10-01",
+  "acceptance_stage": "premerge-candidate",
+  "base_commit": "c83ff8cb20986007d4219ef37dab86b0468b90e5",
+  "services_base_commit": "f7726b150b1d04c3ba2f96dc4900e544d8b22432",
+  "app_shell_sha256": "6dcf3fe04b68a698fab5141387759ca2887ad31709879ca1401652e2ac9bd5cc",
+  "pnpm_lock_sha256": "394dc6e6d7b06bfa0816c9b5916cf23f747598066f4075bf6b1a344bd0131c0b",
+  "page_source_sha256": {
+    "dashboard": "94cf674d4c65ce3cba0ac5af261ebb71b6e9f89802ef9343f957666a003121aa",
+    "spaces": "b7a6e8779656c773b5771a238d69e6b5464d911f24ef3494adbc19a68154f985",
+    "templates": "094f242dc1f49b2d9bafcab3a4b60d79f8b5094de6478e5d43efe1aabc7b3ed2",
+    "document": "777c03ea85abf6e0848deb43a795fa7af11fc6cfb2dc95dda3fed5404bd19c3d"
+  },
+  "runtime_image": "sha256:6237b54ef78a5303af9b7cb74637c39de86e41abc31c843dc56176ac8dba4ede",
+  "compose_service_config_hash": "8d890f6c922af3bba4ed6d092d41383e7b3ae2c4591ce50b3bc1cbc140565c13",
+  "production_js": {
+    "file": "index-CuYO43-8.js",
+    "sha256": "aa0ce8646ec734dca685399d0ca090c5a5d3acf310ed4dbe718c41f9691b3e52"
+  },
+  "production_css": {
+    "file": "index-Djz0P5Ql.css",
+    "sha256": "6637722549d2fe907326ee6122e3e4a31453dd3b07913560a22e02c30bdb4cb1"
+  },
+  "mock_api": false,
+  "browser": "Playwright 1.63.0, Chromium 153, axe-core 4.13.0",
+  "header_combinations": 99,
+  "wiki_live_gate": {
+    "passed": 3,
+    "failed": 0,
+    "skipped": 0,
+    "playwright_retries": 0,
+    "duration_minutes": 5.9,
+    "layout_combinations": 351,
+    "scope": "Reviewed candidate: Header, twelve core pages and document/task/phase detail; full six-app SSO is repeated after merge on the final main image"
+  },
+  "frontend_tests_passed": 182,
+  "backend_tests_passed": 142,
+  "backend_postgres_tests_executed": 16,
+  "backend_source_files_verified": 76,
+  "runtime_errors": [],
+  "api_writes_during_header_navigation": [],
+  "limitations": [
+    "Candidate checkout fingerprint is not an OCI revision attestation.",
+    "Backend OpenAPI comparison normalizes Windows CRLF before comparing generated output; raw diff failure was not counted as a pass.",
+    "A fixture setup failure after web recreation was not counted as acceptance; readiness is now explicit and the complete three-test Wiki gate was rerun successfully.",
+    "Working sdlc-demo was not rolled out.",
+    "Final whole-platform release gate remains separate."
+  ]
+}

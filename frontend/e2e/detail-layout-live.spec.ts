@@ -30,6 +30,8 @@ test('Wiki details use real shared rails or intentional wide content with scoped
 }) => {
   test.setTimeout(900_000)
   mkdirSync(screenshots, { recursive: true })
+  const ready = await request.get(`${base}/api/v1/health/ready`)
+  expect(ready.status(), 'Wiki readiness through the UI proxy').toBe(200)
   const login = await request.post('http://localhost:7701/auth/login', {
     data: { email: account.email, password: account.password },
   })
@@ -50,7 +52,7 @@ test('Wiki details use real shared rails or intentional wide content with scoped
       data: { key: space, name: `QA ${space} layout`, description: 'Isolated detail acceptance' },
     })
     spaceCreated = createdSpace.ok()
-    expect(spaceCreated).toBeTruthy()
+    expect(spaceCreated, `QA space create HTTP ${createdSpace.status()}`).toBeTruthy()
     const createdDocument = await request.post(`${api}/spaces/${space}/documents`, {
       headers,
       data: {
@@ -150,6 +152,10 @@ test('Wiki details use real shared rails or intentional wide content with scoped
           [2560, 1440],
         ]) {
           await page.setViewportSize({ width, height })
+          if (route.startsWith('document-'))
+            await expect(
+              page.getByRole('link', { name: 'Новый документ', exact: true }),
+            ).toHaveCount(1)
           await page.evaluate(() => window.scrollTo(0, 0))
           const dimensions = await layout.evaluate((element) => {
             const primary = element.firstElementChild!.getBoundingClientRect()

@@ -1,4 +1,4 @@
-import { useState, type ElementType } from 'react'
+import { useEffect, useState, type ElementType } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
 import {
   ClipboardList,
@@ -29,8 +29,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   PageFrame,
+  PlatformHeader,
   PlatformMark,
-  ServiceSwitcher,
   ThemeToggle,
 } from '@sdlc/ui/ui'
 import { useCurrentUser, useLogout } from '@/shared/api/hooks'
@@ -78,7 +78,7 @@ function SidebarLink({
       onClick={onClick}
       title={responsiveLabel ? label : undefined}
       className={({ isActive }) =>
-        `flex min-h-11 items-center gap-3 rounded-md px-3 text-sm transition-colors ${
+        `flex min-h-11 items-center gap-3 rounded-md px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-10 ${
           responsiveLabel ? 'md:justify-center md:px-2 xl:justify-start xl:px-3' : ''
         } ${
           isActive
@@ -123,6 +123,16 @@ export function AppShell() {
   const location = useLocation()
   const { data: user } = useCurrentUser()
   const logout = useLogout()
+  const identity = user?.display_name?.trim() || user?.email || 'Пользователь'
+
+  useEffect(() => {
+    const desktop = window.matchMedia('(min-width: 768px)')
+    const closeOnDesktop = () => {
+      if (desktop.matches) setMobileMenuOpen(false)
+    }
+    desktop.addEventListener('change', closeOnDesktop)
+    return () => desktop.removeEventListener('change', closeOnDesktop)
+  }, [])
 
   const navItems = [...baseNavItems, ...(user?.is_system_admin ? adminNavItems : [])]
   const pageLayout =
@@ -134,24 +144,10 @@ export function AppShell() {
 
   return (
     <div className="min-h-screen bg-background text-text-primary">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[var(--shell-sidebar-compact)] flex-col border-r border-border bg-surface md:flex xl:w-[var(--shell-sidebar-expanded)]">
-        <div className="flex h-[var(--shell-header-height)] shrink-0 items-center justify-center border-b border-border px-3 xl:justify-start xl:px-5">
-          <div className="flex min-w-0 items-center gap-3" role="img" aria-label="Wiki">
-            <PlatformMark size="sm" withName={false} />
-            <div className="hidden min-w-0 xl:block">
-              <div className="truncate text-sm font-semibold">Wiki</div>
-              <div className="truncate text-xs text-text-muted">База знаний</div>
-            </div>
-          </div>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-2 xl:p-3">
-          <NavigationList items={navItems} responsiveLabels />
-        </div>
-      </aside>
-
-      <div className="min-h-screen md:pl-[var(--shell-sidebar-compact)] xl:pl-[var(--shell-sidebar-expanded)]">
-        <header className="sticky top-0 z-30 flex h-[var(--shell-header-height)] items-center justify-between border-b border-border bg-surface px-3 md:px-4">
-          <div className="flex min-w-0 items-center gap-2">
+      <PlatformHeader
+        currentServiceKey="wiki"
+        leading={
+          <>
             <Dialog open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <DialogTrigger asChild>
                 <Button
@@ -165,7 +161,7 @@ export function AppShell() {
               </DialogTrigger>
               <DialogContent
                 aria-describedby={undefined}
-                className="!left-0 !top-0 !flex !h-dvh !max-h-dvh !w-[min(320px,calc(100%-2rem))] !max-w-none !translate-x-0 !translate-y-0 !flex-col !gap-0 !rounded-none !border-y-0 !border-l-0 !p-0 [&>button]:h-10 [&>button]:w-10"
+                className="!left-0 !top-0 !flex !h-dvh !max-h-dvh !w-[min(320px,calc(100%-2rem))] !max-w-none !translate-x-0 !translate-y-0 !flex-col !gap-0 !rounded-none !border-y-0 !border-l-0 !p-0 [&>button]:h-11 [&>button]:w-11"
               >
                 <DialogHeader className="flex h-[var(--shell-header-height)] shrink-0 justify-center border-b border-border px-4 pr-14 text-left">
                   <DialogTitle className="text-base">
@@ -177,6 +173,12 @@ export function AppShell() {
                   </DialogTitle>
                 </DialogHeader>
                 <div className="min-h-0 flex-1 overflow-y-auto p-3">
+                  <Button asChild className="mb-3 min-h-11 w-full gap-2">
+                    <Link to="/documents/new" onClick={() => setMobileMenuOpen(false)}>
+                      <FilePlus2 className="h-4 w-4" aria-hidden />
+                      Новый документ
+                    </Link>
+                  </Button>
                   <NavigationList items={navItems} onNavigate={() => setMobileMenuOpen(false)} />
                 </div>
               </DialogContent>
@@ -184,51 +186,58 @@ export function AppShell() {
 
             <Link
               to="/"
-              className="flex h-10 min-w-10 items-center justify-center gap-2 px-2 md:hidden"
+              className="hidden h-11 min-w-11 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus min-[360px]:flex md:h-10 md:min-w-10"
               aria-label="Wiki"
             >
               <PlatformMark size="sm" withName={false} />
-              <span className="hidden truncate text-sm font-semibold min-[420px]:inline">Wiki</span>
             </Link>
-            <span className="hidden truncate text-sm font-medium text-text-secondary md:inline">
-              База знаний
-            </span>
-          </div>
-
-          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-            <Button asChild size="sm" className="h-10 min-w-10 gap-1 px-2 sm:px-3">
+          </>
+        }
+        actions={
+          <>
+            <Button asChild size="sm" className="hidden h-10 min-w-10 gap-2 px-3 md:inline-flex">
               <Link to="/documents/new" aria-label="Новый документ">
                 <FilePlus2 className="h-4 w-4" aria-hidden />
-                <span className="hidden sm:inline">Новый документ</span>
+                <span>Новый документ</span>
               </Link>
             </Button>
-            <ServiceSwitcher currentKey="wiki" />
-            <div className="[&_button]:h-10 [&_button]:w-10">
-              <ThemeToggle />
-            </div>
+            <ThemeToggle />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-10 w-10" aria-label="Аккаунт">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-11 w-11 md:h-10 md:w-10"
+                  aria-label="Аккаунт"
+                >
                   <User className="h-5 w-5" aria-hidden />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <div className="px-2 py-1.5 text-sm font-medium text-text-primary">
-                  {user?.display_name ?? user?.email ?? 'Пользователь'}
+              <DropdownMenuContent align="end" className="w-64 max-w-[calc(100vw-2rem)]">
+                <div className="break-words px-2 py-1.5 text-sm font-medium text-text-primary">
+                  {identity}
                 </div>
-                <div className="px-2 pb-2 text-xs text-text-muted">{user?.email}</div>
+                {user?.email && user.email !== identity && (
+                  <div className="break-words px-2 pb-2 text-xs text-text-muted">{user.email}</div>
+                )}
                 <DropdownMenuItem
-                  onClick={() => logout.mutate()}
-                  className="gap-2 text-text-secondary"
+                  onSelect={() => logout.mutate()}
+                  className="min-h-11 gap-2 text-text-secondary md:min-h-10"
                 >
                   <LogOut className="h-4 w-4" aria-hidden />
                   <span>Выйти</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
-        </header>
-
+          </>
+        }
+      />
+      <aside className="fixed bottom-0 left-0 top-[var(--shell-header-height)] z-20 hidden w-[var(--shell-sidebar-compact)] flex-col border-r border-border bg-surface md:flex xl:w-[var(--shell-sidebar-expanded)]">
+        <div className="min-h-0 flex-1 overflow-y-auto p-2 xl:p-3">
+          <NavigationList items={navItems} responsiveLabels />
+        </div>
+      </aside>
+      <div className="md:pl-[var(--shell-sidebar-compact)] xl:pl-[var(--shell-sidebar-expanded)]">
         <main className="shell-main min-h-[calc(100dvh-var(--shell-header-height))]">
           <PageFrame mode={pageLayout}>
             <Outlet />

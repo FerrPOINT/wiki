@@ -159,6 +159,14 @@ Baseline test fixtures:
 
 ## 7. References
 
+- Header acceptance: [2026-10-01](plan/2026-10-01-platform-header.md).
+  `SDLC_LIVE_QA=1 SDLC_QA_SESSION_FILE=<private-json> E2E_BASE_URL=<wiki-url>`
+  включает `frontend/e2e/platform-header-live.spec.ts` против живых сервисов.
+  Секретный JSON содержит `email`/`password`, хранится вне Git; trace/video
+  выключены. `SDLC_HEADER_EVIDENCE_DIR` задаёт каталог PNG и `results.json`.
+  Запускать Chromium с retries=0, установленным Base package и актуальным
+  production image; mock smoke не заменяет этот gate.
+
 - `docs/ARCHITECTURE.md`
 - `docs/API.md`
 - `docs/DEPLOYMENT.md`

@@ -96,6 +96,10 @@ describe('TemplatesPage', () => {
     setupTemplates()
 
     expect(screen.getByRole('heading', { name: 'Шаблоны' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Создать документ' })).toHaveClass(
+      'md:hidden',
+      'min-h-11',
+    )
     expect(screen.getByRole('link', { name: 'Использовать шаблон Требования' })).toHaveAttribute(
       'href',
       '/documents/new?template=requirements',
