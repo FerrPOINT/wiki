@@ -1,20 +1,31 @@
-FROM rust:1.88-slim-bookworm AS builder
+# Umbrella build for the SDLC fleet root compose (context = /opt/dev/sdlc).
+# The repo's own backend/Dockerfile builds with context=backend only; this
+# variant additionally stages the sibling services-base checkout so the
+# sdlc-auth-core path dependency (../../../services-base/...) resolves.
+FROM rust:1.88.0-slim-bookworm AS builder
 
 RUN apt-get update && apt-get install -y pkg-config libssl-dev unzip curl unzip && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY backend/Cargo.toml backend/Cargo.lock* ./
-COPY backend/shared ./shared
-COPY backend/domain ./domain
-COPY backend/infra ./infra
-COPY backend/migration ./migration
-COPY backend/migrations ./migrations
-COPY backend/app ./app
-COPY backend/api ./api
-COPY backend/server ./server
-COPY backend/cli ./cli
+# infra/Cargo.toml: sdlc-auth-core = { path = "../../../services-base/..." }
+# /app/infra/../../../services-base == /services-base
+# sdlc-auth-core inherits workspace.package fields; stage a minimal root manifest.
+COPY services-base/Cargo.toml /services-base/Cargo.toml
+COPY services-base/crates/sdlc-telemetry /services-base/crates/sdlc-telemetry
+COPY services-base/crates/sdlc-auth-core /services-base/crates/sdlc-auth-core
+COPY services-base/crates/sdlc-shared /services-base/crates/sdlc-shared
+COPY wiki/backend/Cargo.toml wiki/backend/Cargo.lock* ./
+COPY wiki/backend/shared ./shared
+COPY wiki/backend/domain ./domain
+COPY wiki/backend/infra ./infra
+COPY wiki/backend/migration ./migration
+COPY wiki/backend/migrations ./migrations
+COPY wiki/backend/app ./app
+COPY wiki/backend/api ./api
+COPY wiki/backend/server ./server
+COPY wiki/backend/cli ./cli
 
-RUN cargo build --release --bin server
+RUN cargo build --locked --release --bin server
 
 FROM debian:bookworm-slim
 RUN apt-get update \

@@ -171,3 +171,7 @@ Baseline test fixtures:
 - `docs/API.md`
 - `docs/DEPLOYMENT.md`
 - `justfile`
+
+## Общая база
+
+Подключение версий, границы контрактов и проверки описаны в [BASE_INTEGRATION](BASE_INTEGRATION.md).
