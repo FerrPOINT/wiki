@@ -21,7 +21,7 @@ struct Cli {
     )]
     api_url: String,
 
-    #[arg(long, env = "WIKI_TOKEN")]
+    #[arg(long, env = "WIKI_TOKEN", hide_env_values = true)]
     token: Option<String>,
 
     #[arg(long, env = "WIKI_OUTPUT", value_enum, default_value = "json")]
