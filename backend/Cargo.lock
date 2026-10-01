@@ -4308,11 +4308,15 @@ name = "wiki-cli"
 version = "0.2.0"
 dependencies = [
  "anyhow",
+ "api",
+ "app",
  "axum",
  "clap",
  "reqwest",
  "serde",
  "serde_json",
+ "shared",
+ "tempfile",
  "tokio",
  "urlencoding",
 ]

@@ -11,6 +11,7 @@ name = "wiki"
 path = "src/main.rs"
 
 [dependencies]
+tempfile = "3"
 clap = { workspace = true, features = ["derive", "env"] }
 reqwest = { workspace = true, features = ["json", "multipart", "rustls-tls"] }
 serde = { workspace = true }
@@ -21,3 +22,7 @@ urlencoding = "2"
 
 [dev-dependencies]
 axum = { workspace = true }
+
+api = { path = "../api" }
+app = { path = "../app" }
+shared = { path = "../shared" }
