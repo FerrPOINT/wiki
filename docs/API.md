@@ -197,3 +197,7 @@ The pre-development API contract is frozen when these checks pass:
 ## Multipart idempotency в CLI-пакете
 
 Replay защищённых upload requests с одинаковым key сравнивает упорядоченные поля multipart: имя поля, filename, content type и checksum содержимого. Случайный boundary не влияет на hash. Изменение файла или его метаданных с прежним key даёт conflict. JSON writes сохраняют прежний request hash и защиту base revision. Upload keys, сохранённые предыдущей версией по raw multipart body, сохраняют старый hash до истечения retention; replay через новую версию может вернуть conflict, поэтому такие ключи нельзя использовать для автоматического повторного создания upload.
+
+## Общая база
+
+Подключение версий, границы контрактов и проверки описаны в [BASE_INTEGRATION](BASE_INTEGRATION.md).

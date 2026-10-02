@@ -1,17 +1,32 @@
-FROM node:22-slim AS builder
+# Umbrella build for the SDLC fleet root compose (context = /opt/dev/sdlc).
+# The repo's own frontend/Dockerfile builds with context=repo-root only; this
+# variant additionally stages the sibling services-base frontend so the
+# `@sdlc/ui` file dependency (../../services-base/frontend) resolves.
+FROM node:22.20.0-bookworm-slim AS builder
 
 RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
 
-WORKDIR /app
-COPY openapi/openapi.json ../openapi/openapi.json
-COPY frontend/package.json frontend/pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+# Preserve the workspace sibling layout so both pnpm's file dependency and
+# Tailwind's shared UI source path resolve the same way as a local checkout.
+WORKDIR /workspace/wiki/frontend
+COPY wiki/frontend/package.json wiki/frontend/pnpm-lock.yaml wiki/frontend/pnpm-workspace.yaml ./
+COPY services-base/frontend /workspace/services-base/frontend
+COPY wiki/openapi/openapi.json /workspace/wiki/openapi/openapi.json
+COPY wiki/frontend/scripts/generate-exports.mjs ./scripts/generate-exports.mjs
+# pnpm resolves file: dependencies from the importer package root.
+RUN ln -s /workspace/services-base /workspace/wiki/services-base && pnpm install --frozen-lockfile
 
-COPY frontend/ ./
-RUN pnpm build
+COPY wiki/frontend/ ./
+ARG VITE_PLATFORM_BRANDING_URL=""
+ENV VITE_PLATFORM_BRANDING_URL=${VITE_PLATFORM_BRANDING_URL}
+ARG VITE_PLATFORM_SERVICES_URL=""
+ENV VITE_PLATFORM_SERVICES_URL=${VITE_PLATFORM_SERVICES_URL}
+ARG VITE_AUTH_ISSUER="http://localhost:7701"
+ENV VITE_AUTH_ISSUER=${VITE_AUTH_ISSUER}
+RUN pnpm generate:api && pnpm build
 
 FROM nginx:alpine
-COPY --from=builder /app/dist /usr/share/nginx/html
-COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /workspace/wiki/frontend/dist /usr/share/nginx/html
+COPY wiki/frontend/nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

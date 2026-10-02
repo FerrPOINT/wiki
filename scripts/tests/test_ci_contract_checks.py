@@ -16,7 +16,7 @@ class CiContractChecksTest(unittest.TestCase):
         backend_job = workflow.split("\n  backend:\n", 1)[1].split("\n  frontend:\n", 1)[0]
         self.assertIn("image: postgres:16-alpine", backend_job)
         self.assertIn("POSTGRES_HOST_AUTH_METHOD: trust", backend_job)
-        self.assertIn("cargo test --workspace -- --test-threads=1", backend_job)
+        self.assertIn("cargo test --locked --workspace -- --test-threads=1", backend_job)
         self.assertIn(
             "WIKI_TEST_DATABASE_URL: postgres://wiki@127.0.0.1:5432/wiki_test",
             backend_job,

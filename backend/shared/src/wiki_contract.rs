@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 
-use crate::{AppConfig, AppError};
+#[cfg(feature = "runtime")]
+use crate::AppConfig;
+use crate::AppError;
 
 #[derive(Clone, Debug)]
 pub struct WikiClaims {
@@ -27,6 +29,7 @@ pub struct WikiSettingsSnapshot {
 }
 
 impl WikiSettingsSnapshot {
+    #[cfg(feature = "runtime")]
     pub fn from_config(config: &AppConfig) -> Self {
         Self::from_values(
             config.auth.registration_enabled,

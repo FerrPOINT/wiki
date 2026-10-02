@@ -113,6 +113,7 @@ dependencies = [
  "metrics-exporter-prometheus",
  "reqwest",
  "sdlc-shared",
+ "sdlc-telemetry",
  "serde",
  "serde_json",
  "shared",
@@ -2872,6 +2873,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "sdlc-telemetry"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "tokio",
+ "tower",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "security-framework"
 version = "3.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3015,6 +3028,7 @@ dependencies = [
  "axum",
  "infra",
  "reqwest",
+ "sdlc-telemetry",
  "serde_json",
  "serial_test",
  "shared",
