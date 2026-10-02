@@ -5,9 +5,13 @@ import { MemoryRouter } from 'react-router'
 import { ThemeProvider } from '@sdlc/ui/lib'
 import { LoginPage } from './'
 import { useAuthStore } from '@/shared/auth/store'
+import { SsoLogoutPendingError } from '@sdlc/ui/sso'
 
 const beginSso = vi.hoisted(() => vi.fn(async () => {}))
-vi.mock('@sdlc/ui/sso', () => ({ beginSso }))
+vi.mock('@sdlc/ui/sso', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@sdlc/ui/sso')>()),
+  beginSso,
+}))
 
 function renderLogin(path = '/login') {
   return render(
@@ -21,7 +25,7 @@ function renderLogin(path = '/login') {
 
 describe('Wiki login', () => {
   beforeEach(() => {
-    beginSso.mockClear()
+    beginSso.mockReset().mockResolvedValue(undefined)
     useAuthStore.getState().logout()
   })
 
@@ -39,5 +43,34 @@ describe('Wiki login', () => {
     expect(beginSso).not.toHaveBeenCalled()
     await userEvent.click(screen.getByRole('button', { name: 'Войти через SDLC' }))
     expect(beginSso).toHaveBeenCalledTimes(1)
+    expect(beginSso).toHaveBeenCalledWith(expect.objectContaining({ clientId: 'wiki' }), '/', {
+      interactive: true,
+    })
+  })
+
+  it.each([new SsoLogoutPendingError(), new DOMException('Cancelled', 'AbortError')])(
+    'does not report interrupted automatic navigation as an auth failure: %s',
+    async (error) => {
+      beginSso.mockRejectedValueOnce(error)
+      renderLogin()
+      await waitFor(() => expect(beginSso).toHaveBeenCalledOnce())
+      await userEvent.click(screen.getByRole('button', { name: 'Войти через SDLC' }))
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(beginSso).toHaveBeenLastCalledWith(
+        expect.objectContaining({ clientId: 'wiki' }),
+        '/',
+        { interactive: true },
+      )
+    },
+  )
+
+  it('shows real auth failures and clears them on an explicit retry', async () => {
+    beginSso.mockRejectedValueOnce(new Error('private auth details'))
+    renderLogin('/login?logged_out=1')
+    await userEvent.click(screen.getByRole('button', { name: 'Войти через SDLC' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Central Auth временно недоступен.')
+    expect(screen.queryByText(/private auth details/)).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Войти через SDLC' }))
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
   })
 })

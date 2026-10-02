@@ -244,3 +244,7 @@ CLI returns JSON by default, exits non-zero on API errors and sends `Idempotency
 - `docs/API.md`
 - `docs/CLI.md`
 - `docs/ROADMAP.md`
+
+## Общая база
+
+Подключение версий, границы контрактов и проверки описаны в [BASE_INTEGRATION](BASE_INTEGRATION.md).

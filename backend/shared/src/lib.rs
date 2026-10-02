@@ -1,7 +1,9 @@
+#[cfg(feature = "runtime")]
 pub mod config;
 pub mod id;
 pub mod wiki_contract;
 
+#[cfg(feature = "runtime")]
 pub use config::*;
 pub use id::*;
 pub use wiki_contract::*;
@@ -12,7 +14,7 @@ pub use sdlc_shared::{AppError, AppResult, ErrorBody, ErrorEnvelope};
 
 use chrono::{DateTime, FixedOffset, Utc};
 
-#[cfg(test)]
+#[cfg(all(test, feature = "runtime"))]
 #[path = "lib_tests.rs"]
 mod tests;
 

@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "node scripts/generate-exports.mjs && tsc --noEmit && vite build",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "node scripts/generate-exports.mjs && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
@@ -19,9 +19,10 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "openapi:check": "node node_modules/@sdlc/ui/scripts/sdlc-openapi-check.mjs --spec ../openapi/openapi.json --schema src/api/generated.ts",
-    "openapi:compat": "SPEC=openapi/openapi.json SPEC_NAME=openapi/openapi.json node node_modules/@sdlc/ui/scripts/sdlc-openapi-compat.mjs --base-ref origin/main",
-    "postinstall": "openapi-typescript ../openapi/openapi.json -o src/api/generated.ts",
-    "prebuild": "node scripts/generate-exports.mjs"
+    "openapi:compat": "node scripts/base-openapi-compat.mjs",
+    "postinstall": "openapi-typescript ../openapi/openapi.json -o src/api/generated.ts && node scripts/generate-exports.mjs",
+    "prebuild": "node scripts/generate-exports.mjs",
+    "theme:check": "node ../../services-base/frontend/scripts/sdlc-effective-theme-check.mjs"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.13",
@@ -81,5 +82,6 @@
       "baseline-browser-mapping": "2.11.0",
       "js-yaml": "4.3.2"
     }
-  }
+  },
+  "packageManager": "pnpm@10.28.1"
 }

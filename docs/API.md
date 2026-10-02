@@ -193,3 +193,7 @@ The pre-development API contract is frozen when these checks pass:
 | Settings | Secrets, connection strings, storage paths and bootstrap credentials are never returned. |
 | Health | `/health/ready` fails until runtime dependencies are initialized. |
 | Idempotency | Repeating a successful protected domain/admin write with the same `Idempotency-Key` replays the original response without a duplicate write; reusing the key for another payload returns `409 CONFLICT`. |
+
+## Общая база
+
+Подключение версий, границы контрактов и проверки описаны в [BASE_INTEGRATION](BASE_INTEGRATION.md).

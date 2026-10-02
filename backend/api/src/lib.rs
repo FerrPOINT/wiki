@@ -503,24 +503,13 @@ fn api_metrics_scope(path: &str) -> &'static str {
     }
 }
 
-async fn request_id_middleware(mut request: Request, next: Next) -> Response {
+async fn request_id_middleware(request: Request, next: Next) -> Response {
     let request_id = request
         .headers()
         .get(REQUEST_ID_HEADER)
         .and_then(normalize_request_id)
         .unwrap_or_else(new_request_id);
-    if let Ok(value) = HeaderValue::from_str(&request_id) {
-        request
-            .headers_mut()
-            .insert(HeaderName::from_static(REQUEST_ID_HEADER), value);
-    }
-    let mut response = next.run(request).await;
-    if let Ok(value) = HeaderValue::from_str(&request_id) {
-        response
-            .headers_mut()
-            .insert(HeaderName::from_static(REQUEST_ID_HEADER), value);
-    }
-    response
+    sdlc_telemetry::run_with_request_id(request, next, request_id).await
 }
 
 fn normalize_request_id(value: &HeaderValue) -> Option<String> {

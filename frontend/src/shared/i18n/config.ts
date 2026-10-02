@@ -7,9 +7,11 @@ import ru from './locales/ru.json'
 i18n.use(initReactI18next).init({
   // Fleet-shared translations (services-base @sdlc/ui/i18n) fill gaps;
   // local keys win on conflicts.
+  defaultNS: 'wiki',
+  fallbackNS: 'base',
   resources: {
-    en: { translation: { ...sdlcLocales.en, ...en } },
-    ru: { translation: { ...sdlcLocales.ru, ...ru } },
+    en: { base: sdlcLocales.en, wiki: en },
+    ru: { base: sdlcLocales.ru, wiki: ru },
   },
   lng: 'ru',
   fallbackLng: 'en',
