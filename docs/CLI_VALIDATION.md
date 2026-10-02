@@ -1,43 +1,35 @@
 # Проверка CLI Wiki
 
-Проверено 2026-10-01 в отдельном task checkout `feat/cli-workflows`.
+Проверено 2026-10-02 в изолированном task checkout `feat/cli-workflows`.
 
-## Пройденные проверки
+## Среда и обязательные gates
 
-Среда: Ubuntu WSL, Rust stable 1.98.0, PostgreSQL 16 в отдельном временном кластере/БД, Node 22.23.3, pnpm 10.28.1, Python 3.12.3. Чистый опубликованный Services Base `main`: `c008bec701086d4f9201180ea5451f64e88ab519`; политика зависимости от `main` сохранена. Backend snapshot сверён с task checkout. Services Base не изменён этой задачей.
+Ubuntu WSL, rustc 1.98.0 (88d9e12ae 2026-08-18), Node 22.23.3 / pnpm 10.28.1, Python 3.12.3. Чистый опубликованный Services Base `main`: `69bd8ef0fe424c2018bcdc509ddd25f7fce02a7e`. Политика зависимости от `main` сохраняется; Base и исходные dirty checkout не изменены этой задачей. Product lockfile обновлён под изменившиеся зависимости опубликованного Base без обновления registry versions. Wiki дополнительно использует существующие workspace sha2/hex для составных ключей.
 
-Из `backend`:
+Backend: fmt, workspace/all-target Clippy с `-D warnings`, workspace tests, OpenAPI drift и release workspace — успешно. Workspace: **155 passed, 0 ignored**, 0 failed. CI/CD дополнительно проверен штатным параллельным workspace invocation; Task Tracker и Wiki — последовательным invocation их workflows.
 
 ```bash
+cd backend
 cargo fmt --all -- --check
 cargo clippy --locked --workspace --all-targets -- -D warnings
-WIKI_TEST_DATABASE_URL=postgres://.../wiki_test cargo test --locked --workspace -- --test-threads=1
+cargo test --locked --workspace -- --test-threads=1
 cargo build --locked --release --workspace
+WIKI_TEST_DATABASE_URL=postgres://.../wiki_test cargo test --locked --workspace -- --test-threads=1
 ```
 
-- Workspace: 152 passed, 0 failed. CLI: 21 unit, 5 binary, 7 subprocess/HTTP workflows и 1 real API lifecycle.
-- Полный workspace suite запускается с явным URL отдельной PostgreSQL БД: все 16 `wiki_postgres_` действительно выполняются и проходят, а не возвращаются без проверки persistence.
-- Real API: space/tree, template apply/document create, draft/publish/history/revision/move/archive, task/phase dossier и evidence, summaries/search, standalone attachment upload/download.
-- Два отдельных процесса CLI повторяют document create и attachment upload с одинаковым явным key; возвращается прежний ID. Изменённое содержимое файла с тем же key возвращает JSON conflict 409.
-- Multipart hash regression: случайный boundary не меняет hash, filename/content type/content меняют; некорректный multipart отклоняется, upload больше 2 MiB сохраняет внешний configured limit.
-- HTTP fixtures: token precedence flag→WIKI_TOKEN→SDLC_API_TOKEN, timeout, explicit key, file/stdin, pages/filters, JSON/empty success, error status/code/message/request ID, credentials redaction и atomic download/no-clobber.
-- Проверены PostgreSQL persistence/rebuild, role matrix/revocation, idempotency replay, search FTS index, paged summaries и cursor stability.
+Docs validators и существующие CI-contract tests проходят. Frontend: install с `--no-frozen-lockfile`, OpenAPI check/compat с `origin/main`, tests, lint и build — успешно. Task Tracker дополнительно typecheck; Task Tracker/Wiki — предусмотренный format check. Frontend tests: Task Tracker 253, CI/CD 191, Wiki 182.
+
+## Регрессии и проверенные сценарии
+
+- Real API lifecycle расширен первым запуском и повтором всей `evidence add-file` с ключом длиной 128 байт: одинаковые evidence/attachment IDs, evidence count увеличивается только на один, скачанное содержимое совпадает. Изменение файла или metadata с прежним key возвращает JSON conflict 409. До исправления второй этап первой команды возвращал conflict.
+- HTTP fixture проверяет восстановление после upload success/evidence failure: отдельные процессы повторяют те же stage keys, upload переиспользуется. Проверены SHA-256/trim/длина child keys и отказ до upload для недопустимого parent key.
+- Самостоятельные document create/attachment upload передают явный ключ без изменения и сохраняют replay. Генерация ключей без аргумента не меняется; автоматических write retries нет.
+- Workspace запускается последовательно с отдельной PostgreSQL 16 БД и явным WIKI_TEST_DATABASE_URL: все 16 PostgreSQL tests выполняются. CLI real API использует production handlers с memory backend; persistence/replay/access/FTS/pages проверяются отдельным PostgreSQL suite.
+
+Существующие проверки file/stdin, pages, JSON/204, access/validation/conflict, transport timeout, credential redaction и download no-clobber сохраняются и проходят. Новые regressions воспроизвели замечания на исходной ветке, затем прошли после исправлений.
 
 ## Границы подтверждения
 
-CLI real API использует production handlers с memory backend; отдельный PostgreSQL suite проверяет постоянное хранилище. Existing memory API fixtures имеют общий process store и auth sessions: full workspace tests запускаются последовательно, как предписывает [TESTING.md](TESTING.md). Последовательность сохраняет изоляцию fixtures от взаимной инвалидации сессий.
+Проверки используют только fixture данные и собственные временные ресурсы. Постоянные Compose-группы, runtime images, volumes и production deployment не менялись. Windows native linking недоступен (`link.exe`); Rust gates выполнены в WSL. Новых endpoint, миграций или изменений Services Base нет. Merge и deploy не выполняются.
 
-UI, Docker images и runtime окружения продуктов не изменялись. Windows native linking недоступен (`link.exe`), полные gates выполнены в WSL. Совместимость старых сохранённых multipart idempotency keys и остальные ограничения описаны в [API.md](API.md) и [CLI.md](CLI.md). Новых document delete/restore и evidence edit нет; соответствующий API отсутствует.
-
-Ветка подготовлена для отдельного PR в `main`; merge и deploy не входят в пакет. Исходные незакоммиченные работы сохранены в исходных checkout.
-
-## Дополнительные gates перед PR
-
-- CLI suite после ревью: 34 tests, включая новый случай обрезанного credential в API error; stable Clippy проходит без подавления lints.
-- Docs: 5 Python tests и README structural validation на Python 3.12.3; существующие CI-contract checks сохраняют PostgreSQL service, явный URL и последовательный workspace test.
-- Frontend: install с `--no-frozen-lockfile`, OpenAPI check/compatibility с `origin/main`, 24 files / 182 tests, lint, format check и build — успешно. Проверены Git blobs с LF; Windows checkout CRLF не используется для Linux format gate.
-- OpenAPI drift и release build проверены на том же опубликованном Base main.
-- Новые CLI tests входят в существующий workspace gate; отдельный параллельный PostgreSQL запуск в CI не добавляется.
-- Changelog `[Unreleased]`, CLI/API/Architecture/validation документы соответствуют diff. Production runner/deploy и постоянные Compose-стенды не запускаются.
-
-Проверка исходной справки CLI выявила вывод значения token env variable в `--help`. В итоговой ветке `hide_env_values` скрывает значение, сохраняя имя переменной; subprocess regression выполняется с заданным fixture token и проверяет stdout/stderr. После этого изменения повторены CLI tests, Clippy и release build CLI; API/backend fixtures не меняются.
+Описание команд, configuration, input/output/errors и ограничения: [CLI.md](CLI.md).

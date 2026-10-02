@@ -3,6 +3,7 @@ use anyhow::{Context, Result, bail};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use reqwest::{Client, Method, multipart};
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use std::{
     io::Read,
     path::PathBuf,
@@ -500,6 +501,24 @@ impl ApiClient {
             .clone()
             .unwrap_or_else(|| idempotency_key(scope))
     }
+    fn evidence_file_keys(&self) -> Result<Option<(String, String)>> {
+        let Some(parent) = self.idempotency.as_deref() else {
+            return Ok(None);
+        };
+        let parent = parent.trim();
+        if !parent.is_ascii()
+            || parent.is_empty()
+            || parent.len() > 128
+            || reqwest::header::HeaderValue::try_from(parent).is_err()
+        {
+            bail!("idempotency key must be ASCII and between 1 and 128 characters");
+        }
+        let digest = hex::encode(Sha256::digest(parent.as_bytes()));
+        Ok(Some((
+            format!("wiki-evidence-v1-upload-{digest}"),
+            format!("wiki-evidence-v1-create-{digest}"),
+        )))
+    }
     async fn get(&self, path: &str) -> Result<Value> {
         support::json_response(self.request(Method::GET, path), &self.secrets()).await
     }
@@ -522,9 +541,22 @@ impl ApiClient {
     }
 
     async fn post_multipart(&self, path: &str, form: multipart::Form) -> Result<Value> {
+        self.post_multipart_with_key(path, form, None).await
+    }
+
+    async fn post_multipart_with_key(
+        &self,
+        path: &str,
+        form: multipart::Form,
+        key: Option<&str>,
+    ) -> Result<Value> {
         support::json_response(
             self.request(Method::POST, path)
-                .header("Idempotency-Key", self.write_key("upload"))
+                .header(
+                    "Idempotency-Key",
+                    key.map(str::to_owned)
+                        .unwrap_or_else(|| self.write_key("upload")),
+                )
                 .multipart(form),
             &self.secrets(),
         )
@@ -547,9 +579,23 @@ impl ApiClient {
     }
 
     async fn write_json(&self, method: Method, path: &str, body: Value) -> Result<Value> {
+        self.write_json_with_key(method, path, body, None).await
+    }
+
+    async fn write_json_with_key(
+        &self,
+        method: Method,
+        path: &str,
+        body: Value,
+        key: Option<&str>,
+    ) -> Result<Value> {
         support::json_response(
             self.request(method, path)
-                .header("Idempotency-Key", self.write_key("write"))
+                .header(
+                    "Idempotency-Key",
+                    key.map(str::to_owned)
+                        .unwrap_or_else(|| self.write_key("write")),
+                )
                 .json(&body),
             &self.secrets(),
         )
@@ -909,6 +955,7 @@ async fn execute_evidence(api: &ApiClient, command: EvidenceCommands) -> Result<
             .await
         }
         EvidenceCommands::AddFile(args) => {
+            let keys = api.evidence_file_keys()?;
             let bytes = std::fs::read(&args.file)
                 .with_context(|| format!("failed to read {}", args.file.display()))?;
             let filename = args
@@ -920,8 +967,15 @@ async fn execute_evidence(api: &ApiClient, command: EvidenceCommands) -> Result<
                 "file",
                 multipart::Part::bytes(bytes).file_name(filename.clone()),
             );
-            let attachment = api.post_multipart("/attachments", form).await?;
-            api.post_json(
+            let attachment = api
+                .post_multipart_with_key(
+                    "/attachments",
+                    form,
+                    keys.as_ref().map(|(upload, _)| upload.as_str()),
+                )
+                .await?;
+            api.write_json_with_key(
+                Method::POST,
                 "/evidence",
                 json!({
                     "space": args.space,
@@ -932,6 +986,7 @@ async fn execute_evidence(api: &ApiClient, command: EvidenceCommands) -> Result<
                     "title": args.title,
                     "attachment_id": attachment.get("id").cloned().unwrap_or(Value::Null)
                 }),
+                keys.as_ref().map(|(_, create)| create.as_str()),
             )
             .await
         }

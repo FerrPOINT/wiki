@@ -6,6 +6,8 @@
 
 ## [Unreleased]
 
+- `evidence add-file` использует разные стабильные ключи upload/create, производные от явного idempotency key; повтор составной команды больше не вызывает конфликт между этапами.
+
 - Справка CLI скрывает значения token env variables, сохраняя имена переменных.
 
 - CLI поддерживает самостоятельный attachment upload, явный idempotency key, timeout, общий

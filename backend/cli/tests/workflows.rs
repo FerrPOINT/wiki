@@ -13,6 +13,125 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
+
+#[tokio::test]
+async fn evidence_file_keys_survive_partial_failure_and_process_retries() {
+    let server = Server::start(vec![
+        (201, json!({"id":"attachment"})),
+        (500, json!({"error":{"message":"temporary failure"}})),
+        (201, json!({"id":"attachment"})),
+        (201, json!({"id":"evidence","attachment_id":"attachment"})),
+    ])
+    .await;
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("evidence.txt");
+    std::fs::write(&file, b"evidence").unwrap();
+    let parent = "k".repeat(128);
+    let padded = format!(" {parent} ");
+    let args = [
+        "--idempotency-key",
+        &padded,
+        "evidence",
+        "add-file",
+        "--space",
+        "CLI",
+        "--title",
+        "Evidence",
+        "--file",
+        file.to_str().unwrap(),
+    ];
+    let failed = server.run(&args, None).await;
+    assert!(!failed.status.success());
+    assert!(failed.stdout.is_empty());
+    let replay = success(&server.run(&args, None).await);
+    assert_eq!(replay["attachment_id"], "attachment");
+    let requests = server.requests();
+    assert_eq!(requests.len(), 4);
+    assert_eq!(requests[0].path, "/api/v1/attachments");
+    assert_eq!(requests[1].path, "/api/v1/evidence");
+    let upload = requests[0].key.as_deref().unwrap();
+    let create = requests[1].key.as_deref().unwrap();
+    assert_ne!(upload, create);
+    for (key, stage) in [(upload, "upload"), (create, "create")] {
+        let prefix = format!("wiki-evidence-v1-{stage}-");
+        assert!(key.starts_with(&prefix));
+        let digest = &key[prefix.len()..];
+        assert_eq!(
+            digest,
+            "69cd344d20fee04179a672ea3b2929da884e03975100369c926dedc642b5a364"
+        );
+        assert_eq!(digest.len(), 64);
+        assert!(
+            digest
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        );
+        assert!(key.is_ascii() && key.len() <= 128);
+    }
+    assert_eq!(requests[0].key, requests[2].key);
+    assert_eq!(requests[1].key, requests[3].key);
+    assert_eq!(requests[1].body, requests[3].body);
+    let unpadded = [
+        "--idempotency-key",
+        &parent,
+        "evidence",
+        "add-file",
+        "--space",
+        "CLI",
+        "--title",
+        "Evidence",
+        "--file",
+        file.to_str().unwrap(),
+    ];
+    let server2 = Server::start(vec![
+        (201, json!({"id":"attachment"})),
+        (201, json!({"id":"evidence"})),
+    ])
+    .await;
+    success(&server2.run(&unpadded, None).await);
+    assert_eq!(requests[0].key, server2.requests()[0].key);
+    assert_eq!(requests[1].key, server2.requests()[1].key);
+}
+
+#[tokio::test]
+async fn evidence_file_rejects_invalid_parent_before_upload() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("evidence.txt");
+    std::fs::write(&file, b"evidence").unwrap();
+    for key in [
+        " ".to_owned(),
+        "k".repeat(129),
+        "ключ".to_owned(),
+        "line\nbreak".to_owned(),
+    ] {
+        let server = Server::start(vec![
+            (201, json!({"id":"attachment"})),
+            (201, json!({"id":"evidence"})),
+        ])
+        .await;
+        let output = server
+            .run(
+                &[
+                    "--idempotency-key",
+                    &key,
+                    "--error-format",
+                    "json",
+                    "evidence",
+                    "add-file",
+                    "--title",
+                    "Evidence",
+                    "--file",
+                    file.to_str().unwrap(),
+                ],
+                None,
+            )
+            .await;
+        assert!(!output.status.success());
+        assert!(output.stdout.is_empty());
+        assert!(serde_json::from_slice::<Value>(&output.stderr).unwrap()["error"].is_object());
+        assert!(server.requests().is_empty(), "invalid key sent an upload");
+    }
+}
 #[derive(Debug, Clone)]
 struct Recorded {
     method: String,

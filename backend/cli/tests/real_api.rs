@@ -26,7 +26,7 @@ fn test_config_with_registration(registration_enabled: bool) -> Arc<shared::AppC
     })
 }
 
-fn run(url: &str, token: &str, args: &[&str], input: Option<&str>) -> serde_json::Value {
+fn run_output(url: &str, token: &str, args: &[&str], input: Option<&str>) -> std::process::Output {
     use std::io::Write;
     use std::process::{Command, Stdio};
     let mut child = Command::new(env!("CARGO_BIN_EXE_wiki"))
@@ -55,7 +55,11 @@ fn run(url: &str, token: &str, args: &[&str], input: Option<&str>) -> serde_json
             .write_all(input.as_bytes())
             .unwrap();
     }
-    let output = child.wait_with_output().unwrap();
+    child.wait_with_output().unwrap()
+}
+
+fn run(url: &str, token: &str, args: &[&str], input: Option<&str>) -> serde_json::Value {
+    let output = run_output(url, token, args, input);
     assert!(
         output.status.success(),
         "{:?}: {}",
@@ -226,6 +230,74 @@ async fn wiki_document_lifecycle_and_replay_against_real_api() {
     );
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("sample.txt");
+    std::fs::write(&file, b"wiki file").unwrap();
+    let evidence_key = "e".repeat(128);
+    let evidence_args = [
+        "--idempotency-key",
+        &evidence_key,
+        "--error-format",
+        "json",
+        "evidence",
+        "add-file",
+        "--space",
+        "CLI",
+        "--document",
+        id,
+        "--title",
+        "File evidence",
+        "--file",
+        file.to_str().unwrap(),
+    ];
+    let before = run(
+        &url,
+        token,
+        &["evidence", "list", "--space", "CLI", "--limit", "100"],
+        None,
+    );
+    let evidence = run(&url, token, &evidence_args, None);
+    let repeated = run(&url, token, &evidence_args, None);
+    assert_eq!(evidence["id"], repeated["id"]);
+    assert_eq!(evidence["attachment_id"], repeated["attachment_id"]);
+    let after = run(
+        &url,
+        token,
+        &["evidence", "list", "--space", "CLI", "--limit", "100"],
+        None,
+    );
+    assert_eq!(
+        after["evidence"].as_array().unwrap().len(),
+        before["evidence"].as_array().unwrap().len() + 1
+    );
+    let evidence_download = dir.path().join("evidence-download.txt");
+    run(
+        &url,
+        token,
+        &[
+            "attachment",
+            "download",
+            evidence["attachment_id"].as_str().unwrap(),
+            "--out",
+            evidence_download.to_str().unwrap(),
+        ],
+        None,
+    );
+    assert_eq!(std::fs::read(&evidence_download).unwrap(), b"wiki file");
+    let mut changed_title = evidence_args;
+    changed_title[11] = "Changed title";
+    let conflict = run_output(&url, token, &changed_title, None);
+    assert_eq!(conflict.status.code(), Some(1));
+    assert!(conflict.stdout.is_empty());
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&conflict.stderr).unwrap()["error"]["status"],
+        409
+    );
+    std::fs::write(&file, b"changed evidence").unwrap();
+    let conflict = run_output(&url, token, &evidence_args, None);
+    assert_eq!(conflict.status.code(), Some(1));
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&conflict.stderr).unwrap()["error"]["status"],
+        409
+    );
     std::fs::write(&file, b"wiki file").unwrap();
     let attachment = run(
         &url,
