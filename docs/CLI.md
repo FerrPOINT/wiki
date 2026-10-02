@@ -278,3 +278,9 @@ cargo test -p wiki-cli
 CLI real_api использует production handlers и изолированный memory backend, не заменяя PostgreSQL persistence tests API. Exit codes сохраняются: выполнение error — `1`, CLI parsing — `2`, success — `0`.
 
 Справка показывает имена token env variables, скрывая их значения даже при установленной переменной.
+
+## Готовые сборки
+
+Установка, platform requirements, source/checksum и ограничения локального candidate: [CLI_INSTALL.md](CLI_INSTALL.md).
+
+Текущие Linux/WSL candidates и установка: [CLI_INSTALL.md](CLI_INSTALL.md). Проверки против образов с PostgreSQL, границы fixture execution и блокеры обновления sdlc1: [CLI_VALIDATION.md](CLI_VALIDATION.md). Перед использованием с рабочим стендом требуется подтверждённая совместимость его backend и применённых миграций.

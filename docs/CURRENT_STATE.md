@@ -64,6 +64,9 @@
 
 ## Known Local Environment Limits
 
+- **CLI backend QA 2026-10-02:** Docker/WSL recovered; pinned backend/frontend/release gates, historical PostgreSQL restore and Wiki image CLI acceptance pass, including multipart replay and partial recovery. Rollout remains blocked by unavailable previous runtime/images and CI/CD applied migrations 36/37 missing from published main. No production pins/migration ledger changed; see [CLI_VALIDATION.md](CLI_VALIDATION.md).
+
+
 - 2026-09-20 audit-filter change: local Rust build and live browser QA are deferred while C: has about 0.08 GB free. CI must run the isolated PostgreSQL tests and OpenAPI drift gate; no working Docker volumes are changed by this PR.
 - Native Windows Rust linking currently requires MSVC `link.exe`; backend checks are run through WSL on this host.
 - `pnpm add` is blocked on this host by Corepack/Node `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING`; existing package binaries under `frontend/node_modules/.bin` can still be used for TypeScript/tests/build/lint verification.
