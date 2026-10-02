@@ -30,6 +30,16 @@ Docs validators и существующие CI-contract tests проходят. 
 
 ## Границы подтверждения
 
-Проверки используют только fixture данные и собственные временные ресурсы. Постоянные Compose-группы, runtime images, volumes и production deployment не менялись. Windows native linking недоступен (`link.exe`); Rust gates выполнены в WSL. Новых endpoint, миграций или изменений Services Base нет. Слияние PR в main и deploy не выполняются.
+Проверки используют только fixture данные и собственные временные ресурсы. Постоянные Compose-группы, runtime images, volumes и production deployment не менялись. Windows native linking недоступен (`link.exe`); Rust gates выполнены в WSL. Новых endpoint, миграций или изменений Services Base нет. Эти проверки были выполнены до merge; статус main и живая приёмка приведены ниже. Deploy не выполнялся.
 
 Описание команд, configuration, input/output/errors и ограничения: [CLI.md](CLI.md).
+
+## После merge и приёмка sdlc1 — 2026-10-02
+
+Merge commit: `4a85f6a7c1de82e0869528788710da258c355ffe`. [Post-merge CI](https://github.com/FerrPOINT/wiki/actions/runs/37000178443): docs/backend/frontend/minimum-rust — 4/4 success на этом точном SHA; содержимое merge tree совпало с reviewed head. CLI release binary собран отдельно с закреплённым Base; checksum и установка: [CLI_INSTALL.md](CLI_INSTALL.md).
+
+На собственном space выполнены tree, применение существующего template, document create со stdin и replay, draft/publish, history/revision, stale base conflict, move, task/phase summaries и dossiers, link/file evidence, standalone upload, metadata/download/no-clobber, evidence filters и cursor continuation, document/evidence search. Первый evidence add-file с ключом 128 байт проходит; повтор с тем же файлом/metadata/key получает HTTP 409 на upload. Изменение файла также получает conflict. Это блокирует replay на принятом runtime image, хотя соответствующие main/CI regression tests зелёные. Read-only PAT получает 403. Собственные документы и space архивированы. Attachment/evidence, idempotency и audit rows сохраняются согласно текущему API: permanent deletion в пакет не входит. Новые глобальные templates не создавались.
+
+Проверка выполнялась с временными Central Auth PAT, ограниченными тремя продуктами; read/write и read-only tokens отозваны после прогона. Значения tokens/credentials не сохранялись в логах или артефактах. Исходные dirty checkout, постоянные Compose-группы, runtime images/pins и volumes не изменялись. Fixtures использовали реальные API и PostgreSQL работающего sdlc1, но только собственные project/repository/space и файлы. Ошибки исправленного smoke (имя флага search, when: manual, начальный deployment status и вывод terminal wait) отделены от воспроизведённых отказов runtime.
+
+**Статус:** CLI main/CI проверен; полная совместимость с текущим sdlc1 не принята. Требуется отдельная сверка/обновление backend до согласованных main-кандидатов и повтор блокирующих операций. Публичный release не объявляется готовым.
