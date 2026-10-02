@@ -1,12 +1,15 @@
+mod support;
 use anyhow::{Context, Result, bail};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use reqwest::{Client, Method, multipart};
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use std::{
     io::Read,
     path::PathBuf,
     time::{SystemTime, UNIX_EPOCH},
 };
+use support::ErrorFormat;
 
 #[derive(Parser)]
 #[command(name = "wiki")]
@@ -19,12 +22,18 @@ struct Cli {
     )]
     api_url: String,
 
-    #[arg(long, env = "WIKI_TOKEN")]
+    #[arg(long, env = "WIKI_TOKEN", hide_env_values = true)]
     token: Option<String>,
 
     #[arg(long, env = "WIKI_OUTPUT", value_enum, default_value = "json")]
     output: OutputFormat,
 
+    #[arg(long, env="WIKI_TIMEOUT_SECONDS", default_value_t=60, value_parser=clap::value_parser!(u64).range(1..))]
+    timeout_seconds: u64,
+    #[arg(long)]
+    idempotency_key: Option<String>,
+    #[arg(long, value_enum, default_value = "text")]
+    error_format: ErrorFormat,
     #[command(subcommand)]
     command: Commands,
 }
@@ -361,6 +370,12 @@ struct EvidenceFileArgs {
 
 #[derive(Subcommand)]
 enum AttachmentCommands {
+    Upload {
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long, default_value = "application/octet-stream")]
+        content_type: String,
+    },
     Get {
         attachment_id: String,
     },
@@ -368,6 +383,8 @@ enum AttachmentCommands {
         attachment_id: String,
         #[arg(long)]
         out: PathBuf,
+        #[arg(long)]
+        overwrite: bool,
     },
 }
 
@@ -455,6 +472,8 @@ struct ApiClient {
     base_url: String,
     token: Option<String>,
     client: Client,
+    idempotency: Option<String>,
+    sensitive: Vec<String>,
 }
 
 impl ApiClient {
@@ -462,12 +481,46 @@ impl ApiClient {
         Self {
             base_url: base_url.trim_end_matches('/').to_string(),
             token,
-            client: Client::new(),
+            client: Client::builder()
+                .timeout(std::time::Duration::from_secs(60))
+                .redirect(reqwest::redirect::Policy::none())
+                .build()
+                .expect("HTTP client"),
+            idempotency: None,
+            sensitive: Vec::new(),
         }
     }
 
+    fn secrets(&self) -> Vec<String> {
+        let mut values = self.sensitive.clone();
+        values.extend(self.token.clone());
+        values
+    }
+    fn write_key(&self, scope: &str) -> String {
+        self.idempotency
+            .clone()
+            .unwrap_or_else(|| idempotency_key(scope))
+    }
+    fn evidence_file_keys(&self) -> Result<Option<(String, String)>> {
+        let Some(parent) = self.idempotency.as_deref() else {
+            return Ok(None);
+        };
+        let parent = parent.trim();
+        if !parent.is_ascii()
+            || parent.is_empty()
+            || parent.len() > 128
+            || reqwest::header::HeaderValue::try_from(parent).is_err()
+        {
+            bail!("idempotency key must be ASCII and between 1 and 128 characters");
+        }
+        let digest = hex::encode(Sha256::digest(parent.as_bytes()));
+        Ok(Some((
+            format!("wiki-evidence-v1-upload-{digest}"),
+            format!("wiki-evidence-v1-create-{digest}"),
+        )))
+    }
     async fn get(&self, path: &str) -> Result<Value> {
-        self.request(Method::GET, path).send_json().await
+        support::json_response(self.request(Method::GET, path), &self.secrets()).await
     }
 
     async fn post_json(&self, path: &str, body: Value) -> Result<Value> {
@@ -479,37 +532,46 @@ impl ApiClient {
     }
 
     async fn delete_json(&self, path: &str) -> Result<Value> {
-        self.request(Method::DELETE, path)
-            .header("Idempotency-Key", idempotency_key("write"))
-            .send_json()
-            .await
+        support::json_response(
+            self.request(Method::DELETE, path)
+                .header("Idempotency-Key", self.write_key("write")),
+            &self.secrets(),
+        )
+        .await
     }
 
     async fn post_multipart(&self, path: &str, form: multipart::Form) -> Result<Value> {
-        self.request(Method::POST, path)
-            .header("Idempotency-Key", idempotency_key("upload"))
-            .multipart(form)
-            .send_json()
-            .await
+        self.post_multipart_with_key(path, form, None).await
+    }
+
+    async fn post_multipart_with_key(
+        &self,
+        path: &str,
+        form: multipart::Form,
+        key: Option<&str>,
+    ) -> Result<Value> {
+        support::json_response(
+            self.request(Method::POST, path)
+                .header(
+                    "Idempotency-Key",
+                    key.map(str::to_owned)
+                        .unwrap_or_else(|| self.write_key("upload")),
+                )
+                .multipart(form),
+            &self.secrets(),
+        )
+        .await
     }
 
     async fn get_bytes(&self, path: &str) -> Result<DownloadedBytes> {
-        let response = self
-            .request(Method::GET, path)
-            .send()
-            .await
-            .context("request failed")?;
-        let status = response.status();
+        let response =
+            support::checked_response(self.request(Method::GET, path), &self.secrets()).await?;
         let content_type = response
             .headers()
             .get(reqwest::header::CONTENT_TYPE)
             .and_then(|value| value.to_str().ok())
             .map(ToOwned::to_owned);
         let bytes = response.bytes().await.context("failed to read response")?;
-        if !status.is_success() {
-            let text = String::from_utf8_lossy(&bytes);
-            bail!("{}", format_api_error(status, &text));
-        }
         Ok(DownloadedBytes {
             content_type,
             bytes: bytes.to_vec(),
@@ -517,11 +579,27 @@ impl ApiClient {
     }
 
     async fn write_json(&self, method: Method, path: &str, body: Value) -> Result<Value> {
-        self.request(method, path)
-            .header("Idempotency-Key", idempotency_key("write"))
-            .json(&body)
-            .send_json()
-            .await
+        self.write_json_with_key(method, path, body, None).await
+    }
+
+    async fn write_json_with_key(
+        &self,
+        method: Method,
+        path: &str,
+        body: Value,
+        key: Option<&str>,
+    ) -> Result<Value> {
+        support::json_response(
+            self.request(method, path)
+                .header(
+                    "Idempotency-Key",
+                    key.map(str::to_owned)
+                        .unwrap_or_else(|| self.write_key("write")),
+                )
+                .json(&body),
+            &self.secrets(),
+        )
+        .await
     }
 
     fn request(&self, method: Method, path: &str) -> reqwest::RequestBuilder {
@@ -542,104 +620,55 @@ struct DownloadedBytes {
     bytes: Vec<u8>,
 }
 
-trait SendJson {
-    async fn send_json(self) -> Result<Value>;
-}
-
-impl SendJson for reqwest::RequestBuilder {
-    async fn send_json(self) -> Result<Value> {
-        let response = self.send().await.context("request failed")?;
-        let status = response.status();
-        let text = response.text().await.context("failed to read response")?;
-        if !status.is_success() {
-            bail!("{}", format_api_error(status, &text));
-        }
-        if text.trim().is_empty() {
-            return Ok(json!({ "status": "ok" }));
-        }
-        serde_json::from_str(&text).context("API returned non-JSON response")
-    }
-}
-
-fn format_api_error(status: reqwest::StatusCode, body: &str) -> String {
-    let body = body.trim();
-    if body.is_empty() {
-        return format!("API returned {status}");
-    }
-
-    let Ok(value) = serde_json::from_str::<Value>(body) else {
-        return format!("API returned {status}: {body}");
-    };
-    let Some(error) = value.get("error") else {
-        return format!("API returned {status}: {body}");
-    };
-
-    let message = match error {
-        Value::String(message) => message.clone(),
-        Value::Object(map) => {
-            let code = map.get("code").and_then(Value::as_str);
-            let message = map.get("message").and_then(Value::as_str);
-            let mut parts = Vec::new();
-
-            match (code, message) {
-                (Some(code), Some(message)) => parts.push(format!("{code}: {message}")),
-                (Some(code), None) => parts.push(code.to_string()),
-                (None, Some(message)) => parts.push(message.to_string()),
-                (None, None) => {}
-            }
-
-            if let Some(request_id) = map
-                .get("requestId")
-                .or_else(|| map.get("request_id"))
-                .and_then(Value::as_str)
-            {
-                parts.push(format!("requestId={request_id}"));
-            }
-            if let Some(details) = format_api_error_details(map.get("details")) {
-                parts.push(format!("details={details}"));
-            }
-
-            if parts.is_empty() {
-                error.to_string()
-            } else {
-                parts.join("; ")
-            }
-        }
-        other => other.to_string(),
-    };
-
-    format!("API returned {status}: {message}")
-}
-
-fn format_api_error_details(details: Option<&Value>) -> Option<String> {
-    let details = details?.as_array()?;
-    let parts = details
-        .iter()
-        .filter_map(|detail| {
-            let field = detail.get("field").and_then(Value::as_str);
-            let message = detail.get("message").and_then(Value::as_str);
-            match (field, message) {
-                (Some(field), Some(message)) => Some(format!("{field}: {message}")),
-                (None, Some(message)) => Some(message.to_string()),
-                _ => None,
-            }
-        })
-        .collect::<Vec<_>>();
-
-    if parts.is_empty() {
-        None
-    } else {
-        Some(parts.join(", "))
-    }
-}
-
 #[tokio::main]
-async fn main() -> Result<()> {
-    let cli = Cli::parse();
-    let api = ApiClient::new(cli.api_url, cli.token);
-    let value = execute(&api, cli.command).await?;
-    print_value(&value, cli.output)?;
-    Ok(())
+async fn main() -> std::process::ExitCode {
+    let cli = match Cli::try_parse() {
+        Ok(cli) => cli,
+        Err(error) => return support::parse_error(error),
+    };
+    let token = cli.token.or_else(|| std::env::var("SDLC_API_TOKEN").ok());
+    let secrets = token
+        .clone()
+        .into_iter()
+        .flat_map(|value| [value.trim().to_owned(), value])
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>();
+    let mut secrets = secrets;
+    match &cli.command {
+        Commands::Auth {
+            command: AuthCommands::Login { password, .. },
+        } => secrets.push(password.clone()),
+        Commands::User {
+            command: UserCommands::Create(args),
+        } => secrets.push(args.password.clone()),
+        _ => {}
+    }
+    let result: Result<()> = async {
+        let mut api = ApiClient::new(cli.api_url, token);
+        api.sensitive = secrets.clone();
+        api.client = Client::builder()
+            .timeout(std::time::Duration::from_secs(cli.timeout_seconds))
+            .redirect(reqwest::redirect::Policy::none())
+            .build()?;
+        if cli
+            .idempotency_key
+            .as_ref()
+            .is_some_and(|s| s.trim().is_empty())
+        {
+            bail!("Idempotency key не может быть пустым");
+        }
+        api.idempotency = cli.idempotency_key;
+        let value = execute(&api, cli.command).await?;
+        print_value(&value, cli.output)
+    }
+    .await;
+    match result {
+        Ok(()) => std::process::ExitCode::SUCCESS,
+        Err(e) => {
+            support::report(&e, cli.error_format, &secrets);
+            std::process::ExitCode::FAILURE
+        }
+    }
 }
 
 async fn execute(api: &ApiClient, command: Commands) -> Result<Value> {
@@ -926,6 +955,7 @@ async fn execute_evidence(api: &ApiClient, command: EvidenceCommands) -> Result<
             .await
         }
         EvidenceCommands::AddFile(args) => {
+            let keys = api.evidence_file_keys()?;
             let bytes = std::fs::read(&args.file)
                 .with_context(|| format!("failed to read {}", args.file.display()))?;
             let filename = args
@@ -937,8 +967,15 @@ async fn execute_evidence(api: &ApiClient, command: EvidenceCommands) -> Result<
                 "file",
                 multipart::Part::bytes(bytes).file_name(filename.clone()),
             );
-            let attachment = api.post_multipart("/attachments", form).await?;
-            api.post_json(
+            let attachment = api
+                .post_multipart_with_key(
+                    "/attachments",
+                    form,
+                    keys.as_ref().map(|(upload, _)| upload.as_str()),
+                )
+                .await?;
+            api.write_json_with_key(
+                Method::POST,
                 "/evidence",
                 json!({
                     "space": args.space,
@@ -949,6 +986,7 @@ async fn execute_evidence(api: &ApiClient, command: EvidenceCommands) -> Result<
                     "title": args.title,
                     "attachment_id": attachment.get("id").cloned().unwrap_or(Value::Null)
                 }),
+                keys.as_ref().map(|(_, create)| create.as_str()),
             )
             .await
         }
@@ -980,15 +1018,33 @@ async fn execute_evidence(api: &ApiClient, command: EvidenceCommands) -> Result<
 
 async fn execute_attachment(api: &ApiClient, command: AttachmentCommands) -> Result<Value> {
     match command {
+        AttachmentCommands::Upload { file, content_type } => {
+            let bytes = std::fs::read(&file)?;
+            let name = file
+                .file_name()
+                .context("Нет имени файла")?
+                .to_string_lossy()
+                .into_owned();
+            let part = multipart::Part::bytes(bytes)
+                .file_name(name)
+                .mime_str(&content_type)?;
+            api.post_multipart("/attachments", multipart::Form::new().part("file", part))
+                .await
+        }
         AttachmentCommands::Get { attachment_id } => {
             api.get(&format!("/attachments/{}", enc(&attachment_id)))
                 .await
         }
-        AttachmentCommands::Download { attachment_id, out } => {
+        AttachmentCommands::Download {
+            attachment_id,
+            out,
+            overwrite,
+        } => {
+            support::check_destination(&out, overwrite)?;
             let download = api
                 .get_bytes(&format!("/attachments/{}/download", enc(&attachment_id)))
                 .await?;
-            std::fs::write(&out, &download.bytes)
+            support::save_download(&out, &download.bytes, overwrite)
                 .with_context(|| format!("failed to write {}", out.display()))?;
             Ok(json!({
                 "status": "ok",
@@ -2557,6 +2613,7 @@ mod tests {
             &api,
             Commands::Attachment {
                 command: AttachmentCommands::Download {
+                    overwrite: false,
                     attachment_id: "build log".to_string(),
                     out: path.clone(),
                 },

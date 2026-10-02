@@ -211,3 +211,70 @@ Documented API-only or non-CLI MVP surfaces:
 - Markdown можно передать из файла или stdin.
 - Повторяемые write-команды отправляют `Idempotency-Key`, а сервер дедуплицирует successful protected domain/admin writes по этому ключу.
 - CLI не зависит от PostgreSQL schema, server filesystem или internal Rust modules.
+
+
+## Ввод, вывод и ошибки рабочих команд
+
+`--output json` пишет только JSON в stdout. Успешный пустой ответ нормализуется в `{"status":"ok"}`. `--error-format text|json` выбирает stderr, по умолчанию `text`. JSON-ошибка имеет вид:
+
+```json
+{"error":{"status":403,"code":"FORBIDDEN","message":"Недостаточно прав","request_id":"req-123"}}
+```
+
+При transport error `status` и недоступные API-поля равны `null`. Токен и переданные secret values исключаются из диагностики; произвольное тело ошибочного ответа не печатается. HTTP-статус хранится в JSON, числовые exit codes сохранены. Ошибки парсинга CLI в JSON-режиме имеют code `CLI_USAGE` и не повторяют входные значения; `--help` сохраняет обычный вывод.
+
+`--from-file PATH` читает UTF-8; `--from-file -` читает stdin. Inline-текст и файл взаимоисключающие. Ввод сохраняет переводы строк. Download сначала получает успешный ответ, записывает временный файл в каталоге назначения и переносит его в итоговый путь. Существующий файл сохраняется без `--overwrite`; автоматического создания каталогов нет.
+
+Пагинация явная: команда получает одну страницу. Повторов write-запросов и автоматической загрузки всех страниц нет. Настройки transport реализованы в продуктовом CLI; Services Base не изменён.
+
+
+## Дополнения рабочих сценариев
+
+Глобальные опции: `--timeout-seconds` (env `WIKI_TIMEOUT_SECONDS`, default 60, положительное целое), `--idempotency-key`, `--error-format text|json`. Токен выбирается в порядке `--token` → `WIKI_TOKEN` → `SDLC_API_TOKEN`. Прежний API URL default и Markdown stdin сохранены.
+
+```bash
+wiki --timeout-seconds 60 --error-format json space tree TEAM
+wiki --idempotency-key create-doc-001 doc create --space TEAM --title "Решение" --from-file -
+wiki doc draft <document-id> --from-file draft.md
+wiki doc publish <document-id> --base-revision <revision-id> --summary "Обновление"
+wiki doc history <document-id> --limit 25 --offset 0
+wiki doc revision <document-id> <revision-id>
+wiki doc move <document-id> --parent <parent-id>
+wiki doc archive <document-id>
+wiki task list --space TEAM --q PROJ --limit 25 --cursor <cursor>
+wiki phase list --space TEAM --q implementation --limit 25 --cursor <cursor>
+wiki evidence list --space TEAM --document <document-id> --query report --limit 25 --cursor <cursor>
+wiki search query "решение" --space TEAM --task PROJ-1 --type page --result-type document --limit 25 --cursor <cursor>
+wiki attachment upload --file report.pdf --content-type application/pdf
+wiki attachment get <attachment-id>
+wiki attachment download <attachment-id> --out report.pdf --overwrite
+```
+
+Явный idempotency key передаётся защищённым write-запросам. Без аргумента сохраняется генерация ключа. Для новых uploads случайный multipart boundary не меняет идентичность запроса: сравниваются filename, content type и содержимое; изменение файла с тем же key возвращает conflict. После неопределённого transport outcome повторять ту же операцию с тем же body и key; автоматических повторов нет. Для составной `evidence add-file` явный key после trim должен быть ASCII, пригодным для HTTP header, длиной 1–128 байт. CLI вычисляет полный SHA-256 этого key в lowercase hex и передаёт два разных ключа: `wiki-evidence-v1-upload-<digest>` и `wiki-evidence-v1-create-<digest>`. Сервер хранит ключ по пользователю и ключу; общий ключ для двух endpoints вызвал бы conflict. После сбоя между этапами повторите всю команду с тем же key, файлом и metadata: upload переиспользует прежний attachment, создание evidence завершается или переигрывается. Изменение файла или metadata с прежним key вызывает conflict. Самостоятельные write-команды передают явный key без изменения. Для template apply чтение шаблона не получает key, создание документа получает. Request IDs сохраняются; stale `--base-revision` остаётся серверным conflict. Один HTTP-запрос ограничен timeout; составная команда может выполнить несколько запросов.
+
+Новые document delete/restore и evidence edit отсутствуют: соответствующего API нет. Пагинация добавляется только там, где сервер её поддерживает. task/phase dossiers и их docs/evidence — существующие detail endpoints; task/phase list использует paginated summaries. Не вводится клиентская псевдопагинация для неподдерживаемых lists.
+
+### Реестр сценариев и проверок
+
+Пути относительно `/api/v1`.
+
+| Сценарий / команда | Публичный API | Параметры и проверка |
+|---|---|---|
+| space/tree | GET `/spaces`, `/spaces/{key}`, `/tree` | space lifecycle; existing tests + real_api |
+| template create/list/apply + doc create | GET/POST `/templates`; POST `/spaces/{key}/documents` | Markdown file/stdin, task/phase bindings; existing tests + real_api |
+| doc draft/publish/history/revision/archive/move | `/documents/{id}/draft`, `/publish`, `/revisions`, `/revisions/{revision}`, `/archive`, `/move` | base revision, limit/offset, request ID; existing tests + real_api |
+| task/phase list | GET `/spaces/{key}/task-summaries`, `/phase-summaries` | q/limit/cursor; existing request tests + real_api |
+| task/phase get/docs/evidence/link-doc | `/spaces/{space}/tasks/{key}`, `/phases/{key}` и children | dossier/key/document; existing tests |
+| evidence list/add-link/add-file/get | GET/POST `/evidence`; GET `/evidence/{id}` | space/document/task/phase/query/cursor/limit; existing tests + real_api |
+| attachment upload/get/download | POST `/attachments`; GET `/attachments/{id}`, `/download` | multipart/content type/atomic/no clobber; workflows + real_api |
+| search query | GET `/search` | space/task/phase/type/result_type/include_archived/limit/cursor; existing tests + real_api |
+| writes replay, timeout, JSON error | те же публичные write/read endpoints | workflows и реальный API replay; никаких write retries |
+
+```bash
+cd backend
+cargo test -p wiki-cli
+```
+
+CLI real_api использует production handlers и изолированный memory backend, не заменяя PostgreSQL persistence tests API. Exit codes сохраняются: выполнение error — `1`, CLI parsing — `2`, success — `0`.
+
+Справка показывает имена token env variables, скрывая их значения даже при установленной переменной.

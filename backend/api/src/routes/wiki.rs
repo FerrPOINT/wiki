@@ -12,7 +12,7 @@ use app::wiki::{
 use axum::{
     Extension, Json,
     body::{Body, to_bytes},
-    extract::{Multipart, Path, Query, State},
+    extract::{DefaultBodyLimit, FromRequest, Multipart, Path, Query, State},
     http::{HeaderMap, HeaderValue, Method, Request, StatusCode, header},
     middleware::Next,
     response::{IntoResponse, Response},
@@ -333,7 +333,7 @@ async fn run_idempotent_request(
         .await
         .map_err(|err| shared::AppError::invalid_input(err.to_string()))?;
     let request_hash =
-        idempotency_request_hash(parts.headers.get(header::CONTENT_TYPE), &request_body);
+        idempotency_request_hash(parts.headers.get(header::CONTENT_TYPE), &request_body).await?;
     let idempotency_request = WikiIdempotencyRequest {
         actor_id,
         key: idempotency_key,
@@ -412,16 +412,58 @@ fn idempotency_body_limit(backend: &WikiBackend) -> usize {
         .saturating_add(IDEMPOTENCY_REQUEST_BODY_OVERHEAD_BYTES)
 }
 
-fn idempotency_request_hash(content_type: Option<&HeaderValue>, body: &[u8]) -> String {
+async fn idempotency_request_hash(
+    content_type: Option<&HeaderValue>,
+    body: &[u8],
+) -> Result<String, shared::AppError> {
     let content_type = content_type
         .and_then(|value| value.to_str().ok())
         .map(str::trim)
         .unwrap_or_default();
+    // Multipart boundaries change between CLI processes. Hash the ordered fields,
+    // retaining filename, type and content conflicts while ignoring the boundary.
+    if content_type
+        .to_ascii_lowercase()
+        .starts_with("multipart/form-data")
+    {
+        let mut request = Request::builder()
+            .header(header::CONTENT_TYPE, content_type)
+            .body(Body::from(body.to_vec()))
+            .map_err(|_| shared::AppError::invalid_input("invalid multipart request"))?;
+        // The outer middleware already enforces the configured upload size.
+        DefaultBodyLimit::max(body.len()).apply(&mut request);
+        let mut multipart = Multipart::from_request(request, &())
+            .await
+            .map_err(|_| shared::AppError::invalid_input("invalid multipart request"))?;
+        let mut fields = Vec::new();
+        while let Some(field) = multipart
+            .next_field()
+            .await
+            .map_err(|_| shared::AppError::invalid_input("invalid multipart field"))?
+        {
+            let metadata = (
+                field.name().unwrap_or_default().to_string(),
+                field.file_name().unwrap_or_default().to_string(),
+                field
+                    .content_type()
+                    .unwrap_or("application/octet-stream")
+                    .to_string(),
+            );
+            let content = field
+                .bytes()
+                .await
+                .map_err(|_| shared::AppError::invalid_input("invalid multipart content"))?;
+            fields.push((metadata, checksum(&content)));
+        }
+        return Ok(checksum(&serde_json::to_vec(&fields).map_err(|_| {
+            shared::AppError::internal("failed to hash multipart fields")
+        })?));
+    }
     let mut bytes = Vec::with_capacity(content_type.len() + 1 + body.len());
     bytes.extend_from_slice(content_type.as_bytes());
     bytes.push(0);
     bytes.extend_from_slice(body);
-    checksum(&bytes)
+    Ok(checksum(&bytes))
 }
 
 fn idempotency_replay_response(
@@ -3568,6 +3610,49 @@ fn default_user_role() -> String {
 #[cfg(test)]
 mod evidence_cursor_tests {
     use super::*;
+
+    async fn hash(boundary: &str, name: &str, kind: &str, content: &str) -> String {
+        let header =
+            HeaderValue::from_str(&format!("multipart/form-data; boundary={boundary}")).unwrap();
+        let body = format!(
+            "--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{name}\"\r\nContent-Type: {kind}\r\n\r\n{content}\r\n--{boundary}--\r\n"
+        );
+        idempotency_request_hash(Some(&header), body.as_bytes())
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn boundaries_do_not_change_hash_but_file_content_and_metadata_do() {
+        let original = hash("first", "file.txt", "text/plain", "content").await;
+        assert_eq!(
+            original,
+            hash("second", "file.txt", "text/plain", "content").await
+        );
+        assert_ne!(
+            original,
+            hash("second", "file.txt", "text/plain", "changed").await
+        );
+        assert_ne!(
+            original,
+            hash("second", "other.txt", "text/plain", "content").await
+        );
+        assert_ne!(
+            original,
+            hash("second", "file.txt", "application/json", "content").await
+        );
+        let malformed = HeaderValue::from_static("multipart/form-data");
+        assert!(
+            idempotency_request_hash(Some(&malformed), b"broken")
+                .await
+                .is_err()
+        );
+        let large = "x".repeat(3 * 1024 * 1024);
+        assert_eq!(
+            hash("large-first", "large.txt", "text/plain", &large).await,
+            hash("large-second", "large.txt", "text/plain", &large).await
+        );
+    }
 
     #[test]
     fn memory_evidence_paging_uses_uuid_when_nanoseconds_share_a_microsecond() {

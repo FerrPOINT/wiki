@@ -4321,11 +4321,17 @@ name = "wiki-cli"
 version = "0.2.0"
 dependencies = [
  "anyhow",
+ "api",
+ "app",
  "axum",
  "clap",
+ "hex",
  "reqwest",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
+ "shared",
+ "tempfile",
  "tokio",
  "urlencoding",
 ]

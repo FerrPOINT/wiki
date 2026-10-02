@@ -245,6 +245,10 @@ CLI returns JSON by default, exits non-zero on API errors and sends `Idempotency
 - `docs/CLI.md`
 - `docs/ROADMAP.md`
 
+## Идемпотентность CLI uploads
+
+Для multipart upload защищённый write middleware вычисляет request hash из упорядоченных полей, filename, content type и digest содержимого. Случайный boundary транспорта не участвует в идентичности операции: отдельные процессы CLI могут повторить тот же upload с явным key. Размер запроса остаётся ограничен существующим внешним middleware. JSON writes сохраняют прежний hash тела; автоматических повторов CLI нет. Совместимость ранее сохранённых upload keys описана в [API.md](API.md).
+
 ## Общая база
 
 Подключение версий, границы контрактов и проверки описаны в [BASE_INTEGRATION](BASE_INTEGRATION.md).
