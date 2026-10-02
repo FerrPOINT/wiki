@@ -42,3 +42,9 @@ wiki space list
 - [CLI](CLI.md)
 - [CLI validation](CLI_VALIDATION.md)
 - [Base integration](BASE_INTEGRATION.md)
+
+## Новый локальный candidate с текущим Base pin
+
+Source `35d97823da3cd387bf7d1c304449a92c117af74d`; Base `9408802dfa978cba2f67162a49adca6f65851b01`, Rust 1.88.0, locked release workspace build, package version `0.2.0` без изменения. Архив `wiki-cli-0.2.0-35d9782-x86_64-linux-gnu.tar.gz`; SHA-256 `b20c22762f87589b8febea8801f25d79d40ddae02380ba367506e0ff9ae36e4b`. Требования: glibc >= 2.34; OpenSSL 3 (libssl.so.3/libcrypto.so.3). Установка с SHA256SUMS в отдельный prefix и запуск --help проверены в Ubuntu 24.04 WSL и Debian 12. Прежние binaries сохранены; shell profiles не менялись.
+
+Результаты QA и blockers сохранены в [CLI_VALIDATION.md](CLI_VALIDATION.md). Это candidate: рабочий sdlc1 не обновлён, совместимость CI/CD с применёнными миграциями 36/37 и прежний image rollback не подтверждены. Архивы не содержат configuration, keys, credentials или данные.
