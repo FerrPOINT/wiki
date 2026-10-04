@@ -177,3 +177,8 @@ Baseline test fixtures:
 ## Общая база
 
 Подключение версий, границы контрактов и проверки описаны в [BASE_INTEGRATION](BASE_INTEGRATION.md).
+
+Регрессия central_projection_distinguishes_database_failure_from_invalid_claims
+проверяет закрытый DB pool и неполные claims отдельно. CI явно запускает
+mixed_central_directory_preserves_identity_and_disabled_state_in_postgres
+на своём PostgreSQL; workspace test не исполняет ignored-тест автоматически.

@@ -3,6 +3,31 @@ import { describe, expect, it } from 'vitest'
 import { formatApiErrorForUser, formatFirstApiErrorForUser, hasApiErrorCode } from './api-error'
 
 describe('formatApiErrorForUser', () => {
+  it.each([
+    ['INTERNAL_ERROR', 'Ошибка сервера. Попробуйте ещё раз позже'],
+    ['UNAVAILABLE', 'Сервис временно недоступен. Попробуйте ещё раз позже'],
+  ])('renders %s safely without internal diagnostics', (code, expected) => {
+    expect(
+      formatApiErrorForUser(
+        {
+          code,
+          message: 'internal server error; requestId=private-id',
+          details: [{ field: 'database', message: 'private diagnostic' }],
+        },
+        '',
+      ),
+    ).toBe(expected)
+  })
+
+  it.each(['INTERNAL_ERROR', 'UNAVAILABLE'])('keeps the page-specific message for %s', (code) => {
+    expect(
+      formatApiErrorForUser(
+        { code, message: 'private diagnostic' },
+        'Не удалось загрузить пространства',
+      ),
+    ).toBe('Не удалось загрузить пространства')
+  })
+
   it('renders permission failures as a Russian user-facing message', () => {
     expect(formatApiErrorForUser({ code: 'FORBIDDEN', message: 'Forbidden' }, 'fallback')).toBe(
       'Недостаточно прав для действия',

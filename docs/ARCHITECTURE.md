@@ -259,3 +259,7 @@ CLI returns JSON by default, exits non-zero on API errors and sends `Idempotency
 ## Общая база
 
 Подключение версий, границы контрактов и проверки описаны в [BASE_INTEGRATION](BASE_INTEGRATION.md).
+
+Ошибки central subject/email остаются Unauthorized; ошибки PostgreSQL при
+создании проекции сохраняют Database и публичный безопасный 500. Они не
+очищают браузерную сессию и не подменяются terminal 401.

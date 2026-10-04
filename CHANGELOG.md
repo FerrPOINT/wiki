@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+- Ошибка БД при центральной проекции пользователя сохраняет безопасный 500,
+  вместо terminal 401 и повторного входа; неполные claims по-прежнему дают 401.
+
+- Каталог Central Auth использует непустое display name, username или legacy email;
+  identity и disabled-статус сохранены. PostgreSQL-регрессия выполняется явно в CI.
+  Для INTERNAL_ERROR/UNAVAILABLE UI показывает безопасное сообщение страницы.
+
 - Документирована принятая поставка трёх CLI на sdlc1: backup/restore/rollback, live-проверки, Linux/WSL установка и сохранённые ограничения.
 
 - `evidence add-file` использует разные стабильные ключи upload/create, производные от явного idempotency key; повтор составной команды больше не вызывает конфликт между этапами.
