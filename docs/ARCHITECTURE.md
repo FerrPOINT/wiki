@@ -185,6 +185,13 @@ MVP pages:
 
 Visible UI text is Russian by default. Routes and code identifiers stay English.
 
+При архивировании UI передаёт общему ConfirmDialog из Base устойчивую точку
+возврата фокуса: строку пространства или заголовок документа. Она используется,
+когда успешный ответ удаляет кнопку архивирования. Отмена и Escape возвращают
+фокус на исходную кнопку, а pending и ошибка обслуживаются общим диалогом.
+Выбор доступной точки фокуса остаётся в Wiki; см.
+[решение и проверки](plan/2026-10-04-archive-focus.md).
+
 ## 11. CLI
 
 `wiki` is an HTTP-only client for the same MVP operations as UI:

@@ -70,6 +70,8 @@ Unit/component tests:
 - app shell navigation, account menu and logout;
 - dashboard;
 - spaces and page tree preview;
+- successful archive removes the action and restores focus to the space row or
+  document heading; Cancel/Escape restore the existing archive action;
 - safe API error formatting for permission denied and validation details;
 - document editor;
 - revision history;
