@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react'
+import Markdown from 'react-markdown'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { FileText, GitBranch, Save, Tag } from 'lucide-react'
 import { defaultSpaceKey, useCreateDocument, useSpaces, useTemplates } from '@/shared/api/hooks'
@@ -202,9 +203,14 @@ export function DocumentComposePage() {
               <TabsContent value="preview">
                 <div className="min-h-96 rounded-md border border-border bg-background p-4">
                   <h2 className="text-xl font-semibold">{title}</h2>
-                  <pre className="mt-4 whitespace-pre-wrap text-sm leading-6 text-text-secondary">
-                    {body}
-                  </pre>
+                  <div className="wiki-rendered mt-4">
+                    <Markdown
+                      skipHtml
+                      components={{ pre: ({ children }) => <pre tabIndex={0}>{children}</pre> }}
+                    >
+                      {body}
+                    </Markdown>
+                  </div>
                 </div>
               </TabsContent>
             </Tabs>
