@@ -13,6 +13,8 @@ const codeMessages: Record<string, string> = {
   CONFLICT: 'Конфликт данных',
   FORBIDDEN: 'Недостаточно прав для действия',
   NOT_FOUND: 'Объект не найден',
+  INTERNAL_ERROR: 'Ошибка сервера. Попробуйте ещё раз позже',
+  UNAVAILABLE: 'Сервис временно недоступен. Попробуйте ещё раз позже',
   UNAUTHORIZED: 'Нужно войти заново',
   VALIDATION_ERROR: 'Проверьте заполнение полей',
 }
@@ -42,6 +44,7 @@ export function formatApiErrorForUser(error: unknown, fallback: string): string 
   const code = readString(apiError.code)
   const rawMessage = stripTechnicalSuffixes(readString(apiError.message))
   const base = codeMessages[code] || rawMessage || fallback
+  if (code === 'INTERNAL_ERROR' || code === 'UNAVAILABLE') return fallback || base
   const details = formatDetails(apiError.details)
 
   return details ? `${base}: ${details}` : base
