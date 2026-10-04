@@ -22,8 +22,49 @@ struct PostgresWikiUserRepository<'a> {
 struct CentralDirectoryUser {
     id: String,
     email: String,
+    #[serde(default)]
+    username: String,
     display_name: String,
     status: String,
+}
+
+impl CentralDirectoryUser {
+    fn projected_display_name(&self) -> Result<&str, shared::AppError> {
+        [&self.display_name, &self.username, &self.email]
+            .into_iter()
+            .map(|value| value.trim())
+            .find(|value| !value.is_empty())
+            .ok_or_else(|| {
+                shared::AppError::Unavailable(
+                    "Central Auth directory has no usable user name".into(),
+                )
+            })
+    }
+}
+
+async fn persist_central_directory_user(
+    pool: &sqlx::PgPool,
+    entry: &CentralDirectoryUser,
+) -> Result<(), shared::AppError> {
+    if entry.status == "disabled" {
+        sqlx::query("UPDATE users SET is_active = false, updated_at = now() WHERE central_sub = $1 AND is_active")
+            .bind(&entry.id).execute(pool).await.map_err(shared::AppError::database)?;
+        return Ok(());
+    }
+    let display_name = entry.projected_display_name()?;
+    let id = Uuid::now_v7();
+    sqlx::query(
+        "INSERT INTO users (id, email, username, display_name, password_hash, central_sub, global_role, is_active, created_at, updated_at) \
+         VALUES ($1, $2, $3, $4, '!', $5, 'admin', true, now(), now()) \
+         ON CONFLICT (central_sub) WHERE central_sub IS NOT NULL DO UPDATE \
+         SET email = EXCLUDED.email, display_name = EXCLUDED.display_name, is_active = true, updated_at = now() \
+         WHERE users.email IS DISTINCT FROM EXCLUDED.email \
+            OR users.display_name IS DISTINCT FROM EXCLUDED.display_name OR NOT users.is_active"
+    )
+    .bind(id).bind(&entry.email).bind(format!("central-{}", id.simple()))
+    .bind(display_name).bind(&entry.id)
+    .execute(pool).await.map_err(shared::AppError::database)?;
+    Ok(())
 }
 
 impl PostgresWikiBackend {
@@ -59,23 +100,7 @@ impl PostgresWikiBackend {
                 })?;
             let count = batch.len();
             for entry in batch {
-                if entry.status == "disabled" {
-                    sqlx::query("UPDATE users SET is_active = false, updated_at = now() WHERE central_sub = $1 AND is_active")
-                        .bind(&entry.id).execute(&self.pool).await.map_err(shared::AppError::database)?;
-                    continue;
-                }
-                let id = Uuid::now_v7();
-                sqlx::query(
-                    "INSERT INTO users (id, email, username, display_name, password_hash, central_sub, global_role, is_active, created_at, updated_at) \
-                     VALUES ($1, $2, $3, $4, '!', $5, 'admin', true, now(), now()) \
-                     ON CONFLICT (central_sub) WHERE central_sub IS NOT NULL DO UPDATE \
-                     SET email = EXCLUDED.email, display_name = EXCLUDED.display_name, is_active = true, updated_at = now() \
-                     WHERE users.email IS DISTINCT FROM EXCLUDED.email \
-                        OR users.display_name IS DISTINCT FROM EXCLUDED.display_name OR NOT users.is_active"
-                )
-                .bind(id).bind(&entry.email).bind(format!("central-{}", id.simple()))
-                .bind(&entry.display_name).bind(&entry.id)
-                .execute(&self.pool).await.map_err(shared::AppError::database)?;
+                persist_central_directory_user(&self.pool, &entry).await?;
             }
             if count < 100 {
                 return Ok(());
@@ -744,5 +769,121 @@ impl PostgresWikiBackend {
         WikiUserUseCase::new(&repository)
             .update(actor_id, user_id, body)
             .await
+    }
+}
+
+#[cfg(test)]
+mod central_directory_tests {
+    use super::*;
+
+    fn entry(name: &str, username: &str) -> CentralDirectoryUser {
+        let id = Uuid::now_v7().to_string();
+        CentralDirectoryUser {
+            email: format!("{id}@example.test"),
+            id,
+            username: username.into(),
+            display_name: name.into(),
+            status: "active".into(),
+        }
+    }
+
+    #[test]
+    fn display_name_uses_trimmed_name_then_username_then_legacy_email() {
+        assert_eq!(
+            entry("  Name  ", "login").projected_display_name().unwrap(),
+            "Name"
+        );
+        for name in ["", " \t\n"] {
+            assert_eq!(
+                entry(name, "  login  ").projected_display_name().unwrap(),
+                "login"
+            );
+        }
+        let legacy: CentralDirectoryUser = serde_json::from_value(serde_json::json!({
+            "id": "legacy", "email": "legacy@example.test", "display_name": " ", "status": "active"
+        }))
+        .unwrap();
+        assert_eq!(
+            legacy.projected_display_name().unwrap(),
+            "legacy@example.test"
+        );
+    }
+
+    #[test]
+    fn directory_without_any_usable_name_is_rejected() {
+        let mut user = entry(" ", "\t");
+        user.email = "\n".into();
+        assert!(matches!(
+            user.projected_display_name(),
+            Err(shared::AppError::Unavailable(_))
+        ));
+    }
+
+    #[tokio::test]
+    #[ignore = "requires a disposable PostgreSQL database in WIKI_TEST_DATABASE_URL"]
+    async fn mixed_central_directory_preserves_identity_and_disabled_state_in_postgres() {
+        let url = std::env::var("WIKI_TEST_DATABASE_URL").expect("disposable QA database required");
+        let pool = sqlx::PgPool::connect(&url).await.unwrap();
+        let migrations = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../migrations");
+        sqlx::migrate::Migrator::new(migrations)
+            .await
+            .unwrap()
+            .run(&pool)
+            .await
+            .unwrap();
+        let mut batch = vec![
+            entry("Named", "named"),
+            entry("", "empty"),
+            entry(" \t", "spaced"),
+            entry("", ""),
+        ];
+        for user in &batch {
+            persist_central_directory_user(&pool, user).await.unwrap();
+        }
+        async fn snapshot(
+            pool: &sqlx::PgPool,
+            batch: &[CentralDirectoryUser],
+        ) -> Vec<(Uuid, String, bool, chrono::DateTime<chrono::Utc>)> {
+            let ids: Vec<_> = batch.iter().map(|user| user.id.clone()).collect();
+            sqlx::query_as("SELECT id, display_name, is_active, updated_at FROM users WHERE central_sub = ANY($1) ORDER BY central_sub")
+                .bind(ids).fetch_all(pool).await.unwrap()
+        }
+        let before = snapshot(&pool, &batch).await;
+        assert_eq!(before.len(), 4);
+        assert!(
+            before
+                .iter()
+                .all(|(_, name, active, _)| !name.trim().is_empty() && *active)
+        );
+        for user in &batch {
+            persist_central_directory_user(&pool, user).await.unwrap();
+        }
+        assert_eq!(snapshot(&pool, &batch).await, before);
+        let disabled_id: Uuid = sqlx::query_scalar("SELECT id FROM users WHERE central_sub = $1")
+            .bind(&batch[2].id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        batch[2].status = "disabled".into();
+        batch[2].display_name.clear();
+        batch[2].username.clear();
+        batch[2].email.clear();
+        for user in &batch {
+            persist_central_directory_user(&pool, user).await.unwrap();
+        }
+        let disabled: (Uuid, bool) =
+            sqlx::query_as("SELECT id, is_active FROM users WHERE central_sub = $1")
+                .bind(&batch[2].id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(disabled.0, disabled_id);
+        assert!(!disabled.1);
+        let after = snapshot(&pool, &batch).await;
+        for user in &batch {
+            persist_central_directory_user(&pool, user).await.unwrap();
+        }
+        assert_eq!(snapshot(&pool, &batch).await, after);
+        pool.close().await;
     }
 }
