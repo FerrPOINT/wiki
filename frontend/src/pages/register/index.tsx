@@ -101,7 +101,7 @@ export function RegisterPage() {
             {isPending ? `${t('auth.register')}…` : t('auth.register')}
           </Button>
           <Button variant="outline" className="w-full" asChild>
-            <a href="/login">{t('auth.haveAccount')}</a>
+            <a href={`${import.meta.env.BASE_URL}login`}>{t('auth.haveAccount')}</a>
           </Button>
         </form>
         <p className="mt-4 text-center text-xs text-text-muted">{t('auth.registerDemo')}</p>
