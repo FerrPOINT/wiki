@@ -650,10 +650,21 @@ test.describe('wiki smoke', () => {
 
   test('previews a new document and protects its unsaved draft during navigation', async ({
     page,
-  }) => {
+  }, testInfo) => {
     await installWikiApiMocks(page)
     await gotoWiki(page)
     await gotoWiki(page, '/documents/new')
+    const documentWrites: string[] = []
+    page.on('request', (request) => {
+      if (
+        /\/api\/v1\/(?:documents(?:\/|$)|spaces\/[^/]+\/documents(?:\/|$))/.test(
+          new URL(request.url()).pathname,
+        ) &&
+        ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method())
+      ) {
+        documentWrites.push(request.method())
+      }
+    })
 
     const templateButton = page.getByRole('button', { name: 'Требования', exact: true })
     const templateButtonBox = await templateButton.boundingBox()
@@ -665,7 +676,55 @@ test.describe('wiki smoke', () => {
 
     const preview = page.getByRole('tabpanel')
     await expect(preview.getByRole('heading', { name: 'Регламент релиза' })).toBeVisible()
-    await expect(preview).toContainText('# Требования')
+    await expect(
+      preview.getByRole('heading', { name: 'Требования', level: 1, exact: true }),
+    ).toBeVisible()
+
+    await page.getByRole('tab', { name: 'Markdown', exact: true }).click()
+    const markdown =
+      '# Требования\n\n**Результат** и *курсив*\n\n- Первый\n- Второй\n\n' +
+      'ДлинныйИдентификатор'.repeat(24) +
+      '\n\n```text\n  ' +
+      'code_block_'.repeat(40) +
+      '\n```\n\n' +
+      '<script>alert(1)</script>\n\n[Опасно](javascript:alert%281%29)'
+    await page.getByLabel('Markdown документа').fill(markdown)
+    await page.getByRole('button', { name: 'Предпросмотр' }).click()
+
+    for (const width of [375, 1920, 2560]) {
+      await page.setViewportSize({ width, height: width === 375 ? 812 : 1080 })
+      await expect(preview.getByRole('heading', { name: 'Требования', exact: true })).toBeVisible()
+      await expect(preview.locator('strong')).toHaveText('Результат')
+      await expect(preview.locator('em')).toHaveText('курсив')
+      await expect(preview.getByRole('listitem')).toHaveCount(2)
+      await expect(preview.locator('pre code')).toHaveText('  ' + 'code_block_'.repeat(40) + '\n')
+      await expect(preview.locator('pre')).toHaveAttribute('tabindex', '0')
+      await expect(preview.locator('script, [href^="javascript:"]')).toHaveCount(0)
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+          ),
+        )
+        .toBe(true)
+      let previousGeometry: string | undefined
+      await expect
+        .poll(async () => {
+          const box = await preview.boundingBox()
+          const geometry = JSON.stringify(box)
+          const stable = box !== null && geometry === previousGeometry
+          previousGeometry = geometry
+          return stable
+        })
+        .toBe(true)
+      await page.screenshot({
+        path: testInfo.outputPath(`wiki-markdown-preview-${width}.png`),
+        fullPage: true,
+      })
+    }
+    expect(documentWrites).toEqual([])
+    await page.getByRole('tab', { name: 'Markdown', exact: true }).click()
+    await expect(page.getByLabel('Markdown документа')).toHaveValue(markdown)
 
     await page.getByRole('link', { name: 'Пространства', exact: true }).click()
     const dialog = page.getByRole('alertdialog')
@@ -675,7 +734,8 @@ test.describe('wiki smoke', () => {
     await dialog.getByRole('button', { name: 'Отмена' }).click()
     await expect(dialog).toBeHidden()
     await expect(page).toHaveURL(`${baseURL}/documents/new`)
-    await page.screenshot({ path: 'test-results/wiki-document-draft-preview.png', fullPage: true })
+    await expect(page.getByLabel('Markdown документа')).toHaveValue(markdown)
+    expect(documentWrites).toEqual([])
 
     await page.getByRole('link', { name: 'Пространства', exact: true }).click()
     await dialog.getByRole('button', { name: 'Подтвердить' }).click()

@@ -133,7 +133,7 @@ export function DocumentComposePage() {
       )}
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
-        <Card>
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle className="text-base">Редактор</CardTitle>
           </CardHeader>
