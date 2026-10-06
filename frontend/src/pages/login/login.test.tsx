@@ -24,6 +24,13 @@ function renderLogin(path = '/login') {
 }
 
 describe('Wiki login', () => {
+  it('presents one platform login without product branding or legacy warnings', async () => {
+    renderLogin('/login?logged_out=1')
+    expect(await screen.findByRole('heading', { name: 'Вход в платформу', exact: true })).toBeInTheDocument()
+    expect(screen.queryByText(/Base|SDLC|Task Tracker|Fleet Control|Wiki|CI[/]CD|Admin Panel|второй фактор|защита входа/i)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Войти через SSO', exact: true })).toBeInTheDocument()
+  })
+
   beforeEach(() => {
     beginSso.mockReset().mockResolvedValue(undefined)
     useAuthStore.getState().logout()
@@ -34,7 +41,7 @@ describe('Wiki login', () => {
     await waitFor(() =>
       expect(beginSso).toHaveBeenCalledWith(expect.objectContaining({ clientId: 'wiki' }), '/'),
     )
-    expect(screen.getByRole('heading', { name: 'Вход в Wiki' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Вход в платформу' })).toBeInTheDocument()
     expect(screen.queryByLabelText(/пароль/i)).not.toBeInTheDocument()
   })
 

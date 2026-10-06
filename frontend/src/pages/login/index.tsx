@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Navigate, useLocation } from 'react-router'
 import { beginSso, isSsoNavigationInterruption } from '@sdlc/ui/sso'
-import { Button, PlatformMark, ThemeToggle } from '@sdlc/ui/ui'
+import { Button, ThemeToggle } from '@sdlc/ui/ui'
 import { ssoConfig, useAuthStore } from '@/shared/auth/store'
 
 export function LoginPage() {
@@ -25,8 +25,7 @@ export function LoginPage() {
         <ThemeToggle />
       </div>
       <div className="w-full max-w-sm space-y-5 text-center">
-        <PlatformMark withName />
-        <h1 className="text-xl font-semibold">Вход в Wiki</h1>
+        <h1 className="text-xl font-semibold">Вход в платформу</h1>
         {error && (
           <p role="alert" className="text-sm text-danger">
             {error}
