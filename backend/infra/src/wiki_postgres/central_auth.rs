@@ -10,9 +10,17 @@ use shared::{AppError, AuthConfig, WikiClaims};
 pub static BRIDGE: ServiceBridge = ServiceBridge::new("WIKI_AUTH__CENTRAL");
 
 /// Central-first bearer validation. `Ok(None)` = legacy path.
-pub async fn try_central(token: &str) -> Result<Option<sdlc_auth_core::AuthContext>, AppError> {
-    match BRIDGE.try_token(token).await {
-        BridgeOutcome::Validated(ctx) => Ok(Some(ctx)),
+pub async fn try_central(
+    token: &str,
+) -> Result<Option<(sdlc_auth_core::AuthContext, String)>, AppError> {
+    let (outcome, name) = BRIDGE.try_token_with_name(token).await;
+    match outcome {
+        BridgeOutcome::Validated(ctx) => {
+            let name = name.ok_or_else(|| {
+                AppError::Unavailable("Central Auth returned no verified display name".into())
+            })?;
+            Ok(Some((ctx, name)))
+        }
         BridgeOutcome::NotOurs | BridgeOutcome::NotConfigured => Ok(None),
         BridgeOutcome::Expired => Err(AppError::Unauthorized),
         BridgeOutcome::Invalid(reason) => {
@@ -30,7 +38,7 @@ pub fn legacy_config_ok(_config: &AuthConfig) -> bool {
 }
 
 /// Maps a central identity onto wiki claims; `user_id` is resolved by the
-/// caller from the verified email (find-or-link).
+/// caller from the immutable central subject, never from an email match.
 pub fn claims_for(ctx: &sdlc_auth_core::AuthContext, wiki_user_id: String) -> WikiClaims {
     WikiClaims {
         user_id: wiki_user_id,
