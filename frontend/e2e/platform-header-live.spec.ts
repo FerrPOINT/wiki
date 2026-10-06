@@ -237,7 +237,7 @@ test('Wiki global header preserves navigation, runtime services, focus and centr
   await profile.click()
   await menu.getByRole('menuitem', { name: 'Выйти', exact: true }).click()
   await expect(page).toHaveURL(/localhost:7701\/oidc\/logout\?client_id=wiki/)
-  await page.getByRole('button', { name: 'Выйти из всех приложений', exact: true }).click()
+  await page.getByRole('button', { name: 'Выйти', exact: true }).click()
   await expect(page).toHaveURL(/localhost:7732\/login\?logged_out/)
   await page.goto(`${base}/spaces`, { waitUntil: 'commit' })
   await expect(page).toHaveURL(/localhost:7701\/oidc\/authorize/)

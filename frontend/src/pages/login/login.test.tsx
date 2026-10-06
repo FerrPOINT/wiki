@@ -41,7 +41,7 @@ describe('Wiki login', () => {
   it('requires an explicit action after global logout', async () => {
     renderLogin('/login?logged_out=1')
     expect(beginSso).not.toHaveBeenCalled()
-    await userEvent.click(screen.getByRole('button', { name: 'Войти через SDLC' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Войти через SSO' }))
     expect(beginSso).toHaveBeenCalledTimes(1)
     expect(beginSso).toHaveBeenCalledWith(expect.objectContaining({ clientId: 'wiki' }), '/', {
       interactive: true,
@@ -54,7 +54,7 @@ describe('Wiki login', () => {
       beginSso.mockRejectedValueOnce(error)
       renderLogin()
       await waitFor(() => expect(beginSso).toHaveBeenCalledOnce())
-      await userEvent.click(screen.getByRole('button', { name: 'Войти через SDLC' }))
+      await userEvent.click(screen.getByRole('button', { name: 'Войти через SSO' }))
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
       expect(beginSso).toHaveBeenLastCalledWith(
         expect.objectContaining({ clientId: 'wiki' }),
@@ -67,10 +67,10 @@ describe('Wiki login', () => {
   it('shows real auth failures and clears them on an explicit retry', async () => {
     beginSso.mockRejectedValueOnce(new Error('private auth details'))
     renderLogin('/login?logged_out=1')
-    await userEvent.click(screen.getByRole('button', { name: 'Войти через SDLC' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Войти через SSO' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Central Auth временно недоступен.')
     expect(screen.queryByText(/private auth details/)).not.toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Войти через SDLC' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Войти через SSO' }))
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
   })
 })
