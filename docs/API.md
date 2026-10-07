@@ -94,6 +94,10 @@ Panel. Центральные люди получают одинаковые п�
 
 `DocumentResponse` and `DocumentRevisionResponse` expose both `body_markdown` and `body_html` for published content. `body_markdown` is the canonical source for CLI export; `body_html` is the sanitized HTML rendered by the backend from the published revision and is the only HTML surface the UI should render. `DocumentResponse.can_edit` tells clients whether draft and write controls are available. `draft_markdown` is populated only when `can_edit=true`; read-only viewers receive an empty `draft_markdown` and only the published body fields.
 
+Локальный предпросмотр нового черновика строит безопасные React-элементы из
+CommonMark через `react-markdown` с отключённым raw HTML. Это не новое API,
+не сохранение и не публикация: исходник остаётся в состоянии редактора.
+
 ## 8. Task Links
 
 Task dossier в MVP - это представление документов/evidence, связанных одним внешним `task_key`. Wiki не владеет статусом задачи.

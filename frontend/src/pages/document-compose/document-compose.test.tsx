@@ -123,7 +123,34 @@ describe('DocumentComposePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Предпросмотр' }))
 
     expect(screen.getByRole('tab', { name: 'Просмотр' })).toHaveAttribute('data-state', 'active')
-    expect(screen.getByText('# Содержание')).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Содержание', level: 1 })).toBeVisible()
+    expect(createDocumentMutate).not.toHaveBeenCalled()
+  })
+
+  it('renders Markdown safely and preserves the source when returning to the editor', () => {
+    setupCompose()
+    const markdown =
+      '# Проверка\n\n**Результат** и *курсив*\n\n- Первый\n- Второй\n\n[Документы](https://example.test/docs)\n\n```text\ncode <tag>\n```\n\n<script>alert(1)</script>\n\n[Опасно](javascript:alert%281%29)'
+    fireEvent.change(screen.getByLabelText('Markdown документа'), { target: { value: markdown } })
+    fireEvent.click(screen.getByRole('button', { name: 'Предпросмотр' }))
+    const preview = screen.getByRole('tabpanel', { name: 'Просмотр' })
+    expect(within(preview).getByText('Результат').tagName).toBe('STRONG')
+    expect(within(preview).getByText('курсив').tagName).toBe('EM')
+    expect(within(preview).getAllByRole('listitem')).toHaveLength(2)
+    expect(within(preview).getByRole('link', { name: 'Документы' })).toHaveAttribute(
+      'href',
+      'https://example.test/docs',
+    )
+    expect(preview.querySelector('pre code')).toHaveTextContent('code <tag>')
+    expect(preview.querySelector('pre')).toHaveAttribute('tabindex', '0')
+    expect(preview.querySelector('script')).toBeNull()
+    expect(preview.querySelector('[href^="javascript:"]')).toBeNull()
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Markdown' }), {
+      button: 0,
+      ctrlKey: false,
+    })
+    expect(screen.getByLabelText('Markdown документа')).toHaveValue(markdown)
+    expect(createDocumentMutate).not.toHaveBeenCalled()
   })
 
   it('keeps an unsaved draft when navigation is cancelled and leaves after confirmation', async () => {
