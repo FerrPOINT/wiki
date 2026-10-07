@@ -70,6 +70,8 @@ Unit/component tests:
 - app shell navigation, account menu and logout;
 - dashboard;
 - spaces and page tree preview;
+- successful archive removes the action and restores focus to the space row or
+  document heading; Cancel/Escape restore the existing archive action;
 - safe API error formatting for permission denied and validation details;
 - document editor;
 - revision history;
@@ -175,3 +177,8 @@ Baseline test fixtures:
 ## Общая база
 
 Подключение версий, границы контрактов и проверки описаны в [BASE_INTEGRATION](BASE_INTEGRATION.md).
+
+Регрессия central_projection_distinguishes_database_failure_from_invalid_claims
+проверяет закрытый DB pool и неполные claims отдельно. CI явно запускает
+mixed_central_directory_preserves_identity_and_disabled_state_in_postgres
+на своём PostgreSQL; workspace test не исполняет ignored-тест автоматически.

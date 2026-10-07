@@ -102,6 +102,7 @@ export function DocumentPage() {
   const hasNextRevisionPage = (revisionsQuery.data?.revisions.length ?? 0) > 20
   const [selectedRevisionId, setSelectedRevisionId] = useState<string | null>(null)
   const revisionTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const documentHeadingRef = useRef<HTMLHeadingElement>(null)
   const selectedRevisionQuery = useDocumentRevision(
     documentId,
     selectedRevisionId ?? '',
@@ -257,7 +258,13 @@ export function DocumentPage() {
           <div className="break-words text-sm text-text-muted">
             {document.space_key} / {formatDocumentType(document.document_type)} / {document.slug}
           </div>
-          <h1 className="mt-2 break-words text-2xl font-bold">{document.title}</h1>
+          <h1
+            ref={documentHeadingRef}
+            tabIndex={-1}
+            className="mt-2 break-words text-2xl font-bold"
+          >
+            {document.title}
+          </h1>
           <div className="mt-3 flex flex-wrap gap-2 text-xs text-text-secondary">
             <span className="inline-flex items-center gap-1 rounded bg-surface-raised px-2 py-1">
               <CheckCircle2 className="h-3.5 w-3.5 text-success" />
@@ -338,6 +345,7 @@ export function DocumentPage() {
 
       <ConfirmDialog
         open={archiveOpen}
+        fallbackFocusRef={documentHeadingRef}
         onOpenChange={setArchiveOpen}
         title="Архивировать документ?"
         description="Документ исчезнет из обычного дерева страниц, но останется в истории и аудите."

@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react'
+import { FormEvent, type RefObject, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import {
   Archive,
@@ -160,11 +160,13 @@ function CreateSpaceForm({ onCreated }: { onCreated: () => void }) {
 
 function SpaceDetails({
   currentUserId,
+  fallbackFocusRef,
   isSystemAdmin,
   onArchived,
   space,
 }: {
   currentUserId?: string
+  fallbackFocusRef: RefObject<HTMLButtonElement | null>
   isSystemAdmin: boolean
   onArchived: (space: Space) => void
   space: Space
@@ -247,6 +249,7 @@ function SpaceDetails({
 
       <ConfirmDialog
         open={archiveOpen}
+        fallbackFocusRef={fallbackFocusRef}
         onOpenChange={setArchiveOpen}
         title="Архивировать пространство?"
         description={`«${space.name}» (${space.key}) останется доступным для чтения, но изменения документов, материалов и связей будут заблокированы. Восстановление из интерфейса пока недоступно.`}
@@ -288,6 +291,7 @@ function SpaceDetails({
 }
 
 export function SpacesPage() {
+  const expandedSpaceRef = useRef<HTMLButtonElement>(null)
   const currentUserQuery = useCurrentUser()
   const spacesQuery = useSpaces()
   const isSystemAdmin = currentUserQuery.data?.is_system_admin === true
@@ -469,6 +473,7 @@ export function SpacesPage() {
                 return (
                   <li key={space.key}>
                     <button
+                      ref={expanded ? expandedSpaceRef : undefined}
                       type="button"
                       aria-expanded={expanded}
                       aria-controls={`space-details-${space.key}`}
@@ -507,6 +512,7 @@ export function SpacesPage() {
                       <div id={`space-details-${space.key}`}>
                         <SpaceDetails
                           currentUserId={currentUserQuery.data?.id}
+                          fallbackFocusRef={expandedSpaceRef}
                           isSystemAdmin={isSystemAdmin}
                           onArchived={handleArchived}
                           space={space}

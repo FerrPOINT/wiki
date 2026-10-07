@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -159,6 +160,33 @@ function setupSpaces({
 }
 
 describe('SpacesPage', () => {
+  it('returns focus to the space row after successful archive removes the initiator', async () => {
+    const user = userEvent.setup()
+    setupSpaces()
+    const row = screen.getByRole('button', { name: /База знаний Base/ })
+    await user.click(row)
+    await user.click(screen.getByRole('button', { name: 'Архивировать' }))
+    await user.click(screen.getByRole('button', { name: 'Подтвердить' }))
+    const archived = { ...useSpaces.mock.results[0]!.value.data.spaces[0], status: 'archived' }
+    act(() => archiveMutate.mock.calls[0]![1].onSuccess(archived))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: 'Архивировать' })).not.toBeInTheDocument()
+    await waitFor(() => expect(row).toHaveFocus())
+    expect(row).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it.each(['cancel', 'escape'])('returns focus to the archive initiator on %s', async (action) => {
+    const user = userEvent.setup()
+    setupSpaces()
+    await user.click(screen.getByRole('button', { name: /База знаний Base/ }))
+    const trigger = screen.getByRole('button', { name: 'Архивировать' })
+    await user.click(trigger)
+    if (action === 'cancel') await user.click(screen.getByRole('button', { name: 'Отмена' }))
+    else await user.keyboard('{Escape}')
+    await waitFor(() => expect(trigger).toHaveFocus())
+    expect(archiveMutate).not.toHaveBeenCalled()
+  })
+
   afterEach(() => {
     vi.clearAllMocks()
   })

@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -143,6 +144,39 @@ function setupDocument(document: Document = baseDocument, revisionHistory?: Docu
 }
 
 describe('DocumentPage', () => {
+  it('returns focus to the document heading after archive makes it read-only', async () => {
+    const user = userEvent.setup()
+    setupDocument()
+    await user.click(screen.getByRole('button', { name: 'Правка' }))
+    await user.click(screen.getByRole('button', { name: 'Архивировать' }))
+    await user.click(screen.getByRole('button', { name: 'Подтвердить' }))
+    useDocument.mockReturnValue({
+      data: { ...baseDocument, status: 'archived', can_edit: false },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    })
+    act(() => archiveMutate.mock.calls[0]![1].onSuccess())
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: 'Архивировать' })).not.toBeInTheDocument()
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'Требования Wiki' })).toHaveFocus(),
+    )
+    expect(screen.queryByRole('group', { name: 'Режим документа' })).not.toBeInTheDocument()
+  })
+
+  it.each(['cancel', 'escape'])('returns focus to the archive initiator on %s', async (action) => {
+    const user = userEvent.setup()
+    setupDocument()
+    await user.click(screen.getByRole('button', { name: 'Правка' }))
+    const trigger = screen.getByRole('button', { name: 'Архивировать' })
+    await user.click(trigger)
+    if (action === 'cancel') await user.click(screen.getByRole('button', { name: 'Отмена' }))
+    else await user.keyboard('{Escape}')
+    await waitFor(() => expect(trigger).toHaveFocus())
+    expect(archiveMutate).not.toHaveBeenCalled()
+  })
+
   it('keeps a non-default space in task and phase context links', () => {
     setupDocument({ ...baseDocument, space_key: 'DOCS' })
     expect(screen.getByRole('link', { name: 'BASE-42' })).toHaveAttribute(

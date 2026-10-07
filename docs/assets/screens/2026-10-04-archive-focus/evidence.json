@@ -1,0 +1,82 @@
+{
+  "scope": "R25 successful space/document archive on actual production image/Central Auth/API/PostgreSQL; isolated QA project, no route mocks; this is not a whole-product or merged-delivery acceptance",
+  "tested_git_tree": "503fa6b5a311482dc5a5fc26d95d77b1f8309a3d",
+  "base_sha": "9408802dfa978cba2f67162a49adca6f65851b01",
+  "tested_image_id": "sha256:db22a6fe6670d1d4daf8b2f8da393771e6159bd73d63c81c854857e3f4a33278",
+  "frontend_tests": 180,
+  "focused_page_tests": 30,
+  "original_focus_regressions_failed": 2,
+  "browser_fixture_tests": 21,
+  "opt_in_live_fixtures_skipped": 6,
+  "actual_cases": 24,
+  "widths": [
+    375,
+    768,
+    1920,
+    2560
+  ],
+  "themes": [
+    "dark",
+    "gray",
+    "light"
+  ],
+  "keyboard_trap": true,
+  "cancel_escape_return_initiator": true,
+  "success_returns_stable_fallback": true,
+  "real_sql_lock_pending": true,
+  "pending_escape_guard": true,
+  "archive_post_and_readback": true,
+  "compose_cleanup_exit": 0,
+  "node": "22.20.0",
+  "pnpm": "10.28.1",
+  "playwright": "1.61.1",
+  "product_lock_unchanged": true,
+  "source_blobs": {
+    "frontend/src/pages/spaces/index.tsx": "eddcd2921a73de75bf9738766fc0f37b70cbfd98",
+    "frontend/src/pages/document/index.tsx": "3793fdbebda7221edd5f12686a9bfb791ebe3730"
+  },
+  "screenshots": [
+    {
+      "file": "wiki-archive-focus-space-375-dark.png",
+      "width": 375,
+      "theme": "dark",
+      "operation": "space",
+      "sha256": "095a75fb5db8e5d3e7b0298c36c51532f4da35652d576fe7667f2a4c987c0930"
+    },
+    {
+      "file": "wiki-archive-focus-space-1920-dark.png",
+      "width": 1920,
+      "theme": "dark",
+      "operation": "space",
+      "sha256": "a503646c1c6dbef5c44ceec76d9e2d2dad4f8f716d7f59eae0b98f7344d31729"
+    },
+    {
+      "file": "wiki-archive-focus-space-2560-dark.png",
+      "width": 2560,
+      "theme": "dark",
+      "operation": "space",
+      "sha256": "b7038e649f45f452770f4cd710900871c4277c872282fe1ec9770922acf85fa8"
+    },
+    {
+      "file": "wiki-archive-focus-document-375-dark.png",
+      "width": 375,
+      "theme": "dark",
+      "operation": "document",
+      "sha256": "e2d3aef43d3607271267ae3b4f5af144e5b82663ada95d3fb3830793fbfe1859"
+    },
+    {
+      "file": "wiki-archive-focus-document-1920-dark.png",
+      "width": 1920,
+      "theme": "dark",
+      "operation": "document",
+      "sha256": "8420afd27037c25a6db08e66feab3ff5467b5e795d7f68404429ac04c2ac52da"
+    },
+    {
+      "file": "wiki-archive-focus-document-2560-dark.png",
+      "width": 2560,
+      "theme": "dark",
+      "operation": "document",
+      "sha256": "1c3f0740380c8a7bc47c121cb82a0dc56971898485aa2a1529529e8e84b61be7"
+    }
+  ]
+}
