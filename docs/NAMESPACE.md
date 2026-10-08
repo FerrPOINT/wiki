@@ -41,3 +41,8 @@ Machine identity проверяется до создания human profile. Ver
 `VITE_NAMESPACE_ENABLED=true` включает picker и managed task UI только после
 установки совместимого cohort. Legacy SDK/skills pins не переписываются.
 Fresh source/CI/image/served/UI evidence и backup/rollback проверяются отдельно.
+
+PAT старого Auth без display metadata использует только уже сохранённый active
+профиль по exact central subject. Имя, роль и timestamp профиля не меняются;
+неизвестный или отключённый профиль отклоняется. Machine classification
+предшествует этому lookup, scopes и отзыв credentials продолжают действовать.
