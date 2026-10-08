@@ -44,6 +44,7 @@ describe('RegisterPage', () => {
     })
 
     render(wrapper(<RegisterPage />))
+    expect(screen.queryByRole('button', { name: /Тема|Theme/i })).not.toBeInTheDocument()
     expect(screen.getByText('Wiki')).toBeInTheDocument()
 
     await userEvent.type(screen.getByLabelText(/имя пользователя|username/i), 'newuser')
