@@ -1,3 +1,6 @@
+import { DocumentRevisionPage } from '@/pages/document-revision'
+import { ManagedTaskPage } from '@/pages/managed-task'
+import { NamespacePage } from '@/pages/namespace'
 import { lazy, Suspense, type ReactElement } from 'react'
 import { createBrowserRouter, Navigate } from 'react-router'
 import { RequireAuth } from '@/shared/auth/require-auth'
@@ -66,6 +69,12 @@ export const router = createBrowserRouter([
       {
         element: <AppShell />,
         children: [
+          { path: '/namespace', element: <NamespacePage /> },
+          {
+            path: '/documents/:documentId/revisions/:revisionId',
+            element: <DocumentRevisionPage />,
+          },
+          { path: '/managed-tasks/:trackerInstance/:taskId', element: <ManagedTaskPage /> },
           { path: '/', element: withSuspense(<DashboardPage />) },
           { path: '/spaces', element: withSuspense(<SpacesPage />) },
           { path: '/documents/new', element: withSuspense(<DocumentComposePage />) },

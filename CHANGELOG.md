@@ -6,6 +6,9 @@
 
 ## [Unreleased]
 
+- Namespace cohort: стабильные refs, локальные binding projections и lifecycle guards; аддитивные migrations, совместимый rollback и отдельные execution v2 gates. Runtime-приёмка ещё не завершена.
+
+
 - Ошибка БД при центральной проекции пользователя сохраняет безопасный 500,
   вместо terminal 401 и повторного входа; неполные claims по-прежнему дают 401.
 

@@ -114,6 +114,11 @@ pub struct WikiBackend {
 }
 
 impl WikiBackend {
+    pub fn namespace_port(&self) -> Result<&dyn WikiBackendPort, shared::AppError> {
+        self.persistent.as_deref().ok_or_else(|| {
+            shared::AppError::Unavailable("namespace_requires_persistent_storage".into())
+        })
+    }
     pub fn memory() -> Self {
         Self::memory_with_registration(true)
     }
@@ -3481,6 +3486,7 @@ fn task_page(store: &WikiStore, space_key: &str, task_key: &str) -> TaskPageResp
         .collect();
     let evidence = evidence_for_task(store, space_key, task_key);
     TaskPageResponse {
+        managed_task_ref: None,
         space_key: space_key.to_string(),
         task_key: task_key.to_string(),
         title: documents.first().map(|document| document.title.clone()),

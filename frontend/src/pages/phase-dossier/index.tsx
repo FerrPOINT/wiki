@@ -1,5 +1,6 @@
 import { type FormEvent, useRef, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router'
+import { NamespaceLink as Link } from '@sdlc/ui/ui'
+import { useParams, useSearchParams } from 'react-router'
 import { FileCheck2, FileText, Link2, Search } from 'lucide-react'
 import { useLinkPhaseDocument, usePhase, usePhaseSummaries, useSpaces } from '@/shared/api/hooks'
 import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'

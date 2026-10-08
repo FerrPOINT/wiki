@@ -94,6 +94,88 @@ impl WikiMaintenanceReport {
 
 #[async_trait::async_trait]
 pub trait WikiBackendPort: Send + Sync {
+    async fn namespace_available_tasks(
+        &self,
+        _claims: &WikiClaims,
+        _space_key: &str,
+        _offset: u32,
+    ) -> Result<Vec<crate::resource_context::TaskCatalogItem>, AppError> {
+        Err(AppError::Unavailable(
+            "tracker_reader_not_configured".into(),
+        ))
+    }
+    async fn namespace_available_resources(
+        &self,
+        _claims: &WikiClaims,
+        _limit: i64,
+        _offset: i64,
+    ) -> Result<Vec<crate::resource_context::ResourceCatalogItem>, AppError> {
+        Err(AppError::Unavailable(
+            "namespace_catalog_not_supported".into(),
+        ))
+    }
+    async fn namespace_stats(
+        &self,
+        _claims: &WikiClaims,
+        _namespace: &crate::resource_context::NamespaceRef,
+    ) -> Result<crate::resource_context::ResourceStats, AppError> {
+        Err(AppError::Unavailable(
+            "namespace_stats_not_supported".into(),
+        ))
+    }
+    async fn namespace_task_revision_links(
+        &self,
+        _namespace: &crate::resource_context::NamespaceRef,
+        _task: &crate::managed_links::TaskRef,
+    ) -> Result<Vec<serde_json::Value>, AppError> {
+        Err(AppError::Unavailable(
+            "managed_links_not_implemented".into(),
+        ))
+    }
+    async fn namespace_contexts(
+        &self,
+        _claims: &WikiClaims,
+        _namespace: Option<&crate::resource_context::NamespaceRef>,
+        _limit: i64,
+        _offset: i64,
+    ) -> Result<Vec<crate::resource_context::ResourceContextSummary>, AppError> {
+        Err(AppError::Unavailable(
+            "namespace_catalog_not_supported".into(),
+        ))
+    }
+    async fn link_task_revision(
+        &self,
+        _claims: &WikiClaims,
+        _space_key: &str,
+        _input: &crate::managed_links::LinkTaskRevision,
+    ) -> Result<serde_json::Value, AppError> {
+        Err(AppError::Unavailable(
+            "managed_links_not_implemented".into(),
+        ))
+    }
+    async fn task_revision_links(
+        &self,
+        _claims: &WikiClaims,
+        _task: &crate::managed_links::TaskRef,
+    ) -> Result<Vec<serde_json::Value>, AppError> {
+        Err(AppError::Unavailable(
+            "managed_links_not_implemented".into(),
+        ))
+    }
+    async fn namespace_binding(
+        &self,
+        _space_id: uuid::Uuid,
+    ) -> Result<Option<crate::resource_context::OwnerReadback>, AppError> {
+        Ok(None)
+    }
+    async fn apply_namespace(
+        &self,
+        _command: &crate::resource_context::OwnerCommand,
+    ) -> Result<crate::resource_context::OwnerReadback, AppError> {
+        Err(AppError::Unavailable(
+            "namespace_owner_not_implemented".into(),
+        ))
+    }
     async fn readiness_check(&self) -> Result<(), AppError>;
     async fn run_maintenance(&self) -> Result<WikiMaintenanceReport, AppError> {
         Ok(WikiMaintenanceReport::default())
@@ -614,6 +696,9 @@ pub struct LinkDocumentRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct TaskPageResponse {
+    /// A key URL resolves only when the dossier identity is unambiguous.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub managed_task_ref: Option<sdlc_shared::resource_context::TaskRef>,
     pub space_key: String,
     pub task_key: String,
     pub title: Option<String>,

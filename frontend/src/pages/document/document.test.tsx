@@ -1,4 +1,13 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import type { ReactNode } from 'react'
+import {
+  act,
+  fireEvent,
+  render as renderView,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -6,6 +15,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Document, DocumentRevision } from '@/api/wiki'
 
 import { DocumentPage } from './'
+
+function render(view: ReactNode) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return renderView(<QueryClientProvider client={client}>{view}</QueryClientProvider>)
+}
 
 const useArchiveDocument = vi.hoisted(() => vi.fn())
 const useDocument = vi.hoisted(() => vi.fn())
