@@ -255,6 +255,18 @@ impl WikiSettingsRepository for PostgresWikiSettingsRepository<'_> {
 }
 
 impl PostgresWikiAuthRepository<'_> {
+    async fn existing_central_user(
+        &self,
+        subject: &str,
+    ) -> Result<WikiAuthUserRecord, shared::AppError> {
+        // Older PAT introspection has verified identity/scopes but no name.
+        // Reuse the exact active subject only; no email link or profile mutation.
+        let row = sqlx::query("SELECT id,email,username,display_name,password_hash,global_role,is_active FROM users WHERE central_sub=$1 AND is_active")
+            .bind(subject).fetch_optional(&self.backend.pool).await.map_err(shared::AppError::database)?
+            .ok_or(shared::AppError::Unauthorized)?;
+        Ok(auth_user_from_row(&row))
+    }
+
     /// Central subjects never auto-link to historical local email rows.
     async fn find_or_link_central_user(
         &self,
@@ -299,7 +311,7 @@ impl PostgresWikiAuthRepository<'_> {
         .execute(&self.backend.pool)
         .await
         .map_err(shared::AppError::database)?;
-        sqlx::query("UPDATE users SET display_name = $2, global_role = 'admin', is_active = true, updated_at = now() WHERE central_sub = $1 AND (display_name IS DISTINCT FROM $2 OR global_role <> 'admin' OR NOT is_active)")
+        sqlx::query("UPDATE users SET display_name=$2, global_role = 'admin', is_active = true, updated_at=now() WHERE central_sub = $1 AND (display_name IS DISTINCT FROM $2 OR global_role <> 'admin' OR NOT is_active)")
             .bind(&ctx.user_id).bind(display_name).execute(&self.backend.pool).await.map_err(shared::AppError::database)?;
         let row = sqlx::query(
             "SELECT id, email, username, display_name, password_hash, global_role, is_active \
@@ -618,13 +630,23 @@ impl PostgresWikiBackend {
         &self,
         token: &str,
     ) -> Result<WikiClaims, shared::AppError> {
-        // Name comes from the live session/PAT check, not stale JWT metadata.
-        if let Some((ctx, name)) = crate::wiki_postgres::central_auth::try_central(token).await? {
+        // Subject and live verified display name come from Central Auth.
+        if let Some((ctx, name)) =
+            crate::wiki_postgres::central_auth::try_central_with_name(token).await?
+        {
+            if super::namespace::registered_machine(&ctx.user_id)
+                || ctx.role.as_deref() == Some("service_account")
+            {
+                return Err(shared::AppError::Forbidden);
+            }
             let repository = PostgresWikiAuthRepository {
                 backend: self,
                 request_id: None,
             };
-            let record = repository.find_or_link_central_user(&ctx, &name).await?;
+            let record = match name {
+                Some(name) => repository.find_or_link_central_user(&ctx, &name).await?,
+                None => repository.existing_central_user(&ctx.user_id).await?,
+            };
             return Ok(crate::wiki_postgres::central_auth::claims_for(
                 &ctx,
                 record.id.to_string(),
@@ -775,61 +797,6 @@ impl PostgresWikiBackend {
 mod central_directory_tests {
     use super::*;
 
-    #[tokio::test]
-    async fn central_projection_distinguishes_database_failure_from_invalid_claims() {
-        let pool = sqlx::PgPool::connect_lazy("postgres://unused@127.0.0.1:1/unused").unwrap();
-        pool.close().await;
-        let config = shared::AppConfig::default();
-        let backend = PostgresWikiBackend {
-            pool,
-            auth: config.auth.clone(),
-            storage: std::sync::Arc::new(crate::LocalWikiAttachmentStorage::new("unused")),
-            max_upload_bytes: config.storage.max_upload_bytes,
-            staged_attachment_ttl_hours: config.maintenance.staged_attachment_ttl_hours,
-            maintenance_batch_size: config.maintenance.batch_size,
-            settings: WikiSettingsSnapshot::from_config(&config),
-        };
-        let repository = PostgresWikiAuthRepository {
-            backend: &backend,
-            request_id: None,
-        };
-        let mut context = sdlc_auth_core::AuthContext {
-            user_id: Uuid::now_v7().to_string(),
-            role: None,
-            scopes: Default::default(),
-            session_id: None,
-            email: Some("qa-projection@example.test".into()),
-            token: String::new(),
-        };
-        assert!(matches!(
-            repository
-                .find_or_link_central_user(&context, "Verified name")
-                .await,
-            Err(shared::AppError::Database(_))
-        ));
-        assert!(matches!(
-            repository
-                .find_or_link_central_user(&context, " \t\n")
-                .await,
-            Err(shared::AppError::Unavailable(_))
-        ));
-        context.email = None;
-        assert!(matches!(
-            repository
-                .find_or_link_central_user(&context, "Verified name")
-                .await,
-            Err(shared::AppError::Unauthorized)
-        ));
-        context.email = Some("qa-projection@example.test".into());
-        context.user_id.clear();
-        assert!(matches!(
-            repository
-                .find_or_link_central_user(&context, "Verified name")
-                .await,
-            Err(shared::AppError::Unauthorized)
-        ));
-    }
-
     async fn profile_backend() -> PostgresWikiBackend {
         let url = std::env::var("WIKI_TEST_DATABASE_URL").expect("disposable QA database required");
         let pool = sqlx::PgPool::connect(&url).await.unwrap();
@@ -843,8 +810,9 @@ mod central_directory_tests {
         let config = shared::AppConfig::default();
         PostgresWikiBackend {
             pool,
+            task_reader: None,
             auth: config.auth.clone(),
-            storage: std::sync::Arc::new(crate::LocalWikiAttachmentStorage::new(
+            storage: std::sync::Arc::new(crate::wiki_storage::LocalWikiAttachmentStorage::new(
                 std::env::temp_dir().join(format!("wiki-profile-{}", Uuid::now_v7())),
             )),
             max_upload_bytes: config.storage.max_upload_bytes,
@@ -990,6 +958,120 @@ mod central_directory_tests {
             .unwrap();
         assert_eq!(name, "Verified");
         backend.pool.close().await;
+    }
+
+    #[tokio::test]
+    #[ignore = "requires a disposable PostgreSQL database in WIKI_TEST_DATABASE_URL"]
+    async fn older_pat_reuses_only_exact_active_profile_without_mutation() {
+        let backend = profile_backend().await;
+        let repository = PostgresWikiAuthRepository {
+            backend: &backend,
+            request_id: None,
+        };
+        let ctx = context(&format!("{}@example.test", Uuid::now_v7()));
+        assert!(
+            repository
+                .existing_central_user(&ctx.user_id)
+                .await
+                .is_err()
+        );
+        let original = repository
+            .find_or_link_central_user(&ctx, "Verified name")
+            .await
+            .unwrap();
+        let before: (String, String, chrono::DateTime<chrono::Utc>) =
+            sqlx::query_as("SELECT display_name,global_role,updated_at FROM users WHERE id=$1")
+                .bind(original.id)
+                .fetch_one(&backend.pool)
+                .await
+                .unwrap();
+        let record = repository
+            .existing_central_user(&ctx.user_id)
+            .await
+            .unwrap();
+        assert_eq!(record.id, original.id);
+        let other = context(ctx.email.as_deref().unwrap());
+        assert!(
+            repository
+                .existing_central_user(&other.user_id)
+                .await
+                .is_err()
+        );
+        let after: (String, String, chrono::DateTime<chrono::Utc>) =
+            sqlx::query_as("SELECT display_name,global_role,updated_at FROM users WHERE id=$1")
+                .bind(original.id)
+                .fetch_one(&backend.pool)
+                .await
+                .unwrap();
+        assert_eq!(before, after);
+        sqlx::query("UPDATE users SET is_active=false WHERE id=$1")
+            .bind(original.id)
+            .execute(&backend.pool)
+            .await
+            .unwrap();
+        assert!(
+            repository
+                .existing_central_user(&ctx.user_id)
+                .await
+                .is_err()
+        );
+        backend.pool.close().await;
+    }
+
+    #[tokio::test]
+    async fn central_projection_distinguishes_database_failure_from_invalid_claims() {
+        let pool = sqlx::PgPool::connect_lazy("postgres://unused@127.0.0.1:1/unused").unwrap();
+        pool.close().await;
+        let config = shared::AppConfig::default();
+        let backend = PostgresWikiBackend {
+            task_reader: None,
+            pool,
+            auth: config.auth.clone(),
+            storage: std::sync::Arc::new(crate::LocalWikiAttachmentStorage::new("unused")),
+            max_upload_bytes: config.storage.max_upload_bytes,
+            staged_attachment_ttl_hours: config.maintenance.staged_attachment_ttl_hours,
+            maintenance_batch_size: config.maintenance.batch_size,
+            settings: WikiSettingsSnapshot::from_config(&config),
+        };
+        let repository = PostgresWikiAuthRepository {
+            backend: &backend,
+            request_id: None,
+        };
+        let mut context = sdlc_auth_core::AuthContext {
+            user_id: Uuid::now_v7().to_string(),
+            role: None,
+            scopes: Default::default(),
+            session_id: None,
+            email: Some("qa-projection@example.test".into()),
+            token: String::new(),
+        };
+        assert!(matches!(
+            repository
+                .find_or_link_central_user(&context, "Verified name")
+                .await,
+            Err(shared::AppError::Database(_))
+        ));
+        assert!(matches!(
+            repository
+                .find_or_link_central_user(&context, " \t\n")
+                .await,
+            Err(shared::AppError::Unavailable(_))
+        ));
+        context.email = None;
+        assert!(matches!(
+            repository
+                .find_or_link_central_user(&context, "Verified name")
+                .await,
+            Err(shared::AppError::Unauthorized)
+        ));
+        context.email = Some("qa-projection@example.test".into());
+        context.user_id.clear();
+        assert!(matches!(
+            repository
+                .find_or_link_central_user(&context, "Verified name")
+                .await,
+            Err(shared::AppError::Unauthorized)
+        ));
     }
 
     fn entry(name: &str, username: &str) -> CentralDirectoryUser {

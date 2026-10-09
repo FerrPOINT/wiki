@@ -372,3 +372,8 @@ erDiagram
 - `docs/API.md`
 - `docs/DATABASE_INDEXES.md`
 - `docs/MVP_READINESS.md`
+
+
+## Сквозной Namespace
+
+Версионированные API, данные, ownership и совместимость описаны в [Namespace](NAMESPACE.md).

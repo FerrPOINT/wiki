@@ -6,6 +6,14 @@
 
 ## [Unreleased]
 
+- Tracker reader сохраняет 503 для временных 5xx/429 и проверяет TaskRef отдельно
+  от отсутствующей задачи (404). HTTP-регрессия проверяет оба сценария.
+- Потерянная namespace projection не позволяет заново привязать managed Space;
+  PostgreSQL-регрессии lifecycle, fencing и fail-closed поведения включены в CI.
+
+- Namespace cohort: стабильные refs, локальные binding projections и lifecycle guards; аддитивные migrations, совместимый rollback и отдельные execution v2 gates. Runtime-приёмка ещё не завершена.
+
+
 - Ошибка БД при центральной проекции пользователя сохраняет безопасный 500,
   вместо terminal 401 и повторного входа; неполные claims по-прежнему дают 401.
 
