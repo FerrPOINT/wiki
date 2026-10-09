@@ -33,7 +33,7 @@ import {
   PageFrame,
   PlatformHeader,
   PlatformMark,
-  ThemeToggle,
+  ThemeMenuItems,
 } from '@sdlc/ui/ui'
 import { useCurrentUser, useLogout } from '@/shared/api/hooks'
 
@@ -206,7 +206,6 @@ export function AppShell() {
                 <span>Новый документ</span>
               </Link>
             </Button>
-            <ThemeToggle />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -225,6 +224,7 @@ export function AppShell() {
                 {user?.email && user.email !== identity && (
                   <div className="break-words px-2 pb-2 text-xs text-text-muted">{user.email}</div>
                 )}
+                <ThemeMenuItems />
                 <DropdownMenuItem
                   onSelect={() => logout.mutate()}
                   className="min-h-11 gap-2 text-text-secondary md:min-h-10"
