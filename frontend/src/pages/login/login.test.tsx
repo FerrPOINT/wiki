@@ -36,6 +36,7 @@ describe('Wiki login', () => {
     )
     expect(screen.getByRole('heading', { name: 'Вход в Wiki' })).toBeInTheDocument()
     expect(screen.queryByLabelText(/пароль/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Тема|Theme/i })).not.toBeInTheDocument()
   })
 
   it('requires an explicit action after global logout', async () => {
