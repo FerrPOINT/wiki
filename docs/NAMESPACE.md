@@ -46,6 +46,11 @@ Machine identity проверяется до создания human profile. Ver
 установки совместимого cohort. Legacy SDK/skills pins не переписываются.
 Fresh source/CI/image/served/UI evidence и backup/rollback проверяются отдельно.
 
+Локальный downgrade `202610080001_namespace` разрешён только до появления bindings,
+managed spaces, typed TaskRef и revision links. После создания namespace-данных
+down-миграция откажется удалять их; для production применяют компенсирующую
+миграцию, сохраняя bindings и опубликованные связи.
+
 PAT старого Auth без display metadata использует только уже сохранённый active
 профиль по exact central subject. Имя, роль и timestamp профиля не меняются;
 неизвестный или отключённый профиль отклоняется. Machine classification
