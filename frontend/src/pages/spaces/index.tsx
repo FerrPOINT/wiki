@@ -1,5 +1,6 @@
 import { FormEvent, type RefObject, useRef, useState } from 'react'
-import { Link } from 'react-router'
+import { NamespaceLink as Link } from '@sdlc/ui/ui'
+
 import {
   Archive,
   BookOpenText,

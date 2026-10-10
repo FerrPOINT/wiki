@@ -27,6 +27,8 @@ backend/migrations/
 ├── 202608310002_add_auth_runtime.down.sql
 ├── 202609030001_add_idempotency_records.up.sql
 ├── 202609030001_add_idempotency_records.down.sql
+├── 202610080001_namespace.up.sql
+├── 202610080001_namespace.down.sql
 └── seeds/
 ```
 
