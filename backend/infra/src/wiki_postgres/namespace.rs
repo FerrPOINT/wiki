@@ -564,7 +564,7 @@ mod namespace_postgres_tests {
             create_command(owner),
             create_command(owner),
         ];
-        for (command, key, name) in commands.iter_mut().zip([
+        for (command, (key, name)) in commands.iter_mut().zip([
             (format!("N-{suffix}-A"), "A inaccessible"),
             (format!("N-{suffix}-B"), "B accessible"),
             (format!("N-{suffix}-C"), "C accessible"),
