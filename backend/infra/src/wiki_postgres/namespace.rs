@@ -547,7 +547,7 @@ mod namespace_postgres_tests {
 
     #[tokio::test]
     #[ignore = "requires disposable PostgreSQL and QA Wiki/registry instance IDs"]
-    async fn namespace_catalog_paginates_after_access_filtering() {
+    async fn namespace_contexts_paginate_after_access_filtering() {
         let (backend, owner) = backend().await;
         let reader = Uuid::now_v7();
         sqlx::query("INSERT INTO users(id,email,username,display_name,password_hash,global_role) VALUES($1,$2,$3,'Namespace reader','unused','user')")
@@ -559,12 +559,16 @@ mod namespace_postgres_tests {
             .unwrap();
         let suffix = reader.simple().to_string()[..8].to_ascii_uppercase();
 
-        let mut inaccessible = create_command(owner);
-        let mut accessible = create_command(owner);
-        for (command, key, name) in [
-            (&mut inaccessible, format!("N-{suffix}-A"), "A inaccessible"),
-            (&mut accessible, format!("N-{suffix}-B"), "B accessible"),
-        ] {
+        let mut commands = [
+            create_command(owner),
+            create_command(owner),
+            create_command(owner),
+        ];
+        for (command, key, name) in commands.iter_mut().zip([
+            (format!("N-{suffix}-A"), "A inaccessible"),
+            (format!("N-{suffix}-B"), "B accessible"),
+            (format!("N-{suffix}-C"), "C accessible"),
+        ]) {
             let spec = command
                 .create_spec
                 .as_mut()
@@ -575,33 +579,62 @@ mod namespace_postgres_tests {
             spec.insert("name".into(), name.into());
             backend.apply_namespace(command).await.unwrap();
         }
-        sqlx::query("INSERT INTO space_members(space_id,user_id,role) VALUES($1,$2,'viewer')")
-            .bind(accessible.resource.resource_id)
-            .bind(reader)
-            .execute(&backend.pool)
-            .await
-            .unwrap();
+        for (command, role) in commands.iter().skip(1).zip(["viewer", "editor"]) {
+            sqlx::query("INSERT INTO space_members(space_id,user_id,role) VALUES($1,$2,$3)")
+                .bind(command.resource.resource_id)
+                .bind(reader)
+                .bind(role)
+                .execute(&backend.pool)
+                .await
+                .unwrap();
+        }
 
         let claims = WikiClaims {
             user_id: reader.to_string(),
             session_id: None,
             request_id: None,
         };
-        let contexts = backend
-            .namespace_contexts(&claims, None, 1, 0)
+        let first_page = backend
+            .namespace_contexts(&claims, None, 2, 0)
             .await
             .unwrap();
-        assert_eq!(contexts.len(), 1);
+        let second_page = backend
+            .namespace_contexts(&claims, None, 2, 2)
+            .await
+            .unwrap();
+        assert_eq!(first_page.len(), 2);
         assert_eq!(
-            contexts[0].binding.resource.resource_id,
-            accessible.resource.resource_id
+            first_page[0].binding.resource.resource_id,
+            commands[1].resource.resource_id
         );
+        assert_eq!(
+            first_page[1].binding.resource.resource_id,
+            commands[2].resource.resource_id
+        );
+        assert!(second_page.is_empty());
+        backend.pool.close().await;
+    }
 
+    #[tokio::test]
+    #[ignore = "requires disposable PostgreSQL and QA Wiki/registry instance IDs"]
+    async fn namespace_resources_paginate_after_access_filtering() {
+        let (backend, owner) = backend().await;
+        let reader = Uuid::now_v7();
+        sqlx::query("INSERT INTO users(id,email,username,display_name,password_hash,global_role) VALUES($1,$2,$3,'Namespace reader','unused','user')")
+            .bind(reader)
+            .bind(format!("{reader}@example.test"))
+            .bind(format!("qa-{reader}"))
+            .execute(&backend.pool)
+            .await
+            .unwrap();
         let hidden = Uuid::now_v7();
-        let visible = Uuid::now_v7();
+        let first_visible = Uuid::now_v7();
+        let second_visible = Uuid::now_v7();
+        let suffix = reader.simple().to_string()[..8].to_ascii_uppercase();
         for (id, key, name) in [
             (hidden, format!("R-{suffix}-A"), "A inaccessible"),
-            (visible, format!("R-{suffix}-B"), "B accessible"),
+            (first_visible, format!("R-{suffix}-B"), "B accessible"),
+            (second_visible, format!("R-{suffix}-C"), "C accessible"),
         ] {
             sqlx::query("INSERT INTO spaces(id,key,name,owner_id) VALUES($1,$2,$3,$4)")
                 .bind(id)
@@ -612,18 +645,31 @@ mod namespace_postgres_tests {
                 .await
                 .unwrap();
         }
-        sqlx::query("INSERT INTO space_members(space_id,user_id,role) VALUES($1,$2,'admin')")
-            .bind(visible)
-            .bind(reader)
-            .execute(&backend.pool)
-            .await
-            .unwrap();
+        for visible in [first_visible, second_visible] {
+            sqlx::query("INSERT INTO space_members(space_id,user_id,role) VALUES($1,$2,'admin')")
+                .bind(visible)
+                .bind(reader)
+                .execute(&backend.pool)
+                .await
+                .unwrap();
+        }
+        let claims = WikiClaims {
+            user_id: reader.to_string(),
+            session_id: None,
+            request_id: None,
+        };
         let resources = backend
-            .namespace_available_resources(&claims, 1, 0)
+            .namespace_available_resources(&claims, 2, 0)
             .await
             .unwrap();
-        assert_eq!(resources.len(), 1);
-        assert_eq!(resources[0].resource.resource_id, visible);
+        assert_eq!(resources.len(), 2);
+        assert_eq!(resources[0].resource.resource_id, first_visible);
+        assert_eq!(resources[1].resource.resource_id, second_visible);
+        let second_page = backend
+            .namespace_available_resources(&claims, 2, 2)
+            .await
+            .unwrap();
+        assert!(second_page.is_empty());
         backend.pool.close().await;
     }
 }
