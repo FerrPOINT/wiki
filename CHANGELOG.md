@@ -6,6 +6,9 @@
 
 ## [Unreleased]
 
+- Namespace routes are now omitted when the build-time UI flag is disabled, and
+  their pages are lazy-loaded when the feature is enabled.
+
 - Base обновлён для удержания focus в `ConfirmDialog` во время pending.
 
 - Активный Base pin обновлён до согласованного кандидата SDK/UI/workspace;
