@@ -63,13 +63,15 @@ describe('AppShell', () => {
     expect(screen.getByRole('link', { name: 'Wiki' })).toHaveAttribute('href', '/')
     expect(screen.getByRole('link', { name: /обзор/i })).toHaveAttribute('href', '/')
     expect(screen.getByRole('link', { name: /пространства/i })).toHaveAttribute('href', '/spaces')
-    expect(screen.getByRole('link', { name: /задачи/i })).toHaveAttribute('href', '/tasks')
-    expect(screen.getByRole('link', { name: /фазы/i })).toHaveAttribute('href', '/phases')
+    expect(screen.queryByRole('link', { name: /задачи/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /фазы/i })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: /материалы/i })).toHaveAttribute('href', '/evidence')
+    expect(screen.queryByRole('link', { name: /шаблоны/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /аудит/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /пользователи/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /настройки/i })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Служебное' }))
     expect(screen.getByRole('link', { name: /шаблоны/i })).toHaveAttribute('href', '/templates')
-    expect(screen.getByRole('link', { name: /аудит/i })).toHaveAttribute('href', '/audit-log')
-    expect(screen.getByRole('link', { name: /пользователи/i })).toHaveAttribute('href', '/users')
-    expect(screen.getByRole('link', { name: /настройки/i })).toHaveAttribute('href', '/settings')
     expect(screen.getByRole('link', { name: /администрирование/i })).toHaveAttribute(
       'href',
       '/admin',
@@ -204,7 +206,7 @@ describe('AppShell', () => {
 
     renderShell('/tasks/BASE-42')
 
-    expect(screen.getByRole('link', { name: 'Задачи' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.queryByRole('link', { name: 'Задачи' })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Обзор' })).not.toHaveAttribute('aria-current')
   })
 

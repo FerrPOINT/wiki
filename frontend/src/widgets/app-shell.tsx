@@ -1,3 +1,4 @@
+import { SidebarNavigationGroup, useSidebarDisclosure } from '@sdlc/ui/ui'
 import { SidebarItem } from '@sdlc/ui/ui'
 import { NamespaceShellContext } from './namespace-context'
 import { useEffect, useState, type ElementType } from 'react'
@@ -8,21 +9,16 @@ import { useProjectDisclosures } from '@sdlc/ui/lib'
 import { WorkspaceNavigation, useDocumentDisclosures } from './workspace-navigation'
 import { ProjectBoundary } from './project-boundary'
 import {
-  ClipboardList,
   FileCheck2,
   FilePlus2,
   FileText,
-  GitBranch,
-  History,
   Home,
   Library,
   LogOut,
   Menu,
   Search,
-  Settings,
   ShieldCheck,
   User,
-  Users,
 } from 'lucide-react'
 import {
   Button,
@@ -51,19 +47,11 @@ type NavItem = {
 const baseNavItems: NavItem[] = [
   { to: '/', icon: Home, label: 'Обзор' },
   { to: '/spaces', icon: Library, label: 'Пространства' },
-  { to: '/tasks', icon: ClipboardList, label: 'Задачи' },
-  { to: '/phases', icon: GitBranch, label: 'Фазы' },
   { to: '/evidence', icon: FileCheck2, label: 'Материалы' },
-  { to: '/templates', icon: FileText, label: 'Шаблоны' },
   { to: '/search', icon: Search, label: 'Поиск' },
 ]
 
-const adminNavItems: NavItem[] = [
-  { to: '/audit-log', icon: History, label: 'Аудит' },
-  { to: '/users', icon: Users, label: 'Пользователи' },
-  { to: '/settings', icon: Settings, label: 'Настройки' },
-  { to: '/admin', icon: ShieldCheck, label: 'Администрирование' },
-]
+const adminNavItems: NavItem[] = [{ to: '/admin', icon: ShieldCheck, label: 'Администрирование' }]
 
 function SidebarLink({
   to,
@@ -148,7 +136,25 @@ export function AppShell() {
             : [item],
       )
     : baseNavItems
-  const navItems = [...baseItems, ...(user?.is_system_admin ? adminNavItems : [])]
+  const navItems = baseItems
+  const utilityItems = [
+    { to: '/templates', icon: FileText, label: 'Шаблоны' },
+    ...(user?.is_system_admin ? adminNavItems : []),
+  ]
+  const utilityActive = ['/templates', '/admin', '/users', '/settings', '/audit-log'].includes(
+    location.pathname,
+  )
+  const utilities = useSidebarDisclosure(utilityActive ? location.pathname : null)
+  const utilityNavigation = (responsive = false, onNavigate?: () => void) => (
+    <SidebarNavigationGroup
+      label="Служебное"
+      active={utilityActive}
+      compact={responsive ? 'responsive' : false}
+      {...utilities}
+    >
+      <NavigationList items={utilityItems} responsiveLabels={responsive} onNavigate={onNavigate} />
+    </SidebarNavigationGroup>
+  )
   const pageLayout =
     location.pathname === '/settings' || location.pathname === '/documents/new'
       ? 'reading'
@@ -204,6 +210,7 @@ export function AppShell() {
                       onNavigate={() => setMobileMenuOpen(false)}
                     />
                   )}
+                  {utilityNavigation(false, () => setMobileMenuOpen(false))}
                 </div>
               </DialogContent>
             </Dialog>
@@ -266,6 +273,7 @@ export function AppShell() {
               compact={projectRail}
             />
           )}
+          {utilityNavigation(true)}
         </div>
       </aside>
       <div className="md:pl-[var(--shell-sidebar-compact)] xl:pl-[var(--shell-sidebar-expanded)]">

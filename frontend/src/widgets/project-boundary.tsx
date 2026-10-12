@@ -2,20 +2,24 @@ import { useEffect, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { parseNamespaceLocation, withNamespaceLocation } from '@sdlc/ui/lib'
 import { useNamespaceContext } from './namespace-context'
+import { projectResourceLabel } from './workspace-navigation'
 
 /** Resolve space before mounting legacy pages; they cannot issue a foreign-space query. */
 export function ProjectBoundary({ children }: { children: ReactNode }) {
   const context = useNamespaceContext(),
     location = useLocation(),
     navigate = useNavigate()
+  const params = new URLSearchParams(location.search)
+  const globalSearch = location.pathname === '/search' && params.get('search_scope') === 'all'
   const needsSpace =
-    /^\/(tasks|phases|evidence|search)(?:\/|$)/.test(location.pathname) ||
-    /\/workspaces\/[^/]+\/[^/]+\/(tasks|phases|evidence|search)$/.test(location.pathname) ||
+    (!globalSearch && /^\/(tasks|phases|evidence|search)(?:\/|$)/.test(location.pathname)) ||
+    /\/workspaces\/[^/]+\/[^/]+\/(documents|tasks|phases|evidence|search)$/.test(
+      location.pathname,
+    ) ||
     location.pathname === '/documents/new'
   const scoped = context.ref && needsSpace
   const document =
     /^\/documents\/[^/]+/.test(location.pathname) && location.pathname !== '/documents/new'
-  const params = new URLSearchParams(location.search)
   const explicitSpace = needsSpace && params.has('space')
   const space = context.query.data?.resource_key
   const conflict = Boolean(scoped && space && params.has('space') && params.get('space') !== space)
@@ -40,6 +44,8 @@ export function ProjectBoundary({ children }: { children: ReactNode }) {
         Некорректный или противоречивый контекст проекта. Другое пространство не выбрано.
       </p>
     )
+  if (scoped && context.workspace.data && context.workspace.data.resource_status !== 'connected')
+    return <p role="status">{projectResourceLabel(context.workspace.data)}</p>
   if (((scoped || document || explicitSpace) && context.query.isPending) || target)
     return <p role="status">Разрешаем пространство проекта…</p>
   if ((scoped || document || explicitSpace) && context.query.isError)

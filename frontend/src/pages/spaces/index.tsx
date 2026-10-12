@@ -31,6 +31,7 @@ import { Textarea } from '@sdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime, formatDocumentType, shortText } from '@/shared/lib/wiki-format'
 import type { Space, SpaceTreeNode } from '@/api/wiki'
+import { DossierMenu } from '@/widgets/dossier-menu'
 
 const selectClassName =
   'flex min-h-10 w-full rounded-md border border-border-strong bg-surface px-3 py-1 text-sm text-text-primary shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50'
@@ -273,6 +274,7 @@ function SpaceDetails({
       />
 
       <div className="space-y-2 rounded-md border border-border p-3">
+        <DossierMenu spaceKey={space.key} />
         <div className="flex items-center gap-2 text-xs font-medium uppercase text-text-muted">
           <BookOpenText className="h-3.5 w-3.5" />
           Дерево
