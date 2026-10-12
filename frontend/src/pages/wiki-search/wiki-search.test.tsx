@@ -80,7 +80,10 @@ describe('WikiSearchPage', () => {
       'href',
       '/documents/product-requirements',
     )
-    expect(screen.getByRole('link', { name: /Smoke proof/ })).toHaveAttribute('href', '/evidence')
+    expect(screen.getByRole('link', { name: /Smoke proof/ })).toHaveAttribute(
+      'href',
+      '/evidence?space=BASE',
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Документы' }))
     expect(screen.getByRole('link', { name: /Требования Wiki/ })).toBeInTheDocument()
