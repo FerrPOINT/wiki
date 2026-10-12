@@ -270,26 +270,31 @@ describe('WikiSearchPage', () => {
   })
 })
 
-it('keeps navigation context when switching to global search and clears the space filter', async () => {
-  vi.stubEnv('VITE_NAMESPACE_ENABLED', 'true')
-  const registry = '11111111-1111-4111-8111-111111111111'
-  const namespace = '22222222-2222-4222-8222-222222222222'
-  const router = setupSearch(
-    [],
-    {},
-    `/search?q=report&space=SMOKE&registry_instance_id=${registry}&namespace_id=${namespace}&project_scope=all`,
-  )
-  fireEvent.change(screen.getByLabelText('Область поиска'), { target: { value: 'all' } })
-  await waitFor(() =>
-    expect(new URLSearchParams(router.state.location.search).get('search_scope')).toBe('all'),
-  )
-  const params = new URLSearchParams(router.state.location.search)
-  expect(params.has('space')).toBe(false)
-  expect(params.get('namespace_id')).toBe(namespace)
-  expect(params.get('project_scope')).toBe('all')
-  expect(params.get('q')).toBe('report')
-  expect(useWikiSearch).toHaveBeenLastCalledWith(
-    expect.objectContaining({ space: undefined, q: 'report' }),
-    true,
-  )
-})
+it.each([undefined, 'updated report'])(
+  'keeps navigation and query %s when switching to global search',
+  async (draft) => {
+    vi.stubEnv('VITE_NAMESPACE_ENABLED', 'true')
+    const registry = '11111111-1111-4111-8111-111111111111'
+    const namespace = '22222222-2222-4222-8222-222222222222'
+    const router = setupSearch(
+      [],
+      {},
+      `/search?q=report&space=SMOKE&registry_instance_id=${registry}&namespace_id=${namespace}&project_scope=all`,
+    )
+    if (draft)
+      fireEvent.change(screen.getByLabelText('Поисковый запрос'), { target: { value: draft } })
+    fireEvent.change(screen.getByLabelText('Область поиска'), { target: { value: 'all' } })
+    await waitFor(() =>
+      expect(new URLSearchParams(router.state.location.search).get('search_scope')).toBe('all'),
+    )
+    const params = new URLSearchParams(router.state.location.search)
+    expect(params.has('space')).toBe(false)
+    expect(params.get('namespace_id')).toBe(namespace)
+    expect(params.get('project_scope')).toBe('all')
+    expect(params.get('q')).toBe(draft ?? 'report')
+    expect(useWikiSearch).toHaveBeenLastCalledWith(
+      expect.objectContaining({ space: undefined, q: draft ?? 'report' }),
+      true,
+    )
+  },
+)

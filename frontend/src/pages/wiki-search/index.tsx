@@ -228,6 +228,7 @@ export function WikiSearchPage() {
 
   function changeScope(scope: string) {
     const next = new URLSearchParams(searchParams)
+    setOptionalParam(next, 'q', query)
     next.set('search_scope', scope)
     next.delete('space')
     next.delete('cursor')
