@@ -6,6 +6,17 @@ use shared::{
 use sqlx::Row;
 use uuid::Uuid;
 
+fn tracker_reader_client(
+    builder: reqwest::ClientBuilder,
+    timeout: std::time::Duration,
+) -> Result<reqwest::Client, reqwest::Error> {
+    builder
+        .no_proxy()
+        .timeout(timeout)
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+}
+
 pub(super) struct TaskReader {
     client: reqwest::Client,
     endpoint: reqwest::Url,
@@ -99,11 +110,11 @@ impl TaskReader {
         if token.is_empty() || token.contains(['\r', '\n']) {
             return Err(AppError::invalid_input("invalid_tracker_reader_credential"));
         }
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(10))
-            .redirect(reqwest::redirect::Policy::none())
-            .build()
-            .map_err(|_| AppError::Internal("tracker_reader_client_failed".into()))?;
+        let client = tracker_reader_client(
+            reqwest::Client::builder(),
+            std::time::Duration::from_secs(10),
+        )
+        .map_err(|_| AppError::Internal("tracker_reader_client_failed".into()))?;
         Ok(Some(Self {
             client,
             endpoint,
@@ -317,15 +328,67 @@ mod tests {
             stream.write_all(response.as_bytes()).await.unwrap();
         });
         TaskReader {
-            client: reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(2))
-                .redirect(reqwest::redirect::Policy::none())
-                .build()
-                .unwrap(),
+            client: tracker_reader_client(
+                reqwest::Client::builder(),
+                std::time::Duration::from_secs(2),
+            )
+            .unwrap(),
             endpoint: reqwest::Url::parse(&format!("http://{address}/")).unwrap(),
             token: "qa-reader-only".into(),
             instance,
         }
+    }
+
+    #[tokio::test]
+    async fn tracker_reader_does_not_send_service_token_through_proxy() {
+        let proxy = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let proxy_address = proxy.local_addr().unwrap();
+        let origin = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let origin_address = origin.local_addr().unwrap();
+        let origin_request = tokio::spawn(async move {
+            let (mut stream, _) = origin.accept().await.unwrap();
+            let mut request = Vec::new();
+            loop {
+                let mut chunk = [0_u8; 1024];
+                let count = stream.read(&mut chunk).await.unwrap();
+                assert_ne!(count, 0);
+                request.extend_from_slice(&chunk[..count]);
+                if request.windows(4).any(|part| part == b"\r\n\r\n") {
+                    break;
+                }
+            }
+            let request = String::from_utf8(request).unwrap();
+            assert!(
+                request
+                    .to_lowercase()
+                    .contains("authorization: bearer qa-reader-only")
+            );
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                .await
+                .unwrap();
+        });
+        let proxy_accept =
+            tokio::time::timeout(std::time::Duration::from_millis(250), proxy.accept());
+        let client = tracker_reader_client(
+            reqwest::Client::builder()
+                .proxy(reqwest::Proxy::all(format!("http://{proxy_address}")).unwrap()),
+            std::time::Duration::from_secs(2),
+        )
+        .unwrap();
+        client
+            .get(format!("http://{origin_address}/tracker"))
+            .bearer_auth("qa-reader-only")
+            .send()
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap();
+        origin_request.await.unwrap();
+        assert!(
+            proxy_accept.await.is_err(),
+            "configured proxy must be bypassed"
+        );
     }
 
     #[tokio::test]
