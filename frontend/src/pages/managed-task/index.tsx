@@ -1,5 +1,5 @@
 import type { components } from '@/api/generated'
-import { useParams } from 'react-router'
+import { useLocation, useParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { NamespaceLink as Link, usePlatformServices } from '@sdlc/ui/ui'
 import { withNamespaceLocation } from '@sdlc/ui/lib'
@@ -8,6 +8,7 @@ import { useNamespaceContext } from '@/widgets/namespace-context'
 
 type RevisionLink = components['schemas']['TaskRevisionLinkResponse']
 export function ManagedTaskPage() {
+  const { search } = useLocation()
   const { trackerInstance = '', taskId = '' } = useParams()
   const { ref, malformed } = useNamespaceContext()
   const { services } = usePlatformServices()
@@ -48,7 +49,10 @@ export function ManagedTaskPage() {
         Документы задачи {query.data[0]?.task_key ?? taskId}
       </h1>
       {tracker && (
-        <a className="text-accent" href={withNamespaceLocation(`${tracker}/issues/${taskId}`, ref)}>
+        <a
+          className="text-accent"
+          href={withNamespaceLocation(`${tracker}/issues/${taskId}`, ref, search)}
+        >
           Открыть задачу в Tracker
         </a>
       )}

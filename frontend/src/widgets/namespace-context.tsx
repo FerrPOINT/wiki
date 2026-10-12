@@ -22,7 +22,9 @@ export function useProjectRouteRef() {
         `?registry_instance_id=${match.params.registry}&namespace_id=${match.params.namespace}`,
       )
     : null
-  return projectNavigationScope(location.search, pathRef)
+  return import.meta.env.VITE_NAMESPACE_ENABLED === 'true'
+    ? projectNavigationScope(location.search, pathRef)
+    : projectNavigationScope('')
 }
 
 export function useNamespaceContext() {
