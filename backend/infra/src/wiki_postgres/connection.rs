@@ -45,6 +45,8 @@ impl PostgresWikiBackend {
         migrator.run(&pool).await.map_err(AppError::database)?;
 
         let backend = Self {
+            task_reader: super::managed_links::TaskReader::from_deployment()?
+                .map(std::sync::Arc::new),
             pool,
             auth: config.auth.clone(),
             storage,

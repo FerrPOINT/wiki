@@ -921,6 +921,367 @@
         }
       }
     },
+    "/api/v1/managed-task-links/{tracker_instance}/{task}": {
+      "get": {
+        "tags": [
+          "namespaces"
+        ],
+        "operationId": "wiki_namespace_revision_links",
+        "parameters": [
+          {
+            "name": "tracker_instance",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "task",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskRevisionLinkResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/namespace-available-resources": {
+      "get": {
+        "tags": [
+          "namespaces"
+        ],
+        "operationId": "wiki_namespace_available_resources",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ResourceCatalogItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/namespace-contexts": {
+      "get": {
+        "tags": [
+          "namespaces"
+        ],
+        "operationId": "wiki_namespace_contexts",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ResourceContextSummary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/namespace-contexts/{registry}/{namespace}": {
+      "get": {
+        "tags": [
+          "namespaces"
+        ],
+        "operationId": "wiki_namespace_context",
+        "parameters": [
+          {
+            "name": "registry",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceContextSummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No confirmed local binding"
+          }
+        }
+      }
+    },
+    "/api/v1/namespace-resources/wiki_space/{id}": {
+      "get": {
+        "tags": [
+          "namespaces"
+        ],
+        "operationId": "wiki_namespace_readback",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerReadback"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Binding not found"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "namespaces"
+        ],
+        "operationId": "wiki_namespace_apply",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnerCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerReadback"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Binding/fence conflict"
+          }
+        }
+      }
+    },
+    "/api/v1/namespace-stats/{registry}/{namespace}": {
+      "get": {
+        "tags": [
+          "namespaces"
+        ],
+        "operationId": "wiki_namespace_stats",
+        "parameters": [
+          {
+            "name": "registry",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceStats"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/namespace-task-links/{tracker_instance}/{task}": {
+      "get": {
+        "tags": [
+          "namespaces"
+        ],
+        "operationId": "wiki_namespace_stored_links",
+        "parameters": [
+          {
+            "name": "tracker_instance",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "task",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "registry_instance_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "namespace_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskRevisionLinkResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/search": {
       "get": {
         "tags": [
@@ -1257,6 +1618,52 @@
         ]
       }
     },
+    "/api/v1/spaces/{space_key}/available-tasks": {
+      "get": {
+        "tags": [
+          "namespaces"
+        ],
+        "operationId": "wiki_available_task_refs",
+        "parameters": [
+          {
+            "name": "space_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskCatalogItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/spaces/{space_key}/documents": {
       "post": {
         "tags": [
@@ -1303,6 +1710,42 @@
             "bearer": []
           }
         ]
+      }
+    },
+    "/api/v1/spaces/{space_key}/managed-task-links": {
+      "post": {
+        "tags": [
+          "namespaces"
+        ],
+        "operationId": "wiki_namespace_link_revision",
+        "parameters": [
+          {
+            "name": "space_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkTaskRevision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Verified TaskRef and immutable revision link"
+          },
+          "503": {
+            "description": "Tracker reader unavailable"
+          }
+        }
       }
     },
     "/api/v1/spaces/{space_key}/members": {
@@ -2805,6 +3248,28 @@
           }
         }
       },
+      "LinkTaskRevision": {
+        "type": "object",
+        "required": [
+          "task",
+          "document_id",
+          "revision_id"
+        ],
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "task": {
+            "$ref": "#/components/schemas/TaskRef"
+          }
+        },
+        "additionalProperties": false
+      },
       "MoveDocumentRequest": {
         "type": "object",
         "properties": {
@@ -2815,6 +3280,101 @@
             ]
           }
         }
+      },
+      "NamespaceRef": {
+        "type": "object",
+        "required": [
+          "registry_instance_id",
+          "namespace_id"
+        ],
+        "properties": {
+          "namespace_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "registry_instance_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
+      "OwnerCommand": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "namespace",
+          "resource",
+          "operation_id",
+          "generation",
+          "state"
+        ],
+        "properties": {
+          "create_spec": {},
+          "generation": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "namespace": {
+            "$ref": "#/components/schemas/NamespaceRef"
+          },
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "resource": {
+            "$ref": "#/components/schemas/ResourceRef"
+          },
+          "schema_version": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "OwnerReadback": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "namespace",
+          "resource",
+          "operation_id",
+          "generation",
+          "state",
+          "drained"
+        ],
+        "properties": {
+          "drained": {
+            "type": "boolean"
+          },
+          "generation": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "namespace": {
+            "$ref": "#/components/schemas/NamespaceRef"
+          },
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "resource": {
+            "$ref": "#/components/schemas/ResourceRef"
+          },
+          "schema_version": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
       },
       "PhasePageListResponse": {
         "type": "object",
@@ -2945,6 +3505,97 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "ResourceCatalogItem": {
+        "type": "object",
+        "required": [
+          "resource",
+          "label",
+          "resource_key"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "resource": {
+            "$ref": "#/components/schemas/ResourceRef"
+          },
+          "resource_key": {
+            "type": "string"
+          }
+        }
+      },
+      "ResourceContextSummary": {
+        "type": "object",
+        "description": "Owner-local navigation metadata. Labels and keys are never used as identities.",
+        "required": [
+          "binding",
+          "label",
+          "resource_key"
+        ],
+        "properties": {
+          "binding": {
+            "$ref": "#/components/schemas/OwnerReadback"
+          },
+          "label": {
+            "type": "string"
+          },
+          "resource_key": {
+            "type": "string"
+          }
+        }
+      },
+      "ResourceKind": {
+        "type": "string",
+        "enum": [
+          "tracker_project",
+          "wiki_space",
+          "git_group"
+        ]
+      },
+      "ResourceRef": {
+        "type": "object",
+        "required": [
+          "kind",
+          "instance_id",
+          "resource_id"
+        ],
+        "properties": {
+          "instance_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ResourceKind"
+          },
+          "resource_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ResourceStats": {
+        "type": "object",
+        "required": [
+          "binding",
+          "counters"
+        ],
+        "properties": {
+          "binding": {
+            "$ref": "#/components/schemas/OwnerReadback"
+          },
+          "counters": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
           }
         }
       },
@@ -3161,6 +3812,29 @@
           }
         }
       },
+      "TaskCatalogItem": {
+        "type": "object",
+        "required": [
+          "namespace",
+          "task",
+          "task_key",
+          "label"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "namespace": {
+            "$ref": "#/components/schemas/NamespaceRef"
+          },
+          "task": {
+            "$ref": "#/components/schemas/TaskRef"
+          },
+          "task_key": {
+            "type": "string"
+          }
+        }
+      },
       "TaskPageListResponse": {
         "type": "object",
         "required": [
@@ -3206,6 +3880,17 @@
             "type": "integer",
             "minimum": 0
           },
+          "managed_task_ref": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TaskRef",
+                "description": "A key URL resolves only when the dossier identity is unambiguous."
+              }
+            ]
+          },
           "space_key": {
             "type": "string"
           },
@@ -3217,6 +3902,62 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "TaskRef": {
+        "type": "object",
+        "required": [
+          "tracker_instance_id",
+          "task_id"
+        ],
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tracker_instance_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TaskRevisionLinkResponse": {
+        "type": "object",
+        "required": [
+          "document_id",
+          "revision_id",
+          "title",
+          "version",
+          "space_key",
+          "task_key",
+          "namespace"
+        ],
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "namespace": {
+            "$ref": "#/components/schemas/NamespaceRef"
+          },
+          "revision_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "space_key": {
+            "type": "string"
+          },
+          "task_key": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },

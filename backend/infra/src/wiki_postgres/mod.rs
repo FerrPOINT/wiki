@@ -8,7 +8,9 @@ mod evidence;
 mod idempotency;
 mod identity;
 mod maintenance;
+mod managed_links;
 mod mapping;
+pub mod namespace;
 mod queries;
 mod search;
 mod spaces;
@@ -24,6 +26,7 @@ use uuid::Uuid;
 
 #[derive(Clone)]
 struct PostgresWikiBackend {
+    task_reader: Option<std::sync::Arc<managed_links::TaskReader>>,
     pool: PgPool,
     auth: shared::AuthConfig,
     storage: Arc<dyn domain::wiki::WikiAttachmentStorage>,
@@ -39,7 +42,7 @@ async fn ensure_document_accepts_writes_tx(
 ) -> Result<(), shared::AppError> {
     let row = sqlx::query(
         r#"
-        SELECT (d.status = 'archived' OR d.archived_at IS NOT NULL) AS document_archived,
+        SELECT d.space_id, (d.status = 'archived' OR d.archived_at IS NOT NULL) AS document_archived,
                (s.archived_at IS NOT NULL) AS space_archived
         FROM documents d
         JOIN spaces s ON s.id = d.space_id
@@ -52,6 +55,21 @@ async fn ensure_document_accepts_writes_tx(
     .await
     .map_err(shared::AppError::database)?
     .ok_or_else(|| shared::AppError::not_found("document", document_id))?;
+    let projection: Option<serde_json::Value> = sqlx::query_scalar(
+        "SELECT command FROM wiki_namespace_bindings WHERE resource_id=$1 FOR SHARE",
+    )
+    .bind(row.get::<Uuid, _>("space_id"))
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(shared::AppError::database)?;
+    if let Some(value) = projection {
+        let command: shared::resource_context::OwnerCommand = serde_json::from_value(value)
+            .map_err(|_| shared::AppError::Unavailable("invalid_namespace_projection".into()))?;
+        namespace::validate_projection(&command)?;
+        if command.state != "active" {
+            return Err(shared::AppError::conflict("namespace_resource_read_only"));
+        }
+    }
     let space_archived: bool = row.get("space_archived");
     if space_archived {
         return Err(shared::AppError::invalid_input(
@@ -144,6 +162,11 @@ impl PostgresWikiBackend {
     }
 
     async fn ensure_space_accepts_writes(&self, space_id: Uuid) -> Result<(), shared::AppError> {
+        if let Some(binding) = self.namespace_binding(space_id).await? {
+            if binding.state != "active" {
+                return Err(shared::AppError::conflict("namespace_resource_read_only"));
+            }
+        }
         let accepts_writes: bool =
             sqlx::query_scalar("SELECT archived_at IS NULL FROM spaces WHERE id = $1")
                 .bind(space_id)
@@ -185,6 +208,72 @@ impl PostgresWikiBackend {
 
 #[async_trait::async_trait]
 impl WikiBackendPort for PostgresWikiBackend {
+    async fn link_task_revision(
+        &self,
+        claims: &WikiClaims,
+        key: &str,
+        input: &shared::managed_links::LinkTaskRevision,
+    ) -> Result<serde_json::Value, shared::AppError> {
+        PostgresWikiBackend::link_task_revision(self, claims, key, input).await
+    }
+    async fn task_revision_links(
+        &self,
+        claims: &WikiClaims,
+        task: &shared::managed_links::TaskRef,
+    ) -> Result<Vec<serde_json::Value>, shared::AppError> {
+        PostgresWikiBackend::task_revision_links(self, claims, task).await
+    }
+    async fn namespace_task_revision_links(
+        &self,
+        namespace: &shared::resource_context::NamespaceRef,
+        task: &shared::managed_links::TaskRef,
+    ) -> Result<Vec<serde_json::Value>, shared::AppError> {
+        PostgresWikiBackend::namespace_task_revision_links(self, namespace, task).await
+    }
+    async fn namespace_binding(
+        &self,
+        id: Uuid,
+    ) -> Result<Option<shared::resource_context::OwnerReadback>, shared::AppError> {
+        PostgresWikiBackend::namespace_binding(self, id).await
+    }
+    async fn namespace_available_tasks(
+        &self,
+        claims: &WikiClaims,
+        space_key: &str,
+        offset: u32,
+    ) -> Result<Vec<shared::resource_context::TaskCatalogItem>, shared::AppError> {
+        PostgresWikiBackend::namespace_available_tasks(self, claims, space_key, offset).await
+    }
+    async fn namespace_available_resources(
+        &self,
+        claims: &WikiClaims,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<shared::resource_context::ResourceCatalogItem>, shared::AppError> {
+        PostgresWikiBackend::namespace_available_resources(self, claims, limit, offset).await
+    }
+    async fn namespace_stats(
+        &self,
+        claims: &WikiClaims,
+        namespace: &shared::resource_context::NamespaceRef,
+    ) -> Result<shared::resource_context::ResourceStats, shared::AppError> {
+        PostgresWikiBackend::namespace_stats(self, claims, namespace).await
+    }
+    async fn namespace_contexts(
+        &self,
+        claims: &WikiClaims,
+        namespace: Option<&shared::resource_context::NamespaceRef>,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<shared::resource_context::ResourceContextSummary>, shared::AppError> {
+        PostgresWikiBackend::namespace_contexts(self, claims, namespace, limit, offset).await
+    }
+    async fn apply_namespace(
+        &self,
+        command: &shared::resource_context::OwnerCommand,
+    ) -> Result<shared::resource_context::OwnerReadback, shared::AppError> {
+        PostgresWikiBackend::apply_namespace(self, command).await
+    }
     async fn readiness_check(&self) -> Result<(), shared::AppError> {
         let _: i32 = sqlx::query_scalar("SELECT 1")
             .fetch_one(&self.pool)

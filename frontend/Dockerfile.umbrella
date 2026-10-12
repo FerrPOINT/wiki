@@ -17,6 +17,8 @@ COPY wiki/frontend/scripts/generate-exports.mjs ./scripts/generate-exports.mjs
 RUN ln -s /workspace/services-base /workspace/wiki/services-base && pnpm install --frozen-lockfile
 
 COPY wiki/frontend/ ./
+ARG VITE_NAMESPACE_ENABLED="false"
+ENV VITE_NAMESPACE_ENABLED=${VITE_NAMESPACE_ENABLED}
 ARG VITE_PLATFORM_BRANDING_URL=""
 ENV VITE_PLATFORM_BRANDING_URL=${VITE_PLATFORM_BRANDING_URL}
 ARG VITE_PLATFORM_SERVICES_URL=""
@@ -26,6 +28,8 @@ ENV VITE_AUTH_ISSUER=${VITE_AUTH_ISSUER}
 RUN pnpm generate:api && pnpm build
 
 FROM nginx:alpine
+ARG VITE_NAMESPACE_ENABLED="false"
+LABEL io.pdlc.namespace-ui.enabled=${VITE_NAMESPACE_ENABLED}
 COPY --from=builder /workspace/wiki/frontend/dist /usr/share/nginx/html
 COPY wiki/frontend/nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80

@@ -6,6 +6,22 @@
 
 ## [Unreleased]
 
+- Namespace routes are now omitted when the build-time UI flag is disabled, and
+  their pages are lazy-loaded when the feature is enabled.
+
+- Base обновлён для удержания focus в `ConfirmDialog` во время pending.
+
+- Активный Base pin обновлён до согласованного кандидата SDK/UI/workspace;
+  документация standalone build использует тот же порядок выбора pin, что CI.
+
+- Tracker reader сохраняет 503 для временных 5xx/429 и проверяет TaskRef отдельно
+  от отсутствующей задачи (404). HTTP-регрессия проверяет оба сценария.
+- Потерянная namespace projection не позволяет заново привязать managed Space;
+  PostgreSQL-регрессии lifecycle, fencing и fail-closed поведения включены в CI.
+
+- Namespace cohort: стабильные refs, локальные binding projections и lifecycle guards; аддитивные migrations, совместимый rollback и отдельные execution v2 gates. Runtime-приёмка ещё не завершена.
+
+
 - Ошибка БД при центральной проекции пользователя сохраняет безопасный 500,
   вместо terminal 401 и повторного входа; неполные claims по-прежнему дают 401.
 

@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router'
+import { NamespaceLink as Link } from '@sdlc/ui/ui'
+import { useSearchParams } from 'react-router'
 import { FileCheck2, FileText, GitBranch, ListFilter, Search } from 'lucide-react'
 import { useWikiSearch } from '@/shared/api/hooks'
 import { Button, EmptyState, ErrorState, Input, Label, LoadingState } from '@sdlc/ui/ui'

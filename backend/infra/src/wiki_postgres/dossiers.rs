@@ -25,16 +25,23 @@ impl PostgresWikiDossierRepository<'_> {
         space_key: &str,
         task_key: &str,
     ) -> Result<TaskPageResponse, shared::AppError> {
-        let task_row = sqlx::query(
-            "SELECT id, title_snapshot FROM task_dossiers WHERE space_id = $1 AND task_key = $2",
+        let mut task_rows = sqlx::query(
+            "SELECT id, title_snapshot,tracker_instance_id,task_id FROM task_dossiers WHERE space_id = $1 AND task_key = $2",
         )
         .bind(space_id)
         .bind(task_key)
-        .fetch_optional(&self.backend.pool)
+        .fetch_all(&self.backend.pool)
         .await
         .map_err(shared::AppError::database)?;
+        if task_rows.len() > 1 {
+            return Err(shared::AppError::conflict(
+                "ambiguous_legacy_task_key_use_task_ref",
+            ));
+        }
+        let task_row = task_rows.pop();
         let Some(task_row) = task_row else {
             return Ok(TaskPageResponse {
+                managed_task_ref: None,
                 space_key: space_key.to_string(),
                 task_key: task_key.to_string(),
                 title: None,
@@ -69,6 +76,15 @@ impl PostgresWikiDossierRepository<'_> {
             title_snapshot.or_else(|| documents.first().map(|document| document.title.clone()));
 
         Ok(TaskPageResponse {
+            managed_task_ref: task_row
+                .get::<Option<Uuid>, _>("tracker_instance_id")
+                .zip(task_row.get::<Option<Uuid>, _>("task_id"))
+                .map(
+                    |(tracker_instance_id, task_id)| shared::resource_context::TaskRef {
+                        tracker_instance_id,
+                        task_id,
+                    },
+                ),
             space_key: space_key.to_string(),
             task_key: task_key.to_string(),
             title,
@@ -852,7 +868,7 @@ impl PostgresWikiBackend {
             r#"
             INSERT INTO task_dossiers (id, space_id, task_key, created_at, updated_at)
             VALUES ($1, $2, $3, now(), now())
-            ON CONFLICT (space_id, task_key)
+            ON CONFLICT (space_id, task_key) WHERE task_id IS NULL
             DO UPDATE SET updated_at = now()
             RETURNING id
             "#,

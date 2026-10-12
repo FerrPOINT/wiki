@@ -3381,6 +3381,7 @@ mod tests {
             "Requirements",
         )];
         shared::TaskPageResponse {
+            managed_task_ref: None,
             space_key: "SDLC".to_string(),
             task_key: "SDLC-42".to_string(),
             title: Some("Requirements".to_string()),

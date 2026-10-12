@@ -1,6 +1,9 @@
+import { useNamespaceContext } from '@/widgets/namespace-context'
 import { FormEvent, useEffect, useState } from 'react'
 import Markdown from 'react-markdown'
-import { Link, useNavigate, useSearchParams } from 'react-router'
+import { NamespaceLink as Link } from '@sdlc/ui/ui'
+import { useNamespaceNavigate as useNavigate } from '@sdlc/ui/ui'
+import { useSearchParams } from 'react-router'
 import { FileText, GitBranch, Save, Tag } from 'lucide-react'
 import { defaultSpaceKey, useCreateDocument, useSpaces, useTemplates } from '@/shared/api/hooks'
 import { ErrorState, LoadingState } from '@sdlc/ui/ui'
@@ -30,6 +33,7 @@ function normalizeOptional(value: string) {
 
 export function DocumentComposePage() {
   const navigate = useNavigate()
+  const namespace = useNamespaceContext()
   const [searchParams] = useSearchParams()
   const initialSpace = (searchParams.get('space') ?? defaultSpaceKey).toUpperCase()
   const requestedTemplateId = searchParams.get('template')?.trim() ?? ''
@@ -80,9 +84,16 @@ export function DocumentComposePage() {
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (
+      namespace.malformed ||
+      (namespace.ref && (!namespace.query.data || namespace.query.data.binding.state !== 'active'))
+    )
+      return
     createDocument.mutate(
       {
-        spaceKey: spaceKey.trim().toUpperCase() || defaultSpaceKey,
+        spaceKey: namespace.ref
+          ? namespace.query.data!.resource_key
+          : spaceKey.trim().toUpperCase() || defaultSpaceKey,
         body: {
           title: title.trim(),
           slug: normalizeOptional(slug),
@@ -94,7 +105,10 @@ export function DocumentComposePage() {
         },
       },
       {
-        onSuccess: (document) => setCreatedDocumentPath(`/documents/${document.slug}`),
+        onSuccess: (document) =>
+          setCreatedDocumentPath(
+            `/documents/${document.id}?${new URLSearchParams([...searchParams].filter(([key]) => ['task_id', 'tracker_instance_id'].includes(key)))}`,
+          ),
       },
     )
   }
@@ -154,7 +168,8 @@ export function DocumentComposePage() {
                 <Input
                   id="document-space"
                   list="document-space-options"
-                  value={spaceKey}
+                  value={namespace.ref ? (namespace.query.data?.resource_key ?? '') : spaceKey}
+                  disabled={Boolean(namespace.ref)}
                   onChange={(event) => setSpaceKey(event.target.value.toUpperCase())}
                   required
                 />

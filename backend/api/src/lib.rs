@@ -114,6 +114,16 @@ pub use routes::*;
 #[derive(OpenApi)]
 #[openapi(
     paths(
+        routes::namespace::apply,
+        routes::namespace::available_resources,
+        routes::namespace::available_tasks,
+        routes::namespace::stats,
+        routes::namespace::contexts,
+        routes::namespace::context,
+        routes::namespace::stored_links,
+        routes::namespace::readback,
+        routes::namespace::link_revision,
+        routes::namespace::revision_links,
         routes::health::health,
         routes::health::readiness,
         routes::wiki::register,
@@ -312,6 +322,31 @@ pub fn router_with_wiki(
     };
 
     let protected = Router::<Arc<app::WikiAppContext>>::new()
+        .route("/namespace-contexts", get(routes::namespace::contexts))
+        .route(
+            "/namespace-available-resources",
+            get(routes::namespace::available_resources),
+        )
+        .route(
+            "/spaces/{space_key}/available-tasks",
+            get(routes::namespace::available_tasks),
+        )
+        .route(
+            "/namespace-stats/{registry}/{namespace}",
+            get(routes::namespace::stats),
+        )
+        .route(
+            "/namespace-contexts/{registry}/{namespace}",
+            get(routes::namespace::context),
+        )
+        .route(
+            "/spaces/{space_key}/managed-task-links",
+            post(routes::namespace::link_revision),
+        )
+        .route(
+            "/managed-task-links/{tracker_instance}/{task}",
+            get(routes::namespace::revision_links),
+        )
         .route("/auth/logout", post(routes::wiki::logout))
         .route("/users/me", get(routes::wiki::get_current_user))
         .route("/settings", get(routes::wiki::get_settings))
@@ -439,10 +474,25 @@ pub fn router_with_wiki(
             wiki_backend.clone(),
             routes::wiki::require_wiki_auth,
         ))
-        .layer(Extension(wiki_backend));
+        .layer(Extension(wiki_backend.clone()));
 
     // Health probes must stay available while the general API bucket is exhausted.
-    let api = auth_routes.merge(protected);
+    let owner_routes = Router::new()
+        .route(
+            "/namespace-resources/wiki_space/{id}",
+            get(routes::namespace::readback).put(routes::namespace::apply),
+        )
+        .route_layer(axum::middleware::from_fn(routes::namespace::owner_auth))
+        .merge(
+            Router::new()
+                .route(
+                    "/namespace-task-links/{tracker_instance}/{task}",
+                    get(routes::namespace::stored_links),
+                )
+                .route_layer(axum::middleware::from_fn(routes::namespace::reader_auth)),
+        )
+        .layer(Extension(wiki_backend));
+    let api = auth_routes.merge(protected).merge(owner_routes);
     let handle = metric_handle();
     let prometheus_layer: PrometheusMetricLayer = GenericMetricLayer::new();
     let trace_layer = TraceLayer::new_for_http().make_span_with(|request: &Request| {

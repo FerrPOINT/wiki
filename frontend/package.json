@@ -21,7 +21,6 @@
     "openapi:check": "node node_modules/@sdlc/ui/scripts/sdlc-openapi-check.mjs --spec ../openapi/openapi.json --schema src/api/generated.ts",
     "openapi:compat": "node scripts/base-openapi-compat.mjs",
     "postinstall": "openapi-typescript ../openapi/openapi.json -o src/api/generated.ts && node scripts/generate-exports.mjs",
-    "prebuild": "node scripts/generate-exports.mjs",
     "theme:check": "node ../../services-base/frontend/scripts/sdlc-effective-theme-check.mjs"
   },
   "dependencies": {

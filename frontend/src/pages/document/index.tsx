@@ -1,5 +1,8 @@
+import { useNamespaceContext } from '@/widgets/namespace-context'
+import { TaskRevisionLink } from '@/features/managed-links/TaskRevisionLink'
 import { FormEvent, useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { NamespaceLink as Link } from '@sdlc/ui/ui'
+import { useParams } from 'react-router'
 import {
   Archive,
   CheckCircle2,
@@ -87,6 +90,7 @@ function RenderedDocumentBody({
 
 export function DocumentPage() {
   const { documentId = 'product-requirements' } = useParams()
+  const namespace = useNamespaceContext()
   const documentQuery = useDocument(documentId)
   const [revisionPage, setRevisionPage] = useState(0)
   const revisionsQuery = useDocumentRevisions(documentId, {
@@ -133,6 +137,15 @@ export function DocumentPage() {
     setLoadedDocumentId(document.id)
   }, [document, loadedDocumentId])
 
+  if (namespace.ref && namespace.query.isPending)
+    return <LoadingState message="Проверяем привязку Wiki" />
+  if (
+    namespace.malformed ||
+    (namespace.ref &&
+      (namespace.query.isError ||
+        (document && namespace.query.data?.resource_key !== document.space_key)))
+  )
+    return <ErrorState message="Документ недоступен в выбранном проекте" />
   if (documentQuery.isLoading) return <LoadingState message="Загружаем документ" />
   if (documentQuery.isError || !document) {
     return (
@@ -144,7 +157,10 @@ export function DocumentPage() {
   }
 
   const isArchived = document.status === 'archived'
-  const canEdit = document.can_edit && !isArchived
+  const canEdit =
+    document.can_edit &&
+    !isArchived &&
+    (!namespace.ref || namespace.query.data?.binding.state === 'active')
   const publishedHtml = document.body_html || document.current_revision?.body_html || ''
   const currentMode = loadedDocumentId === document.id ? selectedMode : null
   const isEditing = canEdit && (currentMode ?? (publishedHtml.trim() ? 'read' : 'edit')) === 'edit'
@@ -253,6 +269,13 @@ export function DocumentPage() {
   return (
     <article className="space-y-5">
       <UnsavedChangesGuard when={draftChanged} />
+      {import.meta.env.VITE_NAMESPACE_ENABLED === 'true' && document.current_revision && (
+        <TaskRevisionLink
+          documentId={document.id}
+          revisionId={document.current_revision.id}
+          spaceKey={document.space_key}
+        />
+      )}
       <section className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="break-words text-sm text-text-muted">

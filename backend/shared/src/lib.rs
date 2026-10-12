@@ -1,6 +1,7 @@
 #[cfg(feature = "runtime")]
 pub mod config;
 pub mod id;
+pub mod managed_links;
 pub mod wiki_contract;
 
 #[cfg(feature = "runtime")]
@@ -10,6 +11,7 @@ pub use wiki_contract::*;
 
 // Fleet-shared error lives in sdlc-shared (services-base): same structured
 // envelope {"error": {"code", "message"}} this service already emitted.
+pub use sdlc_shared::resource_context;
 pub use sdlc_shared::{AppError, AppResult, ErrorBody, ErrorEnvelope};
 
 use chrono::{DateTime, FixedOffset, Utc};

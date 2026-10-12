@@ -1,5 +1,8 @@
+import { SidebarItem } from '@sdlc/ui/ui'
+import { NamespaceShellContext } from './namespace-context'
 import { useEffect, useState, type ElementType } from 'react'
-import { Link, NavLink, Outlet, useLocation } from 'react-router'
+import { NamespaceLink as Link } from '@sdlc/ui/ui'
+import { NavLink, Outlet, useLocation } from 'react-router'
 import {
   ClipboardList,
   FileCheck2,
@@ -72,26 +75,12 @@ function SidebarLink({
   responsiveLabel?: boolean
 }) {
   return (
-    <NavLink
-      to={to}
-      end={to === '/'}
-      onClick={onClick}
-      title={responsiveLabel ? label : undefined}
-      className={({ isActive }) =>
-        `flex min-h-11 items-center gap-3 rounded-md px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-10 ${
-          responsiveLabel ? 'md:justify-center md:px-2 xl:justify-start xl:px-3' : ''
-        } ${
-          isActive
-            ? 'bg-surface-raised text-text-primary'
-            : 'text-text-secondary hover:bg-surface-raised hover:text-text-primary'
-        }`
-      }
-    >
-      <Icon className="h-5 w-5 shrink-0" aria-hidden />
-      <span className={responsiveLabel ? 'md:sr-only xl:not-sr-only xl:truncate' : 'truncate'}>
-        {label}
-      </span>
-    </NavLink>
+    <SidebarItem asChild compact={responsiveLabel ? 'responsive' : false}>
+      <NavLink to={to} end={to === '/'} onClick={onClick} aria-label={label} title={label}>
+        <Icon aria-hidden />
+        <span className="base-sidebar-item-label">{label}</span>
+      </NavLink>
+    </SidebarItem>
   )
 }
 
@@ -146,6 +135,9 @@ export function AppShell() {
     <div className="min-h-screen bg-background text-text-primary">
       <PlatformHeader
         currentServiceKey="wiki"
+        context={
+          import.meta.env.VITE_NAMESPACE_ENABLED === 'true' ? <NamespaceShellContext /> : undefined
+        }
         leading={
           <>
             <Dialog open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>

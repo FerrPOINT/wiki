@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useNamespaceNavigate as useNavigate } from '@sdlc/ui/ui'
+
 import { Layers } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@sdlc/ui/ui'

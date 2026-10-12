@@ -1,5 +1,6 @@
-import { type FormEvent, useRef, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
+import { NamespaceLink as Link } from '@sdlc/ui/ui'
+import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { FileCheck2, FileText, GitBranch, Link2, Search } from 'lucide-react'
 import {
   defaultSpaceKey,
@@ -256,6 +257,7 @@ export function TaskDossiersPage() {
 }
 
 export function TaskDossierPage() {
+  const navigate = useNavigate()
   const { taskKey = 'BASE-42' } = useParams()
   const [selectedSpaceKey, setSelectedSpaceKey, spacesQuery, searchParams] = useSelectedSpaceKey()
   const taskQuery = useTask(taskKey, selectedSpaceKey)
@@ -263,6 +265,14 @@ export function TaskDossierPage() {
   const [documentId, setDocumentId] = useState('')
   const [linkMessage, setLinkMessage] = useState('')
   const task = taskQuery.data
+  useEffect(() => {
+    const stable = task?.managed_task_ref
+    if (stable)
+      navigate(
+        `/managed-tasks/${stable.tracker_instance_id}/${stable.task_id}?${searchParams.toString()}`,
+        { replace: true },
+      )
+  }, [task?.managed_task_ref, navigate, searchParams])
   const phaseKeys = Array.from(
     new Set((task?.evidence ?? []).map((item) => item.phase_key).filter(Boolean)),
   ) as string[]

@@ -52,7 +52,11 @@ jobs:
       - name: Read pinned Base revision
         id: base
         working-directory: wiki
-        run: echo "sha=$(cat .base-revision)" >> "$GITHUB_OUTPUT"
+        run: |
+          pin=.base-revision
+          if [ -f .namespace-base-revision ]; then pin=.namespace-base-revision; fi
+          echo "sha=$(cat "$pin")" >> "$GITHUB_OUTPUT"
+          echo "pin=$pin" >> "$GITHUB_OUTPUT"
       - name: Check out services-base sibling (path deps)
         uses: actions/checkout@v7
         with:
@@ -62,7 +66,7 @@ jobs:
           ref: ${{ steps.base.outputs.sha }}
       - name: Verify pinned Base checkout
         working-directory: wiki
-        run: python3 ../services-base/scripts/verify_base_revision.py --revision .base-revision --base ../services-base
+        run: python3 ../services-base/scripts/verify_base_revision.py --revision "${{ steps.base.outputs.pin }}" --base ../services-base
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: "1.88.0"
@@ -76,10 +80,16 @@ jobs:
         run: cargo test --locked --workspace -- --test-threads=1
         env:
           WIKI_TEST_DATABASE_URL: postgres://wiki@127.0.0.1:5432/wiki_test
-      - name: Central directory projection on isolated PostgreSQL
-        run: cargo test --locked -p infra mixed_central_directory_preserves_identity_and_disabled_state_in_postgres -- --ignored --test-threads=1
+      - name: Verified profile and central directory projection on isolated PostgreSQL
+        run: cargo test --locked -p infra central_directory_tests -- --ignored --test-threads=1
         env:
           WIKI_TEST_DATABASE_URL: postgres://wiki@127.0.0.1:5432/wiki_test
+      - name: Namespace lifecycle and lost projection on isolated PostgreSQL
+        run: cargo test --locked -p infra namespace_postgres_tests -- --ignored --test-threads=1
+        env:
+          WIKI_TEST_DATABASE_URL: postgres://wiki@127.0.0.1:5432/wiki_test
+          WIKI_NAMESPACE__INSTANCE_ID: 11111111-1111-4111-8111-111111111111
+          WIKI_NAMESPACE__REGISTRY_INSTANCE_ID: 22222222-2222-4222-8222-222222222222
       - name: OpenAPI drift gate
         run: |
           cargo run --locked -p api --bin openapi-gen ../openapi/openapi.json.generated
@@ -99,7 +109,11 @@ jobs:
       - name: Read pinned Base revision
         id: base
         working-directory: wiki
-        run: echo "sha=$(cat .base-revision)" >> "$GITHUB_OUTPUT"
+        run: |
+          pin=.base-revision
+          if [ -f .namespace-base-revision ]; then pin=.namespace-base-revision; fi
+          echo "sha=$(cat "$pin")" >> "$GITHUB_OUTPUT"
+          echo "pin=$pin" >> "$GITHUB_OUTPUT"
       - name: Check out services-base sibling (@sdlc/ui file dep)
         uses: actions/checkout@v7
         with:
@@ -109,7 +123,7 @@ jobs:
           ref: ${{ steps.base.outputs.sha }}
       - name: Verify pinned Base checkout
         working-directory: wiki
-        run: python3 ../services-base/scripts/verify_base_revision.py --revision .base-revision --base ../services-base
+        run: python3 ../services-base/scripts/verify_base_revision.py --revision "${{ steps.base.outputs.pin }}" --base ../services-base
       - uses: pnpm/action-setup@v6
         with:
           version: 10.28.1
@@ -150,7 +164,11 @@ jobs:
       - name: Read pinned Base revision
         id: base
         working-directory: wiki
-        run: echo "sha=$(cat .base-revision)" >> "$GITHUB_OUTPUT"
+        run: |
+          pin=.base-revision
+          if [ -f .namespace-base-revision ]; then pin=.namespace-base-revision; fi
+          echo "sha=$(cat "$pin")" >> "$GITHUB_OUTPUT"
+          echo "pin=$pin" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v7
         with:
           repository: FerrPOINT/services-base
@@ -159,7 +177,7 @@ jobs:
           token: ${{ secrets.SERVICES_BASE_TOKEN }}
       - name: Verify pinned Base checkout
         working-directory: wiki
-        run: python3 ../services-base/scripts/verify_base_revision.py --revision .base-revision --base ../services-base
+        run: python3 ../services-base/scripts/verify_base_revision.py --revision "${{ steps.base.outputs.pin }}" --base ../services-base
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: "1.88.0"
