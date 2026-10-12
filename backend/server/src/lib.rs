@@ -46,6 +46,7 @@ pub async fn run_with_wiki_backend(
     let bound_addr = listener.local_addr().map_err(AppError::internal)?;
     let _ = ready.send(bound_addr);
     let maintenance_task = spawn_maintenance_task(&config, wiki_backend.clone());
+    let catalog_task = spawn_catalog_task(wiki_backend.clone());
 
     let (shutdown_started_tx, shutdown_started_rx) = tokio::sync::oneshot::channel();
     let server = axum::serve(
@@ -84,6 +85,10 @@ pub async fn run_with_wiki_backend(
     };
 
     if let Some(task) = maintenance_task {
+        task.abort();
+        let _ = task.await;
+    }
+    if let Some(task) = catalog_task {
         task.abort();
         let _ = task.await;
     }
@@ -126,6 +131,24 @@ fn spawn_maintenance_task(
                 Err(err) => {
                     warn!(error = %err, "wiki maintenance failed");
                 }
+            }
+        }
+    }))
+}
+
+fn spawn_catalog_task(backend: api::routes::wiki::WikiBackend) -> Option<JoinHandle<()>> {
+    std::env::var_os("WIKI_NAMESPACE__TRACKER_URL")?;
+    Some(tokio::spawn(async move {
+        let mut ticks = interval(Duration::from_secs(60));
+        ticks.set_missed_tick_behavior(MissedTickBehavior::Skip);
+        loop {
+            ticks.tick().await;
+            let result = match backend.namespace_port() {
+                Ok(port) => port.refresh_workspace_catalog().await,
+                Err(error) => Err(error),
+            };
+            if let Err(error) = result {
+                warn!(error=%error,"Wiki project catalog refresh failed; retaining last snapshot");
             }
         }
     }))

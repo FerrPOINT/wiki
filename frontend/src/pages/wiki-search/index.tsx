@@ -1,3 +1,4 @@
+import { useProjectRouteRef } from '@/widgets/namespace-context'
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { NamespaceLink as Link } from '@sdlc/ui/ui'
 import { useSearchParams } from 'react-router'
@@ -60,6 +61,7 @@ function setOptionalParam(params: URLSearchParams, key: string, value: string) {
 }
 
 export function WikiSearchPage() {
+  const namespace = useProjectRouteRef()
   const [searchParams, setSearchParams] = useSearchParams()
   const appliedQuery = searchParams.get('q')?.trim() ?? ''
   const appliedSpace = searchParams.get('space')?.trim().toUpperCase() ?? ''
@@ -264,6 +266,7 @@ export function WikiSearchPage() {
               <Label htmlFor="search-space">Пространство</Label>
               <Input
                 id="search-space"
+                readOnly={Boolean(namespace.ref)}
                 className="min-h-10"
                 value={spaceFilter}
                 onChange={(event) => {

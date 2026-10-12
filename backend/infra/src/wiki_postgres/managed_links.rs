@@ -25,6 +25,75 @@ pub(super) struct TaskReader {
 }
 
 impl TaskReader {
+    pub(super) async fn projects(
+        &self,
+    ) -> Result<Vec<shared::resource_context::ResourceContextSummary>, AppError> {
+        let registry: Uuid = std::env::var("WIKI_NAMESPACE__REGISTRY_INSTANCE_ID")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .ok_or_else(|| AppError::Unavailable("namespace_owner_not_configured".into()))?;
+        let mut projects = Vec::new();
+        let mut namespaces = std::collections::HashSet::new();
+        let mut resources = std::collections::HashSet::new();
+        for offset in (0..10000).step_by(100) {
+            let mut response = self
+                .client
+                .get(
+                    self.endpoint
+                        .join("api/v1/namespace-projects")
+                        .map_err(AppError::internal)?,
+                )
+                .query(&[("limit", 100), ("offset", offset)])
+                .bearer_auth(&self.token)
+                .send()
+                .await
+                .map_err(|_| AppError::Unavailable("tracker_reader_unavailable".into()))?;
+            if !response.status().is_success() {
+                return Err(AppError::Unavailable("tracker_reader_unavailable".into()));
+            }
+            let mut bytes = Vec::new();
+            while let Some(chunk) = response
+                .chunk()
+                .await
+                .map_err(|_| AppError::Unavailable("invalid_tracker_readback".into()))?
+            {
+                if bytes.len() + chunk.len() > 262144 {
+                    return Err(AppError::Unavailable(
+                        "tracker_reader_response_too_large".into(),
+                    ));
+                }
+                bytes.extend_from_slice(&chunk);
+            }
+            let page: Vec<shared::resource_context::ResourceContextSummary> =
+                serde_json::from_slice(&bytes)
+                    .map_err(|_| AppError::Unavailable("invalid_tracker_readback".into()))?;
+            if page.len() > 100 {
+                return Err(AppError::Unavailable("invalid_tracker_project_page".into()));
+            }
+            let last = page.len() < 100;
+            for item in page {
+                super::workspace_catalog::validate_project(&item, registry, self.instance)?;
+                if !namespaces.insert((
+                    item.binding.namespace.registry_instance_id,
+                    item.binding.namespace.namespace_id,
+                )) || !resources.insert((
+                    item.binding.resource.instance_id,
+                    item.binding.resource.resource_id,
+                )) {
+                    return Err(AppError::Unavailable(
+                        "duplicate_tracker_project_identity".into(),
+                    ));
+                }
+                projects.push(item);
+            }
+            if last {
+                return Ok(projects);
+            }
+        }
+        Err(AppError::Unavailable(
+            "tracker_catalog_limit_exceeded".into(),
+        ))
+    }
     async fn list(
         &self,
         namespace: &NamespaceRef,

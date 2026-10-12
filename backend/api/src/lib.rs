@@ -119,6 +119,10 @@ pub use routes::*;
         routes::namespace::available_tasks,
         routes::namespace::stats,
         routes::namespace::contexts,
+        routes::namespace::workspace_projects,
+        routes::namespace::workspace_project,
+        routes::namespace::document_context,
+        routes::namespace::space_context,
         routes::namespace::context,
         routes::namespace::stored_links,
         routes::namespace::readback,
@@ -176,6 +180,9 @@ pub use routes::*;
         routes::wiki::search
     ),
     components(schemas(
+        shared::wiki_contract::WorkspaceProject,
+        shared::wiki_contract::WorkspaceProjectPage,
+        shared::wiki_contract::ProjectResourceStatus,
         routes::wiki::WikiAuthResponse,
         routes::wiki::WikiRegisterRequest,
         routes::wiki::WikiLoginRequest,
@@ -322,6 +329,22 @@ pub fn router_with_wiki(
     };
 
     let protected = Router::<Arc<app::WikiAppContext>>::new()
+        .route(
+            "/spaces/{space_key}/namespace-context",
+            get(routes::namespace::space_context),
+        )
+        .route(
+            "/workspace-projects",
+            get(routes::namespace::workspace_projects),
+        )
+        .route(
+            "/workspace-projects/{registry}/{namespace}",
+            get(routes::namespace::workspace_project),
+        )
+        .route(
+            "/documents/{id}/namespace-context",
+            get(routes::namespace::document_context),
+        )
         .route("/namespace-contexts", get(routes::namespace::contexts))
         .route(
             "/namespace-available-resources",

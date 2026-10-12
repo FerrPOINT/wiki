@@ -167,6 +167,7 @@ export function DocumentComposePage() {
                 <Label htmlFor="document-space">Пространство</Label>
                 <Input
                   id="document-space"
+                  readOnly={Boolean(namespace.ref)}
                   list="document-space-options"
                   value={namespace.ref ? (namespace.query.data?.resource_key ?? '') : spaceKey}
                   disabled={Boolean(namespace.ref)}

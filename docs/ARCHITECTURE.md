@@ -1,5 +1,11 @@
 # Архитектура Wiki
 
+[Проектная навигация](plans/project-navigation.md) использует Base presentation и
+локальный полный снимок Tracker. Reader client и 60-секундное обновление имеют
+server lifecycle; частичный ответ не заменяет подтверждённый снимок.
+ProjectBoundary разрешает Space до монтирования страниц. Доступ и guards остаются
+в Wiki; Base не получает доменные API-клиенты или policy.
+
 Central Auth владеет human identity, браузерными сессиями и личными токенами.
 Wiki проверяет issuer/audience/signature/session через общий `sdlc-auth-core`,
 а локальная таблица `users` хранит только проекцию по неизменяемому `central_sub`

@@ -154,8 +154,10 @@ export function archiveSpace(spaceKey: string): Promise<SpaceResponse> {
   })
 }
 
-export function getSpaceTree(spaceKey: string): Promise<SpaceTreeResponse> {
-  return apiRequest<SpaceTreeResponse>(`/api/v1/spaces/${encodeURIComponent(spaceKey)}/tree`)
+export function getSpaceTree(spaceKey: string, signal?: AbortSignal): Promise<SpaceTreeResponse> {
+  return apiRequest<SpaceTreeResponse>(`/api/v1/spaces/${encodeURIComponent(spaceKey)}/tree`, {
+    signal,
+  })
 }
 
 export function listSpaceMembers(spaceKey: string): Promise<SpaceMemberListResponse> {
