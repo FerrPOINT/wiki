@@ -251,11 +251,11 @@ export function useDeleteSpaceMember() {
   })
 }
 
-export function useSpaceTree(spaceKey: string) {
+export function useSpaceTree(spaceKey: string, enabled = true) {
   return useQuery({
     queryKey: wikiKeys.spaceTree(spaceKey),
-    queryFn: () => getSpaceTree(spaceKey),
-    enabled: Boolean(spaceKey),
+    queryFn: ({ signal }) => getSpaceTree(spaceKey, signal),
+    enabled: enabled && Boolean(spaceKey),
   })
 }
 

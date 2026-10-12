@@ -49,6 +49,12 @@ const AdminPage = lazy(() => import('@/pages/admin').then((m) => ({ default: m.A
 const NamespacePage = lazy(() =>
   import('@/pages/namespace').then((m) => ({ default: m.NamespacePage })),
 )
+const ProjectsPage = lazy(() =>
+  import('@/pages/workspaces').then((m) => ({ default: m.ProjectsPage })),
+)
+const WorkspacePage = lazy(() =>
+  import('@/pages/workspaces').then((m) => ({ default: m.WorkspacePage })),
+)
 const DocumentRevisionPage = lazy(() =>
   import('@/pages/document-revision').then((m) => ({ default: m.DocumentRevisionPage })),
 )
@@ -72,6 +78,28 @@ export function createWikiRoutes(namespaceEnabled: boolean): RouteObject[] {
   const namespaceRoutes: RouteObject[] = namespaceEnabled
     ? [
         { path: '/namespace', element: withSuspense(<NamespacePage />) },
+        { path: '/projects', element: withSuspense(<ProjectsPage />) },
+        { path: '/workspaces/:registry/:namespace', element: withSuspense(<WorkspacePage />) },
+        {
+          path: '/workspaces/:registry/:namespace/documents',
+          element: withSuspense(<WorkspacePage documents />),
+        },
+        {
+          path: '/workspaces/:registry/:namespace/tasks',
+          element: withSuspense(<TaskDossiersPage />),
+        },
+        {
+          path: '/workspaces/:registry/:namespace/phases',
+          element: withSuspense(<PhaseDossiersPage />),
+        },
+        {
+          path: '/workspaces/:registry/:namespace/evidence',
+          element: withSuspense(<EvidencePage />),
+        },
+        {
+          path: '/workspaces/:registry/:namespace/search',
+          element: withSuspense(<WikiSearchPage />),
+        },
         {
           path: '/documents/:documentId/revisions/:revisionId',
           element: withSuspense(<DocumentRevisionPage />),

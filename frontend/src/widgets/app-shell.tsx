@@ -2,7 +2,11 @@ import { SidebarItem } from '@sdlc/ui/ui'
 import { NamespaceShellContext } from './namespace-context'
 import { useEffect, useState, type ElementType } from 'react'
 import { NamespaceLink as Link } from '@sdlc/ui/ui'
-import { NavLink, Outlet, useLocation } from 'react-router'
+import { Outlet, useLocation } from 'react-router'
+import { NamespaceNavLink as NavLink } from '@sdlc/ui/ui'
+import { useProjectDisclosures } from '@sdlc/ui/lib'
+import { WorkspaceNavigation, useDocumentDisclosures } from './workspace-navigation'
+import { ProjectBoundary } from './project-boundary'
 import {
   ClipboardList,
   FileCheck2,
@@ -109,6 +113,9 @@ function NavigationList({
 
 export function AppShell() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [projectRail, setProjectRail] = useState(
+    () => !window.matchMedia('(min-width: 1280px)').matches,
+  )
   const location = useLocation()
   const { data: user } = useCurrentUser()
   const logout = useLogout()
@@ -120,10 +127,28 @@ export function AppShell() {
       if (desktop.matches) setMobileMenuOpen(false)
     }
     desktop.addEventListener('change', closeOnDesktop)
-    return () => desktop.removeEventListener('change', closeOnDesktop)
+    const expanded = window.matchMedia('(min-width: 1280px)')
+    const updateRail = () => setProjectRail(!expanded.matches)
+    expanded.addEventListener('change', updateRail)
+    return () => {
+      desktop.removeEventListener('change', closeOnDesktop)
+      expanded.removeEventListener('change', updateRail)
+    }
   }, [])
 
-  const navItems = [...baseNavItems, ...(user?.is_system_admin ? adminNavItems : [])]
+  const namespaceEnabled = import.meta.env.VITE_NAMESPACE_ENABLED === 'true'
+  const disclosures = useProjectDisclosures('wiki:collapsed-projects:v1')
+  const documents = useDocumentDisclosures()
+  const baseItems = namespaceEnabled
+    ? baseNavItems.flatMap((item) =>
+        item.to === '/'
+          ? [item, { to: '/projects', icon: Library, label: 'Проекты' }]
+          : ['/tasks', '/phases', '/evidence'].includes(item.to)
+            ? []
+            : [item],
+      )
+    : baseNavItems
+  const navItems = [...baseItems, ...(user?.is_system_admin ? adminNavItems : [])]
   const pageLayout =
     location.pathname === '/settings' || location.pathname === '/documents/new'
       ? 'reading'
@@ -172,6 +197,13 @@ export function AppShell() {
                     </Link>
                   </Button>
                   <NavigationList items={navItems} onNavigate={() => setMobileMenuOpen(false)} />
+                  {namespaceEnabled && (
+                    <WorkspaceNavigation
+                      disclosures={disclosures}
+                      documents={documents}
+                      onNavigate={() => setMobileMenuOpen(false)}
+                    />
+                  )}
                 </div>
               </DialogContent>
             </Dialog>
@@ -227,12 +259,25 @@ export function AppShell() {
       <aside className="fixed bottom-0 left-0 top-[var(--shell-header-height)] z-20 hidden w-[var(--shell-sidebar-compact)] flex-col border-r border-border bg-surface md:flex xl:w-[var(--shell-sidebar-expanded)]">
         <div className="min-h-0 flex-1 overflow-y-auto p-2 xl:p-3">
           <NavigationList items={navItems} responsiveLabels />
+          {namespaceEnabled && (
+            <WorkspaceNavigation
+              disclosures={disclosures}
+              documents={documents}
+              compact={projectRail}
+            />
+          )}
         </div>
       </aside>
       <div className="md:pl-[var(--shell-sidebar-compact)] xl:pl-[var(--shell-sidebar-expanded)]">
         <main className="shell-main min-h-[calc(100dvh-var(--shell-header-height))]">
           <PageFrame mode={pageLayout}>
-            <Outlet />
+            {namespaceEnabled ? (
+              <ProjectBoundary>
+                <Outlet />
+              </ProjectBoundary>
+            ) : (
+              <Outlet />
+            )}
           </PageFrame>
         </main>
       </div>

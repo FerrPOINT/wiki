@@ -688,6 +688,47 @@
         ]
       }
     },
+    "/api/v1/documents/{id}/namespace-context": {
+      "get": {
+        "tags": [
+          "namespaces"
+        ],
+        "operationId": "wiki_document_namespace_context",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ResourceContextSummary"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Document access denied"
+          }
+        }
+      }
+    },
     "/api/v1/evidence": {
       "get": {
         "tags": [
@@ -1876,6 +1917,46 @@
         ]
       }
     },
+    "/api/v1/spaces/{space_key}/namespace-context": {
+      "get": {
+        "tags": [
+          "namespaces"
+        ],
+        "operationId": "wiki_space_namespace_context",
+        "parameters": [
+          {
+            "name": "space_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ResourceContextSummary"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Space access denied"
+          }
+        }
+      }
+    },
     "/api/v1/spaces/{space_key}/phase-summaries": {
       "get": {
         "tags": [
@@ -2712,6 +2793,109 @@
           }
         ]
       }
+    },
+    "/api/v1/workspace-projects": {
+      "get": {
+        "tags": [
+          "namespaces"
+        ],
+        "operationId": "wiki_workspace_projects",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceProjectPage"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Catalog unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/workspace-projects/{registry}/{namespace}": {
+      "get": {
+        "tags": [
+          "namespaces"
+        ],
+        "operationId": "wiki_workspace_project",
+        "parameters": [
+          {
+            "name": "registry",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceProject"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3490,6 +3674,15 @@
             ]
           }
         }
+      },
+      "ProjectResourceStatus": {
+        "type": "string",
+        "enum": [
+          "connected",
+          "not_connected",
+          "forbidden",
+          "unavailable"
+        ]
       },
       "PublishDocumentRequest": {
         "type": "object",
@@ -4360,6 +4553,86 @@
           },
           "username": {
             "type": "string"
+          }
+        }
+      },
+      "WorkspaceProject": {
+        "type": "object",
+        "description": "Tracker presentation never grants access to the optional owner-local Wiki resource.",
+        "required": [
+          "namespace",
+          "tracker",
+          "generation",
+          "name",
+          "project_key",
+          "state",
+          "observed_at",
+          "stale",
+          "resource_status"
+        ],
+        "properties": {
+          "binding": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OwnerReadback"
+              }
+            ]
+          },
+          "generation": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "namespace": {
+            "$ref": "#/components/schemas/NamespaceRef"
+          },
+          "observed_at": {
+            "type": "string"
+          },
+          "project_key": {
+            "type": "string"
+          },
+          "resource_status": {
+            "$ref": "#/components/schemas/ProjectResourceStatus"
+          },
+          "space_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "stale": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          },
+          "tracker": {
+            "$ref": "#/components/schemas/ResourceRef"
+          }
+        }
+      },
+      "WorkspaceProjectPage": {
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceProject"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       }

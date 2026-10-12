@@ -289,11 +289,11 @@ impl PostgresWikiBackend {
 }
 
 #[cfg(test)]
-mod namespace_postgres_tests {
+pub(in crate::wiki_postgres) mod namespace_postgres_tests {
     use super::*;
     use shared::wiki_contract::{WikiClaims, WikiSettingsSnapshot};
 
-    async fn backend() -> (PostgresWikiBackend, Uuid) {
+    pub(in crate::wiki_postgres) async fn backend() -> (PostgresWikiBackend, Uuid) {
         let url = std::env::var("WIKI_TEST_DATABASE_URL").expect("disposable QA database required");
         let pool = sqlx::PgPool::connect(&url).await.unwrap();
         sqlx::migrate::Migrator::new(
@@ -326,7 +326,7 @@ mod namespace_postgres_tests {
         )
     }
 
-    fn create_command(owner: Uuid) -> OwnerCommand {
+    pub(in crate::wiki_postgres) fn create_command(owner: Uuid) -> OwnerCommand {
         OwnerCommand {
             schema_version: 1,
             namespace: NamespaceRef {

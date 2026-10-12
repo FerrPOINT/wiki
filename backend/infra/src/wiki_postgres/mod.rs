@@ -15,6 +15,9 @@ mod queries;
 mod search;
 mod spaces;
 mod templates;
+mod workspace_catalog;
+#[cfg(test)]
+mod workspace_catalog_tests;
 pub use connection::connect_postgres_wiki_backend;
 
 use app::wiki::{WikiSpaceAccess as SpaceAccess, normalize_space_key, space_role_allows};
@@ -208,6 +211,34 @@ impl PostgresWikiBackend {
 
 #[async_trait::async_trait]
 impl WikiBackendPort for PostgresWikiBackend {
+    async fn space_namespace_context(
+        &self,
+        claims: &WikiClaims,
+        key: &str,
+    ) -> Result<Option<shared::resource_context::ResourceContextSummary>, shared::AppError> {
+        self.space_context(claims, key).await
+    }
+    async fn workspace_projects(
+        &self,
+        claims: &WikiClaims,
+        namespace: Option<&shared::resource_context::NamespaceRef>,
+        limit: i64,
+        offset: i64,
+        search: &str,
+    ) -> Result<WorkspaceProjectPage, shared::AppError> {
+        self.list_projects(claims, namespace, limit, offset, search)
+            .await
+    }
+    async fn refresh_workspace_catalog(&self) -> Result<(), shared::AppError> {
+        self.refresh_projects().await
+    }
+    async fn document_namespace_context(
+        &self,
+        claims: &WikiClaims,
+        id: Uuid,
+    ) -> Result<Option<shared::resource_context::ResourceContextSummary>, shared::AppError> {
+        self.document_context(claims, id).await
+    }
     async fn link_task_revision(
         &self,
         claims: &WikiClaims,
