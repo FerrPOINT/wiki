@@ -15,9 +15,14 @@ export type ResourceContext = components['schemas']['ResourceContextSummary']
 
 /** Presentation-only scope for controls; the shell resolves and authorizes the resource. */
 export function useProjectRouteRef() {
-  const location=useLocation(),match=useMatch('/workspaces/:registry/:namespace/*')
-  const pathRef=match?parseNamespaceLocation(`?registry_instance_id=${match.params.registry}&namespace_id=${match.params.namespace}`):null
-  return projectNavigationScope(location.search,pathRef)
+  const location = useLocation(),
+    match = useMatch('/workspaces/:registry/:namespace/*')
+  const pathRef = match
+    ? parseNamespaceLocation(
+        `?registry_instance_id=${match.params.registry}&namespace_id=${match.params.namespace}`,
+      )
+    : null
+  return projectNavigationScope(location.search, pathRef)
 }
 
 export function useNamespaceContext() {
