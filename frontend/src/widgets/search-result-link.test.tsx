@@ -25,17 +25,19 @@ const result = {
   updated_at: '2026-10-12T00:00:00Z',
   url: '/documents/44444444-4444-4444-8444-444444444444#section',
 }
-function mount() {
-  vi.stubEnv('VITE_NAMESPACE_ENABLED', 'true')
+function mount(item = result, enabled = true) {
+  vi.stubEnv('VITE_NAMESPACE_ENABLED', String(enabled))
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
       <MemoryRouter
         initialEntries={[
-          `/search?search_scope=all&project_scope=all&registry_instance_id=${registry}&namespace_id=${source}`,
+          enabled
+            ? `/search?search_scope=all&project_scope=all&registry_instance_id=${registry}&namespace_id=${source}`
+            : '/search?space=SECOND',
         ]}
       >
-        <SearchResultLink result={result} allSpaces>
+        <SearchResultLink result={item} allSpaces>
           <span>Result</span>
         </SearchResultLink>
       </MemoryRouter>
@@ -43,6 +45,31 @@ function mount() {
   )
 }
 describe('global search result context', () => {
+  it('keeps standalone evidence in its exact space with Namespace disabled', async () => {
+    mount({ ...result, result_type: 'evidence', url: `/evidence?id=${result.id}` }, false)
+    const link = await screen.findByRole('link', { name: 'Result' })
+    const target = new URL(link.getAttribute('href')!, 'https://test.invalid')
+    expect(target.searchParams.get('space')).toBe('SECOND')
+    expect(target.searchParams.has('namespace_id')).toBe(false)
+    expect(apiRequest).not.toHaveBeenCalled()
+  })
+  it.each([
+    null,
+    { binding: { namespace: { registry_instance_id: registry, namespace_id: destination } } },
+  ])('keeps the exact evidence space with binding %s', async (binding) => {
+    vi.mocked(apiRequest).mockResolvedValue(binding)
+    mount({ ...result, result_type: 'evidence', url: `/evidence?id=${result.id}` })
+    const link = await screen.findByRole('link', { name: 'Result' })
+    const target = new URL(link.getAttribute('href')!, 'https://test.invalid')
+    expect(target.searchParams.get('space')).toBe('SECOND')
+    expect(target.searchParams.get('id')).toBe(result.id)
+    expect(target.searchParams.get('project_scope')).toBe('all')
+    expect(target.searchParams.get('namespace_id')).toBe(binding ? destination : null)
+    expect(apiRequest).toHaveBeenCalledWith(
+      '/api/v1/spaces/SECOND/namespace-context',
+      expect.anything(),
+    )
+  })
   it('uses the confirmed destination instead of the selected source project', async () => {
     vi.mocked(apiRequest).mockResolvedValue({
       binding: { namespace: { registry_instance_id: registry, namespace_id: destination } },

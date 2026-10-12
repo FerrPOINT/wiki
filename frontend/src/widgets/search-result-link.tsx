@@ -8,6 +8,13 @@ import type { SearchResult } from '@/api/wiki'
 import { useAuthStore } from '@/shared/auth/store'
 import type { ResourceContext } from './namespace-context'
 
+function resultLocation(result: SearchResult) {
+  if (result.result_type === 'document') return result.url
+  const target = new URL(result.url, window.location.origin)
+  target.searchParams.set('space', result.space_key)
+  return target.pathname + target.search + target.hash
+}
+
 export function SearchResultLink({
   result,
   allSpaces,
@@ -21,7 +28,7 @@ export function SearchResultLink({
   const resolve = import.meta.env.VITE_NAMESPACE_ENABLED === 'true' && allSpaces
   if (!resolve)
     return (
-      <NamespaceLink to={result.url} className={resultClassName}>
+      <NamespaceLink to={resultLocation(result)} className={resultClassName}>
         {children}
       </NamespaceLink>
     )
@@ -78,7 +85,11 @@ function ResolvedResultLink({
   }
   return (
     <Link
-      to={withNamespaceLocation(result.url, context.data?.binding.namespace ?? null, search)}
+      to={withNamespaceLocation(
+        resultLocation(result),
+        context.data?.binding.namespace ?? null,
+        search,
+      )}
       className={className}
     >
       {children}
