@@ -10,6 +10,12 @@
 
 ## [Unreleased]
 
+- Исправлено форматирование route-scope helper: frontend format:check снова
+  принимает код проектной навигации без изменения поведения.
+
+- Umbrella-сборка устанавливает `wiki-server` отдельным исполняемым файлом,
+  сохраняя каталог исходников `server`. Финальный слой проверяет executable.
+
 - Namespace routes are now omitted when the build-time UI flag is disabled, and
   their pages are lazy-loaded when the feature is enabled.
 

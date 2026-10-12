@@ -87,9 +87,13 @@ beforeEach(() => {
       }
     if (path.startsWith('/api/v1/workspace-projects?'))
       return { items: projects, total: projects.length }
-    const project = projects.find((p) => path.endsWith(p.namespace.namespace_id)||path.includes(`/spaces/${p.space_key}/namespace-context`))
+    const project = projects.find(
+      (p) =>
+        path.endsWith(p.namespace.namespace_id) ||
+        path.includes(`/spaces/${p.space_key}/namespace-context`),
+    )
     if (project)
-      return path.includes('/namespace-contexts/')||path.includes('/spaces/')
+      return path.includes('/namespace-contexts/') || path.includes('/spaces/')
         ? { binding: project.binding, label: project.name, resource_key: project.space_key }
         : project
     throw new Error('Unexpected request ' + path)
@@ -101,9 +105,9 @@ afterEach(() => {
   vi.resetAllMocks()
 })
 describe('Wiki project navigation', () => {
-  it('resolves an explicit legacy space link without inheriting the previously open project',async()=>{
+  it('resolves an explicit legacy space link without inheriting the previously open project', async () => {
     mount('/tasks?space=WIKI2')
-    await waitFor(()=>expect(screen.getByLabelText('Content URL')).toHaveTextContent(id(2)))
+    await waitFor(() => expect(screen.getByLabelText('Content URL')).toHaveTextContent(id(2)))
     expect(screen.getByLabelText('Content URL')).toHaveTextContent('project_scope=all')
     expect(screen.getByLabelText('Content URL')).toHaveTextContent('space=WIKI2')
   })

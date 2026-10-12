@@ -29,8 +29,7 @@ COPY wiki/backend/cli ./cli
 RUN --mount=type=cache,id=wiki-cargo-registry-rust-1.88,target=/usr/local/cargo/registry,sharing=shared \
     --mount=type=cache,id=wiki-cargo-target-rust-1.88,target=/cargo-target,sharing=locked \
     CARGO_TARGET_DIR=/cargo-target cargo build --locked --release --bin server \
-    && cp /cargo-target/release/server /app/wiki-server \
-    && test -f /app/wiki-server && test -x /app/wiki-server
+    && install -m 0755 /cargo-target/release/server /app/wiki-server
 
 FROM debian:bookworm-slim
 RUN apt-get update \
@@ -42,6 +41,7 @@ RUN apt-get update \
     && chown -R wiki:wiki /app /var/lib/wiki
 WORKDIR /app
 COPY --from=builder --chown=wiki:wiki /app/wiki-server /usr/local/bin/wiki-server
+RUN test -f /usr/local/bin/wiki-server && test -x /usr/local/bin/wiki-server
 COPY --from=builder --chown=wiki:wiki /app/migrations ./migrations
 ENV WIKI_MIGRATIONS_DIR=/app/migrations
 USER wiki
