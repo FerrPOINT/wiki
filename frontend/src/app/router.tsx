@@ -67,7 +67,7 @@ const ManagedTaskPage = lazy(() =>
 function PageLoader() { return <LoadingState /> }
 
 const withSuspense = (element: ReactElement) => (
-  <Suspense fallback={<PageLoader />}><PlatformRoute>{element}</PlatformRoute></Suspense>
+  <Suspense fallback={<PageLoader />}>{element}</Suspense>
 )
 
 export function createWikiRoutes(namespaceEnabled: boolean): RouteObject[] {
@@ -112,7 +112,7 @@ export function createWikiRoutes(namespaceEnabled: boolean): RouteObject[] {
       element: <RequireAuth />,
       children: [
         {
-          element: <AppShell />,
+          element: <PlatformRoute><AppShell /></PlatformRoute>,
           children: [
             ...namespaceRoutes,
             { path: '/', element: withSuspense(<DashboardPage />) },
