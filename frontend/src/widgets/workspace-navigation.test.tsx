@@ -114,17 +114,20 @@ describe('Wiki project navigation', () => {
   it('keeps all groups and uses canonical project identity after section navigation', async () => {
     mount()
     const first = await screen.findByRole('region', { name: 'Одинаковый проект · A' })
-    await userEvent.setup().click(within(first).getByRole('link', { name: 'Задачи' }))
+    await userEvent.setup().click(within(first).getByRole('link', { name: 'Материалы' }))
     expect(await screen.findByLabelText('Content URL')).toHaveTextContent('space=WIKI1')
     expect(screen.getByLabelText('Content URL')).toHaveTextContent('project_scope=all')
     expect(screen.getByRole('region', { name: 'Одинаковый проект · B' })).toBeInTheDocument()
   })
-  it('resolves a selected project before mounting content and rejects a conflicting space', async () => {
-    mount(`/workspaces/${registry}/${id(2)}/tasks?space=WIKI1`)
-    expect(await screen.findByRole('alert')).toHaveTextContent('противоречивый')
-    expect(screen.queryByLabelText('Content URL')).toBeNull()
-    expect(screen.queryByRole('region', { name: 'Одинаковый проект · A' })).toBeNull()
-  })
+  it.each(['documents', 'tasks', 'phases', 'evidence', 'search'])(
+    'rejects a conflicting space in %s before mounting content',
+    async (section) => {
+      mount(`/workspaces/${registry}/${id(2)}/${section}?space=WIKI1`)
+      expect(await screen.findByRole('alert')).toHaveTextContent('противоречивый')
+      expect(screen.queryByLabelText('Content URL')).toBeNull()
+      expect(screen.queryByRole('region', { name: 'Одинаковый проект · A' })).toBeNull()
+    },
+  )
   it('loads only the explicitly expanded document tree and remembers project folds', async () => {
     const view = mount()
     const user = userEvent.setup()

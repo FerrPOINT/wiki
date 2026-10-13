@@ -6,6 +6,7 @@ import { useNamespaceContext } from '@/widgets/namespace-context'
 import { projectResourceLabel } from '@/widgets/workspace-navigation'
 import { useSpaceTree } from '@/shared/api/hooks'
 import type { SpaceTreeNode } from '@/api/wiki'
+import { DossierMenu } from '@/widgets/dossier-menu'
 
 function Documents({ nodes, search }: { nodes: SpaceTreeNode[]; search: string }) {
   return (
@@ -70,6 +71,7 @@ export function WorkspacePage({ documents = false }: { documents?: boolean }) {
     return (
       <section className="space-y-3">
         <h1 className="text-2xl font-semibold">Документы проекта</h1>
+        <DossierMenu spaceKey={resource.resource_key} namespace={context.ref} />
         <p role="status">
           Сведения о проекте временно недоступны. Подтверждённое пространство сохранено.
         </p>
@@ -114,6 +116,9 @@ export function WorkspacePage({ documents = false }: { documents?: boolean }) {
       ) : documents ? (
         <section>
           <h2 className="text-lg font-semibold">Документы</h2>
+          {resource && (
+            <DossierMenu spaceKey={resource.resource_key} namespace={project.namespace} />
+          )}
           {tree.isPending ? (
             <p role="status">Загружаем документы…</p>
           ) : tree.isError ? (

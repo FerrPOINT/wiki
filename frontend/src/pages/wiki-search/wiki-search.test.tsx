@@ -70,6 +70,7 @@ function setupSearch(
 describe('WikiSearchPage', () => {
   afterEach(() => {
     vi.clearAllMocks()
+    vi.unstubAllEnvs()
   })
 
   it('sends result type and expanded filters to the API hook', async () => {
@@ -79,13 +80,17 @@ describe('WikiSearchPage', () => {
       'href',
       '/documents/product-requirements',
     )
-    expect(screen.getByRole('link', { name: /Smoke proof/ })).toHaveAttribute('href', '/evidence')
+    expect(screen.getByRole('link', { name: /Smoke proof/ })).toHaveAttribute(
+      'href',
+      '/evidence?space=BASE',
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Документы' }))
     expect(screen.getByRole('link', { name: /Требования Wiki/ })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /Smoke proof/ })).not.toBeInTheDocument()
     expect(useWikiSearch).toHaveBeenLastCalledWith(
       expect.objectContaining({ result_type: 'document' }),
+      true,
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Фильтры' }))
@@ -96,29 +101,35 @@ describe('WikiSearchPage', () => {
     fireEvent.change(screen.getByLabelText('Задача'), { target: { value: 'BASE-42' } })
     fireEvent.change(screen.getByLabelText('Фаза'), { target: { value: 'testing' } })
     fireEvent.change(screen.getByLabelText('Тип документа'), { target: { value: 'test_plan' } })
-    expect(useWikiSearch).toHaveBeenLastCalledWith({
-      document_type: undefined,
-      result_type: 'document',
-      cursor: undefined,
-      limit: 20,
-      phase_key: undefined,
-      q: '',
-      space: undefined,
-      task_key: undefined,
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Применить' }))
-
-    await waitFor(() =>
-      expect(useWikiSearch).toHaveBeenLastCalledWith({
-        document_type: 'test_plan',
+    expect(useWikiSearch).toHaveBeenLastCalledWith(
+      {
+        document_type: undefined,
         result_type: 'document',
         cursor: undefined,
         limit: 20,
-        phase_key: 'testing',
-        q: 'релиз',
-        space: 'ENG',
-        task_key: 'BASE-42',
-      }),
+        phase_key: undefined,
+        q: '',
+        space: undefined,
+        task_key: undefined,
+      },
+      true,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Применить' }))
+
+    await waitFor(() =>
+      expect(useWikiSearch).toHaveBeenLastCalledWith(
+        {
+          document_type: 'test_plan',
+          result_type: 'document',
+          cursor: undefined,
+          limit: 20,
+          phase_key: 'testing',
+          q: 'релиз',
+          space: 'ENG',
+          task_key: 'BASE-42',
+        },
+        true,
+      ),
     )
     expect(router.state.location.search).toContain('q=%D1%80%D0%B5%D0%BB%D0%B8%D0%B7')
     expect(router.state.location.search).toContain('space=ENG')
@@ -163,6 +174,7 @@ describe('WikiSearchPage', () => {
         document_type: 'test_plan',
         result_type: 'document',
       }),
+      true,
     )
   })
 
@@ -209,7 +221,10 @@ describe('WikiSearchPage', () => {
     expect(screen.getByText('Показано 1–20')).toBeInTheDocument()
     const pagination = screen.getByRole('navigation', { name: 'Страницы результатов' })
     fireEvent.click(within(pagination).getByRole('button', { name: 'Далее' }))
-    expect(useWikiSearch).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: 'page-20' }))
+    expect(useWikiSearch).toHaveBeenLastCalledWith(
+      expect.objectContaining({ cursor: 'page-20' }),
+      true,
+    )
     expect(screen.getAllByRole('link', { name: /Документ \d+/ })).toHaveLength(20)
     expect(screen.getByText('Показано 21–40')).toBeInTheDocument()
     fireEvent.click(within(pagination).getByRole('button', { name: 'Далее' }))
@@ -241,6 +256,7 @@ describe('WikiSearchPage', () => {
         document_type: undefined,
         cursor: undefined,
       }),
+      true,
     )
   })
 
@@ -256,3 +272,32 @@ describe('WikiSearchPage', () => {
     expect(searchRefetch).toHaveBeenCalled()
   })
 })
+
+it.each([undefined, 'updated report'])(
+  'keeps navigation and query %s when switching to global search',
+  async (draft) => {
+    vi.stubEnv('VITE_NAMESPACE_ENABLED', 'true')
+    const registry = '11111111-1111-4111-8111-111111111111'
+    const namespace = '22222222-2222-4222-8222-222222222222'
+    const router = setupSearch(
+      [],
+      {},
+      `/search?q=report&space=SMOKE&registry_instance_id=${registry}&namespace_id=${namespace}&project_scope=all`,
+    )
+    if (draft)
+      fireEvent.change(screen.getByLabelText('Поисковый запрос'), { target: { value: draft } })
+    fireEvent.change(screen.getByLabelText('Область поиска'), { target: { value: 'all' } })
+    await waitFor(() =>
+      expect(new URLSearchParams(router.state.location.search).get('search_scope')).toBe('all'),
+    )
+    const params = new URLSearchParams(router.state.location.search)
+    expect(params.has('space')).toBe(false)
+    expect(params.get('namespace_id')).toBe(namespace)
+    expect(params.get('project_scope')).toBe('all')
+    expect(params.get('q')).toBe(draft ?? 'report')
+    expect(useWikiSearch).toHaveBeenLastCalledWith(
+      expect.objectContaining({ space: undefined, q: draft ?? 'report' }),
+      true,
+    )
+  },
+)

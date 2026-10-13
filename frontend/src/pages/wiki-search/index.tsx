@@ -1,7 +1,8 @@
 import { useProjectRouteRef } from '@/widgets/namespace-context'
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { NamespaceLink as Link } from '@sdlc/ui/ui'
-import { useSearchParams } from 'react-router'
+import { useLocation, useNavigate, useSearchParams } from 'react-router'
+import { wikiSearchScope } from '@/shared/lib/search-scope'
+import { SearchResultLink } from '@/widgets/search-result-link'
 import { FileCheck2, FileText, GitBranch, ListFilter, Search } from 'lucide-react'
 import { useWikiSearch } from '@/shared/api/hooks'
 import { Button, EmptyState, ErrorState, Input, Label, LoadingState } from '@sdlc/ui/ui'
@@ -63,6 +64,11 @@ function setOptionalParam(params: URLSearchParams, key: string, value: string) {
 export function WikiSearchPage() {
   const namespace = useProjectRouteRef()
   const [searchParams, setSearchParams] = useSearchParams()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const searchScope = wikiSearchScope(location.search, Boolean(namespace.ref))
+  const projectSearch = searchScope.scope === 'project'
+  const scopeError = searchScope.malformed || namespace.malformed
   const appliedQuery = searchParams.get('q')?.trim() ?? ''
   const appliedSpace = searchParams.get('space')?.trim().toUpperCase() ?? ''
   const appliedTask = searchParams.get('task_key')?.trim() ?? ''
@@ -170,7 +176,7 @@ export function WikiSearchPage() {
       currentPage,
     ],
   )
-  const searchQuery = useWikiSearch(requestParams)
+  const searchQuery = useWikiSearch(requestParams, !scopeError)
   const results = searchQuery.data?.results ?? []
   const nextCursor = searchQuery.data?.next_cursor
   const activeFilterCount =
@@ -220,9 +226,36 @@ export function WikiSearchPage() {
     resultsSection.current?.scrollIntoView?.({ block: 'start' })
   }
 
+  function changeScope(scope: string) {
+    const next = new URLSearchParams(searchParams)
+    setOptionalParam(next, 'q', query)
+    next.set('search_scope', scope)
+    next.delete('space')
+    next.delete('cursor')
+    setPaging({ criteriaKey: '', cursors: [undefined] })
+    navigate({ pathname: '/search', search: '?' + next })
+  }
+
+  if (scopeError)
+    return <ErrorState message="Некорректная область поиска. Проект не выбран автоматически." />
+
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">Поиск</h1>
+      <div className="space-y-1">
+        <Label htmlFor="search-scope">Область поиска</Label>
+        <select
+          id="search-scope"
+          className={selectClassName}
+          value={searchScope.scope}
+          onChange={(event) => changeScope(event.target.value)}
+        >
+          <option value="project" disabled={!namespace.ref}>
+            Текущий проект
+          </option>
+          <option value="all">Все доступные пространства</option>
+        </select>
+      </div>
 
       <section aria-label="Параметры поиска" className="space-y-3">
         <form role="search" onSubmit={submitSearch} className="flex min-w-0 gap-2">
@@ -266,7 +299,7 @@ export function WikiSearchPage() {
               <Label htmlFor="search-space">Пространство</Label>
               <Input
                 id="search-space"
-                readOnly={Boolean(namespace.ref)}
+                readOnly={projectSearch}
                 className="min-h-10"
                 value={spaceFilter}
                 onChange={(event) => {
@@ -406,10 +439,10 @@ export function WikiSearchPage() {
             {results.map((result: SearchResult) => {
               const Icon = resultIcon(result.result_type)
               return (
-                <Link
+                <SearchResultLink
                   key={`${result.result_type}-${result.id}`}
-                  to={result.url}
-                  className="flex min-h-16 min-w-0 items-start gap-3 px-2 py-3 hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
+                  result={result}
+                  allSpaces={!projectSearch}
                 >
                   <Icon className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
                   <span className="min-w-0 flex-1">
@@ -426,7 +459,7 @@ export function WikiSearchPage() {
                       </span>
                     )}
                   </span>
-                </Link>
+                </SearchResultLink>
               )
             })}
           </div>

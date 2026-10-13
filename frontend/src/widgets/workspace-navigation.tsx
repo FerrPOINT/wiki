@@ -1,14 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router'
-import {
-  ChevronRight,
-  ClipboardList,
-  FileCheck2,
-  FileText,
-  GitBranch,
-  LayoutDashboard,
-  Search,
-} from 'lucide-react'
+import { ChevronRight, FileCheck2, FileText, LayoutDashboard } from 'lucide-react'
 import { Button, NamespaceNavLink, ProjectNavigationGroup, SidebarItem } from '@sdlc/ui/ui'
 import { projectIdentity, withNamespaceLocation, type useProjectDisclosures } from '@sdlc/ui/lib'
 import { documentPath, useWorkspaceCatalog, workspacePath, type Workspace } from '@/api/workspaces'
@@ -197,10 +189,7 @@ export function WorkspaceNavigation({
   const sections = [
     ['', 'Обзор', LayoutDashboard],
     ['documents', 'Документы', FileText],
-    ['tasks', 'Задачи', ClipboardList],
-    ['phases', 'Фазы', GitBranch],
     ['evidence', 'Материалы', FileCheck2],
-    ['search', 'Поиск', Search],
   ] as const
   return (
     <nav aria-label="Проекты" className="base-sidebar-list mt-3 border-t border-border pt-3">
