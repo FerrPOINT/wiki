@@ -1,7 +1,7 @@
 import type { components } from '@/api/generated'
 import { useLocation, useParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
-import { NamespaceLink as Link, usePlatformServices } from '@sdlc/ui/ui'
+import { LoadingState, NamespaceLink as Link, usePlatformServices } from '@sdlc/ui/ui'
 import { withNamespaceLocation } from '@sdlc/ui/lib'
 import { apiRequest } from '@/api/client'
 import { useNamespaceContext } from '@/widgets/namespace-context'
@@ -25,7 +25,7 @@ export function ManagedTaskPage() {
         signal,
       }),
   })
-  if (query.isPending) return <p role="status">Загружаем досье задачи…</p>
+  if (query.isPending) return <LoadingState message="Загружаем досье задачи…" />
   if (
     malformed ||
     query.isError ||

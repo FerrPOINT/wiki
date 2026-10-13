@@ -1,5 +1,7 @@
+import { LoadingState } from '@sdlc/ui/ui'
+import { createProductRouter, PlatformRoute } from '@sdlc/ui/platform'
 import { lazy, Suspense, type ReactElement } from 'react'
-import { createBrowserRouter, Navigate, type RouteObject } from 'react-router'
+import { Navigate, type RouteObject } from 'react-router'
 import { RequireAuth } from '@/shared/auth/require-auth'
 import { AppShell } from '@/widgets/app-shell'
 
@@ -63,15 +65,13 @@ const ManagedTaskPage = lazy(() =>
 )
 
 function PageLoader() {
-  return (
-    <div className="flex items-center justify-center py-16 text-sm text-text-muted">
-      Загрузка...
-    </div>
-  )
+  return <LoadingState />
 }
 
 const withSuspense = (element: ReactElement) => (
-  <Suspense fallback={<PageLoader />}>{element}</Suspense>
+  <Suspense fallback={<PageLoader />}>
+    <PlatformRoute>{element}</PlatformRoute>
+  </Suspense>
 )
 
 export function createWikiRoutes(namespaceEnabled: boolean): RouteObject[] {
@@ -145,6 +145,7 @@ export function createWikiRoutes(namespaceEnabled: boolean): RouteObject[] {
   ]
 }
 
-export const router = createBrowserRouter(
+export const router = createProductRouter(
   createWikiRoutes(import.meta.env.VITE_NAMESPACE_ENABLED === 'true'),
+  { serviceKey: 'wiki', portalOrigin: import.meta.env.VITE_PLATFORM_ORIGIN },
 )

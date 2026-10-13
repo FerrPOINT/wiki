@@ -8,8 +8,16 @@ import { RouterProvider } from 'react-router'
 import { router } from './app/router'
 import { ThemeProvider, useTheme, PlatformProvider, PlatformServicesProvider } from '@sdlc/ui/lib'
 import './index.css'
+import { relaySsoCallback } from '@sdlc/ui/sso'
+import {
+  capturePlatformReturn,
+  getPlatformProduct,
+  setPlatformQueryClient,
+} from '@sdlc/ui/platform'
 
 const queryClient = new QueryClient()
+setPlatformQueryClient(queryClient)
+capturePlatformReturn(import.meta.env.VITE_PLATFORM_ORIGIN)
 
 function AppToaster() {
   const { theme } = useTheme()
@@ -48,8 +56,15 @@ function Boot() {
   )
 }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <Boot />
-  </StrictMode>,
-)
+if (!relaySsoCallback()) {
+  const root = createRoot(document.getElementById('root')!)
+  getPlatformProduct()?.onRetire(() => {
+    root.unmount()
+    router.dispose()
+  })
+  root.render(
+    <StrictMode>
+      <Boot />
+    </StrictMode>,
+  )
+}

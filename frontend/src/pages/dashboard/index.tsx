@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { NamespaceLink as Link } from '@sdlc/ui/ui'
+import { Loader, NamespaceLink as Link } from '@sdlc/ui/ui'
 
 import {
   ArrowRight,
@@ -7,7 +7,6 @@ import {
   FileText,
   GitBranch,
   Library,
-  Loader2,
   RotateCcw,
   Search,
   type LucideIcon,
@@ -17,6 +16,7 @@ import { Button, EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime } from '@/shared/lib/wiki-format'
 import { resolveSpaceKey } from '@/shared/lib/space-selection'
+import { usePlatformReadiness } from '@sdlc/ui/platform'
 
 const selectClassName =
   'min-h-10 rounded-md border border-border bg-surface px-3 text-sm text-text-primary focus-visible:outline-2 focus-visible:outline-accent'
@@ -44,8 +44,9 @@ function DashboardMetric({
       <div className="min-w-0">
         <div className="flex min-h-7 items-center gap-1">
           {isLoading ? (
-            <Loader2
-              className="h-4 w-4 animate-spin text-text-muted"
+            <Loader
+              size="sm"
+              className="h-4 w-4 text-text-muted"
               aria-label={`Загружаем показатель «${label}»`}
             />
           ) : error ? (
@@ -96,6 +97,17 @@ export function DashboardPage() {
   )
   const tasksQuery = useTaskSummaries(activeSpaceKey, { limit: 4 })
   const phasesQuery = usePhaseSummaries(activeSpaceKey, { limit: 1 })
+  usePlatformReadiness({
+    pending:
+      spacesQuery.isLoading ||
+      searchQuery.isLoading ||
+      tasksQuery.isLoading ||
+      phasesQuery.isLoading,
+    error:
+      spacesQuery.isError || searchQuery.isError || tasksQuery.isError || phasesQuery.isError
+        ? 'Не удалось загрузить дашборд Wiki.'
+        : null,
+  })
   const recentDocuments = (searchQuery.data?.results ?? [])
     .filter((result) => result.result_type === 'document')
     .slice(0, 4)

@@ -190,7 +190,7 @@ export function AppShell() {
                   <DialogTitle className="text-base">
                     <span className="sr-only">Навигация Wiki</span>
                     <span className="flex items-center gap-3" aria-hidden>
-                      <PlatformMark size="sm" withName={false} />
+                      <PlatformMark size="shell" withName={false} />
                       <span>Wiki</span>
                     </span>
                   </DialogTitle>
@@ -220,7 +220,7 @@ export function AppShell() {
               className="hidden h-11 min-w-11 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus min-[360px]:flex md:h-10 md:min-w-10"
               aria-label="Wiki"
             >
-              <PlatformMark size="sm" withName={false} />
+              <PlatformMark size="shell" withName={false} />
             </Link>
           </>
         }

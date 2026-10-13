@@ -1,10 +1,9 @@
-import { NamespaceLink as Link } from '@sdlc/ui/ui'
+import { LoadingState, Loader, NamespaceLink as Link } from '@sdlc/ui/ui'
 
 import {
   ArrowRight,
   History,
   Library,
-  Loader2,
   RotateCcw,
   Settings,
   ShieldCheck,
@@ -69,8 +68,9 @@ function AdminMetric({
         <Icon className="h-4 w-4 shrink-0 text-accent" aria-hidden />
         <h3 className="min-w-0 flex-1 text-sm font-medium">{label}</h3>
         {isLoading && (
-          <Loader2
-            className="h-4 w-4 shrink-0 animate-spin text-text-muted"
+          <Loader
+            size="sm"
+            className="h-4 w-4 shrink-0 text-text-muted"
             aria-label={`Загружаем: ${label}`}
           />
         )}
@@ -90,9 +90,7 @@ function AdminMetric({
       </div>
 
       {isLoading ? (
-        <p className="mt-2 text-sm text-text-muted" role="status">
-          Загрузка...
-        </p>
+        <LoadingState message="Загрузка..." />
       ) : error ? (
         <p className="mt-2 text-sm text-danger" role="alert">
           {error}
