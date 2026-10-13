@@ -3,8 +3,9 @@ import { useNamespaceNavigate as useNavigate } from '@sdlc/ui/ui'
 
 import { completeSso } from '@sdlc/ui/sso'
 import { Button } from '@sdlc/ui/ui'
-import { apiBaseUrl } from '@/api/client'
-import { clearLegacyRefreshToken, ssoConfig, useAuthStore } from '@/shared/auth/store'
+import { ssoConfig, useAuthStore } from '@/shared/auth/store'
+import { loadSsoSession } from '@/shared/auth/session'
+import { finishPlatformLogin } from '@sdlc/ui/platform'
 
 let pending: ReturnType<typeof completeSso> | null = null
 function completion() {
@@ -24,29 +25,17 @@ export function SsoCallbackPage() {
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {
     let active = true
+    const version = useAuthStore.getState().authVersion
     void completion()
       .then(async (session) => {
-        const response = await fetch(`${apiBaseUrl}/api/v1/users/me`, {
-          headers: { Authorization: `Bearer ${session.accessToken}` },
-        })
-        if (!response.ok)
-          throw new Error(`Не удалось открыть профиль Wiki (HTTP ${response.status}).`)
-        const user = (await response.json()) as {
-          id: string
-          email: string
-          username: string
-          display_name: string
-        }
         if (!active) return
-        clearLegacyRefreshToken()
-        useAuthStore.getState().setAuth({
-          token: session.accessToken,
-          userId: user.id,
-          email: user.email,
-          username: user.username,
-          displayName: user.display_name,
-        })
-        navigate(session.returnTo, { replace: true })
+        const applied = await loadSsoSession(
+          session,
+          () => active && useAuthStore.getState().authVersion === version,
+        )
+        if (!active || !applied) return
+        if (!finishPlatformLogin(import.meta.env.VITE_PLATFORM_ORIGIN))
+          navigate(session.returnTo, { replace: true })
       })
       .catch((caught) => {
         if (active) setError(caught instanceof Error ? caught.message : 'Не удалось завершить вход')

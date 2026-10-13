@@ -1,4 +1,4 @@
-import { NamespaceLink as Link } from '@sdlc/ui/ui'
+import { LoadingState, NamespaceLink as Link } from '@sdlc/ui/ui'
 import { useParams } from 'react-router'
 import { withNamespaceLocation } from '@sdlc/ui/lib'
 import { useDocument, useDocumentRevision } from '@/shared/api/hooks'
@@ -11,7 +11,7 @@ export function DocumentRevisionPage() {
   const revision = useDocumentRevision(documentId, revisionId)
   const { ref, malformed, query: context } = useNamespaceContext()
   if (document.isPending || revision.isPending || (ref && context.isPending))
-    return <p role="status">Загружаем опубликованную ревизию…</p>
+    return <LoadingState message="Загружаем опубликованную ревизию…" />
   if (
     malformed ||
     document.isError ||

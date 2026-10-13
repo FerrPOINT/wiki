@@ -1,4 +1,5 @@
 import { useAuthStore } from '@/shared/auth/store'
+import { getPlatformProduct } from '@sdlc/ui/platform'
 
 const rawBaseUrl = import.meta.env.VITE_API_BASE_URL ?? ''
 export const apiBaseUrl = rawBaseUrl.replace(/\/api\/v1\/?$/, '')
@@ -193,6 +194,11 @@ function defaultCodeForStatus(status: number): string {
 }
 
 export async function refreshAccessToken(): Promise<boolean> {
+  const product = getPlatformProduct()
+  if (product) {
+    product.recheckAuthorization()
+    return false
+  }
   useAuthStore.getState().logout()
   window.location.assign('/login')
   return false
