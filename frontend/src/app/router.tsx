@@ -64,10 +64,14 @@ const ManagedTaskPage = lazy(() =>
   import('@/pages/managed-task').then((m) => ({ default: m.ManagedTaskPage })),
 )
 
-function PageLoader() { return <LoadingState /> }
+function PageLoader() {
+  return <LoadingState />
+}
 
 const withSuspense = (element: ReactElement) => (
-  <Suspense fallback={<PageLoader />}><PlatformRoute>{element}</PlatformRoute></Suspense>
+  <Suspense fallback={<PageLoader />}>
+    <PlatformRoute>{element}</PlatformRoute>
+  </Suspense>
 )
 
 export function createWikiRoutes(namespaceEnabled: boolean): RouteObject[] {

@@ -44,7 +44,8 @@ function DashboardMetric({
       <div className="min-w-0">
         <div className="flex min-h-7 items-center gap-1">
           {isLoading ? (
-            <Loader size="sm"
+            <Loader
+              size="sm"
               className="h-4 w-4 text-text-muted"
               aria-label={`Загружаем показатель «${label}»`}
             />
@@ -96,7 +97,17 @@ export function DashboardPage() {
   )
   const tasksQuery = useTaskSummaries(activeSpaceKey, { limit: 4 })
   const phasesQuery = usePhaseSummaries(activeSpaceKey, { limit: 1 })
-  usePlatformReadiness({ pending: spacesQuery.isLoading || searchQuery.isLoading || tasksQuery.isLoading || phasesQuery.isLoading, error: spacesQuery.isError || searchQuery.isError || tasksQuery.isError || phasesQuery.isError ? 'Не удалось загрузить дашборд Wiki.' : null })
+  usePlatformReadiness({
+    pending:
+      spacesQuery.isLoading ||
+      searchQuery.isLoading ||
+      tasksQuery.isLoading ||
+      phasesQuery.isLoading,
+    error:
+      spacesQuery.isError || searchQuery.isError || tasksQuery.isError || phasesQuery.isError
+        ? 'Не удалось загрузить дашборд Wiki.'
+        : null,
+  })
   const recentDocuments = (searchQuery.data?.results ?? [])
     .filter((result) => result.result_type === 'document')
     .slice(0, 4)

@@ -68,7 +68,8 @@ function AdminMetric({
         <Icon className="h-4 w-4 shrink-0 text-accent" aria-hidden />
         <h3 className="min-w-0 flex-1 text-sm font-medium">{label}</h3>
         {isLoading && (
-          <Loader size="sm"
+          <Loader
+            size="sm"
             className="h-4 w-4 shrink-0 text-text-muted"
             aria-label={`Загружаем: ${label}`}
           />

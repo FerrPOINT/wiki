@@ -6,7 +6,8 @@ interface UnsavedChangesGuardProps {
 
 export function UnsavedChangesGuard({ when }: UnsavedChangesGuardProps) {
   return (
-    <SharedGuard when={when}
+    <SharedGuard
+      when={when}
       title="Покинуть страницу?"
       description="Несохранённые изменения будут потеряны. Сохраните черновик или подтвердите переход."
     />
