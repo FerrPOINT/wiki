@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { NamespaceLink as Link } from '@sdlc/ui/ui'
+import { Loader, NamespaceLink as Link } from '@sdlc/ui/ui'
 
 import {
   ArrowRight,
@@ -7,7 +7,6 @@ import {
   FileText,
   GitBranch,
   Library,
-  Loader2,
   RotateCcw,
   Search,
   type LucideIcon,
@@ -45,8 +44,8 @@ function DashboardMetric({
       <div className="min-w-0">
         <div className="flex min-h-7 items-center gap-1">
           {isLoading ? (
-            <Loader2
-              className="h-4 w-4 animate-spin text-text-muted"
+            <Loader size="sm"
+              className="h-4 w-4 text-text-muted"
               aria-label={`Загружаем показатель «${label}»`}
             />
           ) : error ? (

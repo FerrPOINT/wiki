@@ -1,3 +1,4 @@
+import { LoadingState } from '@sdlc/ui/ui'
 import { DocumentRevisionPage } from '@/pages/document-revision'
 import { ManagedTaskPage } from '@/pages/managed-task'
 import { NamespacePage } from '@/pages/namespace'
@@ -51,13 +52,7 @@ const SsoCallbackPage = lazy(() =>
 )
 const AdminPage = lazy(() => import('@/pages/admin').then((m) => ({ default: m.AdminPage })))
 
-function PageLoader() {
-  return (
-    <div className="flex items-center justify-center py-16 text-sm text-text-muted">
-      Загрузка...
-    </div>
-  )
-}
+function PageLoader() { return <LoadingState /> }
 
 const withSuspense = (element: ReactElement) => (
   <Suspense fallback={<PageLoader />}><PlatformRoute>{element}</PlatformRoute></Suspense>

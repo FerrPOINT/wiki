@@ -1,4 +1,4 @@
-import { NamespaceLink as Link } from '@sdlc/ui/ui'
+import { LoadingState, NamespaceLink as Link } from '@sdlc/ui/ui'
 
 import { useQuery } from '@tanstack/react-query'
 import type { components } from '@/api/generated'
@@ -102,7 +102,7 @@ export function NamespacePage() {
         </Link>
       )}
       {tree.isPending ? (
-        <p role="status">Загружаем документы…</p>
+        <LoadingState message="Загружаем документы…" />
       ) : tree.isError ? (
         <p role="alert" className="text-danger">
           Документы недоступны.
