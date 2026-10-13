@@ -16,15 +16,13 @@ export async function loadSsoSession(session: SsoSession, canApply = () => true)
   if (!canApply()) return false
   applySsoSession(session, () => {
     clearLegacyRefreshToken()
-    useAuthStore
-      .getState()
-      .setAuth({
-        token: session.accessToken,
-        userId: user.id,
-        email: user.email,
-        username: user.username,
-        displayName: user.display_name,
-      })
+    useAuthStore.getState().setAuth({
+      token: session.accessToken,
+      userId: user.id,
+      email: user.email,
+      username: user.username,
+      displayName: user.display_name,
+    })
   })
   return true
 }
