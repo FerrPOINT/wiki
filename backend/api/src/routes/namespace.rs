@@ -8,6 +8,85 @@ use axum::{
 use shared::{AppError, resource_context::*};
 use uuid::Uuid;
 
+#[utoipa::path(get,operation_id="wiki_space_namespace_context",path="/api/v1/spaces/{space_key}/namespace-context",tag="namespaces",params(("space_key"=String,Path)),responses((status=200,body=Option<ResourceContextSummary>),(status=403,description="Space access denied")))]
+pub async fn space_context(
+    Extension(backend): Extension<WikiBackend>,
+    Extension(claims): Extension<shared::WikiClaims>,
+    Path(key): Path<String>,
+) -> Result<Json<Option<ResourceContextSummary>>, AppError> {
+    Ok(Json(
+        backend
+            .namespace_port()?
+            .space_namespace_context(&claims, &key)
+            .await?,
+    ))
+}
+
+#[derive(serde::Deserialize, utoipa::IntoParams)]
+pub struct WorkspaceQuery {
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+    pub search: Option<String>,
+}
+#[utoipa::path(get,operation_id="wiki_workspace_projects",path="/api/v1/workspace-projects",tag="namespaces",params(WorkspaceQuery),responses((status=200,body=shared::wiki_contract::WorkspaceProjectPage),(status=503,description="Catalog unavailable")))]
+pub async fn workspace_projects(
+    Extension(backend): Extension<WikiBackend>,
+    Extension(claims): Extension<shared::WikiClaims>,
+    Query(page): Query<WorkspaceQuery>,
+) -> Result<Json<shared::wiki_contract::WorkspaceProjectPage>, AppError> {
+    Ok(Json(
+        backend
+            .namespace_port()?
+            .workspace_projects(
+                &claims,
+                None,
+                page.limit.unwrap_or(50),
+                page.offset.unwrap_or(0),
+                page.search.as_deref().unwrap_or(""),
+            )
+            .await?,
+    ))
+}
+#[utoipa::path(get,operation_id="wiki_workspace_project",path="/api/v1/workspace-projects/{registry}/{namespace}",tag="namespaces",params(("registry"=Uuid,Path),("namespace"=Uuid,Path)),responses((status=200,body=shared::wiki_contract::WorkspaceProject),(status=404,description="Project not found")))]
+pub async fn workspace_project(
+    Extension(backend): Extension<WikiBackend>,
+    Extension(claims): Extension<shared::WikiClaims>,
+    Path((registry, namespace)): Path<(Uuid, Uuid)>,
+) -> Result<Json<shared::wiki_contract::WorkspaceProject>, AppError> {
+    if registry.is_nil() || namespace.is_nil() {
+        return Err(AppError::invalid_input("invalid_project_ref"));
+    }
+    let page = backend
+        .namespace_port()?
+        .workspace_projects(
+            &claims,
+            Some(&NamespaceRef {
+                registry_instance_id: registry,
+                namespace_id: namespace,
+            }),
+            1,
+            0,
+            "",
+        )
+        .await?;
+    Ok(Json(page.items.into_iter().next().ok_or_else(|| {
+        AppError::not_found("workspace_project", namespace)
+    })?))
+}
+#[utoipa::path(get,operation_id="wiki_document_namespace_context",path="/api/v1/documents/{id}/namespace-context",tag="namespaces",params(("id"=Uuid,Path)),responses((status=200,body=Option<ResourceContextSummary>),(status=403,description="Document access denied")))]
+pub async fn document_context(
+    Extension(backend): Extension<WikiBackend>,
+    Extension(claims): Extension<shared::WikiClaims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Option<ResourceContextSummary>>, AppError> {
+    Ok(Json(
+        backend
+            .namespace_port()?
+            .document_namespace_context(&claims, id)
+            .await?,
+    ))
+}
+
 pub async fn owner_auth(req: Request, next: Next) -> Result<Response, AppError> {
     machine_auth(req, next, "WIKI_NAMESPACE__OWNER_SUBJECTS").await
 }

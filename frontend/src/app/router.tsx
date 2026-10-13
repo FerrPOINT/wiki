@@ -1,10 +1,7 @@
 import { LoadingState } from '@sdlc/ui/ui'
-import { DocumentRevisionPage } from '@/pages/document-revision'
-import { ManagedTaskPage } from '@/pages/managed-task'
-import { NamespacePage } from '@/pages/namespace'
-import { lazy, Suspense, type ReactElement } from 'react'
-import { Navigate } from 'react-router'
 import { createProductRouter, PlatformRoute } from '@sdlc/ui/platform'
+import { lazy, Suspense, type ReactElement } from 'react'
+import { Navigate, type RouteObject } from 'react-router'
 import { RequireAuth } from '@/shared/auth/require-auth'
 import { AppShell } from '@/widgets/app-shell'
 
@@ -51,6 +48,21 @@ const SsoCallbackPage = lazy(() =>
   import('@/pages/sso-callback').then((m) => ({ default: m.SsoCallbackPage })),
 )
 const AdminPage = lazy(() => import('@/pages/admin').then((m) => ({ default: m.AdminPage })))
+const NamespacePage = lazy(() =>
+  import('@/pages/namespace').then((m) => ({ default: m.NamespacePage })),
+)
+const ProjectsPage = lazy(() =>
+  import('@/pages/workspaces').then((m) => ({ default: m.ProjectsPage })),
+)
+const WorkspacePage = lazy(() =>
+  import('@/pages/workspaces').then((m) => ({ default: m.WorkspacePage })),
+)
+const DocumentRevisionPage = lazy(() =>
+  import('@/pages/document-revision').then((m) => ({ default: m.DocumentRevisionPage })),
+)
+const ManagedTaskPage = lazy(() =>
+  import('@/pages/managed-task').then((m) => ({ default: m.ManagedTaskPage })),
+)
 
 function PageLoader() { return <LoadingState /> }
 
@@ -58,40 +70,78 @@ const withSuspense = (element: ReactElement) => (
   <Suspense fallback={<PageLoader />}><PlatformRoute>{element}</PlatformRoute></Suspense>
 )
 
-export const router = createProductRouter([
-  {
-    element: <RequireAuth />,
-    children: [
-      {
-        element: <AppShell />,
-        children: [
-          { path: '/namespace', element: <NamespacePage /> },
-          {
-            path: '/documents/:documentId/revisions/:revisionId',
-            element: <DocumentRevisionPage />,
-          },
-          { path: '/managed-tasks/:trackerInstance/:taskId', element: <ManagedTaskPage /> },
-          { path: '/', element: withSuspense(<DashboardPage />) },
-          { path: '/spaces', element: withSuspense(<SpacesPage />) },
-          { path: '/documents/new', element: withSuspense(<DocumentComposePage />) },
-          { path: '/documents/:documentId', element: withSuspense(<DocumentPage />) },
-          { path: '/tasks', element: withSuspense(<TaskDossiersPage />) },
-          { path: '/tasks/:taskKey', element: withSuspense(<TaskDossierPage />) },
-          { path: '/phases', element: withSuspense(<PhaseDossiersPage />) },
-          { path: '/phases/:phaseId', element: withSuspense(<PhaseDossierPage />) },
-          { path: '/evidence', element: withSuspense(<EvidencePage />) },
-          { path: '/templates', element: withSuspense(<TemplatesPage />) },
-          { path: '/audit-log', element: withSuspense(<AuditLogPage />) },
-          { path: '/users', element: withSuspense(<UsersPage />) },
-          { path: '/settings', element: withSuspense(<SettingsPage />) },
-          { path: '/search', element: withSuspense(<WikiSearchPage />) },
-          { path: '/admin', element: withSuspense(<AdminPage />) },
-        ],
-      },
-    ],
-  },
-  { path: '/login', element: withSuspense(<LoginPage />) },
-  { path: '/sso/callback', element: withSuspense(<SsoCallbackPage />) },
-  { path: '/register', element: <Navigate to="/login" replace /> },
-  { path: '*', element: <Navigate to="/" replace /> },
-], { serviceKey: 'wiki', portalOrigin: import.meta.env.VITE_PLATFORM_ORIGIN })
+export function createWikiRoutes(namespaceEnabled: boolean): RouteObject[] {
+  const namespaceRoutes: RouteObject[] = namespaceEnabled
+    ? [
+        { path: '/namespace', element: withSuspense(<NamespacePage />) },
+        { path: '/projects', element: withSuspense(<ProjectsPage />) },
+        { path: '/workspaces/:registry/:namespace', element: withSuspense(<WorkspacePage />) },
+        {
+          path: '/workspaces/:registry/:namespace/documents',
+          element: withSuspense(<WorkspacePage documents />),
+        },
+        {
+          path: '/workspaces/:registry/:namespace/tasks',
+          element: withSuspense(<TaskDossiersPage />),
+        },
+        {
+          path: '/workspaces/:registry/:namespace/phases',
+          element: withSuspense(<PhaseDossiersPage />),
+        },
+        {
+          path: '/workspaces/:registry/:namespace/evidence',
+          element: withSuspense(<EvidencePage />),
+        },
+        {
+          path: '/workspaces/:registry/:namespace/search',
+          element: withSuspense(<WikiSearchPage />),
+        },
+        {
+          path: '/documents/:documentId/revisions/:revisionId',
+          element: withSuspense(<DocumentRevisionPage />),
+        },
+        {
+          path: '/managed-tasks/:trackerInstance/:taskId',
+          element: withSuspense(<ManagedTaskPage />),
+        },
+      ]
+    : []
+
+  return [
+    {
+      element: <RequireAuth />,
+      children: [
+        {
+          element: <AppShell />,
+          children: [
+            ...namespaceRoutes,
+            { path: '/', element: withSuspense(<DashboardPage />) },
+            { path: '/spaces', element: withSuspense(<SpacesPage />) },
+            { path: '/documents/new', element: withSuspense(<DocumentComposePage />) },
+            { path: '/documents/:documentId', element: withSuspense(<DocumentPage />) },
+            { path: '/tasks', element: withSuspense(<TaskDossiersPage />) },
+            { path: '/tasks/:taskKey', element: withSuspense(<TaskDossierPage />) },
+            { path: '/phases', element: withSuspense(<PhaseDossiersPage />) },
+            { path: '/phases/:phaseId', element: withSuspense(<PhaseDossierPage />) },
+            { path: '/evidence', element: withSuspense(<EvidencePage />) },
+            { path: '/templates', element: withSuspense(<TemplatesPage />) },
+            { path: '/audit-log', element: withSuspense(<AuditLogPage />) },
+            { path: '/users', element: withSuspense(<UsersPage />) },
+            { path: '/settings', element: withSuspense(<SettingsPage />) },
+            { path: '/search', element: withSuspense(<WikiSearchPage />) },
+            { path: '/admin', element: withSuspense(<AdminPage />) },
+          ],
+        },
+      ],
+    },
+    { path: '/login', element: withSuspense(<LoginPage />) },
+    { path: '/sso/callback', element: withSuspense(<SsoCallbackPage />) },
+    { path: '/register', element: <Navigate to="/login" replace /> },
+    { path: '*', element: <Navigate to="/" replace /> },
+  ]
+}
+
+export const router = createProductRouter(
+  createWikiRoutes(import.meta.env.VITE_NAMESPACE_ENABLED === 'true'),
+  { serviceKey: 'wiki', portalOrigin: import.meta.env.VITE_PLATFORM_ORIGIN },
+)

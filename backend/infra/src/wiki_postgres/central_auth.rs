@@ -39,7 +39,7 @@ pub fn legacy_config_ok(_config: &AuthConfig) -> bool {
 }
 
 /// Maps a central identity onto wiki claims; `user_id` is resolved by the
-/// caller from the immutable central subject.
+/// caller from the immutable central subject, never from an email match.
 pub fn claims_for(ctx: &sdlc_auth_core::AuthContext, wiki_user_id: String) -> WikiClaims {
     WikiClaims {
         user_id: wiki_user_id,

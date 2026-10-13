@@ -4,6 +4,8 @@ Wiki Space представляет Wiki-проект сквозного Namespa
 канонический binding; Wiki хранит подтверждённую projection с generation,
 operation ID, registry/instance/resource UUID. Чтение и обычная работа active
 Space не требуют доступности Admin. Потерянная projection закрывает writes.
+Сохранённый managed marker исключает такой Space из каталога свободных ресурсов
+и запрещает новую owner-привязку, пока подтверждённая projection не восстановлена.
 
 ## API и данные
 
@@ -13,8 +15,10 @@ Human API: `/api/v1/namespace-contexts`, `/namespace-available-resources`,
 
 Wiki владеет document-task link. `POST /api/v1/spaces/{key}/managed-task-links`
 принимает typed TaskRef, Document UUID и Revision UUID. Ограниченный Tracker
-reader проверяет Task/Namespace; клиентский PAT не пересылается. Сохранённый
-повтор возвращает исходную связь до remote validation. GET
+reader проверяет Task/Namespace; клиентский PAT не пересылается. Ответы Tracker
+5xx/429 дают временную недоступность (503); отсутствующая задача (404) остаётся
+ошибкой верификации TaskRef (400). Сохранённый повтор возвращает исходную связь
+до remote validation. GET
 `/api/v1/managed-task-links/{tracker_instance}/{task}` читает сохранённые links.
 Чтение не вызывает Tracker; отсутствующая projection даёт unavailable.
 
@@ -41,6 +45,11 @@ Machine identity проверяется до создания human profile. Ver
 `VITE_NAMESPACE_ENABLED=true` включает picker и managed task UI только после
 установки совместимого cohort. Legacy SDK/skills pins не переписываются.
 Fresh source/CI/image/served/UI evidence и backup/rollback проверяются отдельно.
+
+Локальный downgrade `202610080001_namespace` разрешён только до появления bindings,
+managed spaces, typed TaskRef и revision links. После создания namespace-данных
+down-миграция откажется удалять их; для production применяют компенсирующую
+миграцию, сохраняя bindings и опубликованные связи.
 
 PAT старого Auth без display metadata использует только уже сохранённый active
 профиль по exact central subject. Имя, роль и timestamp профиля не меняются;

@@ -6,13 +6,94 @@ use shared::{
 use sqlx::Row;
 use uuid::Uuid;
 
+fn tracker_reader_client(
+    builder: reqwest::ClientBuilder,
+    timeout: std::time::Duration,
+) -> Result<reqwest::Client, reqwest::Error> {
+    builder
+        .no_proxy()
+        .timeout(timeout)
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+}
+
 pub(super) struct TaskReader {
     client: reqwest::Client,
     endpoint: reqwest::Url,
     token: String,
     instance: Uuid,
 }
+
 impl TaskReader {
+    pub(super) async fn projects(
+        &self,
+    ) -> Result<Vec<shared::resource_context::ResourceContextSummary>, AppError> {
+        let registry: Uuid = std::env::var("WIKI_NAMESPACE__REGISTRY_INSTANCE_ID")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .ok_or_else(|| AppError::Unavailable("namespace_owner_not_configured".into()))?;
+        let mut projects = Vec::new();
+        let mut namespaces = std::collections::HashSet::new();
+        let mut resources = std::collections::HashSet::new();
+        for offset in (0..10000).step_by(100) {
+            let mut response = self
+                .client
+                .get(
+                    self.endpoint
+                        .join("api/v1/namespace-projects")
+                        .map_err(AppError::internal)?,
+                )
+                .query(&[("limit", 100), ("offset", offset)])
+                .bearer_auth(&self.token)
+                .send()
+                .await
+                .map_err(|_| AppError::Unavailable("tracker_reader_unavailable".into()))?;
+            if !response.status().is_success() {
+                return Err(AppError::Unavailable("tracker_reader_unavailable".into()));
+            }
+            let mut bytes = Vec::new();
+            while let Some(chunk) = response
+                .chunk()
+                .await
+                .map_err(|_| AppError::Unavailable("invalid_tracker_readback".into()))?
+            {
+                if bytes.len() + chunk.len() > 262144 {
+                    return Err(AppError::Unavailable(
+                        "tracker_reader_response_too_large".into(),
+                    ));
+                }
+                bytes.extend_from_slice(&chunk);
+            }
+            let page: Vec<shared::resource_context::ResourceContextSummary> =
+                serde_json::from_slice(&bytes)
+                    .map_err(|_| AppError::Unavailable("invalid_tracker_readback".into()))?;
+            if page.len() > 100 {
+                return Err(AppError::Unavailable("invalid_tracker_project_page".into()));
+            }
+            let last = page.len() < 100;
+            for item in page {
+                super::workspace_catalog::validate_project(&item, registry, self.instance)?;
+                if !namespaces.insert((
+                    item.binding.namespace.registry_instance_id,
+                    item.binding.namespace.namespace_id,
+                )) || !resources.insert((
+                    item.binding.resource.instance_id,
+                    item.binding.resource.resource_id,
+                )) {
+                    return Err(AppError::Unavailable(
+                        "duplicate_tracker_project_identity".into(),
+                    ));
+                }
+                projects.push(item);
+            }
+            if last {
+                return Ok(projects);
+            }
+        }
+        Err(AppError::Unavailable(
+            "tracker_catalog_limit_exceeded".into(),
+        ))
+    }
     async fn list(
         &self,
         namespace: &NamespaceRef,
@@ -98,11 +179,11 @@ impl TaskReader {
         if token.is_empty() || token.contains(['\r', '\n']) {
             return Err(AppError::invalid_input("invalid_tracker_reader_credential"));
         }
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(10))
-            .redirect(reqwest::redirect::Policy::none())
-            .build()
-            .map_err(|_| AppError::Internal("tracker_reader_client_failed".into()))?;
+        let client = tracker_reader_client(
+            reqwest::Client::builder(),
+            std::time::Duration::from_secs(10),
+        )
+        .map_err(|_| AppError::Internal("tracker_reader_client_failed".into()))?;
         Ok(Some(Self {
             client,
             endpoint,
@@ -132,6 +213,11 @@ impl TaskReader {
             .send()
             .await
             .map_err(|_| AppError::Unavailable("tracker_reader_unavailable".into()))?;
+        if response.status().is_server_error()
+            || response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS
+        {
+            return Err(AppError::Unavailable("tracker_reader_unavailable".into()));
+        }
         if !response.status().is_success() {
             return Err(AppError::invalid_input("task_ref_not_verified"));
         }
@@ -274,5 +360,140 @@ impl PostgresWikiBackend {
             result.push(row.get("document"));
         }
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    async fn reader(status: u16, body: String, instance: Uuid) -> TaskReader {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request = Vec::new();
+            loop {
+                let mut chunk = [0_u8; 1024];
+                let count = stream.read(&mut chunk).await.unwrap();
+                assert_ne!(count, 0);
+                request.extend_from_slice(&chunk[..count]);
+                if request.windows(4).any(|part| part == b"\r\n\r\n") {
+                    break;
+                }
+                assert!(request.len() < 8192);
+            }
+            let request = String::from_utf8(request).unwrap();
+            assert!(
+                request
+                    .to_lowercase()
+                    .contains("authorization: bearer qa-reader-only")
+            );
+            let response = format!(
+                "HTTP/1.1 {status} QA\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            stream.write_all(response.as_bytes()).await.unwrap();
+        });
+        TaskReader {
+            client: tracker_reader_client(
+                reqwest::Client::builder(),
+                std::time::Duration::from_secs(2),
+            )
+            .unwrap(),
+            endpoint: reqwest::Url::parse(&format!("http://{address}/")).unwrap(),
+            token: "qa-reader-only".into(),
+            instance,
+        }
+    }
+
+    #[tokio::test]
+    async fn tracker_reader_does_not_send_service_token_through_proxy() {
+        let proxy = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let proxy_address = proxy.local_addr().unwrap();
+        let origin = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let origin_address = origin.local_addr().unwrap();
+        let origin_request = tokio::spawn(async move {
+            let (mut stream, _) = origin.accept().await.unwrap();
+            let mut request = Vec::new();
+            loop {
+                let mut chunk = [0_u8; 1024];
+                let count = stream.read(&mut chunk).await.unwrap();
+                assert_ne!(count, 0);
+                request.extend_from_slice(&chunk[..count]);
+                if request.windows(4).any(|part| part == b"\r\n\r\n") {
+                    break;
+                }
+            }
+            let request = String::from_utf8(request).unwrap();
+            assert!(
+                request
+                    .to_lowercase()
+                    .contains("authorization: bearer qa-reader-only")
+            );
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                .await
+                .unwrap();
+        });
+        let proxy_accept =
+            tokio::time::timeout(std::time::Duration::from_millis(250), proxy.accept());
+        let client = tracker_reader_client(
+            reqwest::Client::builder()
+                .proxy(reqwest::Proxy::all(format!("http://{proxy_address}")).unwrap()),
+            std::time::Duration::from_secs(2),
+        )
+        .unwrap();
+        client
+            .get(format!("http://{origin_address}/tracker"))
+            .bearer_auth("qa-reader-only")
+            .send()
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap();
+        origin_request.await.unwrap();
+        assert!(
+            proxy_accept.await.is_err(),
+            "configured proxy must be bypassed"
+        );
+    }
+
+    #[tokio::test]
+    async fn tracker_temporary_failures_are_unavailable() {
+        let namespace = NamespaceRef {
+            registry_instance_id: Uuid::now_v7(),
+            namespace_id: Uuid::now_v7(),
+        };
+        let task = TaskRef {
+            tracker_instance_id: Uuid::now_v7(),
+            task_id: Uuid::now_v7(),
+        };
+        for status in [500, 503, 429] {
+            let reader = reader(status, String::new(), task.tracker_instance_id).await;
+            let result = reader.verify(&namespace, &task).await;
+            assert!(
+                matches!(result, Err(AppError::Unavailable(_))),
+                "upstream {status} must remain a temporary dependency failure: {result:?}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn tracker_missing_task_remains_invalid_input() {
+        let namespace = NamespaceRef {
+            registry_instance_id: Uuid::now_v7(),
+            namespace_id: Uuid::now_v7(),
+        };
+        let task = TaskRef {
+            tracker_instance_id: Uuid::now_v7(),
+            task_id: Uuid::now_v7(),
+        };
+        let reader = reader(404, String::new(), task.tracker_instance_id).await;
+        assert!(matches!(
+            reader.verify(&namespace, &task).await,
+            Err(AppError::InvalidInput(_))
+        ));
     }
 }

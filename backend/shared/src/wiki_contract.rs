@@ -94,6 +94,37 @@ impl WikiMaintenanceReport {
 
 #[async_trait::async_trait]
 pub trait WikiBackendPort: Send + Sync {
+    async fn space_namespace_context(
+        &self,
+        _claims: &WikiClaims,
+        _key: &str,
+    ) -> Result<Option<crate::resource_context::ResourceContextSummary>, AppError> {
+        Err(AppError::Unavailable("space_context_not_supported".into()))
+    }
+    async fn workspace_projects(
+        &self,
+        _claims: &WikiClaims,
+        _namespace: Option<&crate::resource_context::NamespaceRef>,
+        _limit: i64,
+        _offset: i64,
+        _search: &str,
+    ) -> Result<WorkspaceProjectPage, AppError> {
+        Err(AppError::Unavailable(
+            "workspace_catalog_not_supported".into(),
+        ))
+    }
+    async fn refresh_workspace_catalog(&self) -> Result<(), AppError> {
+        Ok(())
+    }
+    async fn document_namespace_context(
+        &self,
+        _claims: &WikiClaims,
+        _id: uuid::Uuid,
+    ) -> Result<Option<crate::resource_context::ResourceContextSummary>, AppError> {
+        Err(AppError::Unavailable(
+            "document_context_not_supported".into(),
+        ))
+    }
     async fn namespace_available_tasks(
         &self,
         _claims: &WikiClaims,
@@ -927,6 +958,36 @@ pub struct SearchResponse {
 
 fn default_user_role() -> String {
     "viewer".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ProjectResourceStatus {
+    Connected,
+    NotConnected,
+    Forbidden,
+    Unavailable,
+}
+
+/// Tracker presentation never grants access to the optional owner-local Wiki resource.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct WorkspaceProject {
+    pub namespace: crate::resource_context::NamespaceRef,
+    pub tracker: crate::resource_context::ResourceRef,
+    pub generation: i64,
+    pub name: String,
+    pub project_key: String,
+    pub state: String,
+    pub observed_at: String,
+    pub stale: bool,
+    pub binding: Option<crate::resource_context::OwnerReadback>,
+    pub space_key: Option<String>,
+    pub resource_status: ProjectResourceStatus,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct WorkspaceProjectPage {
+    pub items: Vec<WorkspaceProject>,
+    pub total: i64,
 }
 
 fn default_document_type() -> String {

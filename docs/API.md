@@ -1,5 +1,25 @@
 # API v1 Specification - Wiki
 
+## Каталог сквозных проектов
+
+`GET /api/v1/workspace-projects?limit&offset&search` возвращает WorkspaceProjectPage
+с items/total. Limit 1–100; offset неотрицательный. До полного снимка — 503,
+подтверждённый пустой снимок — пустой список. Отдельный проект читается через
+`GET /api/v1/workspace-projects/{registry}/{namespace}`.
+
+WorkspaceProject содержит NamespaceRef, Tracker ResourceRef, name/project_key,
+lifecycle/generation, observed_at/stale и optional Wiki binding/space_key.
+resource_status: connected, not_connected, forbidden, unavailable. Отказ доступа
+скрывает Wiki resource identity и key; project metadata не выдаёт права.
+
+`GET /api/v1/documents/{id}/namespace-context` проверяет доступ к документу и
+возвращает подтверждённый ResourceContext либо null для standalone документа.
+Потерянная managed projection возвращает unavailable. Старые API сохраняются.
+Аналогичный `GET /api/v1/spaces/{space_key}/namespace-context` разрешает явные
+legacy Space links через UUID локального ресурса. Обычные standalone credentials
+не получают новый межпродуктовый каталог: доступны central profiles и admin;
+owner-local Namespace/document/space чтение сохраняет прежнюю проверку доступа.
+
 ## 1. Назначение
 
 REST API Wiki предоставляет базовые операции продукта: auth, users, spaces, documents, revisions, task links, phase links, evidence, attachments, templates, settings, search и audit.

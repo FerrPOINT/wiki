@@ -1,3 +1,4 @@
+import { useProjectRouteRef } from '@/widgets/namespace-context'
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { NamespaceLink as Link } from '@sdlc/ui/ui'
 import { useSearchParams } from 'react-router'
@@ -188,6 +189,7 @@ function EvidenceTitle({ item, onSelect }: { item: Evidence; onSelect: (id: stri
 }
 
 export function EvidencePage() {
+  const namespace = useProjectRouteRef()
   const [searchParams, setSearchParams] = useSearchParams()
   const initialSpace = searchParams.get('space')?.trim().toUpperCase() ?? ''
   const appliedQuery = searchParams.get('q') ?? ''
@@ -435,6 +437,7 @@ export function EvidencePage() {
               <Label htmlFor="evidence-space">Пространство</Label>
               <Input
                 id="evidence-space"
+                readOnly={Boolean(namespace.ref)}
                 className="min-h-10"
                 value={space}
                 onChange={(event) => setSpace(event.target.value.toUpperCase())}
@@ -550,6 +553,7 @@ export function EvidencePage() {
         <Input
           className="min-h-10"
           value={filterSpace}
+          readOnly={Boolean(namespace.ref)}
           onChange={(event) => {
             setFilterSpace(event.target.value.toUpperCase())
             setFilterError('')

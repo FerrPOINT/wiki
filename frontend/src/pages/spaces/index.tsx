@@ -1,5 +1,6 @@
 import { FormEvent, type RefObject, useRef, useState } from 'react'
-import { NamespaceLink as Link } from '@sdlc/ui/ui'
+// Explicit space/document destinations resolve their own binding, not the previously selected project.
+import { Link } from 'react-router'
 
 import {
   Archive,

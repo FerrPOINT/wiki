@@ -1,7 +1,12 @@
+import { SidebarItem } from '@sdlc/ui/ui'
 import { NamespaceShellContext } from './namespace-context'
 import { useEffect, useState, type ElementType } from 'react'
 import { NamespaceLink as Link } from '@sdlc/ui/ui'
-import { NavLink, Outlet, useLocation } from 'react-router'
+import { Outlet, useLocation } from 'react-router'
+import { NamespaceNavLink as NavLink } from '@sdlc/ui/ui'
+import { useProjectDisclosures } from '@sdlc/ui/lib'
+import { WorkspaceNavigation, useDocumentDisclosures } from './workspace-navigation'
+import { ProjectBoundary } from './project-boundary'
 import {
   ClipboardList,
   FileCheck2,
@@ -74,26 +79,12 @@ function SidebarLink({
   responsiveLabel?: boolean
 }) {
   return (
-    <NavLink
-      to={to}
-      end={to === '/'}
-      onClick={onClick}
-      title={responsiveLabel ? label : undefined}
-      className={({ isActive }) =>
-        `flex min-h-11 items-center gap-3 rounded-md px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-10 ${
-          responsiveLabel ? 'md:justify-center md:px-2 xl:justify-start xl:px-3' : ''
-        } ${
-          isActive
-            ? 'bg-surface-raised text-text-primary'
-            : 'text-text-secondary hover:bg-surface-raised hover:text-text-primary'
-        }`
-      }
-    >
-      <Icon className="h-5 w-5 shrink-0" aria-hidden />
-      <span className={responsiveLabel ? 'md:sr-only xl:not-sr-only xl:truncate' : 'truncate'}>
-        {label}
-      </span>
-    </NavLink>
+    <SidebarItem asChild compact={responsiveLabel ? 'responsive' : false}>
+      <NavLink to={to} end={to === '/'} onClick={onClick} aria-label={label} title={label}>
+        <Icon aria-hidden />
+        <span className="base-sidebar-item-label">{label}</span>
+      </NavLink>
+    </SidebarItem>
   )
 }
 
@@ -122,6 +113,9 @@ function NavigationList({
 
 export function AppShell() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [projectRail, setProjectRail] = useState(
+    () => !window.matchMedia('(min-width: 1280px)').matches,
+  )
   const location = useLocation()
   const { data: user } = useCurrentUser()
   const logout = useLogout()
@@ -133,10 +127,28 @@ export function AppShell() {
       if (desktop.matches) setMobileMenuOpen(false)
     }
     desktop.addEventListener('change', closeOnDesktop)
-    return () => desktop.removeEventListener('change', closeOnDesktop)
+    const expanded = window.matchMedia('(min-width: 1280px)')
+    const updateRail = () => setProjectRail(!expanded.matches)
+    expanded.addEventListener('change', updateRail)
+    return () => {
+      desktop.removeEventListener('change', closeOnDesktop)
+      expanded.removeEventListener('change', updateRail)
+    }
   }, [])
 
-  const navItems = [...baseNavItems, ...(user?.is_system_admin ? adminNavItems : [])]
+  const namespaceEnabled = import.meta.env.VITE_NAMESPACE_ENABLED === 'true'
+  const disclosures = useProjectDisclosures('wiki:collapsed-projects:v1')
+  const documents = useDocumentDisclosures()
+  const baseItems = namespaceEnabled
+    ? baseNavItems.flatMap((item) =>
+        item.to === '/'
+          ? [item, { to: '/projects', icon: Library, label: 'Проекты' }]
+          : ['/tasks', '/phases', '/evidence'].includes(item.to)
+            ? []
+            : [item],
+      )
+    : baseNavItems
+  const navItems = [...baseItems, ...(user?.is_system_admin ? adminNavItems : [])]
   const pageLayout =
     location.pathname === '/settings' || location.pathname === '/documents/new'
       ? 'reading'
@@ -172,7 +184,7 @@ export function AppShell() {
                   <DialogTitle className="text-base">
                     <span className="sr-only">Навигация Wiki</span>
                     <span className="flex items-center gap-3" aria-hidden>
-                      <PlatformMark size="sm" withName={false} />
+                      <PlatformMark size="shell" withName={false} />
                       <span>Wiki</span>
                     </span>
                   </DialogTitle>
@@ -185,6 +197,13 @@ export function AppShell() {
                     </Link>
                   </Button>
                   <NavigationList items={navItems} onNavigate={() => setMobileMenuOpen(false)} />
+                  {namespaceEnabled && (
+                    <WorkspaceNavigation
+                      disclosures={disclosures}
+                      documents={documents}
+                      onNavigate={() => setMobileMenuOpen(false)}
+                    />
+                  )}
                 </div>
               </DialogContent>
             </Dialog>
@@ -194,7 +213,7 @@ export function AppShell() {
               className="hidden h-11 min-w-11 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus min-[360px]:flex md:h-10 md:min-w-10"
               aria-label="Wiki"
             >
-              <PlatformMark size="sm" withName={false} />
+              <PlatformMark size="shell" withName={false} />
             </Link>
           </>
         }
@@ -240,12 +259,25 @@ export function AppShell() {
       <aside className="fixed bottom-0 left-0 top-[var(--shell-header-height)] z-20 hidden w-[var(--shell-sidebar-compact)] flex-col border-r border-border bg-surface md:flex xl:w-[var(--shell-sidebar-expanded)]">
         <div className="min-h-0 flex-1 overflow-y-auto p-2 xl:p-3">
           <NavigationList items={navItems} responsiveLabels />
+          {namespaceEnabled && (
+            <WorkspaceNavigation
+              disclosures={disclosures}
+              documents={documents}
+              compact={projectRail}
+            />
+          )}
         </div>
       </aside>
       <div className="md:pl-[var(--shell-sidebar-compact)] xl:pl-[var(--shell-sidebar-expanded)]">
         <main className="shell-main min-h-[calc(100dvh-var(--shell-header-height))]">
           <PageFrame mode={pageLayout}>
-            <Outlet />
+            {namespaceEnabled ? (
+              <ProjectBoundary>
+                <Outlet />
+              </ProjectBoundary>
+            ) : (
+              <Outlet />
+            )}
           </PageFrame>
         </main>
       </div>

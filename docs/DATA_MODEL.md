@@ -1,5 +1,14 @@
 # Дата-модель Wiki
 
+## Проекция каталога проектов
+
+Migration 202610120001 добавляет wiki_workspace_projects и singleton
+wiki_workspace_catalog_sync. PK — NamespaceRef; Tracker ResourceRef уникален.
+JSON readback проверяется против UUID/generation/display columns. Полный снимок
+атомарно меняет present и метаданные; отсутствующие записи сохраняются как history.
+Ошибка страницы не публикует частичный снимок. Эти таблицы не владеют Wiki Spaces,
+document history или ACL. Down удаляет только воспроизводимую presentation cache.
+
 ## 1. Назначение
 
 Wiki хранит документы, связанные с задачами SDLC и фазами workflow. MVP-модель поддерживает базовый Wiki-опыт: пользователи, spaces, дерево страниц, версии, поиск, вложения, evidence и права.

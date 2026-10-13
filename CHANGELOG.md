@@ -1,10 +1,36 @@
 # Changelog
 
+## 2026-10-12 — проектная навигация
+
+Каталог проектов Tracker, проектные разделы/дерево и подтверждённый локальный контекст legacy ссылок.
+
 Все значимые изменения проекта документируются здесь.
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 версионирование - [SemVer](https://semver.org/lang/ru/).
 
 ## [Unreleased]
+
+- Логотип оболочки использует общий размер Base 40 px; компактный сайдбар равен высоте хедера (60 px).
+
+
+- Исправлено форматирование route-scope helper: frontend format:check снова
+  принимает код проектной навигации без изменения поведения.
+
+- Umbrella-сборка устанавливает `wiki-server` отдельным исполняемым файлом,
+  сохраняя каталог исходников `server`. Финальный слой проверяет executable.
+
+- Namespace routes are now omitted when the build-time UI flag is disabled, and
+  their pages are lazy-loaded when the feature is enabled.
+
+- Base обновлён для удержания focus в `ConfirmDialog` во время pending.
+
+- Активный Base pin обновлён до согласованного кандидата SDK/UI/workspace;
+  документация standalone build использует тот же порядок выбора pin, что CI.
+
+- Tracker reader сохраняет 503 для временных 5xx/429 и проверяет TaskRef отдельно
+  от отсутствующей задачи (404). HTTP-регрессия проверяет оба сценария.
+- Потерянная namespace projection не позволяет заново привязать managed Space;
+  PostgreSQL-регрессии lifecycle, fencing и fail-closed поведения включены в CI.
 
 - Namespace cohort: стабильные refs, локальные binding projections и lifecycle guards; аддитивные migrations, совместимый rollback и отдельные execution v2 gates. Runtime-приёмка ещё не завершена.
 
@@ -15,6 +41,10 @@
 - Каталог Central Auth использует непустое display name, username или legacy email;
   identity и disabled-статус сохранены. PostgreSQL-регрессия выполняется явно в CI.
   Для INTERNAL_ERROR/UNAVAILABLE UI показывает безопасное сообщение страницы.
+
+- При первом центральном входе отображаемое имя берётся из проверенного
+  session/PAT-ответа, а не части email. Переименование применяется только к
+  соответствующему `central_sub`; отсутствующее имя не создаёт локальный профиль.
 
 - Документирована принятая поставка трёх CLI на sdlc1: backup/restore/rollback, live-проверки, Linux/WSL установка и сохранённые ограничения.
 

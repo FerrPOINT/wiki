@@ -1,5 +1,5 @@
 //! Namespace projection belongs to Wiki; it does not mirror Tracker tasks.
-use super::PostgresWikiBackend;
+use super::{PostgresWikiBackend, mapping::parse_uuid};
 use shared::{AppError, resource_context::*};
 use sqlx::Row;
 use uuid::Uuid;
@@ -54,18 +54,32 @@ impl PostgresWikiBackend {
             .and_then(|value| value.parse::<Uuid>().ok())
             .filter(|id| !id.is_nil())
             .ok_or_else(|| AppError::Unavailable("namespace_owner_not_configured".into()))?;
-        let rows=sqlx::query("SELECT s.id,s.key,s.name FROM spaces s WHERE s.archived_at IS NULL AND NOT EXISTS(SELECT 1 FROM wiki_namespace_bindings b WHERE b.resource_id=s.id) ORDER BY s.key,s.id LIMIT $1 OFFSET $2").bind(limit.clamp(1,100)).bind(offset.max(0)).fetch_all(&self.pool).await.map_err(AppError::database)?;
+        let user_id = parse_uuid(&claims.user_id, "user")?;
+        let rows = sqlx::query(
+            r#"
+            SELECT s.id, s.key, s.name
+            FROM spaces s
+            JOIN users u ON u.id = $3 AND u.is_active = true
+            LEFT JOIN space_members sm ON sm.space_id = s.id AND sm.user_id = u.id
+            WHERE s.archived_at IS NULL
+              AND NOT s.namespace_managed
+              AND NOT EXISTS (
+                  SELECT 1 FROM wiki_namespace_bindings b WHERE b.resource_id = s.id
+              )
+              AND (u.global_role = 'admin' OR sm.role = 'admin')
+            ORDER BY s.key, s.id
+            LIMIT $1 OFFSET $2
+            "#,
+        )
+        .bind(limit.clamp(1, 100))
+        .bind(offset.max(0))
+        .bind(user_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(AppError::database)?;
         let mut result = Vec::new();
         for row in rows {
             let id: Uuid = row.get("id");
-            match self
-                .ensure_space_id_access(claims, id, app::wiki::WikiSpaceAccess::Admin)
-                .await
-            {
-                Ok(_) => {}
-                Err(AppError::Forbidden) => continue,
-                Err(error) => return Err(error),
-            }
             result.push(ResourceCatalogItem {
                 resource: ResourceRef {
                     kind: ResourceKind::WikiSpace,
@@ -107,17 +121,30 @@ impl PostgresWikiBackend {
         limit: i64,
         offset: i64,
     ) -> Result<Vec<ResourceContextSummary>, AppError> {
-        let rows=sqlx::query("SELECT b.command,s.name,s.key,s.id FROM wiki_namespace_bindings b JOIN spaces s ON s.id=b.resource_id WHERE ($1::uuid IS NULL OR (b.registry_instance_id=$1 AND b.namespace_id=$2)) ORDER BY s.name,s.id LIMIT $3 OFFSET $4").bind(namespace.map(|n| n.registry_instance_id)).bind(namespace.map(|n| n.namespace_id)).bind(limit.clamp(1,100)).bind(offset.max(0)).fetch_all(&self.pool).await.map_err(AppError::database)?;
+        let user_id = parse_uuid(&claims.user_id, "user")?;
+        let rows = sqlx::query(
+            r#"
+            SELECT b.command, s.name, s.key, s.id
+            FROM wiki_namespace_bindings b
+            JOIN spaces s ON s.id = b.resource_id
+            JOIN users u ON u.id = $5 AND u.is_active = true
+            LEFT JOIN space_members sm ON sm.space_id = s.id AND sm.user_id = u.id
+            WHERE ($1::uuid IS NULL OR (b.registry_instance_id = $1 AND b.namespace_id = $2))
+              AND (u.global_role = 'admin' OR sm.role IN ('admin', 'editor', 'viewer'))
+            ORDER BY s.name, s.id
+            LIMIT $3 OFFSET $4
+            "#,
+        )
+        .bind(namespace.map(|n| n.registry_instance_id))
+        .bind(namespace.map(|n| n.namespace_id))
+        .bind(limit.clamp(1, 100))
+        .bind(offset.max(0))
+        .bind(user_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(AppError::database)?;
         let mut result = Vec::new();
         for row in rows {
-            match self
-                .ensure_space_id_access(claims, row.get("id"), app::wiki::WikiSpaceAccess::View)
-                .await
-            {
-                Ok(_) => {}
-                Err(AppError::Forbidden) => continue,
-                Err(error) => return Err(error),
-            }
             let command: OwnerCommand = serde_json::from_value(row.get("command"))
                 .map_err(|_| AppError::Unavailable("invalid_namespace_projection".into()))?;
             validate_projection(&command)?;
@@ -200,12 +227,19 @@ impl PostgresWikiBackend {
             if command.state != "active" {
                 return Err(AppError::conflict("binding_required_before_lifecycle"));
             }
-            let exists = sqlx::query("SELECT id FROM spaces WHERE id=$1 FOR UPDATE")
-                .bind(command.resource.resource_id)
-                .fetch_optional(&mut *tx)
-                .await
-                .map_err(AppError::database)?
-                .is_some();
+            let existing =
+                sqlx::query("SELECT namespace_managed FROM spaces WHERE id=$1 FOR UPDATE")
+                    .bind(command.resource.resource_id)
+                    .fetch_optional(&mut *tx)
+                    .await
+                    .map_err(AppError::database)?;
+            if existing
+                .as_ref()
+                .is_some_and(|row| row.get::<bool, _>("namespace_managed"))
+            {
+                return Err(AppError::Unavailable("namespace_projection_missing".into()));
+            }
+            let exists = existing.is_some();
             if exists && command.create_spec.is_some() {
                 return Err(AppError::conflict("existing_resource_requires_attach"));
             }
@@ -251,5 +285,391 @@ impl PostgresWikiBackend {
             .bind(command.resource.resource_id).bind(command.namespace.registry_instance_id).bind(command.namespace.namespace_id).bind(command.generation).bind(&command.state).bind(serde_json::to_value(command).map_err(|e| AppError::Internal(e.to_string()))?).execute(&mut *tx).await.map_err(|error| { tracing::warn!(error=%error,"namespace owner write rejected"); AppError::conflict("namespace_binding_rejected") })?;
         tx.commit().await.map_err(AppError::database)?;
         Ok(command.readback(true))
+    }
+}
+
+#[cfg(test)]
+pub(in crate::wiki_postgres) mod namespace_postgres_tests {
+    use super::*;
+    use shared::wiki_contract::{WikiClaims, WikiSettingsSnapshot};
+
+    pub(in crate::wiki_postgres) async fn backend() -> (PostgresWikiBackend, Uuid) {
+        let url = std::env::var("WIKI_TEST_DATABASE_URL").expect("disposable QA database required");
+        let pool = sqlx::PgPool::connect(&url).await.unwrap();
+        sqlx::migrate::Migrator::new(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../migrations"),
+        )
+        .await
+        .unwrap()
+        .run(&pool)
+        .await
+        .unwrap();
+        let owner = Uuid::now_v7();
+        sqlx::query("INSERT INTO users(id,email,username,display_name,password_hash) VALUES($1,$2,$3,'Namespace QA','unused')")
+            .bind(owner).bind(format!("{owner}@example.test")).bind(format!("qa-{owner}"))
+            .execute(&pool).await.unwrap();
+        let config = shared::AppConfig::default();
+        (
+            PostgresWikiBackend {
+                pool,
+                task_reader: None,
+                auth: config.auth.clone(),
+                storage: std::sync::Arc::new(crate::LocalWikiAttachmentStorage::new(
+                    std::env::temp_dir().join(format!("wiki-namespace-{owner}")),
+                )),
+                max_upload_bytes: config.storage.max_upload_bytes,
+                staged_attachment_ttl_hours: config.maintenance.staged_attachment_ttl_hours,
+                maintenance_batch_size: config.maintenance.batch_size,
+                settings: WikiSettingsSnapshot::from_config(&config),
+            },
+            owner,
+        )
+    }
+
+    pub(in crate::wiki_postgres) fn create_command(owner: Uuid) -> OwnerCommand {
+        OwnerCommand {
+            schema_version: 1,
+            namespace: NamespaceRef {
+                registry_instance_id: std::env::var("WIKI_NAMESPACE__REGISTRY_INSTANCE_ID")
+                    .expect("QA registry identity required")
+                    .parse()
+                    .unwrap(),
+                namespace_id: Uuid::now_v7(),
+            },
+            resource: ResourceRef {
+                kind: ResourceKind::WikiSpace,
+                instance_id: std::env::var("WIKI_NAMESPACE__INSTANCE_ID")
+                    .expect("QA Wiki identity required")
+                    .parse()
+                    .unwrap(),
+                resource_id: Uuid::now_v7(),
+            },
+            operation_id: Uuid::now_v7(),
+            generation: 1,
+            state: "active".into(),
+            create_spec: Some(serde_json::json!({
+                "key": format!("QA{}", &owner.simple().to_string()[..24]),
+                "name": "Namespace QA", "owner_id": owner,
+            })),
+        }
+    }
+
+    #[tokio::test]
+    #[ignore = "requires disposable PostgreSQL and QA Wiki/registry instance IDs"]
+    async fn lifecycle_fences_replays_and_legacy_writes() {
+        let (backend, owner) = backend().await;
+        let command = create_command(owner);
+        let space = command.resource.resource_id;
+        assert!(
+            backend
+                .apply_namespace(&command)
+                .await
+                .unwrap()
+                .matches(&command)
+        );
+        assert!(
+            backend
+                .apply_namespace(&command)
+                .await
+                .unwrap()
+                .matches(&command)
+        );
+        let marker: bool = sqlx::query_scalar("SELECT namespace_managed FROM spaces WHERE id=$1")
+            .bind(space)
+            .fetch_one(&backend.pool)
+            .await
+            .unwrap();
+        assert!(marker);
+        let mut conflict = command.clone();
+        conflict.operation_id = Uuid::now_v7();
+        assert!(matches!(
+            backend.apply_namespace(&conflict).await,
+            Err(AppError::Conflict(_))
+        ));
+        conflict.generation = 2;
+        conflict.create_spec = None;
+        conflict.namespace.namespace_id = Uuid::now_v7();
+        assert!(matches!(
+            backend.apply_namespace(&conflict).await,
+            Err(AppError::Conflict(_))
+        ));
+
+        let document = Uuid::now_v7();
+        sqlx::query("INSERT INTO documents(id,space_id,slug,title,owner_id) VALUES($1,$2,'qa','QA document',$3)")
+            .bind(document).bind(space).bind(owner).execute(&backend.pool).await.unwrap();
+        let revision = Uuid::now_v7();
+        sqlx::query("INSERT INTO document_revisions(id,document_id,version,title,content_markdown,content_html,content_text,content_checksum,author_id) VALUES($1,$2,1,'QA revision','body','body','body','qa',$3)")
+            .bind(revision).bind(document).bind(owner).execute(&backend.pool).await.unwrap();
+        for query in [
+            "UPDATE document_revisions SET title='changed' WHERE id=$1",
+            "DELETE FROM document_revisions WHERE id=$1",
+        ] {
+            let error = sqlx::query(query)
+                .bind(revision)
+                .execute(&backend.pool)
+                .await
+                .unwrap_err();
+            assert_eq!(
+                error.as_database_error().unwrap().code().as_deref(),
+                Some("42501")
+            );
+        }
+        sqlx::query("UPDATE documents SET status='archived',archived_at=now() WHERE id=$1")
+            .bind(document)
+            .execute(&backend.pool)
+            .await
+            .unwrap();
+        let mut archived = command.clone();
+        archived.operation_id = Uuid::now_v7();
+        archived.generation = 2;
+        archived.state = "archived".into();
+        archived.create_spec = None;
+        assert!(
+            backend
+                .apply_namespace(&archived)
+                .await
+                .unwrap()
+                .matches(&archived)
+        );
+        let error = sqlx::query("UPDATE documents SET title='changed' WHERE id=$1")
+            .bind(document)
+            .execute(&backend.pool)
+            .await
+            .unwrap_err();
+        assert_eq!(
+            error.as_database_error().unwrap().code().as_deref(),
+            Some("42501")
+        );
+        let error = sqlx::query("DELETE FROM spaces WHERE id=$1")
+            .bind(space)
+            .execute(&backend.pool)
+            .await
+            .unwrap_err();
+        assert_eq!(
+            error.as_database_error().unwrap().code().as_deref(),
+            Some("42501")
+        );
+        let mut restored = archived.clone();
+        restored.operation_id = Uuid::now_v7();
+        restored.generation = 3;
+        restored.state = "active".into();
+        assert!(
+            backend
+                .apply_namespace(&restored)
+                .await
+                .unwrap()
+                .matches(&restored)
+        );
+        assert!(matches!(
+            backend.apply_namespace(&archived).await,
+            Err(AppError::Conflict(_))
+        ));
+        let status: String = sqlx::query_scalar("SELECT status FROM documents WHERE id=$1")
+            .bind(document)
+            .fetch_one(&backend.pool)
+            .await
+            .unwrap();
+        assert_eq!(status, "archived");
+        let mut tx = backend.pool.begin().await.unwrap();
+        assert!(matches!(
+            super::super::ensure_document_accepts_writes_tx(&mut tx, document).await,
+            Err(AppError::InvalidInput(_))
+        ));
+        tx.rollback().await.unwrap();
+        let title: String = sqlx::query_scalar("SELECT title FROM document_revisions WHERE id=$1")
+            .bind(revision)
+            .fetch_one(&backend.pool)
+            .await
+            .unwrap();
+        assert_eq!(title, "QA revision");
+        backend.pool.close().await;
+    }
+
+    #[tokio::test]
+    #[ignore = "requires disposable PostgreSQL and QA Wiki/registry instance IDs"]
+    async fn lost_projection_fails_closed_for_reads_and_legacy_writes() {
+        let (backend, owner) = backend().await;
+        let command = create_command(owner);
+        let space = command.resource.resource_id;
+        backend.apply_namespace(&command).await.unwrap();
+        sqlx::query("DELETE FROM wiki_namespace_bindings WHERE resource_id=$1")
+            .bind(space)
+            .execute(&backend.pool)
+            .await
+            .unwrap();
+        assert!(matches!(
+            backend.namespace_binding(space).await,
+            Err(AppError::Unavailable(_))
+        ));
+        let error = sqlx::query("UPDATE spaces SET name='changed' WHERE id=$1")
+            .bind(space)
+            .execute(&backend.pool)
+            .await
+            .unwrap_err();
+        assert_eq!(
+            error.as_database_error().unwrap().code().as_deref(),
+            Some("42501")
+        );
+        let error = sqlx::query("UPDATE spaces SET namespace_managed=false WHERE id=$1")
+            .bind(space)
+            .execute(&backend.pool)
+            .await
+            .unwrap_err();
+        assert_eq!(
+            error.as_database_error().unwrap().code().as_deref(),
+            Some("42501")
+        );
+        let claims = WikiClaims {
+            user_id: owner.to_string(),
+            session_id: None,
+            request_id: None,
+        };
+        let resources = backend
+            .namespace_available_resources(&claims, 100, 0)
+            .await
+            .unwrap();
+        let advertised = resources
+            .iter()
+            .any(|item| item.resource.resource_id == space);
+        let mut transferred = command.clone();
+        transferred.namespace.namespace_id = Uuid::now_v7();
+        transferred.operation_id = Uuid::now_v7();
+        transferred.generation = 2;
+        transferred.create_spec = None;
+        let accepted = backend.apply_namespace(&transferred).await.is_ok();
+        assert_eq!(
+            (advertised, accepted),
+            (false, false),
+            "lost projection must neither advertise nor transfer an already managed resource"
+        );
+        backend.pool.close().await;
+    }
+
+    #[tokio::test]
+    #[ignore = "requires disposable PostgreSQL and QA Wiki/registry instance IDs"]
+    async fn namespace_contexts_paginate_after_access_filtering() {
+        let (backend, owner) = backend().await;
+        let reader = Uuid::now_v7();
+        sqlx::query("INSERT INTO users(id,email,username,display_name,password_hash,global_role) VALUES($1,$2,$3,'Namespace reader','unused','user')")
+            .bind(reader)
+            .bind(format!("{reader}@example.test"))
+            .bind(format!("qa-{reader}"))
+            .execute(&backend.pool)
+            .await
+            .unwrap();
+        let suffix = reader.simple().to_string()[..8].to_ascii_uppercase();
+
+        let mut commands = [
+            create_command(owner),
+            create_command(owner),
+            create_command(owner),
+        ];
+        for (command, (key, name)) in commands.iter_mut().zip([
+            (format!("N-{suffix}-A"), "A inaccessible"),
+            (format!("N-{suffix}-B"), "B accessible"),
+            (format!("N-{suffix}-C"), "C accessible"),
+        ]) {
+            let spec = command
+                .create_spec
+                .as_mut()
+                .unwrap()
+                .as_object_mut()
+                .unwrap();
+            spec.insert("key".into(), key.into());
+            spec.insert("name".into(), name.into());
+            backend.apply_namespace(command).await.unwrap();
+        }
+        for (command, role) in commands.iter().skip(1).zip(["viewer", "editor"]) {
+            sqlx::query("INSERT INTO space_members(space_id,user_id,role) VALUES($1,$2,$3)")
+                .bind(command.resource.resource_id)
+                .bind(reader)
+                .bind(role)
+                .execute(&backend.pool)
+                .await
+                .unwrap();
+        }
+
+        let claims = WikiClaims {
+            user_id: reader.to_string(),
+            session_id: None,
+            request_id: None,
+        };
+        let first_page = backend
+            .namespace_contexts(&claims, None, 2, 0)
+            .await
+            .unwrap();
+        let second_page = backend
+            .namespace_contexts(&claims, None, 2, 2)
+            .await
+            .unwrap();
+        assert_eq!(first_page.len(), 2);
+        assert_eq!(
+            first_page[0].binding.resource.resource_id,
+            commands[1].resource.resource_id
+        );
+        assert_eq!(
+            first_page[1].binding.resource.resource_id,
+            commands[2].resource.resource_id
+        );
+        assert!(second_page.is_empty());
+        backend.pool.close().await;
+    }
+
+    #[tokio::test]
+    #[ignore = "requires disposable PostgreSQL and QA Wiki/registry instance IDs"]
+    async fn namespace_resources_paginate_after_access_filtering() {
+        let (backend, owner) = backend().await;
+        let reader = Uuid::now_v7();
+        sqlx::query("INSERT INTO users(id,email,username,display_name,password_hash,global_role) VALUES($1,$2,$3,'Namespace reader','unused','user')")
+            .bind(reader)
+            .bind(format!("{reader}@example.test"))
+            .bind(format!("qa-{reader}"))
+            .execute(&backend.pool)
+            .await
+            .unwrap();
+        let hidden = Uuid::now_v7();
+        let first_visible = Uuid::now_v7();
+        let second_visible = Uuid::now_v7();
+        let suffix = reader.simple().to_string()[..8].to_ascii_uppercase();
+        for (id, key, name) in [
+            (hidden, format!("R-{suffix}-A"), "A inaccessible"),
+            (first_visible, format!("R-{suffix}-B"), "B accessible"),
+            (second_visible, format!("R-{suffix}-C"), "C accessible"),
+        ] {
+            sqlx::query("INSERT INTO spaces(id,key,name,owner_id) VALUES($1,$2,$3,$4)")
+                .bind(id)
+                .bind(key)
+                .bind(name)
+                .bind(owner)
+                .execute(&backend.pool)
+                .await
+                .unwrap();
+        }
+        for visible in [first_visible, second_visible] {
+            sqlx::query("INSERT INTO space_members(space_id,user_id,role) VALUES($1,$2,'admin')")
+                .bind(visible)
+                .bind(reader)
+                .execute(&backend.pool)
+                .await
+                .unwrap();
+        }
+        let claims = WikiClaims {
+            user_id: reader.to_string(),
+            session_id: None,
+            request_id: None,
+        };
+        let resources = backend
+            .namespace_available_resources(&claims, 2, 0)
+            .await
+            .unwrap();
+        assert_eq!(resources.len(), 2);
+        assert_eq!(resources[0].resource.resource_id, first_visible);
+        assert_eq!(resources[1].resource.resource_id, second_visible);
+        let second_page = backend
+            .namespace_available_resources(&claims, 2, 2)
+            .await
+            .unwrap();
+        assert!(second_page.is_empty());
+        backend.pool.close().await;
     }
 }

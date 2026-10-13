@@ -276,7 +276,7 @@ impl PostgresWikiAuthRepository<'_> {
         let display_name = display_name.trim();
         if display_name.is_empty() {
             return Err(shared::AppError::Unavailable(
-                "central_profile_display_name_missing".into(),
+                "Central Auth returned no verified display name".into(),
             ));
         }
         let email = ctx
@@ -311,7 +311,7 @@ impl PostgresWikiAuthRepository<'_> {
         .execute(&self.backend.pool)
         .await
         .map_err(shared::AppError::database)?;
-        sqlx::query("UPDATE users SET display_name=$2, global_role = 'admin', is_active = true, updated_at=now() WHERE central_sub = $1 AND (display_name IS DISTINCT FROM $2 OR global_role <> 'admin' OR NOT is_active)")
+        sqlx::query("UPDATE users SET display_name = $2, global_role = 'admin', is_active = true, updated_at = now() WHERE central_sub = $1 AND (display_name IS DISTINCT FROM $2 OR global_role <> 'admin' OR NOT is_active)")
             .bind(&ctx.user_id).bind(display_name).execute(&self.backend.pool).await.map_err(shared::AppError::database)?;
         let row = sqlx::query(
             "SELECT id, email, username, display_name, password_hash, global_role, is_active \
@@ -1050,6 +1050,12 @@ mod central_directory_tests {
                 .find_or_link_central_user(&context, "Verified name")
                 .await,
             Err(shared::AppError::Database(_))
+        ));
+        assert!(matches!(
+            repository
+                .find_or_link_central_user(&context, " \t\n")
+                .await,
+            Err(shared::AppError::Unavailable(_))
         ));
         context.email = None;
         assert!(matches!(

@@ -1,3 +1,4 @@
+import { useProjectRouteRef } from '@/widgets/namespace-context'
 import { type FormEvent, useRef, useState } from 'react'
 import { NamespaceLink as Link } from '@sdlc/ui/ui'
 import { useParams, useSearchParams } from 'react-router'
@@ -67,6 +68,7 @@ function SpaceSelector({
   onChange: (spaceKey: string) => void
   disabled?: boolean
 }) {
+  const namespace = useProjectRouteRef()
   const spacesQuery = useSpaces()
   const spaces: SpaceOption[] = spacesQuery.data?.spaces ?? []
   const hasSelected = spaces.some((space) => space.key === value)
@@ -80,7 +82,13 @@ function SpaceSelector({
         className={selectClassName}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        disabled={disabled || spacesQuery.isLoading || spacesQuery.isError || options.length === 0}
+        disabled={
+          disabled ||
+          Boolean(namespace.ref) ||
+          spacesQuery.isLoading ||
+          spacesQuery.isError ||
+          options.length === 0
+        }
       >
         {options.length === 0 && <option value="">Нет пространств</option>}
         {options.map((space) => (
