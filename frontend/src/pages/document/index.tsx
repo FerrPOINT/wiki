@@ -39,7 +39,7 @@ import {
   formatFirstApiErrorForUser,
   hasApiErrorCode,
 } from '@/shared/lib/api-error'
-import { UnsavedChangesGuard } from '@/shared/ui/unsaved-changes-guard'
+import { UnsavedChangesGuard } from '@sdlc/ui/ui'
 import {
   formatDateTime,
   formatDocumentStatus,

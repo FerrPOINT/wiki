@@ -17,7 +17,7 @@ import { Textarea } from '@sdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDocumentType } from '@/shared/lib/wiki-format'
 import { resolveSpaceKey } from '@/shared/lib/space-selection'
-import { UnsavedChangesGuard } from '@/shared/ui/unsaved-changes-guard'
+import { UnsavedChangesGuard } from '@sdlc/ui/ui'
 
 const typeOptions = [
   'page',

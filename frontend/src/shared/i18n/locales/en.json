@@ -1,12 +1,6 @@
 {
   "common": {
-    "cancel": "Cancel",
-    "confirm": "Confirm",
-    "delete": "Delete",
-    "edit": "Edit",
     "loading": "Loading...",
-    "retry": "Retry",
-    "save": "Save",
     "saving": "Saving...",
     "theme": "Switch theme: {{theme}}"
   },

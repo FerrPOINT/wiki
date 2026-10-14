@@ -2,7 +2,7 @@
 
 UX-04/06. Пустой каталог пространств объясняет доступ или предлагает создание администратору. Подтверждённый каталог, выбор BASE/первого доступного без явного ключа, ошибка недоступного явного ключа, общий searchable picker и сохранение черновика. Namespace-привязка остаётся авторитетной.
 
-Общие контракты и тексты: [стандарт Base](https://github.com/FerrPOINT/services-base/blob/6adaf0961c96d613746c60a4b37f6104bfb35917/docs/platform/UI_UX_STANDARD.md). UI pin: `6adaf0961c96d613746c60a4b37f6104bfb35917`; SDK и skills pins сохранены.
+Общие контракты и тексты: [стандарт Base](https://github.com/FerrPOINT/services-base/blob/16e0ab44924fae7c67c2df56438667e7830cafd6/docs/platform/UI_UX_STANDARD.md). UI pin: `16e0ab44924fae7c67c2df56438667e7830cafd6`; SDK и skills pins сохранены.
 
 Frontend: 228 тестов полного прогона после интеграции актуального main и отдельные проверки picker/FormField; TypeScript/lint, build, frozen lockfile и OpenAPI. IAB: общий анонимный вход на 320/375/1920/2560.
 
@@ -11,3 +11,7 @@ Frontend: 228 тестов полного прогона после интегр
 Зависимость: [Base PR #206](https://github.com/FerrPOINT/services-base/pull/206). Кандидат поставляется draft: полная межпродуктовая IAB-приёмка, SSO и 30 направлений переключения ещё не подтверждены. Backend не менялся; его полный локальный Rust gate был остановлен после ограничения на дополнительные Docker-группы. GitHub CI учитывается отдельно; отсутствие запуска из-за billing не объявляется PASS.
 
 Работа и native QA выполняются в PDLC2 без новых Docker-групп. Merge и установка исключены; установка — отдельная задача.
+
+## Генерализация UI
+
+Удалён локальный re-export guard. Платформенные тексты наследуются из Base; API и редактор остаются в Wiki.
