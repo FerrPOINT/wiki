@@ -94,6 +94,36 @@ impl WikiMaintenanceReport {
 
 #[async_trait::async_trait]
 pub trait WikiBackendPort: Send + Sync {
+    async fn space_projects(
+        &self,
+        _claims: &WikiClaims,
+        _key: &str,
+    ) -> Result<SpaceProjectsResponse, AppError> {
+        Err(AppError::Unavailable("space_projects_not_supported".into()))
+    }
+    async fn document_space_projects(
+        &self,
+        _claims: &WikiClaims,
+        _document: uuid::Uuid,
+    ) -> Result<SpaceProjectsResponse, AppError> {
+        Err(AppError::Unavailable("space_projects_not_supported".into()))
+    }
+    async fn link_space_project(
+        &self,
+        _claims: &WikiClaims,
+        _key: &str,
+        _project: &crate::resource_context::NamespaceRef,
+    ) -> Result<(), AppError> {
+        Err(AppError::Unavailable("space_projects_not_supported".into()))
+    }
+    async fn unlink_space_project(
+        &self,
+        _claims: &WikiClaims,
+        _key: &str,
+        _project: &crate::resource_context::NamespaceRef,
+    ) -> Result<(), AppError> {
+        Err(AppError::Unavailable("space_projects_not_supported".into()))
+    }
     async fn space_namespace_context(
         &self,
         _claims: &WikiClaims,
@@ -129,6 +159,7 @@ pub trait WikiBackendPort: Send + Sync {
         &self,
         _claims: &WikiClaims,
         _space_key: &str,
+        _namespace: Option<&crate::resource_context::NamespaceRef>,
         _offset: u32,
     ) -> Result<Vec<crate::resource_context::TaskCatalogItem>, AppError> {
         Err(AppError::Unavailable(
@@ -587,6 +618,31 @@ pub struct SpaceListResponse {
     pub spaces: Vec<SpaceResponse>,
 }
 
+/// The same Wiki space can appear in several project collections without copies.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct WorkspaceSpace {
+    pub id: uuid::Uuid,
+    pub key: String,
+    pub name: String,
+    pub status: String,
+    pub resource_status: ProjectResourceStatus,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct SpaceProject {
+    pub namespace: crate::resource_context::NamespaceRef,
+    pub name: Option<String>,
+    pub project_key: Option<String>,
+    pub state: Option<String>,
+    pub available: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct SpaceProjectsResponse {
+    pub space: WorkspaceSpace,
+    pub projects: Vec<SpaceProject>,
+}
+
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct CreateSpaceRequest {
     pub key: String,
@@ -987,6 +1043,7 @@ pub struct WorkspaceProject {
     pub binding: Option<crate::resource_context::OwnerReadback>,
     pub space_key: Option<String>,
     pub resource_status: ProjectResourceStatus,
+    pub spaces: Vec<WorkspaceSpace>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct WorkspaceProjectPage {

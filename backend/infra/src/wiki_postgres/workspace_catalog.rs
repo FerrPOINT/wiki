@@ -32,6 +32,29 @@ pub(super) fn validate_project(
 }
 
 impl PostgresWikiBackend {
+    pub(super) async fn project_catalog_actor(
+        &self,
+        claims: &WikiClaims,
+    ) -> Result<Uuid, AppError> {
+        let id = super::mapping::parse_uuid(&claims.user_id, "user")?;
+        let actor =
+            sqlx::query("SELECT global_role,central_sub FROM users WHERE id=$1 AND is_active=true")
+                .bind(id)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(AppError::database)?
+                .ok_or(AppError::Unauthorized)?;
+        // Project metadata visibility is separate from permission to view a Wiki space.
+        if actor.get::<String, _>("global_role") != "admin"
+            && actor
+                .get::<Option<String>, _>("central_sub")
+                .filter(|sub| !sub.trim().is_empty())
+                .is_none()
+        {
+            return Err(AppError::Forbidden);
+        }
+        Ok(id)
+    }
     pub(super) async fn refresh_projects(&self) -> Result<(), AppError> {
         let Some(reader) = &self.task_reader else {
             return Ok(());
@@ -80,22 +103,7 @@ impl PostgresWikiBackend {
         offset: i64,
         search: &str,
     ) -> Result<WorkspaceProjectPage, AppError> {
-        let actor =
-            sqlx::query("SELECT global_role,central_sub FROM users WHERE id=$1 AND is_active=true")
-                .bind(super::mapping::parse_uuid(&claims.user_id, "user")?)
-                .fetch_optional(&self.pool)
-                .await
-                .map_err(AppError::database)?
-                .ok_or(AppError::Unauthorized)?;
-        // Shared catalog visibility does not expand ordinary standalone credentials.
-        if actor.get::<String, _>("global_role") != "admin"
-            && actor
-                .get::<Option<String>, _>("central_sub")
-                .filter(|sub| !sub.trim().is_empty())
-                .is_none()
-        {
-            return Err(AppError::Forbidden);
-        }
+        self.project_catalog_actor(claims).await?;
         if !(1..=100).contains(&limit) || offset < 0 {
             return Err(AppError::invalid_input("invalid_project_page"));
         }
@@ -122,11 +130,20 @@ impl PostgresWikiBackend {
             .bind(super::mapping::parse_uuid(&claims.user_id,"user")?).bind(namespace.map(|n|n.registry_instance_id)).bind(namespace.map(|n|n.namespace_id)).bind(search.trim().to_lowercase()).bind(limit).bind(offset).fetch_all(&self.pool).await.map_err(AppError::database)?;
         let total = sqlx::query_scalar("SELECT count(*) FROM wiki_workspace_projects w WHERE w.present AND ($1::uuid IS NULL OR (w.registry_instance_id=$1 AND w.namespace_id=$2)) AND position($3 in lower(w.name||' '||w.project_key))>0")
             .bind(namespace.map(|n|n.registry_instance_id)).bind(namespace.map(|n|n.namespace_id)).bind(search.trim().to_lowercase()).fetch_one(&self.pool).await.map_err(AppError::database)?;
-        let mut items = Vec::with_capacity(rows.len());
-        for row in rows {
+        let mut projections = Vec::with_capacity(rows.len());
+        for row in &rows {
             let item: ResourceContextSummary = serde_json::from_value(row.get("presentation"))
                 .map_err(|_| AppError::Unavailable("invalid_tracker_projection".into()))?;
             validate_project(&item, registry, instance)?;
+            projections.push(item);
+        }
+        let ids: Vec<Uuid> = projections
+            .iter()
+            .map(|item| item.binding.namespace.namespace_id)
+            .collect();
+        let mut collections = self.spaces_for_projects(claims, registry, &ids).await?;
+        let mut items = Vec::with_capacity(rows.len());
+        for (row, item) in rows.into_iter().zip(projections) {
             let mut project = WorkspaceProject {
                 namespace: item.binding.namespace.clone(),
                 tracker: item.binding.resource.clone(),
@@ -139,6 +156,7 @@ impl PostgresWikiBackend {
                 binding: None,
                 space_key: None,
                 resource_status: ProjectResourceStatus::NotConnected,
+                spaces: Vec::new(),
             };
             if let Some(value) = row.get::<Option<serde_json::Value>, _>("wiki_command") {
                 if !row.get::<Option<bool>, _>("allowed").unwrap_or(false) {
@@ -159,6 +177,23 @@ impl PostgresWikiBackend {
                     }
                 }
             }
+            project.spaces = collections
+                .spaces
+                .remove(&project.namespace.namespace_id)
+                .unwrap_or_default();
+            project.resource_status = if project
+                .spaces
+                .iter()
+                .any(|space| matches!(space.resource_status, ProjectResourceStatus::Connected))
+            {
+                ProjectResourceStatus::Connected
+            } else if !project.spaces.is_empty() {
+                ProjectResourceStatus::Unavailable
+            } else if collections.denied.contains(&project.namespace.namespace_id) {
+                ProjectResourceStatus::Forbidden
+            } else {
+                ProjectResourceStatus::NotConnected
+            };
             items.push(project);
         }
         Ok(WorkspaceProjectPage { items, total })

@@ -55,6 +55,7 @@ import {
 } from '@/api/wiki'
 import { clearLegacyRefreshToken, ssoConfig, useAuthStore } from '@/shared/auth/store'
 import { defaultSpaceKey } from '@/shared/lib/space-selection'
+import { invalidateWorkspaceQueries } from '@/api/workspaces'
 
 const authKeys = {
   me: ['me'] as const,
@@ -179,6 +180,7 @@ export function useUpdateSpace() {
     mutationFn: ({ spaceKey, body }: { spaceKey: string; body: UpdateSpaceRequest }) =>
       updateSpace(spaceKey, body),
     onSuccess: (space, variables) => {
+      void invalidateWorkspaceQueries(queryClient)
       queryClient.invalidateQueries({ queryKey: wikiKeys.spaces })
       queryClient.invalidateQueries({ queryKey: wikiKeys.spaceTree(space.key) })
       queryClient.invalidateQueries({ queryKey: wikiKeys.spaceTree(variables.spaceKey) })
@@ -193,6 +195,7 @@ export function useArchiveSpace() {
   return useMutation({
     mutationFn: archiveSpace,
     onSuccess: (space, requestedSpaceKey) => {
+      void invalidateWorkspaceQueries(queryClient)
       queryClient.invalidateQueries({ queryKey: wikiKeys.spaces })
       queryClient.invalidateQueries({ queryKey: wikiKeys.spaceTree(space.key) })
       queryClient.invalidateQueries({ queryKey: wikiKeys.spaceTree(requestedSpaceKey) })

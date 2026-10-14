@@ -1,9 +1,37 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render as renderView,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ReactNode } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { SpacesPage } from './'
+vi.mock('@/api/client', () => ({
+  apiRequest: vi.fn(async (path: string) =>
+    path.includes('workspace-projects')
+      ? { items: [], total: 0 }
+      : {
+          space: { key: 'BASE', name: 'База знаний Base', id: 'space-base', status: 'active' },
+          projects: [],
+        },
+  ),
+}))
+function render(view: ReactNode) {
+  return renderView(
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      {view}
+    </QueryClientProvider>,
+  )
+}
 
 const useArchiveSpace = vi.hoisted(() => vi.fn())
 const useCreateSpace = vi.hoisted(() => vi.fn())
@@ -211,11 +239,11 @@ describe('SpacesPage', () => {
     expect(screen.queryByRole('button', { name: 'Назначить' })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Требования требования/ })).toHaveAttribute(
       'href',
-      '/documents/product-requirements',
+      '/documents/doc-root',
     )
     expect(screen.getByRole('link', { name: /План проверки план проверки/ })).toHaveAttribute(
       'href',
-      '/documents/test-plan',
+      '/documents/doc-child',
     )
     expect(useSpaceTree).toHaveBeenCalledWith('BASE')
     expect(useSpaceMembers).toHaveBeenCalledWith('BASE', false)

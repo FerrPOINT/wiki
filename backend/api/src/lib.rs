@@ -115,6 +115,10 @@ pub use routes::*;
 #[openapi(
     paths(
         routes::namespace::apply,
+        routes::space_projects::list,
+        routes::space_projects::document_context,
+        routes::space_projects::link,
+        routes::space_projects::unlink,
         routes::namespace::available_resources,
         routes::namespace::available_tasks,
         routes::namespace::stats,
@@ -329,6 +333,18 @@ pub fn router_with_wiki(
     };
 
     let protected = Router::<Arc<app::WikiAppContext>>::new()
+        .route(
+            "/documents/{id}/space-context",
+            get(routes::space_projects::document_context),
+        )
+        .route(
+            "/spaces/{space_key}/projects",
+            get(routes::space_projects::list),
+        )
+        .route(
+            "/spaces/{space_key}/projects/{registry}/{namespace}",
+            axum::routing::put(routes::space_projects::link).delete(routes::space_projects::unlink),
+        )
         .route(
             "/spaces/{space_key}/namespace-context",
             get(routes::namespace::space_context),

@@ -145,7 +145,7 @@ impl PostgresWikiBackend {
     }
 }
 
-fn audit_request_id(request_id: Option<&str>) -> String {
+pub(super) fn audit_request_id(request_id: Option<&str>) -> String {
     request_id
         .filter(|value| !value.trim().is_empty() && value.len() <= 128)
         .map(ToString::to_string)

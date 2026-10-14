@@ -22,16 +22,24 @@ export function ProjectBoundary({ children }: { children: ReactNode }) {
     /^\/documents\/[^/]+/.test(location.pathname) && location.pathname !== '/documents/new'
   const explicitSpace = needsSpace && params.has('space')
   const space = context.query.data?.resource_key
-  const conflict = Boolean(scoped && space && params.has('space') && params.get('space') !== space)
+  const conflict = context.conflict
   const synchronizeSpace = Boolean(scoped && space && !params.has('space'))
   const synchronizeRef = Boolean(
     context.ref && !context.malformed && !parseNamespaceLocation(location.search),
   )
   let target: string | null = null
-  if (!conflict && !context.malformed && (synchronizeSpace || synchronizeRef)) {
+  if (
+    !conflict &&
+    !context.malformed &&
+    (synchronizeSpace || synchronizeRef || context.clearProjectScope)
+  ) {
     const next = new URLSearchParams(location.search)
     if (synchronizeSpace && space) next.set('space', space)
     if (context.all) next.set('project_scope', 'all')
+    if (context.clearProjectScope) {
+      next.delete('task_id')
+      next.delete('tracker_instance_id')
+    }
     target = withNamespaceLocation(location.pathname + '?' + next + location.hash, context.ref)
   }
   useEffect(() => {
@@ -50,5 +58,42 @@ export function ProjectBoundary({ children }: { children: ReactNode }) {
     return <p role="status">Разрешаем пространство проекта…</p>
   if ((scoped || document || explicitSpace) && context.query.isError)
     return <p role="alert">Пространство проекта недоступно. Другое пространство не выбрано.</p>
+  if (location.pathname === '/documents/new' && context.query.data?.status === 'archived')
+    return <p role="status">Архивное пространство доступно только для чтения.</p>
+  if (scoped && !space && context.choices.length > 1)
+    return (
+      <section className="max-w-xl space-y-3">
+        <h1 className="text-xl font-semibold">Выберите пространство проекта</h1>
+        <label htmlFor="project-space">Пространство</label>
+        <select
+          id="project-space"
+          value=""
+          className="min-h-10 w-full rounded-md border border-border bg-surface px-3"
+          onChange={(event) => {
+            const next = new URLSearchParams(location.search)
+            next.set('space', event.target.value)
+            navigate(location.pathname + '?' + next + location.hash)
+          }}
+        >
+          <option value="" disabled>
+            Выберите пространство
+          </option>
+          {context.choices.map((choice) => (
+            <option
+              key={choice.id}
+              value={choice.key}
+              disabled={
+                choice.resource_status !== 'connected' ||
+                (location.pathname === '/documents/new' && choice.status === 'archived')
+              }
+            >
+              {choice.name} · {choice.key}
+              {choice.resource_status !== 'connected' ? ' · Недоступно' : ''}
+              {choice.status === 'archived' ? ' · В архиве' : ''}
+            </option>
+          ))}
+        </select>
+      </section>
+    )
   return children
 }

@@ -241,3 +241,32 @@ Replay защищённых upload requests с одинаковым key срав
 ## Сквозной Namespace
 
 Версионированные API, данные, ownership и совместимость описаны в [Namespace](NAMESPACE.md).
+
+## Проекты пространства
+
+- `GET /api/v1/spaces/{space_key}/projects` → `SpaceProjectsResponse`:
+  собственное пространство (`id/key/name/status/resource_status`) и коллекция
+  проектов (`namespace/name/project_key/state/available`). Требуется Space View;
+  локальному пользователю без доступа к внешнему каталогу не выдаются имена проектов.
+- `PUT /api/v1/spaces/{space_key}/projects/{registry}/{namespace}` → 204:
+  добавить связь. Space Admin и право каталога; новый проект должен быть известным,
+  active и подтверждённым свежим снимком. Повтор не создаёт записи/аудит.
+- `DELETE` по тому же пути → 204: удалить только связь. Space Admin;
+  операция сохраняет документы и работает при недоступных метаданных проекта.
+- `GET /api/v1/documents/{id}/space-context` → `SpaceProjectsResponse`:
+  пространство документа и его проекты после проверки доступа.
+
+`WorkspaceProject.spaces` — авторитетная коллекция доступных пространств проекта.
+Недоступные по ACL пространства не раскрывают identity, name или key.
+Optional `binding/space_key` и старые `namespace-context` endpoints описывают
+первичный provisioning receipt и не используются новым UI для выбора пространства.
+
+`available-tasks` принимает пару `registry_instance_id/namespace_id` в query;
+`LinkTaskRevision` принимает optional `namespace`. Отсутствие пары допустимо только
+при единственной связи пространства; несколько/ноль связей дают 409
+`select_space_project`. Неполная query-пара — 400, несвязанный проект — 400.
+Связь задачи с ревизией сохраняет actual NamespaceRef после отвязки.
+
+Каталог задач и создание новой верифицированной TaskRef-связи требуют Space Edit
+и отдельного доступа к проектному каталогу. Локальная роль в Wiki не выдаёт
+доступ к данным Tracker. Чтение исторических ссылок сохраняет Space View gate.

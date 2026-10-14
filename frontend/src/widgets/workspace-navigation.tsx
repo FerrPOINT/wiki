@@ -3,7 +3,13 @@ import { useLocation } from 'react-router'
 import { ChevronRight, FileCheck2, FileText, LayoutDashboard } from 'lucide-react'
 import { Button, NamespaceNavLink, ProjectNavigationGroup, SidebarItem } from '@sdlc/ui/ui'
 import { projectIdentity, withNamespaceLocation, type useProjectDisclosures } from '@sdlc/ui/lib'
-import { documentPath, useWorkspaceCatalog, workspacePath, type Workspace } from '@/api/workspaces'
+import {
+  documentPath,
+  useWorkspaceCatalog,
+  workspacePath,
+  type Workspace,
+  type WorkspaceSpace,
+} from '@/api/workspaces'
 import { useSpaceTree } from '@/shared/api/hooks'
 import type { components } from '@/api/generated'
 import { useNamespaceContext } from './namespace-context'
@@ -109,6 +115,7 @@ function DocumentNodes({
 }
 function DocumentTree({
   project,
+  space,
   documents,
   open,
   all,
@@ -116,16 +123,15 @@ function DocumentTree({
 }: {
   project: Workspace
   documents: Documents
+  space: WorkspaceSpace
   open: boolean
   all: boolean
   onNavigate?: () => void
 }) {
   const location = useLocation(),
-    tree = useSpaceTree(project.space_key ?? '', open)
+    tree = useSpaceTree(space.key, open)
   const current = location.pathname.match(/^\/documents\/([^/]+)/)?.[1] ?? ''
-  const prefix = project.binding
-    ? `${project.binding.resource.instance_id}/${project.binding.resource.resource_id}`
-    : ''
+  const prefix = space.id
   if (!open) return null
   if (tree.isPending)
     return (
@@ -197,12 +203,6 @@ export function WorkspaceNavigation({
         const id = `${project.tracker.instance_id}/${project.tracker.resource_id}`
         const active =
           !!context.ref && projectIdentity(context.ref) === projectIdentity(project.namespace)
-        const prefix = project.binding
-          ? `${project.binding.resource.instance_id}/${project.binding.resource.resource_id}`
-          : ''
-        const treeKey = prefix + '/documents',
-          treeOpen =
-            documents.values[treeKey] ?? (active && location.pathname.includes('/documents'))
         return (
           <ProjectNavigationGroup
             key={id}
@@ -237,27 +237,57 @@ export function WorkspaceNavigation({
                           <span className="base-sidebar-item-label">{label}</span>
                         </NamespaceNavLink>
                       </SidebarItem>
-                      {section === 'documents' && !compact && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`Дерево документов: ${project.name} · ${project.project_key}`}
-                          aria-expanded={treeOpen}
-                          onClick={() => documents.toggle(treeKey, treeOpen)}
-                        >
-                          <ChevronRight className={treeOpen ? 'rotate-90' : ''} aria-hidden />
-                        </Button>
-                      )}
                     </div>
-                    {section === 'documents' && !compact && !disclosures.collapsed.includes(id) && (
-                      <DocumentTree
-                        project={project}
-                        documents={documents}
-                        open={treeOpen}
-                        all={context.all}
-                        onNavigate={onNavigate}
-                      />
-                    )}
+                    {section === 'documents' &&
+                      !compact &&
+                      !disclosures.collapsed.includes(id) &&
+                      project.spaces
+                        .filter((space) => space.resource_status === 'connected')
+                        .map((space) => {
+                          const key = space.id + '/documents'
+                          const open =
+                            documents.values[key] ??
+                            (active &&
+                              new URLSearchParams(location.search).get('space') === space.key)
+                          return (
+                            <div key={space.id} className="ml-3">
+                              <div className="flex min-w-0 items-center">
+                                <SidebarItem asChild>
+                                  <NamespaceNavLink
+                                    to={withNamespaceLocation(
+                                      workspacePath(project.namespace, 'documents') +
+                                        '?space=' +
+                                        encodeURIComponent(space.key),
+                                      project.namespace,
+                                    )}
+                                    onClick={onNavigate}
+                                    title={space.name}
+                                  >
+                                    <FileText aria-hidden />
+                                    <span className="base-sidebar-item-label truncate">
+                                      {space.name}
+                                    </span>
+                                  </NamespaceNavLink>
+                                </SidebarItem>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  aria-label={`Дерево документов: ${space.name} · ${space.key}`}
+                                  aria-expanded={open}
+                                  onClick={() => documents.toggle(key, open)}
+                                >
+                                  <ChevronRight className={open ? 'rotate-90' : ''} aria-hidden />
+                                </Button>
+                              </div>
+                              <DocumentTree
+                                {...{ project, space, documents }}
+                                open={open}
+                                all={context.all}
+                                onNavigate={onNavigate}
+                              />
+                            </div>
+                          )
+                        })}
                   </div>
                 )
               })}
