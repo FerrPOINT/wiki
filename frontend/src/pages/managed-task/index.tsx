@@ -1,3 +1,4 @@
+import { ResourceList, ResourceListRow } from '@sdlc/ui/ui'
 import type { components } from '@/api/generated'
 import { useLocation, useParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
@@ -56,24 +57,30 @@ export function ManagedTaskPage() {
           Открыть задачу в Tracker
         </a>
       )}
-      <ul className="space-y-3">
-        {query.data.map((link) => (
-          <li key={link.revision_id}>
-            <Link
-              className="text-accent"
-              to={withNamespaceLocation(
-                `/documents/${link.document_id}/revisions/${link.revision_id}`,
-                ref,
-              )}
-            >
-              {link.title} · ревизия {link.version}
-            </Link>
-          </li>
-        ))}
-        {query.data.length === 0 && (
-          <li className="text-text-muted">Сохранённых связей с ревизиями пока нет.</li>
-        )}
-      </ul>
+      <ResourceList asChild>
+        <ul>
+          {query.data.map((link) => (
+            <ResourceListRow asChild key={link.revision_id}>
+              <li>
+                <Link
+                  className="text-accent"
+                  to={withNamespaceLocation(
+                    `/documents/${link.document_id}/revisions/${link.revision_id}`,
+                    ref,
+                  )}
+                >
+                  {link.title} · ревизия {link.version}
+                </Link>
+              </li>
+            </ResourceListRow>
+          ))}
+          {query.data.length === 0 && (
+            <ResourceListRow asChild>
+              <li className="text-text-muted">Сохранённых связей с ревизиями пока нет.</li>
+            </ResourceListRow>
+          )}
+        </ul>
+      </ResourceList>
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import { useProjectRouteRef } from '@/widgets/namespace-context'
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { NamespaceLink as Link } from '@sdlc/ui/ui'
+import { NamespaceLink as Link, ResourceList, ResourceListRow } from '@sdlc/ui/ui'
 import { useSearchParams } from 'react-router'
 import {
   CheckCircle2,
@@ -704,33 +704,37 @@ export function EvidencePage() {
           )}
           {!evidenceQuery.isLoading && !evidenceQuery.isError && items.length > 0 && (
             <>
-              <ul className="divide-y divide-border xl:hidden" aria-label="Материалы">
-                {items.map((item) => (
-                  <li key={item.id} className="min-w-0 py-3 first:pt-0 last:pb-0">
-                    <div className="flex min-w-0 items-start justify-between gap-2">
-                      <EvidenceTitle item={item} onSelect={selectEvidence} />
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        className="h-10 w-10 shrink-0 sm:min-h-10 sm:min-w-10"
-                        aria-label={`Открыть материал ${item.title}`}
-                        title="Открыть материал"
-                        onClick={() => selectEvidence(item.id)}
-                      >
-                        <Info className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <div className="mt-1 text-xs text-text-muted">
-                      {item.space_key} · {formatEvidenceType(item.evidence_type)} ·{' '}
-                      {formatDateTime(item.created_at)}
-                    </div>
-                    <div className="mt-2">
-                      <EvidenceTargetLinks item={item} />
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <ResourceList asChild>
+                <ul className="xl:hidden" aria-label="Материалы">
+                  {items.map((item) => (
+                    <ResourceListRow asChild key={item.id}>
+                      <li className="min-w-0">
+                        <div className="flex min-w-0 items-start justify-between gap-2">
+                          <EvidenceTitle item={item} onSelect={selectEvidence} />
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="h-10 w-10 shrink-0 sm:min-h-10 sm:min-w-10"
+                            aria-label={`Открыть материал ${item.title}`}
+                            title="Открыть материал"
+                            onClick={() => selectEvidence(item.id)}
+                          >
+                            <Info className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div className="mt-1 text-xs text-text-muted">
+                          {item.space_key} · {formatEvidenceType(item.evidence_type)} ·{' '}
+                          {formatDateTime(item.created_at)}
+                        </div>
+                        <div className="mt-2">
+                          <EvidenceTargetLinks item={item} />
+                        </div>
+                      </li>
+                    </ResourceListRow>
+                  ))}
+                </ul>
+              </ResourceList>
               <div className="hidden xl:block">
                 <Table className="table-fixed">
                   <TableHeader>

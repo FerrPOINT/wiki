@@ -23,7 +23,14 @@ import {
   useUpdateSpace,
   useUsers,
 } from '@/shared/api/hooks'
-import { ConfirmDialog, EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
+import {
+  ConfirmDialog,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  ResourceList,
+  ResourceListRow,
+} from '@sdlc/ui/ui'
 import { Button } from '@sdlc/ui/ui'
 import { Input } from '@sdlc/ui/ui'
 import { Label } from '@sdlc/ui/ui'
@@ -470,63 +477,69 @@ export function SpacesPage() {
               По заданным условиям пространства не найдены.
             </p>
           ) : (
-            <ul className="divide-y divide-border border-y border-border">
-              {visibleSpaces.map((space) => {
-                const expanded = expandedKey === space.key
-                const owner = users.find((user) => user.id === space.owner_id)
-                return (
-                  <li key={space.key}>
-                    <button
-                      ref={expanded ? expandedSpaceRef : undefined}
-                      type="button"
-                      aria-expanded={expanded}
-                      aria-controls={`space-details-${space.key}`}
-                      onClick={() => setExpandedKey(expanded ? null : space.key)}
-                      className="flex min-h-16 w-full min-w-0 items-start gap-3 py-2 text-left transition-colors hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
-                    >
-                      <FolderOpen className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
-                      <span className="min-w-0 flex-1 space-y-1">
-                        <span className="flex min-w-0 items-center gap-2">
-                          <span className="truncate text-sm font-semibold">{space.name}</span>
-                          <span className="shrink-0 text-xs text-text-muted">{space.key}</span>
-                          {space.status === 'archived' && (
-                            <span className="shrink-0 text-xs text-warning">
-                              {statusLabel(space.status)}
+            <ResourceList asChild>
+              <ul>
+                {visibleSpaces.map((space) => {
+                  const expanded = expandedKey === space.key
+                  const owner = users.find((user) => user.id === space.owner_id)
+                  return (
+                    <li key={space.key}>
+                      <ResourceListRow asChild interactive>
+                        <button
+                          ref={expanded ? expandedSpaceRef : undefined}
+                          type="button"
+                          aria-expanded={expanded}
+                          aria-controls={`space-details-${space.key}`}
+                          onClick={() => setExpandedKey(expanded ? null : space.key)}
+                          className="flex w-full min-w-0 items-start gap-3 text-left transition-colors"
+                        >
+                          <FolderOpen className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
+                          <span className="min-w-0 flex-1 space-y-1">
+                            <span className="flex min-w-0 items-center gap-2">
+                              <span className="truncate text-sm font-semibold">{space.name}</span>
+                              <span className="shrink-0 text-xs text-text-muted">{space.key}</span>
+                              {space.status === 'archived' && (
+                                <span className="shrink-0 text-xs text-warning">
+                                  {statusLabel(space.status)}
+                                </span>
+                              )}
                             </span>
-                          )}
-                        </span>
-                        <span className="block truncate text-xs text-text-secondary">
-                          {shortText(space.description)}
-                        </span>
-                        <span className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-muted">
-                          <span className="inline-flex items-center gap-1">
-                            <FileText className="h-3.5 w-3.5" aria-hidden />
-                            {space.document_count} документов
+                            <span className="block truncate text-xs text-text-secondary">
+                              {shortText(space.description)}
+                            </span>
+                            <span className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-muted">
+                              <span className="inline-flex items-center gap-1">
+                                <FileText className="h-3.5 w-3.5" aria-hidden />
+                                {space.document_count} документов
+                              </span>
+                              {owner && (
+                                <span>Владелец: {owner.display_name ?? owner.username}</span>
+                              )}
+                              <span>Обновлено {formatDateTime(space.updated_at)}</span>
+                            </span>
                           </span>
-                          {owner && <span>Владелец: {owner.display_name ?? owner.username}</span>}
-                          <span>Обновлено {formatDateTime(space.updated_at)}</span>
-                        </span>
-                      </span>
-                      <ChevronDown
-                        className={`mt-1 h-4 w-4 shrink-0 text-text-muted transition-transform ${expanded ? 'rotate-180' : ''}`}
-                        aria-hidden
-                      />
-                    </button>
-                    {expanded && (
-                      <div id={`space-details-${space.key}`}>
-                        <SpaceDetails
-                          currentUserId={currentUserQuery.data?.id}
-                          fallbackFocusRef={expandedSpaceRef}
-                          isSystemAdmin={isSystemAdmin}
-                          onArchived={handleArchived}
-                          space={space}
-                        />
-                      </div>
-                    )}
-                  </li>
-                )
-              })}
-            </ul>
+                          <ChevronDown
+                            className={`mt-1 h-4 w-4 shrink-0 text-text-muted transition-transform ${expanded ? 'rotate-180' : ''}`}
+                            aria-hidden
+                          />
+                        </button>
+                      </ResourceListRow>
+                      {expanded && (
+                        <div id={`space-details-${space.key}`}>
+                          <SpaceDetails
+                            currentUserId={currentUserQuery.data?.id}
+                            fallbackFocusRef={expandedSpaceRef}
+                            isSystemAdmin={isSystemAdmin}
+                            onArchived={handleArchived}
+                            space={space}
+                          />
+                        </div>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            </ResourceList>
           )}
           {filteredSpaces.length > 12 && (
             <nav aria-label="Страницы пространств" className="flex items-center justify-end gap-2">
