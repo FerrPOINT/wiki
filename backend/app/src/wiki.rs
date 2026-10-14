@@ -633,6 +633,7 @@ pub struct WikiPublishDocumentCommand {
     pub document_id: Uuid,
     pub revision_id: Uuid,
     pub base_revision_id: Option<Uuid>,
+    pub expected_draft_checksum: Option<String>,
     pub summary: Option<String>,
 }
 
@@ -778,6 +779,7 @@ impl<'a, R: WikiDocumentRepository + ?Sized> WikiDocumentUseCase<'a, R> {
                 .as_deref()
                 .map(|value| parse_request_uuid(value, "revision"))
                 .transpose()?,
+            expected_draft_checksum: body.expected_draft_checksum,
             summary: body.summary,
         };
         self.repository.publish_document(actor_id, command).await
@@ -2146,6 +2148,28 @@ pub fn checksum(bytes: &[u8]) -> String {
     format!("sha256:{}", hex::encode(Sha256::digest(bytes)))
 }
 
+pub fn document_draft_checksum(title: &str, markdown: &str) -> String {
+    let mut digest = Sha256::new();
+    for value in [title, markdown] {
+        digest.update((value.len() as u64).to_be_bytes());
+        digest.update(value.as_bytes());
+    }
+    format!("sha256:{}", hex::encode(digest.finalize()))
+}
+
+pub fn ensure_draft_checksum(
+    expected: Option<&str>,
+    title: &str,
+    markdown: &str,
+) -> Result<(), AppError> {
+    if expected.is_some_and(|value| value != document_draft_checksum(title, markdown)) {
+        return Err(AppError::conflict(
+            "document draft changed before publication",
+        ));
+    }
+    Ok(())
+}
+
 pub fn hash_token(token: &str) -> String {
     hex::encode(Sha256::digest(token.as_bytes()))
 }
@@ -3310,6 +3334,7 @@ mod tests {
                 .map(|revision| revision.body_html.clone())
                 .unwrap_or_default(),
             draft_markdown: "# Draft".to_string(),
+            draft_checksum: Some(document_draft_checksum(title, "# Draft")),
             current_revision,
             task_keys: vec!["SDLC-42".to_string()],
             phase_keys: vec!["implementation".to_string()],
@@ -4072,6 +4097,7 @@ mod tests {
                 document_id,
                 shared::PublishDocumentRequest {
                     base_revision_id: Some(base_revision_id.to_string()),
+                    expected_draft_checksum: None,
                     summary: Some(" Publish summary ".to_string()),
                 },
             )
