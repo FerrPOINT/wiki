@@ -127,7 +127,7 @@ export function DocumentPage() {
   useEffect(() => {
     if (!document || loadedDocumentId === document.id) return
     setDraftTitle(document.title)
-    setDraftBody(document.draft_markdown || document.body_markdown)
+    setDraftBody(document.draft_markdown)
     setParentId(document.parent_id ?? '')
     setPublishSummary('')
     setStatusMessage('')
@@ -170,8 +170,7 @@ export function DocumentPage() {
   const draftChanged =
     canEdit &&
     loadedDocumentId === document.id &&
-    (draftTitle !== document.title ||
-      draftBody !== (document.draft_markdown || document.body_markdown))
+    (draftTitle !== document.title || draftBody !== document.draft_markdown)
   const currentParentId = document.parent_id ?? null
   const nextParentId = optional(parentId)
   const parentChanged = nextParentId !== currentParentId
@@ -201,7 +200,7 @@ export function DocumentPage() {
       {
         onSuccess: (updated) => {
           setDraftTitle(updated.title)
-          setDraftBody(updated.draft_markdown || updated.body_markdown)
+          setDraftBody(updated.draft_markdown)
           setStatusMessage('Черновик сохранён')
         },
       },
@@ -516,7 +515,6 @@ export function DocumentPage() {
                       aria-label="Markdown черновика"
                       value={draftBody}
                       onChange={(event) => setDraftBody(event.target.value)}
-                      required
                     />
                   </div>
                   <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto]">

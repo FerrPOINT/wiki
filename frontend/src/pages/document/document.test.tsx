@@ -159,6 +159,36 @@ function setupDocument(document: Document = baseDocument, revisionHistory?: Docu
 }
 
 describe('DocumentPage', () => {
+  it('shows an explicitly empty saved draft without restoring published content', () => {
+    setupDocument({ ...baseDocument, draft_markdown: '' })
+    fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
+    expect(screen.getByLabelText('Markdown черновика')).toHaveValue('')
+    expect(screen.getByRole('button', { name: 'Опубликовать' })).toBeDisabled()
+    expect(screen.queryByText('Несохранённые изменения в черновике')).not.toBeInTheDocument()
+  })
+
+  it('allows saving an empty draft while keeping publication disabled', async () => {
+    setupDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
+    const editor = screen.getByLabelText('Markdown черновика')
+    fireEvent.change(editor, { target: { value: '' } })
+    expect(editor).toBeValid()
+    await userEvent.click(screen.getByRole('button', { name: 'Сохранить' }))
+    expect(updateDraftMutate).toHaveBeenCalledWith(
+      {
+        documentId: baseDocument.id,
+        body: { title: baseDocument.title, content_markdown: '' },
+      },
+      expect.any(Object),
+    )
+    act(() =>
+      updateDraftMutate.mock.calls[0]![1].onSuccess({ ...baseDocument, draft_markdown: '' }),
+    )
+    expect(editor).toHaveValue('')
+    expect(screen.getByRole('button', { name: 'Опубликовать' })).toBeDisabled()
+    expect(screen.getByText('Черновик сохранён')).toBeVisible()
+  })
+
   it('returns focus to the document heading after archive makes it read-only', async () => {
     const user = userEvent.setup()
     setupDocument()

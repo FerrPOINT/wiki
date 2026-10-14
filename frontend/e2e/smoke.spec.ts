@@ -992,6 +992,22 @@ test.describe('wiki smoke', () => {
     )
   })
 
+  test('saves and reloads an empty draft without restoring the publication', async ({ page }) => {
+    const apiMocks = await installWikiApiMocks(page)
+    await gotoWiki(page, '/documents/product-requirements')
+    await page.getByRole('button', { name: 'Правка' }).click()
+    await page.getByLabel('Markdown черновика').fill('')
+    await expect(page.getByRole('button', { name: 'Опубликовать', exact: true })).toBeDisabled()
+    await page.getByRole('button', { name: 'Сохранить', exact: true }).click()
+    await expect(page.getByText('Черновик сохранён')).toBeVisible()
+    expect(apiMocks.documentDraftRequests.at(-1)?.content_markdown).toBe('')
+    await expect(page.getByLabel('Markdown черновика')).toHaveValue('')
+    await page.reload()
+    await page.getByRole('button', { name: 'Правка' }).click()
+    await expect(page.getByLabel('Markdown черновика')).toHaveValue('')
+    await expect(page.getByRole('button', { name: 'Опубликовать', exact: true })).toBeDisabled()
+  })
+
   test('blocks a foreign post-save draft readback without losing local input', async ({
     page,
     browserName,
