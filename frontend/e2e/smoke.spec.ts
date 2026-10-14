@@ -612,6 +612,71 @@ async function gotoWiki(page: Page, path = '/') {
 }
 
 test.describe('wiki smoke', () => {
+  test('preserves draft destination across catalogue refresh and requires an explicit replacement', async ({
+    page,
+  }, testInfo) => {
+    await installWikiApiMocks(page)
+    const engineering = {
+      id: 'space-eng',
+      key: 'ENG',
+      name: 'Engineering',
+      description: '',
+      owner_id: user.id,
+      status: 'active',
+      document_count: 0,
+      member_count: 1,
+      created_at: now,
+      updated_at: now,
+    }
+    const base = { ...engineering, id: 'space-base', key: 'BASE', name: 'Base' }
+    let spaces = [engineering]
+    await page.route('**/api/v1/spaces', (route) => routeJson(route, { spaces }))
+    await gotoWiki(page, '/documents/new')
+    await expect(
+      page.getByRole('button', { name: 'Пространство: Engineering (ENG)' }),
+    ).toBeVisible()
+    await page.getByLabel('Название').fill('Engineering draft')
+    await page.getByLabel('Markdown документа').fill('# Keep this draft')
+
+    async function refreshCatalogue() {
+      const response = page.waitForResponse(
+        (response) => new URL(response.url()).pathname === '/api/v1/spaces',
+      )
+      await page.evaluate(() => {
+        Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
+        window.dispatchEvent(new Event('visibilitychange'))
+        Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+        window.dispatchEvent(new Event('visibilitychange'))
+      })
+      await response
+    }
+    spaces = [base, engineering]
+    await refreshCatalogue()
+    await expect(
+      page.getByRole('button', { name: 'Пространство: Engineering (ENG)' }),
+    ).toBeVisible()
+
+    spaces = [base]
+    await refreshCatalogue()
+    await expect(page.getByRole('button', { name: 'Сохранить черновик' })).toBeDisabled()
+    await expect(
+      page.getByText('Выбранное пространство недоступно. Выберите доступное пространство.'),
+    ).toBeVisible()
+    await expect(page.getByLabel('Название')).toHaveValue('Engineering draft')
+    await expect(page.getByLabel('Markdown документа')).toHaveValue('# Keep this draft')
+    for (const width of [375, 1920, 2560]) {
+      await page.setViewportSize({ width, height: width === 375 ? 812 : 1080 })
+      await page.screenshot({
+        path: testInfo.outputPath(`space-refresh-${width}.png`),
+        fullPage: true,
+      })
+    }
+    await page.getByRole('button', { name: /^Пространство:/ }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Base (BASE)' }).click()
+    await expect(page.getByRole('button', { name: 'Сохранить черновик' })).toBeEnabled()
+    await expect(page.getByLabel('Markdown документа')).toHaveValue('# Keep this draft')
+  })
+
   test('uses the shared work-area geometry across semantic page modes', async ({
     page,
   }, testInfo) => {
@@ -773,14 +838,14 @@ test.describe('wiki smoke', () => {
     await expect(dialog).toContainText('Несохранённые изменения будут потеряны')
     await expect(page).toHaveURL(`${baseURL}/documents/new`)
 
-    await dialog.getByRole('button', { name: 'Отмена' }).click()
+    await dialog.getByRole('button', { name: 'Остаться' }).click()
     await expect(dialog).toBeHidden()
     await expect(page).toHaveURL(`${baseURL}/documents/new`)
     await expect(page.getByLabel('Markdown документа')).toHaveValue(markdown)
     expect(documentWrites).toEqual([])
 
     await page.getByRole('link', { name: 'Пространства', exact: true }).click()
-    await dialog.getByRole('button', { name: 'Подтвердить' }).click()
+    await dialog.getByRole('button', { name: 'Покинуть' }).click()
     await expect(page).toHaveURL(`${baseURL}/spaces`)
   })
 
