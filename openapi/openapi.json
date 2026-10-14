@@ -729,6 +729,40 @@
         }
       }
     },
+    "/api/v1/documents/{id}/space-context": {
+      "get": {
+        "tags": [
+          "spaces"
+        ],
+        "operationId": "wiki_document_space_context",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceProjectsResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Space access denied"
+          }
+        }
+      }
+    },
     "/api/v1/evidence": {
       "get": {
         "tags": [
@@ -1675,6 +1709,30 @@
             }
           },
           {
+            "name": "registry_instance_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "namespace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
+            }
+          },
+          {
             "name": "offset",
             "in": "query",
             "required": false,
@@ -2254,6 +2312,128 @@
             "bearer": []
           }
         ]
+      }
+    },
+    "/api/v1/spaces/{space_key}/projects": {
+      "get": {
+        "tags": [
+          "spaces"
+        ],
+        "operationId": "wiki_space_projects",
+        "parameters": [
+          {
+            "name": "space_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceProjectsResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Space or project catalog access denied"
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{space_key}/projects/{registry}/{namespace}": {
+      "put": {
+        "tags": [
+          "spaces"
+        ],
+        "operationId": "wiki_link_space_project",
+        "parameters": [
+          {
+            "name": "space_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "registry",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Project associated with space; repeated link is a no-op"
+          },
+          "403": {
+            "description": "Space management denied"
+          },
+          "409": {
+            "description": "Archived project"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "spaces"
+        ],
+        "operationId": "wiki_unlink_space_project",
+        "parameters": [
+          {
+            "name": "space_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "registry",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Association removed; space and documents preserved"
+          },
+          "403": {
+            "description": "Space management denied"
+          }
+        }
       }
     },
     "/api/v1/spaces/{space_key}/task-summaries": {
@@ -3444,6 +3624,16 @@
             "type": "string",
             "format": "uuid"
           },
+          "namespace": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/NamespaceRef"
+              }
+            ]
+          },
           "revision_id": {
             "type": "string",
             "format": "uuid"
@@ -3899,6 +4089,57 @@
           },
           "user_id": {
             "type": "string"
+          }
+        }
+      },
+      "SpaceProject": {
+        "type": "object",
+        "required": [
+          "namespace",
+          "available"
+        ],
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "namespace": {
+            "$ref": "#/components/schemas/NamespaceRef"
+          },
+          "project_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "SpaceProjectsResponse": {
+        "type": "object",
+        "required": [
+          "space",
+          "projects"
+        ],
+        "properties": {
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpaceProject"
+            }
+          },
+          "space": {
+            "$ref": "#/components/schemas/WorkspaceSpace"
           }
         }
       },
@@ -4568,7 +4809,8 @@
           "state",
           "observed_at",
           "stale",
-          "resource_status"
+          "resource_status",
+          "spaces"
         ],
         "properties": {
           "binding": {
@@ -4606,6 +4848,12 @@
               "null"
             ]
           },
+          "spaces": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceSpace"
+            }
+          },
           "stale": {
             "type": "boolean"
           },
@@ -4633,6 +4881,35 @@
           "total": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "WorkspaceSpace": {
+        "type": "object",
+        "description": "The same Wiki space can appear in several project collections without copies.",
+        "required": [
+          "id",
+          "key",
+          "name",
+          "status",
+          "resource_status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "resource_status": {
+            "$ref": "#/components/schemas/ProjectResourceStatus"
+          },
+          "status": {
+            "type": "string"
           }
         }
       }

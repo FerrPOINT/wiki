@@ -286,3 +286,14 @@ CLI real_api использует production handlers и изолированн�
 Установка, platform requirements, source/checksum и ограничения локального candidate: [CLI_INSTALL.md](CLI_INSTALL.md).
 
 Текущие Linux/WSL candidates и установка: [CLI_INSTALL.md](CLI_INSTALL.md). Проверки против образов с PostgreSQL, границы fixture execution и блокеры обновления sdlc1: [CLI_VALIDATION.md](CLI_VALIDATION.md). Перед использованием с рабочим стендом требуется подтверждённая совместимость его backend и применённых миграций.
+
+## Проекты пространства
+
+```sh
+wiki space projects SPACE
+wiki space project-link SPACE --registry REGISTRY_UUID --project NAMESPACE_UUID
+wiki space project-unlink SPACE --registry REGISTRY_UUID --project NAMESPACE_UUID
+```
+
+Команды используют тот же human API и Space Admin gate; отвязка сохраняет
+пространство и его документы. Повтор добавления не создаёт дубликатов.

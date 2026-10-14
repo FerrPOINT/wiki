@@ -141,6 +141,7 @@ export function DocumentPage() {
     return <LoadingState message="Проверяем привязку Wiki" />
   if (
     namespace.malformed ||
+    namespace.conflict ||
     (namespace.ref &&
       (namespace.query.isError ||
         (document && namespace.query.data?.resource_key !== document.space_key)))
@@ -160,7 +161,7 @@ export function DocumentPage() {
   const canEdit =
     document.can_edit &&
     !isArchived &&
-    (!namespace.ref || namespace.query.data?.binding.state === 'active')
+    (!namespace.ref || namespace.query.data?.status === 'active')
   const publishedHtml = document.body_html || document.current_revision?.body_html || ''
   const currentMode = loadedDocumentId === document.id ? selectedMode : null
   const isEditing = canEdit && (currentMode ?? (publishedHtml.trim() ? 'read' : 'edit')) === 'edit'

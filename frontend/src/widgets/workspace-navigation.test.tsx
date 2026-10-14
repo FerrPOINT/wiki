@@ -23,6 +23,15 @@ const projects = [1, 2].map((n) => ({
   observed_at: '2026-10-12T00:00:00Z',
   resource_status: 'connected',
   space_key: `WIKI${n}`,
+  spaces: [
+    {
+      id: id(n + 10),
+      key: `WIKI${n}`,
+      name: `Пространство ${n}`,
+      status: 'active',
+      resource_status: 'connected',
+    },
+  ],
   binding: {
     schema_version: 1,
     namespace: { registry_instance_id: registry, namespace_id: id(n) },
@@ -89,12 +98,22 @@ beforeEach(() => {
       return { items: projects, total: projects.length }
     const project = projects.find(
       (p) =>
-        path.endsWith(p.namespace.namespace_id) ||
-        path.includes(`/spaces/${p.space_key}/namespace-context`),
+        path.endsWith(p.namespace.namespace_id) || path.includes(`/spaces/${p.space_key}/projects`),
     )
     if (project)
       return path.includes('/namespace-contexts/') || path.includes('/spaces/')
-        ? { binding: project.binding, label: project.name, resource_key: project.space_key }
+        ? {
+            space: project.spaces[0],
+            projects: projects
+              .filter((p) => p.spaces.some((space) => space.key === project.space_key))
+              .map((p) => ({
+                namespace: p.namespace,
+                name: p.name,
+                project_key: p.project_key,
+                state: p.state,
+                available: true,
+              })),
+          }
         : project
     throw new Error('Unexpected request ' + path)
   })
@@ -107,8 +126,8 @@ afterEach(() => {
 describe('Wiki project navigation', () => {
   it('resolves an explicit legacy space link without inheriting the previously open project', async () => {
     mount('/tasks?space=WIKI2')
-    await waitFor(() => expect(screen.getByLabelText('Content URL')).toHaveTextContent(id(2)))
-    expect(screen.getByLabelText('Content URL')).toHaveTextContent('project_scope=all')
+    await screen.findByLabelText('Content URL')
+    expect(screen.getByLabelText('Content URL')).not.toHaveTextContent('namespace_id')
     expect(screen.getByLabelText('Content URL')).toHaveTextContent('space=WIKI2')
   })
   it('keeps all groups and uses canonical project identity after section navigation', async () => {
@@ -134,7 +153,7 @@ describe('Wiki project navigation', () => {
     await screen.findByRole('region', { name: 'Одинаковый проект · A' })
     expect(requests.filter((path) => path.includes('/tree'))).toHaveLength(0)
     await user.click(
-      screen.getByRole('button', { name: 'Дерево документов: Одинаковый проект · A' }),
+      screen.getByRole('button', { name: 'Дерево документов: Пространство 1 · WIKI1' }),
     )
     await screen.findByRole('link', { name: 'Документ' })
     expect(requests.filter((path) => path.includes('/tree'))).toEqual(['/api/v1/spaces/WIKI1/tree'])
@@ -149,13 +168,82 @@ describe('Wiki project navigation', () => {
   })
   it('keeps a project without Wiki visible without offering foreign content', async () => {
     vi.mocked(apiRequest).mockResolvedValue({
-      items: [{ ...projects[1], binding: null, space_key: null, resource_status: 'not_connected' }],
+      items: [
+        {
+          ...projects[1],
+          spaces: [],
+          binding: null,
+          space_key: null,
+          resource_status: 'not_connected',
+        },
+      ],
       total: 1,
     })
     mount()
     await screen.findByRole('region', { name: 'Одинаковый проект · B' })
     expect(screen.getByText('Wiki не подключена')).toBeVisible()
     expect(screen.queryByRole('link', { name: 'Задачи' })).toBeNull()
+  })
+  it('requires an explicit space when the project has several and preserves that choice', async () => {
+    const base = vi.mocked(apiRequest).getMockImplementation()!
+    vi.mocked(apiRequest).mockImplementation(async (path, options) => {
+      if (path === `/api/v1/workspace-projects/${registry}/${id(1)}`)
+        return { ...projects[0], spaces: [...projects[0]!.spaces, ...projects[1]!.spaces] }
+      if (path === '/api/v1/spaces/WIKI2/projects')
+        return { space: projects[1]!.spaces[0], projects: [{ namespace: projects[0]!.namespace }] }
+      return base(path, options)
+    })
+    mount(`/workspaces/${registry}/${id(1)}/documents`)
+    expect(
+      await screen.findByRole('heading', { name: 'Выберите пространство проекта' }),
+    ).toBeVisible()
+    expect(screen.queryByLabelText('Content URL')).toBeNull()
+    expect(requests.filter((path) => path.includes('/tree'))).toHaveLength(0)
+    await userEvent.setup().selectOptions(screen.getByLabelText('Пространство'), 'WIKI2')
+    await waitFor(() =>
+      expect(screen.getByLabelText('Content URL')).toHaveTextContent('space=WIKI2'),
+    )
+    expect(screen.getByLabelText('Content URL')).toHaveTextContent(id(1))
+  })
+  it('does not select a neighboring healthy space when another association is unavailable', async () => {
+    const base = vi.mocked(apiRequest).getMockImplementation()!
+    vi.mocked(apiRequest).mockImplementation(async (path, options) =>
+      path === `/api/v1/workspace-projects/${registry}/${id(1)}`
+        ? {
+            ...projects[0],
+            spaces: [
+              ...projects[0]!.spaces,
+              { ...projects[1]!.spaces[0], resource_status: 'unavailable' },
+            ],
+          }
+        : base(path, options),
+    )
+    mount(`/workspaces/${registry}/${id(1)}/documents`)
+    await screen.findByRole('heading', { name: 'Выберите пространство проекта' })
+    expect(screen.queryByLabelText('Content URL')).toBeNull()
+    expect(
+      screen.getByRole('option', { name: 'Пространство 2 · WIKI2 · Недоступно' }),
+    ).toBeDisabled()
+    expect(requests.filter((path) => path.includes('/tree'))).toHaveLength(0)
+  })
+  it('opens the exact historical revision after project detach and clears its obsolete project context', async () => {
+    const base = vi.mocked(apiRequest).getMockImplementation()!
+    vi.mocked(apiRequest).mockImplementation(async (path, options) =>
+      path === `/api/v1/documents/${id(50)}/space-context`
+        ? { space: projects[0]!.spaces[0], projects: [] }
+        : base(path, options),
+    )
+    mount(
+      `/documents/${id(50)}/revisions/${id(60)}?registry_instance_id=${registry}&namespace_id=${id(1)}&task_id=${id(70)}&tracker_instance_id=${instance}`,
+    )
+    await waitFor(() =>
+      expect(screen.getByLabelText('Content URL')).toHaveTextContent('project_scope=all'),
+    )
+    const url = screen.getByLabelText('Content URL').textContent!
+    expect(url).toContain(`/documents/${id(50)}/revisions/${id(60)}`)
+    expect(url).not.toContain('namespace_id')
+    expect(url).not.toContain('task_id')
+    expect(requests.filter((path) => path.includes('/tree'))).toHaveLength(0)
   })
   it('reads beyond the first 100 projects for picker and navigation', async () => {
     const many = Array.from({ length: 101 }, (_, n) => ({

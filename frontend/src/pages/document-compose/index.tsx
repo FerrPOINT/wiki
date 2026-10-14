@@ -1,4 +1,5 @@
 import { useNamespaceContext } from '@/widgets/namespace-context'
+import { documentPath } from '@/api/workspaces'
 import { FormEvent, useEffect, useState } from 'react'
 import Markdown from 'react-markdown'
 import { NamespaceLink as Link } from '@sdlc/ui/ui'
@@ -67,8 +68,11 @@ export function DocumentComposePage() {
   )
   const canSave =
     !namespace.malformed &&
+    !namespace.conflict &&
     (namespace.ref
-      ? namespace.query.data?.binding.state === 'active'
+      ? !namespace.query.isPending &&
+        !namespace.query.isError &&
+        namespace.query.data?.status === 'active'
       : !spacesQuery.isLoading && !spacesQuery.isError && Boolean(selectedSpace))
   const spaceProblem = namespace.malformed
     ? 'Некорректная ссылка на пространство Namespace'
@@ -148,9 +152,7 @@ export function DocumentComposePage() {
       },
       {
         onSuccess: (document) =>
-          setCreatedDocumentPath(
-            `/documents/${document.id}?${new URLSearchParams([...searchParams].filter(([key]) => ['task_id', 'tracker_instance_id'].includes(key)))}`,
-          ),
+          setCreatedDocumentPath(documentPath(document.id, searchParams.toString())),
       },
     )
   }
@@ -259,10 +261,9 @@ export function DocumentComposePage() {
                     )
                   }
                 </FormField>
-                {namespace.ref &&
-                  (!namespace.query.data || namespace.query.data.binding.state !== 'active') && (
-                    <p role="status">Привязка пространства не подтверждена.</p>
-                  )}
+                {namespace.ref && !canSave && (
+                  <p role="status">Привязка пространства не подтверждена.</p>
+                )}
                 {!namespace.ref &&
                   !spacesQuery.isLoading &&
                   !spacesQuery.isError &&
