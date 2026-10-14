@@ -67,6 +67,7 @@ const baseDocument: Document = {
   current_revision: baseRevision,
   document_type: 'requirements',
   draft_markdown: '# Draft\n\nUpdated body',
+  draft_checksum: 'sha256:saved-draft',
   evidence: [
     {
       attachment_id: null,
@@ -501,9 +502,41 @@ describe('DocumentPage', () => {
       documentId: 'product-requirements',
       body: {
         base_revision_id: 'revision-2',
+        expected_draft_checksum: 'sha256:saved-draft',
         summary: 'Clarified scope',
       },
     })
+  })
+
+  it('retains input typed while a publication is in flight', async () => {
+    let finish!: (revision: DocumentRevision) => void
+    updateDraftMutateAsync.mockResolvedValueOnce(baseDocument)
+    publishMutateAsync.mockReturnValueOnce(
+      new Promise<DocumentRevision>((resolve) => {
+        finish = resolve
+      }),
+    )
+    setupDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Опубликовать' }))
+    await waitFor(() => expect(publishMutateAsync).toHaveBeenCalledOnce())
+    fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Next draft title' } })
+    fireEvent.change(screen.getByLabelText('Markdown черновика'), {
+      target: { value: '# Next draft' },
+    })
+    fireEvent.change(screen.getByLabelText('Комментарий к публикации'), {
+      target: { value: 'Next summary' },
+    })
+    await act(async () =>
+      finish({
+        ...baseRevision,
+        title: baseDocument.title,
+        body_markdown: baseDocument.draft_markdown,
+      }),
+    )
+    expect(screen.getByLabelText('Название')).toHaveValue('Next draft title')
+    expect(screen.getByLabelText('Markdown черновика')).toHaveValue('# Next draft')
+    expect(screen.getByLabelText('Комментарий к публикации')).toHaveValue('Next summary')
   })
 
   it('explains a stale publish conflict and preserves the local draft while reviewing', async () => {
@@ -541,13 +574,37 @@ describe('DocumentPage', () => {
     })
 
     expect(screen.getByRole('alert')).toHaveTextContent(
-      'Другой пользователь уже опубликовал новую ревизию. Ваш черновик сохранён.',
+      'Документ или черновик изменился. Ваш ввод сохранён.',
     )
     fireEvent.click(screen.getByRole('button', { name: 'Показать актуальную версию' }))
     expect(screen.getByText('Approved body')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
     expect(screen.getByLabelText('Markdown черновика')).toHaveValue('# Local draft')
   })
+
+  it.each(['foreign readback', 'missing checksum'])(
+    'blocks publication after %s and preserves input',
+    async (failure) => {
+      updateDraftMutateAsync.mockResolvedValueOnce({
+        ...baseDocument,
+        draft_markdown: failure === 'foreign readback' ? '# Another editor' : '# My draft',
+        draft_checksum: failure === 'missing checksum' ? undefined : 'sha256:foreign',
+      })
+      setupDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
+      fireEvent.change(screen.getByLabelText('Markdown черновика'), {
+        target: { value: '# My draft' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Опубликовать' }))
+      await waitFor(() =>
+        expect(screen.getByRole('alert')).toHaveTextContent(
+          'Не удалось подтвердить сохранённый черновик',
+        ),
+      )
+      expect(publishMutateAsync).not.toHaveBeenCalled()
+      expect(screen.getByLabelText('Markdown черновика')).toHaveValue('# My draft')
+    },
+  )
 
   it('keeps archived documents read-only in the editor and tree controls', () => {
     setupDocument({

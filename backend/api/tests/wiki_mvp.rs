@@ -5154,6 +5154,194 @@ async fn wiki_postgres_idempotency_replays_without_duplicate_writes_when_databas
     assert_eq!(audit_count, 1);
 }
 
+async fn assert_publication_checks_exact_draft(app: &axum::Router, token: &str) {
+    let (status, document) = call(app, Method::POST, "/api/v1/spaces/SDLC/documents", Some(token), Some(json!({
+        "title": "Original title", "document_type": "page", "content_markdown": "# Original body"
+    }))).await;
+    assert_eq!(status, StatusCode::CREATED);
+    let path = format!("/api/v1/documents/{}", document["id"].as_str().unwrap());
+    let (status, initial) = call(
+        app,
+        Method::POST,
+        &format!("{path}/publish"),
+        Some(token),
+        Some(json!({
+            "expected_draft_checksum": document["draft_checksum"]
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    // A second writer changes only the title first, then only the body. Both invalidate the guard.
+    let mut previous = document;
+    for (title, content) in [
+        ("Another title", "# Original body"),
+        ("Another title", "# Another body"),
+    ] {
+        let (status, changed) = call(
+            app,
+            Method::PUT,
+            &format!("{path}/draft"),
+            Some(token),
+            Some(json!({
+                "title": title, "content_markdown": content
+            })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_ne!(previous["draft_checksum"], changed["draft_checksum"]);
+        let (status, error) = call(app, Method::POST, &format!("{path}/publish"), Some(token), Some(json!({
+            "base_revision_id": initial["id"], "expected_draft_checksum": previous["draft_checksum"]
+        }))).await;
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert_eq!(error["error"]["code"], "CONFLICT");
+        let (status, after) = call(app, Method::GET, &path, Some(token), None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(after["draft_markdown"], content);
+        assert_eq!(after["current_revision"]["id"], initial["id"]);
+        previous = changed;
+    }
+    let (status, published) = call(
+        app,
+        Method::POST,
+        &format!("{path}/publish"),
+        Some(token),
+        Some(json!({
+            "base_revision_id": initial["id"], "expected_draft_checksum": previous["draft_checksum"]
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(published["version"], 2);
+    assert_eq!(published["title"], "Another title");
+    assert_eq!(published["body_markdown"], "# Another body");
+}
+
+#[tokio::test]
+async fn wiki_memory_publish_rejects_changed_draft() {
+    let app = test_app();
+    let token = login_memory_admin(&app).await;
+    assert_publication_checks_exact_draft(&app, &token).await;
+}
+
+#[tokio::test]
+async fn wiki_postgres_publish_rejects_changed_draft_when_database_available() {
+    let Ok(database_url) = env::var("WIKI_TEST_DATABASE_URL") else {
+        return;
+    };
+    reset_postgres(&database_url).await;
+    let storage_dir = env::temp_dir().join(format!("wiki-api-test-{}", Uuid::now_v7()));
+    let (app, _) = postgres_test_app(database_url, storage_dir.clone()).await;
+    let token = login_admin(&app).await;
+    assert_publication_checks_exact_draft(&app, &token).await;
+    let _ = tokio::fs::remove_dir_all(storage_dir).await;
+}
+
+struct FailingOnceStorage {
+    inner: infra::LocalWikiAttachmentStorage,
+    fail_next: std::sync::atomic::AtomicBool,
+}
+
+#[async_trait::async_trait]
+impl domain::wiki::WikiAttachmentStorage for FailingOnceStorage {
+    async fn put(&self, key: &str, bytes: &[u8]) -> Result<(), shared::AppError> {
+        self.inner.put(key, bytes).await
+    }
+    async fn get(&self, key: &str) -> Result<Vec<u8>, shared::AppError> {
+        self.inner.get(key).await
+    }
+    async fn delete(&self, key: &str) -> Result<(), shared::AppError> {
+        if self
+            .fail_next
+            .swap(false, std::sync::atomic::Ordering::SeqCst)
+        {
+            return Err(shared::AppError::internal("injected storage failure"));
+        }
+        self.inner.delete(key).await
+    }
+}
+
+#[tokio::test]
+async fn wiki_postgres_maintenance_retries_failed_file_deletion_when_database_available() {
+    let Ok(database_url) = env::var("WIKI_TEST_DATABASE_URL") else {
+        return;
+    };
+    reset_postgres(&database_url).await;
+    let storage_dir = env::temp_dir().join(format!("wiki-api-test-{}", Uuid::now_v7()));
+    let (app, config) = postgres_test_app(database_url.clone(), storage_dir.clone()).await;
+    let token = login_admin(&app).await;
+    let (status, attachment) =
+        upload_test_file(&app, &token, "retry.txt", "text/plain", b"retry bytes").await;
+    assert_eq!(status, StatusCode::CREATED);
+    let id = Uuid::parse_str(attachment["id"].as_str().unwrap()).unwrap();
+    let pool = PgPoolOptions::new()
+        .max_connections(1)
+        .connect(&database_url)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE attachments SET uploaded_at=now()-interval '25 hours' WHERE id=$1")
+        .bind(id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let storage = Arc::new(FailingOnceStorage {
+        inner: infra::LocalWikiAttachmentStorage::new(&config.storage.dir),
+        fail_next: std::sync::atomic::AtomicBool::new(true),
+    });
+    let (backend, _) = infra::connect_postgres_wiki_backend(&config, storage)
+        .await
+        .unwrap();
+    let first = backend.run_maintenance().await.unwrap();
+    assert_eq!(first.expired_staged_attachments_deleted, 1);
+    assert_eq!(first.expired_staged_attachment_file_delete_failures, 1);
+    let file = storage_dir
+        .join("attachments")
+        .join(id.to_string())
+        .join("retry.txt");
+    assert!(file.exists());
+    let queued: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM attachment_file_cleanup WHERE attachment_id=$1")
+            .bind(id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(queued, 1);
+    let (status, _) = call(&app, Method::POST, "/api/v1/evidence", Some(&token), Some(json!({
+        "space":"SDLC", "task_key":"RETRY-1", "title":"Expired file", "evidence_type":"uploaded_file", "attachment_id":id
+    }))).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    // Reconnect, proving that retry is durable rather than process memory.
+    drop(backend);
+    let storage = Arc::new(infra::LocalWikiAttachmentStorage::new(&config.storage.dir));
+    let (restarted, _) = infra::connect_postgres_wiki_backend(&config, storage)
+        .await
+        .unwrap();
+    let second = restarted.run_maintenance().await.unwrap();
+    assert_eq!(second.expired_staged_attachments_deleted, 0);
+    assert_eq!(second.expired_staged_attachment_file_delete_failures, 0);
+    assert!(!file.exists());
+    let queued: i64 = sqlx::query_scalar("SELECT count(*) FROM attachment_file_cleanup")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(queued, 0);
+    // Crash after physical deletion but before queue acknowledgement: missing files are idempotent.
+    sqlx::query("INSERT INTO attachment_file_cleanup(attachment_id,storage_key) VALUES($1,$2)")
+        .bind(id)
+        .bind(format!("attachments/{id}/retry.txt"))
+        .execute(&pool)
+        .await
+        .unwrap();
+    let third = restarted.run_maintenance().await.unwrap();
+    assert_eq!(third.expired_staged_attachment_file_delete_failures, 0);
+    let queued: i64 = sqlx::query_scalar("SELECT count(*) FROM attachment_file_cleanup")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(queued, 0);
+    pool.close().await;
+    let _ = tokio::fs::remove_dir_all(storage_dir).await;
+}
+
 #[tokio::test]
 async fn wiki_postgres_maintenance_cleans_expired_staged_attachments_when_database_available() {
     let Ok(database_url) = env::var("WIKI_TEST_DATABASE_URL") else {

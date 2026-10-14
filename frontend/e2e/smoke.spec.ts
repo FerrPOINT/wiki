@@ -103,6 +103,7 @@ const document = {
   body_markdown: documentBodyMarkdown,
   body_html: renderMockMarkdown(documentBodyMarkdown),
   draft_markdown: documentBodyMarkdown,
+  draft_checksum: 'sha256:fixture-initial-draft',
   current_revision: {
     id: 'revision-product-requirements-1',
     document_id: 'product-requirements',
@@ -223,10 +224,19 @@ async function installWikiApiMocks(page: Page) {
     const url = new URL(request.url())
     if (url.pathname === '/oidc/authorize') {
       const callbackUrl = `${baseURL}/sso/callback?code=mock-code&state=${url.searchParams.get('state')}`
+      // Playwright WebKit cannot fulfill redirect responses. Its supported HTML
+      // redirect works here; Chromium requires HTTP redirects for local-network checks.
+      if (page.context().browser()?.browserType().name() === 'webkit') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'text/html',
+          body: `<!doctype html><script>location.replace(${JSON.stringify(callbackUrl)})</script>`,
+        })
+      }
       return route.fulfill({
-        status: 200,
-        contentType: 'text/html',
-        body: `<!doctype html><script>location.replace(${JSON.stringify(callbackUrl)})</script>`,
+        status: 302,
+        headers: { location: callbackUrl },
+        body: '',
       })
     }
     if (url.pathname === '/oidc/jwks') return routeJson(route, { keys: [jwk] })
@@ -255,7 +265,10 @@ async function installWikiApiMocks(page: Page) {
   let currentPhase = { ...phase, documents: [...phase.documents], evidence: [...phase.evidence] }
   let currentUsers = [user, editorUser]
   const documentDraftRequests: Array<{ title?: string; content_markdown: string }> = []
-  const documentPublishRequests: Array<{ summary?: string | null }> = []
+  const documentPublishRequests: Array<{
+    summary?: string | null
+    expected_draft_checksum?: string
+  }> = []
   const taskDocumentLinkRequests: Array<{ document_id: string }> = []
   const phaseDocumentLinkRequests: Array<{ document_id: string }> = []
   const templateCreateRequests: Array<{
@@ -387,13 +400,24 @@ async function installWikiApiMocks(page: Page) {
         title: body.title ?? currentDocument.title,
         status: 'draft',
         draft_markdown: body.content_markdown,
+        draft_checksum: `sha256:fixture-draft-${documentDraftRequests.length}`,
         updated_at: now,
       }
       return routeJson(route, currentDocument)
     }
     if (method === 'POST' && path === '/documents/product-requirements/publish') {
-      const body = request.postDataJSON() as { summary?: string | null }
+      const body = request.postDataJSON() as {
+        summary?: string | null
+        expected_draft_checksum?: string
+      }
       documentPublishRequests.push(body)
+      if (body.expected_draft_checksum !== currentDocument.draft_checksum) {
+        return routeJson(
+          route,
+          { error: { code: 'CONFLICT', message: 'document draft changed before publication' } },
+          409,
+        )
+      }
       const revision = {
         ...document.current_revision,
         id: 'revision-product-requirements-2',
@@ -857,14 +881,48 @@ test.describe('wiki smoke', () => {
     await page.getByRole('button', { name: 'Опубликовать', exact: true }).click()
 
     const alert = page.getByRole('alert')
-    await expect(alert).toContainText('Другой пользователь уже опубликовал новую ревизию')
-    await expect(alert).toContainText('Ваш черновик сохранён')
+    await expect(alert).toContainText('Документ или черновик изменился')
+    await expect(alert).toContainText('Ваш ввод сохранён')
     await alert.getByRole('button', { name: 'Показать актуальную версию' }).click()
     await expect(page.getByRole('heading', { name: 'Published elsewhere' })).toBeVisible()
     await page.getByRole('button', { name: 'Правка' }).click()
     await expect(page.getByLabel('Markdown черновика')).toHaveValue(
       '# Local draft after concurrent publish',
     )
+  })
+
+  test('blocks a foreign post-save draft readback without losing local input', async ({
+    page,
+    browserName,
+  }, testInfo) => {
+    const apiMocks = await installWikiApiMocks(page)
+    await page.route(/\/api\/v1\/documents\/product-requirements\/draft$/, async (route) => {
+      await routeJson(route, {
+        ...document,
+        title: 'Another editor title',
+        draft_markdown: '# Another editor',
+      })
+    })
+    await gotoWiki(page, '/documents/product-requirements')
+    await page.getByRole('button', { name: 'Правка' }).click()
+    await page.getByLabel('Название', { exact: true }).fill('My local title')
+    await page.getByLabel('Markdown черновика').fill('# My local body')
+    await page.getByRole('button', { name: 'Опубликовать', exact: true }).click()
+    await expect(page.getByRole('alert')).toContainText(
+      'Не удалось подтвердить сохранённый черновик',
+    )
+    expect(apiMocks.documentPublishRequests).toHaveLength(0)
+    await expect(page.getByLabel('Название', { exact: true })).toHaveValue('My local title')
+    await expect(page.getByLabel('Markdown черновика')).toHaveValue('# My local body')
+    if (browserName === 'chromium') {
+      for (const width of [375, 1920, 2560]) {
+        await page.setViewportSize({ width, height: 1080 })
+        await page.screenshot({
+          path: testInfo.outputPath(`publish-conflict-${width}.png`),
+          fullPage: true,
+        })
+      }
+    }
   })
 
   test('signs in through OIDC and navigates through wiki shell pages', async ({ page }) => {
@@ -979,7 +1037,7 @@ test.describe('wiki smoke', () => {
     await page.getByRole('button', { name: 'Сбросить фильтры' }).click()
     await expect(page.getByRole('link', { name: /Материал smoke-проверки фронта/ })).toBeVisible()
     await page.getByRole('link', { name: /Материал smoke-проверки фронта/ }).click()
-    await expect(page).toHaveURL(`${baseURL}/evidence?id=${evidence.id}`)
+    await expect(page).toHaveURL(`${baseURL}/evidence?id=${evidence.id}&space=BASE`)
     const selectedMaterial = page
       .getByRole('heading', { name: 'Выбранный материал' })
       .locator('..')

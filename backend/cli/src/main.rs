@@ -814,9 +814,20 @@ async fn execute_doc(api: &ApiClient, command: DocCommands) -> Result<Value> {
             base_revision,
             summary,
         } => {
+            let snapshot = api
+                .get(&format!("/documents/{}", enc(&document_id)))
+                .await?;
+            let checksum = snapshot["draft_checksum"]
+                .as_str()
+                .context("server must provide an editable draft checksum before publication")?;
+            let base_revision = base_revision.or_else(|| {
+                snapshot["current_revision"]["id"]
+                    .as_str()
+                    .map(str::to_owned)
+            });
             api.post_json(
                 &format!("/documents/{}/publish", enc(&document_id)),
-                json!({ "base_revision_id": base_revision, "summary": summary }),
+                json!({ "base_revision_id": base_revision, "expected_draft_checksum": checksum, "summary": summary }),
             )
             .await
         }
@@ -1367,6 +1378,7 @@ mod tests {
         request: Request<Body>,
     ) -> Response {
         let method = request.method().clone();
+        let is_get = method == Method::GET;
         let is_delete = method == Method::DELETE;
         let path = request
             .uri()
@@ -1399,6 +1411,10 @@ mod tests {
         }
 
         let (status, payload) = match path_only.as_str() {
+            "/api/v1/documents/product%20requirements" if is_get => (
+                StatusCode::OK,
+                json!({ "status": "ok", "draft_checksum": "sha256:saved-draft", "current_revision": { "id": "revision-1" } }),
+            ),
             "/api/v1/error-object" => (
                 StatusCode::BAD_REQUEST,
                 json!({
@@ -2004,7 +2020,7 @@ mod tests {
         }
 
         let requests = server.requests();
-        assert_eq!(requests.len(), 6);
+        assert_eq!(requests.len(), 7);
 
         let draft = &requests[0];
         assert_eq!(draft.method, Method::PUT);
@@ -2020,7 +2036,11 @@ mod tests {
         assert_eq!(body["title"], "Updated requirements");
         assert_eq!(body["content_markdown"], "# Updated\n\nDraft body");
 
-        let publish = &requests[1];
+        let snapshot = &requests[1];
+        assert_eq!(snapshot.method, Method::GET);
+        assert_eq!(snapshot.path, "/api/v1/documents/product%20requirements");
+        assert!(snapshot.idempotency_key.is_none());
+        let publish = &requests[2];
         assert_eq!(publish.method, Method::POST);
         assert_eq!(
             publish.path,
@@ -2035,8 +2055,9 @@ mod tests {
         let body: Value = serde_json::from_slice(&publish.body).unwrap();
         assert_eq!(body["base_revision_id"], "revision-1");
         assert_eq!(body["summary"], "Clarified scope");
+        assert_eq!(body["expected_draft_checksum"], "sha256:saved-draft");
 
-        let archive = &requests[2];
+        let archive = &requests[3];
         assert_eq!(archive.method, Method::POST);
         assert_eq!(
             archive.path,
@@ -2051,7 +2072,7 @@ mod tests {
         let body: Value = serde_json::from_slice(&archive.body).unwrap();
         assert_eq!(body, json!({}));
 
-        let move_document = &requests[3];
+        let move_document = &requests[4];
         assert_eq!(move_document.method, Method::POST);
         assert_eq!(
             move_document.path,
@@ -2066,7 +2087,7 @@ mod tests {
         let body: Value = serde_json::from_slice(&move_document.body).unwrap();
         assert_eq!(body["parent_id"], "parent document");
 
-        let history = &requests[4];
+        let history = &requests[5];
         assert_eq!(history.method, Method::GET);
         assert_eq!(
             history.path,
@@ -2074,7 +2095,7 @@ mod tests {
         );
         assert!(history.idempotency_key.is_none());
 
-        let revision = &requests[5];
+        let revision = &requests[6];
         assert_eq!(revision.method, Method::GET);
         assert_eq!(
             revision.path,

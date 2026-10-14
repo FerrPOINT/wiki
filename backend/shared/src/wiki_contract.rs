@@ -675,6 +675,8 @@ pub struct DocumentResponse {
     pub body_markdown: String,
     pub body_html: String,
     pub draft_markdown: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub draft_checksum: Option<String>,
     pub current_revision: Option<DocumentRevisionResponse>,
     pub task_keys: Vec<String>,
     pub phase_keys: Vec<String>,
@@ -712,6 +714,8 @@ pub struct UpdateDocumentDraftRequest {
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct PublishDocumentRequest {
     pub base_revision_id: Option<String>,
+    /// Optional for legacy clients; official clients publish an exact saved draft.
+    pub expected_draft_checksum: Option<String>,
     pub summary: Option<String>,
 }
 

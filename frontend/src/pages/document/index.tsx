@@ -120,6 +120,7 @@ export function DocumentPage() {
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
   const [isPublishingFlow, setIsPublishingFlow] = useState(false)
+  const [publishFlowError, setPublishFlowError] = useState('')
   const [loadedDocumentId, setLoadedDocumentId] = useState<string | null>(null)
   const [selectedMode, setSelectedMode] = useState<'read' | 'edit' | null>(null)
 
@@ -131,6 +132,7 @@ export function DocumentPage() {
     setPublishSummary('')
     setStatusMessage('')
     setIsPublishingFlow(false)
+    setPublishFlowError('')
     setSelectedRevisionId(null)
     setRevisionPage(0)
     setSelectedMode(null)
@@ -174,12 +176,14 @@ export function DocumentPage() {
   const parentChanged = nextParentId !== currentParentId
   const hasPublishConflict =
     !updateDraft.error && hasApiErrorCode(publishDocument.error, 'CONFLICT')
-  const mutationError = hasPublishConflict
-    ? 'Другой пользователь уже опубликовал новую ревизию. Ваш черновик сохранён. Проверьте актуальную версию и повторите публикацию.'
-    : formatFirstApiErrorForUser(
-        [updateDraft.error, publishDocument.error, archiveDocument.error, moveDocument.error],
-        'Не удалось выполнить действие',
-      )
+  const mutationError =
+    publishFlowError ||
+    (hasPublishConflict
+      ? 'Документ или черновик изменился. Ваш ввод сохранён. Проверьте актуальную версию и повторите публикацию.'
+      : formatFirstApiErrorForUser(
+          [updateDraft.error, publishDocument.error, archiveDocument.error, moveDocument.error],
+          'Не удалось выполнить действие',
+        ))
 
   function handleSaveDraft(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -206,27 +210,42 @@ export function DocumentPage() {
   async function handlePublish() {
     if (!document || !canEdit) return
     const baseRevisionId = document.current_revision?.id
+    const title = draftTitle.trim()
+    const contentMarkdown = draftBody
     setStatusMessage('')
+    setPublishFlowError('')
     setIsPublishingFlow(true)
     try {
       const draft = await updateDraft.mutateAsync({
         documentId,
         body: {
-          title: draftTitle.trim(),
-          content_markdown: draftBody,
+          title,
+          content_markdown: contentMarkdown,
         },
       })
-      setDraftTitle(draft.title)
-      setDraftBody(draft.draft_markdown || draft.body_markdown)
+      // The post-save readback may already observe another editor's write.
+      if (
+        draft.title !== title ||
+        draft.draft_markdown !== contentMarkdown ||
+        !draft.draft_checksum
+      ) {
+        setPublishFlowError(
+          'Не удалось подтвердить сохранённый черновик. Ваш ввод сохранён; обновите данные и повторите публикацию.',
+        )
+        return
+      }
 
       const revision = await publishDocument.mutateAsync({
         documentId,
         body: {
           base_revision_id: baseRevisionId,
+          expected_draft_checksum: draft.draft_checksum,
           summary: optional(publishSummary),
         },
       })
-      setPublishSummary('')
+      setDraftTitle((current) => (current === draftTitle ? revision.title : current))
+      setDraftBody((current) => (current === contentMarkdown ? revision.body_markdown : current))
+      setPublishSummary((current) => (current === publishSummary ? '' : current))
       setStatusMessage(`Опубликована ревизия ${revision.version}`)
     } catch {
       // Mutation errors are rendered from React Query state above.

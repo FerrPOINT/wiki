@@ -248,6 +248,11 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
             }
             let title: String = row.get("title");
             let content_markdown: String = row.get("content_markdown");
+            app::wiki::ensure_draft_checksum(
+                command.expected_draft_checksum.as_deref(),
+                &title,
+                &content_markdown,
+            )?;
             if content_markdown.trim().is_empty() {
                 return Err(shared::AppError::invalid_input(
                     "published content is required",
@@ -810,6 +815,12 @@ impl PostgresWikiBackend {
             } else {
                 String::new()
             },
+            draft_checksum: can_edit.then(|| {
+                app::wiki::document_draft_checksum(
+                    &row.get::<String, _>("title"),
+                    &row.get::<String, _>("draft_markdown"),
+                )
+            }),
             current_revision,
             task_keys,
             phase_keys,

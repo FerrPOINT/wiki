@@ -3192,6 +3192,12 @@
           "document_type": {
             "type": "string"
           },
+          "draft_checksum": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "draft_markdown": {
             "type": "string"
           },
@@ -3692,6 +3698,13 @@
               "string",
               "null"
             ]
+          },
+          "expected_draft_checksum": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional for legacy clients; official clients publish an exact saved draft."
           },
           "summary": {
             "type": [
