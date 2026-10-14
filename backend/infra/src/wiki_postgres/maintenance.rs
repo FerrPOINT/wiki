@@ -5,10 +5,17 @@ use uuid::Uuid;
 
 impl PostgresWikiBackend {
     pub(super) async fn run_maintenance(&self) -> Result<WikiMaintenanceReport, shared::AppError> {
-        let expired_staged_attachments = self.delete_expired_staged_attachments().await?;
+        let expired_staged_attachments_deleted = self.enqueue_expired_staged_attachments().await?;
         let mut file_delete_failures = 0;
-
-        for (attachment_id, storage_key) in &expired_staged_attachments {
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(shared::AppError::database)?;
+        let pending = sqlx::query_as::<_, (Uuid, String)>(
+            "SELECT attachment_id, storage_key FROM attachment_file_cleanup ORDER BY created_at, attachment_id LIMIT $1 FOR UPDATE SKIP LOCKED"
+        ).bind(i64::from(self.maintenance_batch_size)).fetch_all(&mut *tx).await.map_err(shared::AppError::database)?;
+        for (attachment_id, storage_key) in &pending {
             if let Err(err) = self.storage.delete(storage_key).await {
                 file_delete_failures += 1;
                 tracing::warn!(
@@ -16,23 +23,28 @@ impl PostgresWikiBackend {
                     error = %err,
                     "failed to delete expired staged attachment file"
                 );
+                continue;
             }
+            sqlx::query("DELETE FROM attachment_file_cleanup WHERE attachment_id=$1")
+                .bind(attachment_id)
+                .execute(&mut *tx)
+                .await
+                .map_err(shared::AppError::database)?;
         }
+        tx.commit().await.map_err(shared::AppError::database)?;
 
         let expired_idempotency_records_deleted = self.delete_expired_idempotency_records().await?;
 
         Ok(WikiMaintenanceReport {
-            expired_staged_attachments_deleted: expired_staged_attachments.len() as u64,
+            expired_staged_attachments_deleted,
             expired_staged_attachment_file_delete_failures: file_delete_failures,
             expired_idempotency_records_deleted,
         })
     }
 
-    async fn delete_expired_staged_attachments(
-        &self,
-    ) -> Result<Vec<(Uuid, String)>, shared::AppError> {
+    async fn enqueue_expired_staged_attachments(&self) -> Result<u64, shared::AppError> {
         let cutoff = Utc::now() - Duration::hours(i64::from(self.staged_attachment_ttl_hours));
-        sqlx::query_as::<_, (Uuid, String)>(
+        let result = sqlx::query(
             r#"
             WITH expired AS (
                 SELECT id, storage_key
@@ -44,17 +56,21 @@ impl PostgresWikiBackend {
                 ORDER BY uploaded_at ASC
                 LIMIT $2
                 FOR UPDATE SKIP LOCKED
+            ), removed AS (
+                DELETE FROM attachments a
+                USING expired
+                WHERE a.id = expired.id
+                RETURNING a.id, a.storage_key
             )
-            DELETE FROM attachments a
-            USING expired
-            WHERE a.id = expired.id
-            RETURNING a.id, a.storage_key
+            INSERT INTO attachment_file_cleanup(attachment_id, storage_key)
+            SELECT id, storage_key FROM removed
             "#,
         )
         .bind(cutoff)
         .bind(i64::from(self.maintenance_batch_size))
-        .fetch_all(&self.pool)
+        .execute(&self.pool)
         .await
-        .map_err(shared::AppError::database)
+        .map_err(shared::AppError::database)?;
+        Ok(result.rows_affected())
     }
 }
