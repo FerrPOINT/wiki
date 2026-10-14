@@ -110,6 +110,21 @@ Panel. Центральные люди получают одинаковые п�
 
 `POST /documents/{document_id}/publish` принимает `summary` и необязательный `base_revision_id`. Если `base_revision_id` передан, API сравнивает его с текущей опубликованной ревизией документа внутри publish-транзакции; несовпадение возвращает `409 CONFLICT` с сообщением `document draft is based on a stale revision`. Для первой публикации или legacy-клиентов поле можно не передавать.
 
+Редактируемый `DocumentResponse` дополнительно содержит `draft_checksum` — SHA-256
+заголовка и тела текущего черновика с однозначным разделением полей. UI и CLI
+передают его как `expected_draft_checksum` при публикации. Проверка выполняется
+под той же блокировкой, что и создание ревизии; изменение заголовка или тела
+возвращает `409 CONFLICT` (`document draft changed before publication`), без
+публикации чужого черновика. UI сохраняет локальный ввод и также отказывается
+публиковать, если ответ сохранения уже содержит чужой текст или сервер не
+поддерживает checksum. Read-only пользователи checksum не получают. Поле запроса
+остаётся необязательным для совместимости: legacy API-клиенты без него по-прежнему
+публикуют текущий серверный черновик без проверки его точного содержимого.
+
+Пустое тело разрешено сохранять как черновик. Редактор показывает его пустым,
+включая повторное открытие страницы; опубликованный текст его не заменяет.
+Публикация пустого тела по-прежнему отклоняется сервером и недоступна в UI.
+
 `GET /documents/{document_id}/revisions` возвращает историю в порядке от последней опубликованной ревизии к первой. Endpoint bounded: без `limit` отдаёт последние 20 ревизий, `limit` ограничивается диапазоном `1..100`; необязательный `offset` (по умолчанию `0`) пропускает указанное число более новых ревизий. Для постраничного просмотра клиент запрашивает `limit=21&offset=20*N`, показывает первые 20 и использует последнюю запись как признак следующей страницы. Опубликованные ревизии immutable: новый draft или повторная публикация не меняют тело, заголовок и summary уже созданных ревизий.
 
 `DocumentResponse` and `DocumentRevisionResponse` expose both `body_markdown` and `body_html` for published content. `body_markdown` is the canonical source for CLI export; `body_html` is the sanitized HTML rendered by the backend from the published revision and is the only HTML surface the UI should render. `DocumentResponse.can_edit` tells clients whether draft and write controls are available. `draft_markdown` is populated only when `can_edit=true`; read-only viewers receive an empty `draft_markdown` and only the published body fields.

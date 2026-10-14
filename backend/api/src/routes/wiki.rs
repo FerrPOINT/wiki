@@ -1863,6 +1863,11 @@ pub async fn publish_document(
         .documents
         .get_mut(&id)
         .ok_or_else(|| shared::AppError::not_found("document", &document_id))?;
+    app::wiki::ensure_draft_checksum(
+        body.expected_draft_checksum.as_deref(),
+        &document.title,
+        &document.draft_markdown,
+    )?;
     if document.draft_markdown.trim().is_empty() {
         return Err(shared::AppError::invalid_input(
             "published content is required",
@@ -3403,6 +3408,8 @@ fn document_response(
         } else {
             String::new()
         },
+        draft_checksum: can_edit
+            .then(|| app::wiki::document_draft_checksum(&document.title, &document.draft_markdown)),
         current_revision,
         task_keys: document.task_keys.iter().cloned().collect(),
         phase_keys: document.phase_keys.iter().cloned().collect(),
