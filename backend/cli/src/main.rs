@@ -112,6 +112,23 @@ enum AuthCommands {
 #[derive(Subcommand)]
 enum SpaceCommands {
     List,
+    Projects {
+        key: String,
+    },
+    ProjectLink {
+        key: String,
+        #[arg(long)]
+        registry: String,
+        #[arg(long)]
+        project: String,
+    },
+    ProjectUnlink {
+        key: String,
+        #[arg(long)]
+        registry: String,
+        #[arg(long)]
+        project: String,
+    },
     Create {
         #[arg(long)]
         key: String,
@@ -705,6 +722,38 @@ async fn execute_auth(api: &ApiClient, command: AuthCommands) -> Result<Value> {
 async fn execute_space(api: &ApiClient, command: SpaceCommands) -> Result<Value> {
     match command {
         SpaceCommands::List => api.get("/spaces").await,
+        SpaceCommands::Projects { key } => {
+            api.get(&format!("/spaces/{}/projects", enc(&key))).await
+        }
+        SpaceCommands::ProjectLink {
+            key,
+            registry,
+            project,
+        } => {
+            api.put_json(
+                &format!(
+                    "/spaces/{}/projects/{}/{}",
+                    enc(&key),
+                    enc(&registry),
+                    enc(&project)
+                ),
+                json!({}),
+            )
+            .await
+        }
+        SpaceCommands::ProjectUnlink {
+            key,
+            registry,
+            project,
+        } => {
+            api.delete_json(&format!(
+                "/spaces/{}/projects/{}/{}",
+                enc(&key),
+                enc(&registry),
+                enc(&project)
+            ))
+            .await
+        }
         SpaceCommands::Create {
             key,
             name,
@@ -1616,6 +1665,48 @@ mod tests {
         assert_eq!(whoami.path, "/api/v1/users/me");
         assert_eq!(whoami.authorization.as_deref(), Some("Bearer secret-token"));
         assert!(whoami.idempotency_key.is_none());
+    }
+
+    #[tokio::test]
+    async fn space_project_commands_use_the_shared_human_api_and_write_keys() {
+        let server = spawn_mock_server().await;
+        let api = ApiClient::new(server.api_url.clone(), Some("secret-token".into()));
+        let registry = "11111111-1111-4111-8111-111111111111";
+        let project = "22222222-2222-4222-8222-222222222222";
+        for command in [
+            SpaceCommands::Projects {
+                key: "SHARED".into(),
+            },
+            SpaceCommands::ProjectLink {
+                key: "SHARED".into(),
+                registry: registry.into(),
+                project: project.into(),
+            },
+            SpaceCommands::ProjectUnlink {
+                key: "SHARED".into(),
+                registry: registry.into(),
+                project: project.into(),
+            },
+        ] {
+            execute_space(&api, command).await.unwrap();
+        }
+        let requests = server.requests();
+        assert_eq!(requests.len(), 3);
+        assert_eq!(requests[0].method, Method::GET);
+        assert_eq!(requests[0].path, "/api/v1/spaces/SHARED/projects");
+        assert!(requests[0].idempotency_key.is_none());
+        for (request, method) in requests[1..].iter().zip([Method::PUT, Method::DELETE]) {
+            assert_eq!(request.method, method);
+            assert_eq!(
+                request.path,
+                format!("/api/v1/spaces/SHARED/projects/{registry}/{project}")
+            );
+            assert_write_idempotency_key(request);
+            assert_eq!(
+                request.authorization.as_deref(),
+                Some("Bearer secret-token")
+            );
+        }
     }
 
     #[tokio::test]

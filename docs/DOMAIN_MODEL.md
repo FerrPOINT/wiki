@@ -154,3 +154,10 @@
 - `docs/DATA_MODEL.md`
 - `docs/API.md`
 - `docs/ARCHITECTURE.md`
+
+## ProjectAssociation
+
+Связь Wiki-owned Space с внешним NamespaceRef проекта. Один Space и один проект
+участвуют в нескольких связях независимо. Связь не является владельцем контента,
+не переносит ACL и не распространяет project archive на Space. Удаляется только
+связь; документы и неизменяемые ссылки на ревизии остаются в Space.

@@ -9,6 +9,8 @@ pub struct TaskRef {
 #[derive(Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct LinkTaskRevision {
+    #[serde(default)]
+    pub namespace: Option<crate::resource_context::NamespaceRef>,
     pub task: TaskRef,
     pub document_id: Uuid,
     pub revision_id: Uuid,

@@ -386,3 +386,25 @@ erDiagram
 ## Сквозной Namespace
 
 Версионированные API, данные, ownership и совместимость описаны в [Namespace](NAMESPACE.md).
+
+## Связи пространств и проектов
+
+Миграция `202610140001_space_projects` добавляет `wiki_space_projects`:
+`space_id` → spaces (RESTRICT), `registry_instance_id`, `namespace_id`,
+`created_by` → users, `created_at`. Составной PK запрещает повтор той же связи;
+обратный индекс обслуживает список пространств проекта. Внешний проект не имеет
+FK на временный presentation cache: пропавший снимок не удаляет связи.
+
+Кардинальность Space ↔ Project: 0…N с обеих сторон. Существующие bindings
+переносятся в коллекцию с тем же space UUID; owner receipts и migration history
+сохраняются. Никакие документы или ревизии не пересоздаются.
+
+`managed_task_document_links` содержит обязательные `registry_instance_id` и
+`namespace_id` проекта задачи. Старые значения заполняются из исходного binding;
+дальнейшая отвязка не меняет исторический NamespaceRef. Own-space archive и
+immutable managed revisions проверяются DB triggers; project lifecycle не
+замораживает содержимое пространства.
+
+Down-миграция разрешена только если все связи и исторические проекты точно
+представимы прежней моделью. При новых/удалённых связях она отказывает вместо потери
+данных; откат приложения не означает удаление новой migration history.

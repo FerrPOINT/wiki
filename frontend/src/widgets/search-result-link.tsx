@@ -6,7 +6,7 @@ import { withNamespaceLocation } from '@sdlc/ui/lib'
 import { apiRequest, ApiError } from '@/api/client'
 import type { SearchResult } from '@/api/wiki'
 import { useAuthStore } from '@/shared/auth/store'
-import type { ResourceContext } from './namespace-context'
+import type { SpaceProjects } from '@/api/workspaces'
 
 function resultLocation(result: SearchResult) {
   if (result.result_type === 'document') return result.url
@@ -55,15 +55,15 @@ function ResolvedResultLink({
   const context = useQuery({
     queryKey: [
       'wiki',
-      document ? 'document-context' : 'space-context',
+      document ? 'document-space' : 'space-projects',
       actor,
       document ? result.id : result.space_key,
     ],
     queryFn: ({ signal }) =>
-      apiRequest<ResourceContext | null>(
+      apiRequest<SpaceProjects>(
         document
-          ? `/api/v1/documents/${encodeURIComponent(result.id)}/namespace-context`
-          : `/api/v1/spaces/${encodeURIComponent(result.space_key)}/namespace-context`,
+          ? `/api/v1/documents/${encodeURIComponent(result.id)}/space-context`
+          : `/api/v1/spaces/${encodeURIComponent(result.space_key)}/projects`,
         { signal },
       ),
   })
@@ -90,14 +90,7 @@ function ResolvedResultLink({
   }
   return (
     <ResourceListRow asChild interactive>
-      <Link
-        to={withNamespaceLocation(
-          resultLocation(result),
-          context.data?.binding.namespace ?? null,
-          search,
-        )}
-        className={className}
-      >
+      <Link to={withNamespaceLocation(resultLocation(result), null, search)} className={className}>
         {children}
       </Link>
     </ResourceListRow>

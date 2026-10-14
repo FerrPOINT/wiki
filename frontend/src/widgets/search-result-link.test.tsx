@@ -55,7 +55,10 @@ describe('global search result context', () => {
   })
   it.each([
     null,
-    { binding: { namespace: { registry_instance_id: registry, namespace_id: destination } } },
+    {
+      space: { key: 'SECOND' },
+      projects: [{ namespace: { registry_instance_id: registry, namespace_id: destination } }],
+    },
   ])('keeps the exact evidence space with binding %s', async (binding) => {
     vi.mocked(apiRequest).mockResolvedValue(binding)
     mount({ ...result, result_type: 'evidence', url: `/evidence?id=${result.id}` })
@@ -64,24 +67,22 @@ describe('global search result context', () => {
     expect(target.searchParams.get('space')).toBe('SECOND')
     expect(target.searchParams.get('id')).toBe(result.id)
     expect(target.searchParams.get('project_scope')).toBe('all')
-    expect(target.searchParams.get('namespace_id')).toBe(binding ? destination : null)
-    expect(apiRequest).toHaveBeenCalledWith(
-      '/api/v1/spaces/SECOND/namespace-context',
-      expect.anything(),
-    )
+    expect(target.searchParams.get('namespace_id')).toBe(null)
+    expect(apiRequest).toHaveBeenCalledWith('/api/v1/spaces/SECOND/projects', expect.anything())
   })
   it('uses the confirmed destination instead of the selected source project', async () => {
     vi.mocked(apiRequest).mockResolvedValue({
-      binding: { namespace: { registry_instance_id: registry, namespace_id: destination } },
+      space: { key: 'SECOND' },
+      projects: [{ namespace: { registry_instance_id: registry, namespace_id: destination } }],
     })
     mount()
     const link = await screen.findByRole('link', { name: 'Result' })
     const target = new URL(link.getAttribute('href')!, 'https://test.invalid')
-    expect(target.searchParams.get('namespace_id')).toBe(destination)
+    expect(target.searchParams.get('namespace_id')).toBe(null)
     expect(target.searchParams.get('project_scope')).toBe('all')
     expect(target.hash).toBe('#section')
     expect(apiRequest).toHaveBeenCalledWith(
-      `/api/v1/documents/${result.id}/namespace-context`,
+      `/api/v1/documents/${result.id}/space-context`,
       expect.anything(),
     )
   })
