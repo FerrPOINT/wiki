@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from 'react'
-import { NamespaceLink as Link } from '@sdlc/ui/ui'
+import { NamespaceLink as Link, ResourceList, ResourceListRow } from '@sdlc/ui/ui'
 import { useSearchParams } from 'react-router'
 import {
   CheckCircle2,
@@ -427,55 +427,59 @@ export function TemplatesPage() {
               По заданным условиям шаблоны не найдены.
             </p>
           ) : (
-            <ul className="divide-y divide-border border-y border-border">
-              {visibleTemplates.map((template) => {
-                const Icon = templateIcon(template.document_type)
-                const expanded = expandedId === template.id
-                return (
-                  <li key={template.id}>
-                    <div className="flex min-w-0 items-center gap-2">
-                      <button
-                        type="button"
-                        aria-expanded={expanded}
-                        aria-controls={`template-body-${template.id}`}
-                        aria-label={`${expanded ? 'Скрыть' : 'Показать'} содержимое шаблона ${template.name}`}
-                        className="flex min-h-14 min-w-0 flex-1 items-center gap-3 py-2 text-left hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
-                        onClick={() => setExpandedId(expanded ? null : template.id)}
-                      >
-                        <Icon className="h-4 w-4 shrink-0 text-accent" aria-hidden />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-medium text-text-primary">
-                            {template.name}
-                          </span>
-                          <span className="block truncate text-xs text-text-muted">
-                            {formatDocumentType(template.document_type)}
-                          </span>
-                        </span>
-                        <ChevronDown
-                          className={`h-4 w-4 shrink-0 text-text-muted transition-transform ${expanded ? 'rotate-180' : ''}`}
-                          aria-hidden
-                        />
-                      </button>
-                      <Link
-                        to={`/documents/new?template=${encodeURIComponent(template.id)}`}
-                        aria-label={`Использовать шаблон ${template.name}`}
-                        className="inline-flex min-h-10 shrink-0 items-center px-2 text-sm text-accent hover:underline"
-                      >
-                        Использовать
-                      </Link>
-                    </div>
-                    {expanded && (
-                      <pre
-                        id={`template-body-${template.id}`}
-                        className="whitespace-pre-wrap break-words border-t border-border bg-surface-raised p-3 font-mono text-xs text-text-secondary"
-                      >
-                        {template.body_markdown}
-                      </pre>
-                    )}
-                  </li>
-                )
-              })}
-            </ul>
+            <ResourceList asChild>
+              <ul>
+                {visibleTemplates.map((template) => {
+                  const Icon = templateIcon(template.document_type)
+                  const expanded = expandedId === template.id
+                  return (
+                    <li key={template.id}>
+                      <ResourceListRow asChild>
+                        <div className="flex min-w-0 items-center gap-2">
+                          <button
+                            type="button"
+                            aria-expanded={expanded}
+                            aria-controls={`template-body-${template.id}`}
+                            aria-label={`${expanded ? 'Скрыть' : 'Показать'} содержимое шаблона ${template.name}`}
+                            className="flex min-h-14 min-w-0 flex-1 items-center gap-3 py-2 text-left hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
+                            onClick={() => setExpandedId(expanded ? null : template.id)}
+                          >
+                            <Icon className="h-4 w-4 shrink-0 text-accent" aria-hidden />
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-medium text-text-primary">
+                                {template.name}
+                              </span>
+                              <span className="block truncate text-xs text-text-muted">
+                                {formatDocumentType(template.document_type)}
+                              </span>
+                            </span>
+                            <ChevronDown
+                              className={`h-4 w-4 shrink-0 text-text-muted transition-transform ${expanded ? 'rotate-180' : ''}`}
+                              aria-hidden
+                            />
+                          </button>
+                          <Link
+                            to={`/documents/new?template=${encodeURIComponent(template.id)}`}
+                            aria-label={`Использовать шаблон ${template.name}`}
+                            className="inline-flex min-h-10 shrink-0 items-center px-2 text-sm text-accent hover:underline"
+                          >
+                            Использовать
+                          </Link>
+                        </div>
+                      </ResourceListRow>
+                      {expanded && (
+                        <pre
+                          id={`template-body-${template.id}`}
+                          className="whitespace-pre-wrap break-words border-t border-border bg-surface-raised p-3 font-mono text-xs text-text-secondary"
+                        >
+                          {template.body_markdown}
+                        </pre>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            </ResourceList>
           )}
           {filteredTemplates.length > pageSize && (
             <nav aria-label="Страницы шаблонов" className="flex items-center justify-end gap-2">

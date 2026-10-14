@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
-import { NamespaceLink } from '@sdlc/ui/ui'
+import { NamespaceLink, ResourceListRow } from '@sdlc/ui/ui'
 import { withNamespaceLocation } from '@sdlc/ui/lib'
 import { apiRequest, ApiError } from '@/api/client'
 import type { SearchResult } from '@/api/wiki'
@@ -28,9 +28,11 @@ export function SearchResultLink({
   const resolve = import.meta.env.VITE_NAMESPACE_ENABLED === 'true' && allSpaces
   if (!resolve)
     return (
-      <NamespaceLink to={resultLocation(result)} className={resultClassName}>
-        {children}
-      </NamespaceLink>
+      <ResourceListRow asChild interactive>
+        <NamespaceLink to={resultLocation(result)} className={resultClassName}>
+          {children}
+        </NamespaceLink>
+      </ResourceListRow>
     )
   return (
     <ResolvedResultLink result={result} search={search}>
@@ -38,8 +40,7 @@ export function SearchResultLink({
     </ResolvedResultLink>
   )
 }
-const resultClassName =
-  'flex min-h-16 min-w-0 items-start gap-3 px-2 py-3 hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent'
+const resultClassName = 'flex min-w-0 items-start gap-3'
 function ResolvedResultLink({
   result,
   search,
@@ -69,30 +70,36 @@ function ResolvedResultLink({
   const className = resultClassName
   if (context.isPending)
     return (
-      <div className={className} aria-busy="true">
-        {children}
-        <span role="status">Разрешаем контекст…</span>
-      </div>
+      <ResourceListRow asChild>
+        <div className={className} aria-busy="true">
+          {children}
+          <span role="status">Разрешаем контекст…</span>
+        </div>
+      </ResourceListRow>
     )
   if (context.isError) {
     const forbidden = context.error instanceof ApiError && [401, 403].includes(context.error.status)
     return (
-      <div className={className}>
-        {!forbidden && children}
-        <span role="alert">Контекст результата недоступен.</span>
-      </div>
+      <ResourceListRow asChild>
+        <div className={className}>
+          {!forbidden && children}
+          <span role="alert">Контекст результата недоступен.</span>
+        </div>
+      </ResourceListRow>
     )
   }
   return (
-    <Link
-      to={withNamespaceLocation(
-        resultLocation(result),
-        context.data?.binding.namespace ?? null,
-        search,
-      )}
-      className={className}
-    >
-      {children}
-    </Link>
+    <ResourceListRow asChild interactive>
+      <Link
+        to={withNamespaceLocation(
+          resultLocation(result),
+          context.data?.binding.namespace ?? null,
+          search,
+        )}
+        className={className}
+      >
+        {children}
+      </Link>
+    </ResourceListRow>
   )
 }

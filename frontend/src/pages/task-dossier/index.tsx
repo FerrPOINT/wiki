@@ -1,6 +1,6 @@
 import { useProjectRouteRef } from '@/widgets/namespace-context'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
-import { NamespaceLink as Link } from '@sdlc/ui/ui'
+import { NamespaceLink as Link, ResourceList, ResourceListRow } from '@sdlc/ui/ui'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { FileCheck2, FileText, GitBranch, Link2, Search } from 'lucide-react'
 import {
@@ -176,30 +176,34 @@ function TaskCatalog({ spaceKey }: { spaceKey: string }) {
           <p role="status" className="text-xs text-text-muted">
             Задачи: {tasks.length} из {tasksQuery.data?.total}
           </p>
-          <ul className="divide-y divide-border border-y border-border">
-            {tasks.map((task) => (
-              <li key={task.task_key}>
-                <Link
-                  to={pathWithSearchParams(`/tasks/${task.task_key}`, searchParams)}
-                  className="flex min-h-16 min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 px-2 py-3 hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
-                >
-                  <span className="min-w-0">
-                    <span className="block break-words text-sm font-medium text-text-primary">
-                      {task.task_key}
-                    </span>
-                    {task.title && (
-                      <span className="block break-words text-sm text-text-secondary">
-                        {task.title}
+          <ResourceList asChild>
+            <ul>
+              {tasks.map((task) => (
+                <li key={task.task_key}>
+                  <ResourceListRow asChild interactive>
+                    <Link
+                      to={pathWithSearchParams(`/tasks/${task.task_key}`, searchParams)}
+                      className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1"
+                    >
+                      <span className="min-w-0">
+                        <span className="block break-words text-sm font-medium text-text-primary">
+                          {task.task_key}
+                        </span>
+                        {task.title && (
+                          <span className="block break-words text-sm text-text-secondary">
+                            {task.title}
+                          </span>
+                        )}
                       </span>
-                    )}
-                  </span>
-                  <span className="shrink-0 text-xs text-text-muted">
-                    Документы: {task.document_count} · Материалы: {task.evidence_count}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+                      <span className="shrink-0 text-xs text-text-muted">
+                        Документы: {task.document_count} · Материалы: {task.evidence_count}
+                      </span>
+                    </Link>
+                  </ResourceListRow>
+                </li>
+              ))}
+            </ul>
+          </ResourceList>
         </>
       )}
       {(hasPreviousPage || nextCursor) && (
@@ -410,27 +414,31 @@ export function TaskDossierPage() {
           {task.documents.length === 0 ? (
             <EmptyState message="С задачей пока не связан ни один документ" />
           ) : (
-            <ul className="divide-y divide-border border-y border-border">
-              {task.documents.map((document) => (
-                <li key={document.id}>
-                  <Link
-                    to={`/documents/${document.id}`}
-                    className="flex min-h-14 min-w-0 items-start gap-3 px-2 py-3 hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
-                  >
-                    <FileText className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
-                    <span className="min-w-0">
-                      <span className="block break-words text-sm font-medium text-text-primary">
-                        {document.title}
-                      </span>
-                      <span className="block text-xs text-text-muted">
-                        {formatDocumentType(document.document_type)} ·{' '}
-                        {formatDocumentStatus(document.status)}
-                      </span>
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            <ResourceList asChild>
+              <ul>
+                {task.documents.map((document) => (
+                  <li key={document.id}>
+                    <ResourceListRow asChild interactive>
+                      <Link
+                        to={`/documents/${document.id}`}
+                        className="flex min-w-0 items-start gap-3"
+                      >
+                        <FileText className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
+                        <span className="min-w-0">
+                          <span className="block break-words text-sm font-medium text-text-primary">
+                            {document.title}
+                          </span>
+                          <span className="block text-xs text-text-muted">
+                            {formatDocumentType(document.document_type)} ·{' '}
+                            {formatDocumentStatus(document.status)}
+                          </span>
+                        </span>
+                      </Link>
+                    </ResourceListRow>
+                  </li>
+                ))}
+              </ul>
+            </ResourceList>
           )}
         </section>
 
@@ -441,19 +449,23 @@ export function TaskDossierPage() {
           {phaseKeys.length === 0 ? (
             <EmptyState message="Материалы задачи пока не привязаны к фазам" />
           ) : (
-            <ul className="divide-y divide-border border-y border-border">
-              {phaseKeys.map((phaseKey) => (
-                <li key={phaseKey}>
-                  <Link
-                    to={scopedPath(`/phases/${phaseKey}`, selectedSpaceKey)}
-                    className="flex min-h-12 min-w-0 items-center gap-3 px-2 py-2 text-sm hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
-                  >
-                    <GitBranch className="h-4 w-4 shrink-0 text-accent" aria-hidden />
-                    <span className="min-w-0 break-words">{phaseKey}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            <ResourceList asChild>
+              <ul>
+                {phaseKeys.map((phaseKey) => (
+                  <li key={phaseKey}>
+                    <ResourceListRow asChild interactive>
+                      <Link
+                        to={scopedPath(`/phases/${phaseKey}`, selectedSpaceKey)}
+                        className="flex min-w-0 items-center gap-3 text-sm"
+                      >
+                        <GitBranch className="h-4 w-4 shrink-0 text-accent" aria-hidden />
+                        <span className="min-w-0 break-words">{phaseKey}</span>
+                      </Link>
+                    </ResourceListRow>
+                  </li>
+                ))}
+              </ul>
+            </ResourceList>
           )}
         </aside>
       </div>
@@ -465,26 +477,31 @@ export function TaskDossierPage() {
         {task.evidence.length === 0 ? (
           <EmptyState message="Материалы пока не прикреплены" />
         ) : (
-          <ul className="divide-y divide-border border-y border-border">
-            {task.evidence.map((item) => (
-              <li key={item.id}>
-                <Link
-                  to={evidenceTaskPath(selectedSpaceKey, task.task_key, item.id)}
-                  className="flex min-h-14 min-w-0 items-start gap-3 px-2 py-3 hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
-                >
-                  <FileCheck2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
-                  <span className="min-w-0">
-                    <span className="block break-words text-sm font-medium text-text-primary">
-                      {item.title}
-                    </span>
-                    <span className="block text-xs text-text-muted">
-                      {formatEvidenceType(item.evidence_type)} · {formatDateTime(item.created_at)}
-                    </span>
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <ResourceList asChild>
+            <ul>
+              {task.evidence.map((item) => (
+                <li key={item.id}>
+                  <ResourceListRow asChild interactive>
+                    <Link
+                      to={evidenceTaskPath(selectedSpaceKey, task.task_key, item.id)}
+                      className="flex min-w-0 items-start gap-3"
+                    >
+                      <FileCheck2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
+                      <span className="min-w-0">
+                        <span className="block break-words text-sm font-medium text-text-primary">
+                          {item.title}
+                        </span>
+                        <span className="block text-xs text-text-muted">
+                          {formatEvidenceType(item.evidence_type)} ·{' '}
+                          {formatDateTime(item.created_at)}
+                        </span>
+                      </span>
+                    </Link>
+                  </ResourceListRow>
+                </li>
+              ))}
+            </ul>
+          </ResourceList>
         )}
       </section>
     </div>

@@ -1,5 +1,11 @@
 import { useLocation } from 'react-router'
-import { NamespaceLink as Link, ProjectAvatar, usePlatformServices } from '@sdlc/ui/ui'
+import {
+  NamespaceLink as Link,
+  ProjectAvatar,
+  usePlatformServices,
+  ResourceList,
+  ResourceListRow,
+} from '@sdlc/ui/ui'
 import { projectIdentity, withNamespaceLocation } from '@sdlc/ui/lib'
 import { documentPath, useWorkspaceCatalog, workspacePath } from '@/api/workspaces'
 import { useNamespaceContext } from '@/widgets/namespace-context'
@@ -33,25 +39,29 @@ export function ProjectsPage() {
   return (
     <div className="space-y-5">
       <h1 className="text-2xl font-semibold">Проекты</h1>
-      <ul className="divide-y divide-border">
-        {catalog.data.map((project) => (
-          <li key={projectIdentity(project.namespace)}>
-            <Link
-              className="flex items-center gap-3 p-3 hover:bg-surface-raised"
-              to={withNamespaceLocation(
-                workspacePath(project.namespace) + '?project_scope=all',
-                project.namespace,
-              )}
-            >
-              <ProjectAvatar projectKey={project.project_key} />
-              <span>
-                {project.name} · {project.project_key}
-              </span>
-              <span className="text-sm text-text-muted">{projectResourceLabel(project)}</span>
-            </Link>
-          </li>
-        ))}
-      </ul>
+      <ResourceList asChild>
+        <ul>
+          {catalog.data.map((project) => (
+            <li key={projectIdentity(project.namespace)}>
+              <ResourceListRow asChild interactive>
+                <Link
+                  className="flex items-center gap-3"
+                  to={withNamespaceLocation(
+                    workspacePath(project.namespace) + '?project_scope=all',
+                    project.namespace,
+                  )}
+                >
+                  <ProjectAvatar projectKey={project.project_key} />
+                  <span>
+                    {project.name} · {project.project_key}
+                  </span>
+                  <span className="text-sm text-text-muted">{projectResourceLabel(project)}</span>
+                </Link>
+              </ResourceListRow>
+            </li>
+          ))}
+        </ul>
+      </ResourceList>
       {!catalog.data.length && <p>Нет доступных проектов</p>}
     </div>
   )

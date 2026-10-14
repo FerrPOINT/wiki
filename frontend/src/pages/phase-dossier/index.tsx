@@ -1,6 +1,6 @@
 import { useProjectRouteRef } from '@/widgets/namespace-context'
 import { type FormEvent, useRef, useState } from 'react'
-import { NamespaceLink as Link } from '@sdlc/ui/ui'
+import { NamespaceLink as Link, ResourceList, ResourceListRow } from '@sdlc/ui/ui'
 import { useParams, useSearchParams } from 'react-router'
 import { FileCheck2, FileText, Link2, Search } from 'lucide-react'
 import { useLinkPhaseDocument, usePhase, usePhaseSummaries, useSpaces } from '@/shared/api/hooks'
@@ -166,28 +166,32 @@ function PhaseCatalog({ spaceKey }: { spaceKey: string }) {
           <p role="status" className="text-xs text-text-muted">
             Фазы: {phases.length} из {phasesQuery.data?.total}
           </p>
-          <ul className="divide-y divide-border border-y border-border">
-            {phases.map((phase) => (
-              <li key={phase.phase_key}>
-                <Link
-                  to={pathWithSearchParams(`/phases/${phase.phase_key}`, searchParams)}
-                  className="flex min-h-16 min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 px-2 py-3 hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
-                >
-                  <span className="min-w-0">
-                    <span className="block break-words text-sm font-medium text-text-primary">
-                      {phase.title ?? phase.phase_key}
-                    </span>
-                    {phase.title && (
-                      <span className="block text-xs text-text-muted">{phase.phase_key}</span>
-                    )}
-                  </span>
-                  <span className="shrink-0 text-xs text-text-muted">
-                    Документы: {phase.document_count} · Материалы: {phase.evidence_count}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <ResourceList asChild>
+            <ul>
+              {phases.map((phase) => (
+                <li key={phase.phase_key}>
+                  <ResourceListRow asChild interactive>
+                    <Link
+                      to={pathWithSearchParams(`/phases/${phase.phase_key}`, searchParams)}
+                      className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1"
+                    >
+                      <span className="min-w-0">
+                        <span className="block break-words text-sm font-medium text-text-primary">
+                          {phase.title ?? phase.phase_key}
+                        </span>
+                        {phase.title && (
+                          <span className="block text-xs text-text-muted">{phase.phase_key}</span>
+                        )}
+                      </span>
+                      <span className="shrink-0 text-xs text-text-muted">
+                        Документы: {phase.document_count} · Материалы: {phase.evidence_count}
+                      </span>
+                    </Link>
+                  </ResourceListRow>
+                </li>
+              ))}
+            </ul>
+          </ResourceList>
         </>
       )}
       {(hasPreviousPage || nextCursor) && (
@@ -389,27 +393,31 @@ export function PhaseDossierPage() {
           {phase.documents.length === 0 ? (
             <EmptyState message="С фазой пока не связан ни один документ" />
           ) : (
-            <ul className="divide-y divide-border border-y border-border">
-              {phase.documents.map((document) => (
-                <li key={document.id}>
-                  <Link
-                    to={`/documents/${document.id}`}
-                    className="flex min-h-14 min-w-0 items-start gap-3 px-2 py-3 hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
-                  >
-                    <FileText className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
-                    <span className="min-w-0">
-                      <span className="block break-words text-sm font-medium text-text-primary">
-                        {document.title}
-                      </span>
-                      <span className="block text-xs text-text-muted">
-                        {formatDocumentType(document.document_type)} ·{' '}
-                        {formatDocumentStatus(document.status)}
-                      </span>
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            <ResourceList asChild>
+              <ul>
+                {phase.documents.map((document) => (
+                  <li key={document.id}>
+                    <ResourceListRow asChild interactive>
+                      <Link
+                        to={`/documents/${document.id}`}
+                        className="flex min-w-0 items-start gap-3"
+                      >
+                        <FileText className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
+                        <span className="min-w-0">
+                          <span className="block break-words text-sm font-medium text-text-primary">
+                            {document.title}
+                          </span>
+                          <span className="block text-xs text-text-muted">
+                            {formatDocumentType(document.document_type)} ·{' '}
+                            {formatDocumentStatus(document.status)}
+                          </span>
+                        </span>
+                      </Link>
+                    </ResourceListRow>
+                  </li>
+                ))}
+              </ul>
+            </ResourceList>
           )}
         </section>
 
@@ -420,26 +428,31 @@ export function PhaseDossierPage() {
           {phase.evidence.length === 0 ? (
             <EmptyState message="Материалы пока не прикреплены" />
           ) : (
-            <ul className="divide-y divide-border border-y border-border">
-              {phase.evidence.map((item) => (
-                <li key={item.id}>
-                  <Link
-                    to={evidencePhasePath(selectedSpaceKey, phase.phase_key, item.id)}
-                    className="flex min-h-14 min-w-0 items-start gap-3 px-2 py-3 hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
-                  >
-                    <FileCheck2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
-                    <span className="min-w-0">
-                      <span className="block break-words text-sm font-medium text-text-primary">
-                        {item.title}
-                      </span>
-                      <span className="block text-xs text-text-muted">
-                        {formatEvidenceType(item.evidence_type)} · {formatDateTime(item.created_at)}
-                      </span>
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            <ResourceList asChild>
+              <ul>
+                {phase.evidence.map((item) => (
+                  <li key={item.id}>
+                    <ResourceListRow asChild interactive>
+                      <Link
+                        to={evidencePhasePath(selectedSpaceKey, phase.phase_key, item.id)}
+                        className="flex min-w-0 items-start gap-3"
+                      >
+                        <FileCheck2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
+                        <span className="min-w-0">
+                          <span className="block break-words text-sm font-medium text-text-primary">
+                            {item.title}
+                          </span>
+                          <span className="block text-xs text-text-muted">
+                            {formatEvidenceType(item.evidence_type)} ·{' '}
+                            {formatDateTime(item.created_at)}
+                          </span>
+                        </span>
+                      </Link>
+                    </ResourceListRow>
+                  </li>
+                ))}
+              </ul>
+            </ResourceList>
           )}
         </section>
       </div>

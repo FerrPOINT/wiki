@@ -14,6 +14,8 @@ import {
   TableHeader,
   TableRow,
   usePlatformServices,
+  ResourceList,
+  ResourceListRow,
 } from '@sdlc/ui/ui'
 import { useUsers } from '@/shared/api/hooks'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
@@ -171,21 +173,25 @@ export function UsersPage() {
       )}
       {!usersQuery.isLoading && !usersQuery.isError && visibleUsers.length > 0 && (
         <>
-          <div className="divide-y divide-border md:hidden">
-            {visibleUsers.map((user) => (
-              <div key={user.id} className="min-w-0 space-y-1 py-3">
-                <div className="flex items-start justify-between gap-3">
-                  <span className="min-w-0 break-words font-medium">
-                    {user.display_name ?? user.username ?? user.email}
-                  </span>
-                  <span className="shrink-0 text-xs text-text-secondary">
-                    {user.active === false ? 'Профиль отключён' : 'Профиль доступен'}
-                  </span>
-                </div>
-                <div className="break-all text-sm text-text-muted">{user.email}</div>
-              </div>
-            ))}
-          </div>
+          <ResourceList asChild>
+            <div className="md:hidden">
+              {visibleUsers.map((user) => (
+                <ResourceListRow asChild key={user.id}>
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="min-w-0 break-words font-medium">
+                        {user.display_name ?? user.username ?? user.email}
+                      </span>
+                      <span className="shrink-0 text-xs text-text-secondary">
+                        {user.active === false ? 'Профиль отключён' : 'Профиль доступен'}
+                      </span>
+                    </div>
+                    <div className="break-all text-sm text-text-muted">{user.email}</div>
+                  </div>
+                </ResourceListRow>
+              ))}
+            </div>
+          </ResourceList>
           <Table className="hidden table-fixed md:table">
             <TableHeader>
               <TableRow>

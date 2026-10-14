@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Loader, NamespaceLink as Link } from '@sdlc/ui/ui'
+import { Loader, NamespaceLink as Link, ResourceList, ResourceListRow } from '@sdlc/ui/ui'
 
 import {
   ArrowRight,
@@ -249,26 +249,33 @@ export function DashboardPage() {
                       }
                     />
                   ) : (
-                    <ul className="divide-y divide-border border-y border-border">
-                      {recentDocuments.map((document) => (
-                        <li key={document.id}>
-                          <Link
-                            to={document.url}
-                            className="flex min-h-14 items-center justify-between gap-3 py-2 hover:bg-surface-raised"
-                          >
-                            <span className="min-w-0">
-                              <span className="block truncate text-sm font-medium text-text-primary">
-                                {document.title}
-                              </span>
-                              <span className="block text-xs text-text-muted">
-                                {formatDateTime(document.updated_at)}
-                              </span>
-                            </span>
-                            <ArrowRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
+                    <ResourceList asChild>
+                      <ul>
+                        {recentDocuments.map((document) => (
+                          <li key={document.id}>
+                            <ResourceListRow asChild interactive>
+                              <Link
+                                to={document.url}
+                                className="flex items-center justify-between gap-3"
+                              >
+                                <span className="min-w-0">
+                                  <span className="block truncate text-sm font-medium text-text-primary">
+                                    {document.title}
+                                  </span>
+                                  <span className="block text-xs text-text-muted">
+                                    {formatDateTime(document.updated_at)}
+                                  </span>
+                                </span>
+                                <ArrowRight
+                                  className="h-4 w-4 shrink-0 text-text-muted"
+                                  aria-hidden
+                                />
+                              </Link>
+                            </ResourceListRow>
+                          </li>
+                        ))}
+                      </ul>
+                    </ResourceList>
                   )}
                 </section>
 
@@ -297,26 +304,33 @@ export function DashboardPage() {
                   ) : focusTasks.length === 0 ? (
                     <EmptyState message="Документы ещё не связаны с задачами" />
                   ) : (
-                    <ul className="divide-y divide-border border-y border-border">
-                      {focusTasks.map((task) => (
-                        <li key={task.task_key}>
-                          <Link
-                            to={`/tasks/${task.task_key}?space=${encodeURIComponent(activeSpaceKey)}`}
-                            className="flex min-h-14 items-center justify-between gap-3 py-2 hover:bg-surface-raised"
-                          >
-                            <span className="min-w-0">
-                              <span className="block truncate text-sm font-medium text-text-primary">
-                                {task.title || task.task_key}
-                              </span>
-                              <span className="block text-xs text-text-muted">
-                                {task.task_key} · Документы: {task.document_count}
-                              </span>
-                            </span>
-                            <ArrowRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
+                    <ResourceList asChild>
+                      <ul>
+                        {focusTasks.map((task) => (
+                          <li key={task.task_key}>
+                            <ResourceListRow asChild interactive>
+                              <Link
+                                to={`/tasks/${task.task_key}?space=${encodeURIComponent(activeSpaceKey)}`}
+                                className="flex items-center justify-between gap-3"
+                              >
+                                <span className="min-w-0">
+                                  <span className="block truncate text-sm font-medium text-text-primary">
+                                    {task.title || task.task_key}
+                                  </span>
+                                  <span className="block text-xs text-text-muted">
+                                    {task.task_key} · Документы: {task.document_count}
+                                  </span>
+                                </span>
+                                <ArrowRight
+                                  className="h-4 w-4 shrink-0 text-text-muted"
+                                  aria-hidden
+                                />
+                              </Link>
+                            </ResourceListRow>
+                          </li>
+                        ))}
+                      </ul>
+                    </ResourceList>
                   )}
                 </section>
               </div>
