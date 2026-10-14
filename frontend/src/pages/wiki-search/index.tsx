@@ -5,7 +5,15 @@ import { wikiSearchScope } from '@/shared/lib/search-scope'
 import { SearchResultLink } from '@/widgets/search-result-link'
 import { FileCheck2, FileText, GitBranch, ListFilter, Search } from 'lucide-react'
 import { useWikiSearch } from '@/shared/api/hooks'
-import { Button, EmptyState, ErrorState, Input, Label, LoadingState } from '@sdlc/ui/ui'
+import {
+  Button,
+  EmptyState,
+  ErrorState,
+  Input,
+  Label,
+  LoadingState,
+  ResourceList,
+} from '@sdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime, formatDocumentType } from '@/shared/lib/wiki-format'
 import type { SearchParams, SearchResult } from '@/api/wiki'
@@ -435,34 +443,36 @@ export function WikiSearchPage() {
           <EmptyState message="Ничего не найдено" />
         )}
         {!searchQuery.isLoading && !searchQuery.isError && results.length > 0 && (
-          <div className="divide-y divide-border border-y border-border">
-            {results.map((result: SearchResult) => {
-              const Icon = resultIcon(result.result_type)
-              return (
-                <SearchResultLink
-                  key={`${result.result_type}-${result.id}`}
-                  result={result}
-                  allSpaces={!projectSearch}
-                >
-                  <Icon className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
-                  <span className="min-w-0 flex-1">
-                    <span className="block break-words text-sm font-medium text-text-primary">
-                      {result.title}
-                    </span>
-                    <span className="mt-0.5 block text-xs text-text-muted">
-                      {resultLabel(result.result_type)} · {result.space_key} ·{' '}
-                      {formatDateTime(result.updated_at)}
-                    </span>
-                    {result.snippet && (
-                      <span className="mt-1 block break-words text-sm text-text-secondary line-clamp-1">
-                        {result.snippet}
+          <ResourceList asChild>
+            <div>
+              {results.map((result: SearchResult) => {
+                const Icon = resultIcon(result.result_type)
+                return (
+                  <SearchResultLink
+                    key={`${result.result_type}-${result.id}`}
+                    result={result}
+                    allSpaces={!projectSearch}
+                  >
+                    <Icon className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
+                    <span className="min-w-0 flex-1">
+                      <span className="block break-words text-sm font-medium text-text-primary">
+                        {result.title}
                       </span>
-                    )}
-                  </span>
-                </SearchResultLink>
-              )
-            })}
-          </div>
+                      <span className="mt-0.5 block text-xs text-text-muted">
+                        {resultLabel(result.result_type)} · {result.space_key} ·{' '}
+                        {formatDateTime(result.updated_at)}
+                      </span>
+                      {result.snippet && (
+                        <span className="mt-1 block break-words text-sm text-text-secondary line-clamp-1">
+                          {result.snippet}
+                        </span>
+                      )}
+                    </span>
+                  </SearchResultLink>
+                )
+              })}
+            </div>
+          </ResourceList>
         )}
         {(currentPage > 1 || nextCursor) && !searchQuery.isLoading && !searchQuery.isError && (
           <nav aria-label="Страницы результатов" className="flex items-center justify-end gap-2">

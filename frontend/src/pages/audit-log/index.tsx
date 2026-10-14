@@ -2,7 +2,7 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { ChevronLeft, ChevronRight, ListFilter, RefreshCw } from 'lucide-react'
 import { useAuditLog, useUsers } from '@/shared/api/hooks'
-import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
+import { EmptyState, ErrorState, LoadingState, ResourceList, ResourceListRow } from '@sdlc/ui/ui'
 import { Button } from '@sdlc/ui/ui'
 import { Input } from '@sdlc/ui/ui'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@sdlc/ui/ui'
@@ -477,39 +477,43 @@ export function AuditLogPage() {
         )}
         {!auditQuery.isLoading && !auditQuery.isError && entries.length > 0 && (
           <>
-            <ul className="divide-y divide-border border-y border-border xl:hidden">
-              {entries.map((event) => (
-                <li key={event.id} className="py-3">
-                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                    <span className="min-w-0 break-words text-sm font-medium">
-                      {actionLabels[event.action] ?? event.action}
-                    </span>
-                    <time dateTime={event.created_at} className="text-xs text-text-muted">
-                      {formatDateTime(event.created_at)}
-                    </time>
-                  </div>
-                  <dl className="mt-1 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
-                    <dt className="text-text-muted">Участник</dt>
-                    <dd className="min-w-0 break-all">{event.actor_id}</dd>
-                    <dt className="text-text-muted">Объект</dt>
-                    <dd className="min-w-0 break-all">
-                      {event.entity_type}: {event.entity_id}
-                    </dd>
-                  </dl>
-                  <details className="mt-1 text-xs">
-                    <summary className="min-h-10 cursor-pointer py-2 text-text-secondary hover:text-text-primary">
-                      Технические данные
-                    </summary>
-                    <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 pb-2">
-                      <dt className="text-text-muted">Действие</dt>
-                      <dd className="min-w-0 break-all font-mono">{event.action}</dd>
-                      <dt className="text-text-muted">Запрос</dt>
-                      <dd className="min-w-0 break-all font-mono">{event.request_id}</dd>
-                    </dl>
-                  </details>
-                </li>
-              ))}
-            </ul>
+            <ResourceList asChild>
+              <ul className="xl:hidden">
+                {entries.map((event) => (
+                  <ResourceListRow asChild key={event.id}>
+                    <li>
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                        <span className="min-w-0 break-words text-sm font-medium">
+                          {actionLabels[event.action] ?? event.action}
+                        </span>
+                        <time dateTime={event.created_at} className="text-xs text-text-muted">
+                          {formatDateTime(event.created_at)}
+                        </time>
+                      </div>
+                      <dl className="mt-1 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
+                        <dt className="text-text-muted">Участник</dt>
+                        <dd className="min-w-0 break-all">{event.actor_id}</dd>
+                        <dt className="text-text-muted">Объект</dt>
+                        <dd className="min-w-0 break-all">
+                          {event.entity_type}: {event.entity_id}
+                        </dd>
+                      </dl>
+                      <details className="mt-1 text-xs">
+                        <summary className="min-h-10 cursor-pointer py-2 text-text-secondary hover:text-text-primary">
+                          Технические данные
+                        </summary>
+                        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 pb-2">
+                          <dt className="text-text-muted">Действие</dt>
+                          <dd className="min-w-0 break-all font-mono">{event.action}</dd>
+                          <dt className="text-text-muted">Запрос</dt>
+                          <dd className="min-w-0 break-all font-mono">{event.request_id}</dd>
+                        </dl>
+                      </details>
+                    </li>
+                  </ResourceListRow>
+                ))}
+              </ul>
+            </ResourceList>
             <div className="hidden xl:block">
               <Table className="table-fixed">
                 <TableHeader>
