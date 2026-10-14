@@ -2,7 +2,7 @@
 
 UX-04/06. Пустой каталог пространств объясняет доступ или предлагает создание администратору. Подтверждённый каталог, выбор BASE/первого доступного без явного ключа, ошибка недоступного явного ключа, общий searchable picker и сохранение черновика. Namespace-привязка остаётся авторитетной.
 
-Общие контракты и тексты: [стандарт Base](https://github.com/FerrPOINT/services-base/blob/16e0ab44924fae7c67c2df56438667e7830cafd6/docs/platform/UI_UX_STANDARD.md). UI pin: `16e0ab44924fae7c67c2df56438667e7830cafd6`; SDK и skills pins сохранены.
+Общие контракты и тексты: [стандарт Base](https://github.com/FerrPOINT/services-base/blob/6b9dd35a92bb095debf166724e4ecb1cb0e8ceb0/docs/platform/UI_UX_STANDARD.md). UI pin: `6b9dd35a92bb095debf166724e4ecb1cb0e8ceb0`; SDK и skills pins сохранены.
 
 Frontend: 235 тестов после интеграции main `4416a5c`, TypeScript/lint/format/build, frozen lockfile и OpenAPI. API-fixture Playwright: 15 сценариев в Chromium/Firefox/WebKit, включая обновление каталога, защиту ухода и публикацию. Скриншоты 375/1920/2560 и effective theme contrast проверены. Историческая IAB-проверка общего анонимного входа на 320/375/1920/2560 не заменяет живую SSO-приёмку нового кандидата.
 
@@ -17,3 +17,7 @@ Frontend: 235 тестов после интеграции main `4416a5c`, TypeS
 ## Генерализация UI
 
 Удалён локальный re-export guard. Платформенные тексты наследуются из Base; API и редактор остаются в Wiki.
+
+## Общие блоки текста и описаний
+
+CodeBlock предпросмотра Markdown-шаблона использует Base; id, accessible name, раскрытие и содержимое остаются в Wiki.

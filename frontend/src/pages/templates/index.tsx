@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from 'react'
-import { NamespaceLink as Link, ResourceList, ResourceListRow } from '@sdlc/ui/ui'
+import { CodeBlock, NamespaceLink as Link, ResourceList, ResourceListRow } from '@sdlc/ui/ui'
 import { useSearchParams } from 'react-router'
 import {
   CheckCircle2,
@@ -468,12 +468,13 @@ export function TemplatesPage() {
                         </div>
                       </ResourceListRow>
                       {expanded && (
-                        <pre
+                        <CodeBlock
                           id={`template-body-${template.id}`}
-                          className="whitespace-pre-wrap break-words border-t border-border bg-surface-raised p-3 font-mono text-xs text-text-secondary"
+                          aria-label={template.name}
+                          className="rounded-none border-0 border-t bg-surface-raised"
                         >
                           {template.body_markdown}
-                        </pre>
+                        </CodeBlock>
                       )}
                     </li>
                   )
