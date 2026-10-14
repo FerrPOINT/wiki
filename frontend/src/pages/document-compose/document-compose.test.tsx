@@ -34,6 +34,7 @@ vi.mock('@/shared/api/hooks', () => ({
 function setupCompose(
   createOverrides: Record<string, unknown> = {},
   initialRoute = '/documents/new?space=eng',
+  spaceOverrides: Record<string, unknown> = {},
 ) {
   useSpaces.mockReturnValue({
     data: {
@@ -54,6 +55,7 @@ function setupCompose(
     },
     isLoading: false,
     isError: false,
+    ...spaceOverrides,
   })
   useTemplates.mockReturnValue({
     data: {
@@ -192,13 +194,13 @@ describe('DocumentComposePage', () => {
     expect(dialog).toHaveTextContent('Несохранённые изменения будут потеряны')
     expect(router.state.location.pathname).toBe('/documents/new')
 
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Отмена' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Остаться' }))
     expect(screen.getByLabelText('Название')).toHaveValue('Черновик')
     expect(router.state.location.pathname).toBe('/documents/new')
 
     await act(async () => router.navigate('/spaces'))
     fireEvent.click(
-      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Подтвердить' }),
+      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Покинуть' }),
     )
     await waitFor(() => expect(router.state.location.pathname).toBe('/spaces'))
   })
@@ -246,5 +248,39 @@ describe('DocumentComposePage', () => {
     const alert = screen.getByRole('alert')
     expect(alert).toHaveTextContent('Проверьте заполнение полей: Название: required')
     expect(alert).not.toHaveTextContent('requestId')
+  })
+  it('blocks creation when the confirmed space catalogue is empty and keeps the entered draft', () => {
+    setupCompose({}, '/documents/new', { data: { spaces: [] } })
+    fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Keep my draft' } })
+    expect(screen.getByRole('button', { name: 'Сохранить черновик' })).toBeDisabled()
+    expect(screen.getByText(/Нет доступных пространств/)).toBeInTheDocument()
+    expect(screen.getByLabelText('Название')).toHaveValue('Keep my draft')
+    expect(createDocumentMutate).not.toHaveBeenCalled()
+  })
+
+  it('selects an existing non-BASE space for a blank URL without creating a dirty draft', async () => {
+    setupCompose({}, '/documents/new')
+    await screen.findByRole('button', { name: 'Пространство: Engineering (ENG)' })
+    const event = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
+    expect(screen.getByRole('button', { name: 'Сохранить черновик' })).toBeEnabled()
+  })
+
+  it('does not replace an unavailable explicit space with the first accessible one', () => {
+    setupCompose({}, '/documents/new?space=MISSING')
+    expect(screen.getByText(/Выбранное пространство недоступно/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Сохранить черновик' })).toBeDisabled()
+    expect(createDocumentMutate).not.toHaveBeenCalled()
+  })
+
+  it('retains input when the catalogue is unavailable rather than inventing BASE', () => {
+    setupCompose({}, '/documents/new', { data: undefined, isError: true, refetch: vi.fn() })
+    fireEvent.change(screen.getByLabelText('Markdown документа'), {
+      target: { value: 'Unsaved body' },
+    })
+    expect(screen.getByRole('button', { name: 'Сохранить черновик' })).toBeDisabled()
+    expect(screen.getByLabelText('Markdown документа')).toHaveValue('Unsaved body')
+    expect(createDocumentMutate).not.toHaveBeenCalled()
   })
 })

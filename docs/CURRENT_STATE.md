@@ -64,6 +64,8 @@
 
 ## Known Local Environment Limits
 
+- **UI/UX candidate 2026-10-14:** source fixes are prepared against Base UI `6adaf0961c96d613746c60a4b37f6104bfb35917`; frontend tests/build/types/lint/frozen packages and OpenAPI are verified. IAB anonymous-entry evidence covers four widths. The full backend Rust gate was interrupted after the user restricted Docker groups to pdlc2; backend source is unchanged. Full authenticated candidate acceptance and product switching remain pending. No candidate was installed; see [candidate plan](plans/2026-10-14-ui-ux-remediation.md).
+
 - **CLI backend QA 2026-10-02:** Docker/WSL recovered; pinned backend/frontend/release gates, historical PostgreSQL restore and Wiki image CLI acceptance pass, including multipart replay and partial recovery. Rollout remains blocked by unavailable previous runtime/images and CI/CD applied migrations 36/37 missing from published main. No production pins/migration ledger changed; see [CLI_VALIDATION.md](CLI_VALIDATION.md).
 
 

@@ -363,10 +363,9 @@ describe('SpacesPage', () => {
     )
 
     expect(screen.getByText('Пространства ещё не созданы')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Создать первый документ' })).toHaveAttribute(
-      'href',
-      '/documents/new?space=BASE',
-    )
+    expect(screen.queryByRole('link', { name: 'Создать первый документ' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Создать пространство' }))
+    expect(screen.getByLabelText('Название')).toBeInTheDocument()
     expect(useSpaceTree).not.toHaveBeenCalled()
   })
 

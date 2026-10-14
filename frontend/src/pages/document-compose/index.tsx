@@ -5,8 +5,8 @@ import { NamespaceLink as Link } from '@sdlc/ui/ui'
 import { useNamespaceNavigate as useNavigate } from '@sdlc/ui/ui'
 import { useSearchParams } from 'react-router'
 import { FileText, GitBranch, Save, Tag } from 'lucide-react'
-import { defaultSpaceKey, useCreateDocument, useSpaces, useTemplates } from '@/shared/api/hooks'
-import { ErrorState, LoadingState } from '@sdlc/ui/ui'
+import { useCreateDocument, useSpaces, useTemplates } from '@/shared/api/hooks'
+import { ErrorState, FormField, LoadingState, SearchableSelect } from '@sdlc/ui/ui'
 import { Button } from '@sdlc/ui/ui'
 import { Card, CardContent, CardHeader, CardTitle } from '@sdlc/ui/ui'
 import { Input } from '@sdlc/ui/ui'
@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@sdlc/ui/ui'
 import { Textarea } from '@sdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDocumentType } from '@/shared/lib/wiki-format'
+import { resolveSpaceKey } from '@/shared/lib/space-selection'
 import { UnsavedChangesGuard } from '@/shared/ui/unsaved-changes-guard'
 
 const typeOptions = [
@@ -35,11 +36,14 @@ export function DocumentComposePage() {
   const navigate = useNavigate()
   const namespace = useNamespaceContext()
   const [searchParams] = useSearchParams()
-  const initialSpace = (searchParams.get('space') ?? defaultSpaceKey).toUpperCase()
+  const initialSpace = searchParams.get('space')?.trim().toUpperCase() ?? ''
   const requestedTemplateId = searchParams.get('template')?.trim() ?? ''
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [spaceKey, setSpaceKey] = useState(initialSpace)
+  const [spaceChosen, setSpaceChosen] = useState(false)
+  const [spaceSearch, setSpaceSearch] = useState('')
+  const [spaceOffset, setSpaceOffset] = useState(0)
   const [documentType, setDocumentType] = useState('page')
   const [slug, setSlug] = useState('')
   const [taskKey, setTaskKey] = useState('')
@@ -50,6 +54,50 @@ export function DocumentComposePage() {
   const spacesQuery = useSpaces()
   const templatesQuery = useTemplates()
   const createDocument = useCreateDocument()
+  const availableSpaces = (spacesQuery.data?.spaces ?? []).filter(
+    (space) => space.status === 'active',
+  )
+  const selectedSpace = availableSpaces.find(
+    (space) => space.key.toUpperCase() === spaceKey.toUpperCase(),
+  )
+  const filteredSpaces = availableSpaces.filter((space) =>
+    `${space.name} ${space.key}`
+      .toLocaleLowerCase()
+      .includes(spaceSearch.trim().toLocaleLowerCase()),
+  )
+  const canSave =
+    !namespace.malformed &&
+    (namespace.ref
+      ? namespace.query.data?.binding.state === 'active'
+      : !spacesQuery.isLoading && !spacesQuery.isError && Boolean(selectedSpace))
+  const spaceProblem = namespace.malformed
+    ? 'Некорректная ссылка на пространство Namespace'
+    : !namespace.ref && !spacesQuery.isLoading && !spacesQuery.isError && spaceKey && !selectedSpace
+      ? 'Выбранное пространство недоступно. Выберите доступное пространство.'
+      : undefined
+  useEffect(() => {
+    if (
+      initialSpace ||
+      spaceChosen ||
+      namespace.ref ||
+      spacesQuery.isLoading ||
+      spacesQuery.isError
+    )
+      return
+    setSpaceKey(
+      resolveSpaceKey(
+        null,
+        (spacesQuery.data?.spaces ?? []).filter((space) => space.status === 'active'),
+      ),
+    )
+  }, [
+    initialSpace,
+    spaceChosen,
+    namespace.ref,
+    spacesQuery.isLoading,
+    spacesQuery.isError,
+    spacesQuery.data,
+  ])
 
   function applyTemplate(templateId: string) {
     const template = templatesQuery.data?.templates.find((item) => item.id === templateId)
@@ -76,7 +124,7 @@ export function DocumentComposePage() {
     createdDocumentPath === null &&
     (title.trim().length > 0 ||
       body.trim().length > 0 ||
-      spaceKey !== initialSpace ||
+      (spaceChosen && spaceKey !== initialSpace) ||
       documentType !== 'page' ||
       slug.trim().length > 0 ||
       taskKey.trim().length > 0 ||
@@ -84,16 +132,10 @@ export function DocumentComposePage() {
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (
-      namespace.malformed ||
-      (namespace.ref && (!namespace.query.data || namespace.query.data.binding.state !== 'active'))
-    )
-      return
+    if (!canSave) return
     createDocument.mutate(
       {
-        spaceKey: namespace.ref
-          ? namespace.query.data!.resource_key
-          : spaceKey.trim().toUpperCase() || defaultSpaceKey,
+        spaceKey: namespace.ref ? namespace.query.data!.resource_key : selectedSpace!.key,
         body: {
           title: title.trim(),
           slug: normalizeOptional(slug),
@@ -133,7 +175,7 @@ export function DocumentComposePage() {
             <FileText className="h-4 w-4" />
             Предпросмотр
           </Button>
-          <Button size="sm" disabled={createDocument.isPending}>
+          <Button size="sm" disabled={createDocument.isPending || !canSave}>
             <Save className="h-4 w-4" />
             {createDocument.isPending ? 'Сохраняем...' : 'Сохранить черновик'}
           </Button>
@@ -164,23 +206,75 @@ export function DocumentComposePage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="document-space">Пространство</Label>
-                <Input
-                  id="document-space"
-                  readOnly={Boolean(namespace.ref)}
-                  list="document-space-options"
-                  value={namespace.ref ? (namespace.query.data?.resource_key ?? '') : spaceKey}
-                  disabled={Boolean(namespace.ref)}
-                  onChange={(event) => setSpaceKey(event.target.value.toUpperCase())}
-                  required
-                />
-                <datalist id="document-space-options">
-                  {(spacesQuery.data?.spaces ?? []).map((space) => (
-                    <option key={space.key} value={space.key}>
-                      {space.name}
-                    </option>
-                  ))}
-                </datalist>
+                <FormField id="document-space" label="Пространство" error={spaceProblem}>
+                  {(field) =>
+                    namespace.ref ? (
+                      <Input
+                        id={field.id}
+                        aria-invalid={field['aria-invalid']}
+                        aria-describedby={field['aria-describedby']}
+                        value={namespace.query.data?.resource_key ?? ''}
+                        readOnly
+                        disabled
+                      />
+                    ) : (
+                      <SearchableSelect
+                        id={field.id}
+                        aria-invalid={field['aria-invalid']}
+                        aria-describedby={field['aria-describedby']}
+                        label="Пространство"
+                        value={spaceKey}
+                        selectedLabel={
+                          selectedSpace ? `${selectedSpace.name} (${selectedSpace.key})` : undefined
+                        }
+                        placeholder="Выберите пространство"
+                        allowEmpty={false}
+                        options={filteredSpaces
+                          .slice(spaceOffset, spaceOffset + 50)
+                          .map((space) => ({
+                            value: space.key,
+                            label: `${space.name} (${space.key})`,
+                          }))}
+                        search={spaceSearch}
+                        onSearch={(value) => {
+                          setSpaceSearch(value)
+                          setSpaceOffset(0)
+                        }}
+                        offset={spaceOffset}
+                        pageSize={50}
+                        total={filteredSpaces.length}
+                        onPage={setSpaceOffset}
+                        onChange={(value) => {
+                          setSpaceKey(value)
+                          setSpaceChosen(true)
+                        }}
+                        loading={spacesQuery.isLoading}
+                        error={
+                          spacesQuery.isError ? 'Не удалось загрузить пространства' : undefined
+                        }
+                        onRetry={() => {
+                          void spacesQuery.refetch()
+                        }}
+                      />
+                    )
+                  }
+                </FormField>
+                {namespace.ref &&
+                  (!namespace.query.data || namespace.query.data.binding.state !== 'active') && (
+                    <p role="status">Привязка пространства не подтверждена.</p>
+                  )}
+                {!namespace.ref &&
+                  !spacesQuery.isLoading &&
+                  !spacesQuery.isError &&
+                  !selectedSpace &&
+                  !spaceProblem && (
+                    <p role="status">
+                      {availableSpaces.length
+                        ? 'Выбранное пространство недоступно. Выберите доступное пространство.'
+                        : 'Нет доступных пространств. Создайте пространство или получите доступ.'}{' '}
+                      <Link to="/spaces">К пространствам</Link>
+                    </p>
+                  )}
               </div>
             </div>
 
