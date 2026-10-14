@@ -13,6 +13,7 @@ mod mapping;
 pub mod namespace;
 mod queries;
 mod search;
+mod space_projects;
 mod spaces;
 mod templates;
 mod workspace_catalog;
@@ -69,9 +70,6 @@ async fn ensure_document_accepts_writes_tx(
         let command: shared::resource_context::OwnerCommand = serde_json::from_value(value)
             .map_err(|_| shared::AppError::Unavailable("invalid_namespace_projection".into()))?;
         namespace::validate_projection(&command)?;
-        if command.state != "active" {
-            return Err(shared::AppError::conflict("namespace_resource_read_only"));
-        }
     }
     let space_archived: bool = row.get("space_archived");
     if space_archived {
@@ -165,11 +163,9 @@ impl PostgresWikiBackend {
     }
 
     async fn ensure_space_accepts_writes(&self, space_id: Uuid) -> Result<(), shared::AppError> {
-        if let Some(binding) = self.namespace_binding(space_id).await? {
-            if binding.state != "active" {
-                return Err(shared::AppError::conflict("namespace_resource_read_only"));
-            }
-        }
+        // A provisioning receipt still needs to be valid, but a project archive
+        // does not archive the independently owned Wiki space.
+        self.namespace_binding(space_id).await?;
         let accepts_writes: bool =
             sqlx::query_scalar("SELECT archived_at IS NULL FROM spaces WHERE id = $1")
                 .bind(space_id)
@@ -211,6 +207,36 @@ impl PostgresWikiBackend {
 
 #[async_trait::async_trait]
 impl WikiBackendPort for PostgresWikiBackend {
+    async fn document_space_projects(
+        &self,
+        claims: &WikiClaims,
+        document: Uuid,
+    ) -> Result<SpaceProjectsResponse, shared::AppError> {
+        self.document_projects(claims, document).await
+    }
+    async fn space_projects(
+        &self,
+        claims: &WikiClaims,
+        key: &str,
+    ) -> Result<SpaceProjectsResponse, shared::AppError> {
+        self.linked_projects(claims, key).await
+    }
+    async fn link_space_project(
+        &self,
+        claims: &WikiClaims,
+        key: &str,
+        project: &shared::resource_context::NamespaceRef,
+    ) -> Result<(), shared::AppError> {
+        self.associate_project(claims, key, project, true).await
+    }
+    async fn unlink_space_project(
+        &self,
+        claims: &WikiClaims,
+        key: &str,
+        project: &shared::resource_context::NamespaceRef,
+    ) -> Result<(), shared::AppError> {
+        self.associate_project(claims, key, project, false).await
+    }
     async fn space_namespace_context(
         &self,
         claims: &WikiClaims,
@@ -271,9 +297,11 @@ impl WikiBackendPort for PostgresWikiBackend {
         &self,
         claims: &WikiClaims,
         space_key: &str,
+        namespace: Option<&shared::resource_context::NamespaceRef>,
         offset: u32,
     ) -> Result<Vec<shared::resource_context::TaskCatalogItem>, shared::AppError> {
-        PostgresWikiBackend::namespace_available_tasks(self, claims, space_key, offset).await
+        PostgresWikiBackend::namespace_available_tasks(self, claims, space_key, namespace, offset)
+            .await
     }
     async fn namespace_available_resources(
         &self,

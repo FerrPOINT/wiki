@@ -183,6 +183,8 @@ pub struct Page {
 }
 #[derive(serde::Deserialize, utoipa::IntoParams)]
 pub struct TaskPage {
+    pub registry_instance_id: Option<Uuid>,
+    pub namespace_id: Option<Uuid>,
     pub offset: Option<u32>,
 }
 #[utoipa::path(get,operation_id="wiki_available_task_refs",path="/api/v1/spaces/{space_key}/available-tasks",tag="namespaces",params(("space_key"=String,Path),TaskPage),responses((status=200,body=Vec<TaskCatalogItem>)))]
@@ -192,10 +194,18 @@ pub async fn available_tasks(
     Path(key): Path<String>,
     Query(page): Query<TaskPage>,
 ) -> Result<Json<Vec<TaskCatalogItem>>, AppError> {
+    let namespace = match (page.registry_instance_id, page.namespace_id) {
+        (Some(registry_instance_id), Some(namespace_id)) => Some(NamespaceRef {
+            registry_instance_id,
+            namespace_id,
+        }),
+        (None, None) => None,
+        _ => return Err(AppError::invalid_input("incomplete_project_ref")),
+    };
     Ok(Json(
         backend
             .namespace_port()?
-            .namespace_available_tasks(&claims, &key, page.offset.unwrap_or(0))
+            .namespace_available_tasks(&claims, &key, namespace.as_ref(), page.offset.unwrap_or(0))
             .await?,
     ))
 }

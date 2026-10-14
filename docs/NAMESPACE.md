@@ -1,7 +1,8 @@
 # Namespace и связи с задачами
 
-Wiki Space представляет Wiki-проект сквозного Namespace. Admin хранит
-канонический binding; Wiki хранит подтверждённую projection с generation,
+Wiki Space самостоятельна и может быть связана с несколькими проектами;
+проект может иметь несколько пространств. Коллекцией связей владеет Wiki.
+Admin хранит binding первичного provisioning; Wiki хранит его receipt с generation,
 operation ID, registry/instance/resource UUID. Чтение и обычная работа active
 Space не требуют доступности Admin. Потерянная projection закрывает writes.
 Сохранённый managed marker исключает такой Space из каталога свободных ресурсов
@@ -30,8 +31,9 @@ conflict; единственный managed dossier перенаправляет�
 Непроверенные external/legacy links сохраняют прежний статус.
 
 Опубликованная revision managed Space неизменяема; новая публикация создаёт
-новую revision. Archive закрывает mutation paths, включая старые API и tables.
-Namespace restore сохраняет IDs и независимый archive документа.
+новую revision. Archive самого пространства закрывает mutation paths, включая старые API и tables.
+Archive/restore проекта сохраняет ID, собственный archive пространства/документа
+и текущую коллекцию связей. Машинный replay не восстанавливает отвязанную связь.
 
 ## Настройка и поставка
 

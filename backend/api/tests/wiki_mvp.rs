@@ -6291,3 +6291,439 @@ async fn wiki_postgres_routes_persist_across_router_rebuilds() {
             .any(|item| item["id"] == persisted_document_id)
     );
 }
+
+#[tokio::test]
+async fn wiki_postgres_space_project_api_preserves_many_to_many_and_historical_links() {
+    let Ok(database_url) = env::var("WIKI_TEST_DATABASE_URL") else {
+        return;
+    };
+    reset_postgres(&database_url).await;
+    let (app, _) = postgres_test_app(
+        database_url.clone(),
+        env::temp_dir().join(format!("wiki-projects-{}", Uuid::now_v7())),
+    )
+    .await;
+    let token = login_admin(&app).await;
+    let registry: Uuid = env::var("WIKI_NAMESPACE__REGISTRY_INSTANCE_ID")
+        .expect("QA registry required")
+        .parse()
+        .unwrap();
+    let tracker: Uuid = env::var("WIKI_NAMESPACE__TRACKER_INSTANCE_ID")
+        .expect("QA Tracker required")
+        .parse()
+        .unwrap();
+    let pool = PgPoolOptions::new()
+        .max_connections(2)
+        .connect(&database_url)
+        .await
+        .unwrap();
+    let mut projects = Vec::new();
+    for key in ["PROJECTA", "PROJECTB"] {
+        let command = shared::resource_context::OwnerCommand {
+            schema_version: 1,
+            namespace: shared::resource_context::NamespaceRef {
+                registry_instance_id: registry,
+                namespace_id: Uuid::now_v7(),
+            },
+            resource: shared::resource_context::ResourceRef {
+                kind: shared::resource_context::ResourceKind::TrackerProject,
+                instance_id: tracker,
+                resource_id: Uuid::now_v7(),
+            },
+            operation_id: Uuid::now_v7(),
+            generation: 1,
+            state: "active".into(),
+            create_spec: None,
+        };
+        let item = shared::resource_context::ResourceContextSummary {
+            binding: command.readback(true),
+            label: key.into(),
+            resource_key: key.into(),
+        };
+        sqlx::query("INSERT INTO wiki_workspace_projects(registry_instance_id,namespace_id,tracker_instance_id,tracker_project_id,generation,presentation,name,project_key) VALUES($1,$2,$3,$4,1,$5,$6,$6)")
+            .bind(registry).bind(command.namespace.namespace_id).bind(tracker).bind(command.resource.resource_id).bind(json!(item)).bind(key).execute(&pool).await.unwrap();
+        projects.push(command.namespace);
+    }
+    sqlx::query("INSERT INTO wiki_workspace_catalog_sync(id,available) VALUES(true,true)")
+        .execute(&pool)
+        .await
+        .unwrap();
+    for key in ["SHARED", "SECOND"] {
+        let (status, body) = call(
+            &app,
+            Method::POST,
+            "/api/v1/spaces",
+            Some(&token),
+            Some(json!({ "key": key, "name": key })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED, "{body}");
+    }
+    let relation = |key: &str, index: usize| {
+        format!(
+            "/api/v1/spaces/{key}/projects/{registry}/{}",
+            projects[index].namespace_id
+        )
+    };
+    let (status, initial) = call(
+        &app,
+        Method::GET,
+        "/api/v1/spaces/SHARED/projects",
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(initial["projects"], json!([]));
+    for (key, index) in [("SHARED", 0), ("SHARED", 1), ("SECOND", 0), ("SHARED", 0)] {
+        let (status, error) = call(
+            &app,
+            Method::PUT,
+            &relation(key, index),
+            Some(&token),
+            Some(json!({})),
+        )
+        .await;
+        assert_eq!(status, StatusCode::NO_CONTENT, "{error}");
+    }
+    let (status, linked) = call(
+        &app,
+        Method::GET,
+        "/api/v1/spaces/SHARED/projects",
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(linked["projects"].as_array().unwrap().len(), 2);
+    let (_, workspace) = call(
+        &app,
+        Method::GET,
+        &format!(
+            "/api/v1/workspace-projects/{registry}/{}",
+            projects[0].namespace_id
+        ),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(workspace["spaces"].as_array().unwrap().len(), 2);
+    let (status, document) = call(&app, Method::POST, "/api/v1/spaces/SHARED/documents", Some(&token), Some(json!({ "title": "Kept content", "slug": "shared-page", "document_type":"page", "content_markdown":"History survives project detach" }))).await;
+    assert_eq!(status, StatusCode::CREATED, "{document}");
+    let document_id: Uuid = document["id"].as_str().unwrap().parse().unwrap();
+    let (_, me) = call(&app, Method::GET, "/api/v1/users/me", Some(&token), None).await;
+    let owner: Uuid = me["id"].as_str().unwrap().parse().unwrap();
+    let space: Uuid = linked["space"]["id"].as_str().unwrap().parse().unwrap();
+    let revision = Uuid::now_v7();
+    sqlx::query("INSERT INTO document_revisions(id,document_id,version,title,content_markdown,content_html,content_text,content_checksum,author_id) VALUES($1,$2,1,'Historical revision','History','History','History','qa',$3)").bind(revision).bind(document_id).bind(owner).execute(&pool).await.unwrap();
+    let task = Uuid::now_v7();
+    let dossier = Uuid::now_v7();
+    sqlx::query("INSERT INTO task_dossiers(id,space_id,task_key,tracker_instance_id,task_id) VALUES($1,$2,'PROJECTA-1',$3,$4)").bind(dossier).bind(space).bind(tracker).bind(task).execute(&pool).await.unwrap();
+    sqlx::query("INSERT INTO managed_task_document_links(id,space_id,dossier_id,document_id,revision_id,created_by,registry_instance_id,namespace_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)").bind(Uuid::now_v7()).bind(space).bind(dossier).bind(document_id).bind(revision).bind(owner).bind(registry).bind(projects[0].namespace_id).execute(&pool).await.unwrap();
+    let private_space: Uuid = sqlx::query_scalar("SELECT id FROM spaces WHERE key='SECOND'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let private_document = Uuid::now_v7();
+    let private_revision = Uuid::now_v7();
+    let private_dossier = Uuid::now_v7();
+    sqlx::query("INSERT INTO documents(id,space_id,slug,title,owner_id) VALUES($1,$2,'private-neighbor','Private neighbor',$3)").bind(private_document).bind(private_space).bind(owner).execute(&pool).await.unwrap();
+    sqlx::query("INSERT INTO document_revisions(id,document_id,version,title,content_markdown,content_html,content_text,content_checksum,author_id) VALUES($1,$2,1,'Private neighbor','private','private','private','qa',$3)").bind(private_revision).bind(private_document).bind(owner).execute(&pool).await.unwrap();
+    sqlx::query("INSERT INTO task_dossiers(id,space_id,task_key,tracker_instance_id,task_id) VALUES($1,$2,'PROJECTA-1',$3,$4)").bind(private_dossier).bind(private_space).bind(tracker).bind(task).execute(&pool).await.unwrap();
+    sqlx::query("INSERT INTO managed_task_document_links(id,space_id,dossier_id,document_id,revision_id,created_by,registry_instance_id,namespace_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)").bind(Uuid::now_v7()).bind(private_space).bind(private_dossier).bind(private_document).bind(private_revision).bind(owner).bind(registry).bind(projects[0].namespace_id).execute(&pool).await.unwrap();
+    // The public task picker must reject ambiguous project context before contacting Tracker.
+    let (status, error) = call(
+        &app,
+        Method::GET,
+        "/api/v1/spaces/SHARED/available-tasks",
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT, "{error}");
+    let (status, _) = call(
+        &app,
+        Method::GET,
+        "/api/v1/spaces/SHARED/projects",
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let (status, registered) = call(&app, Method::POST, "/api/v1/auth/register", None, Some(json!({ "email":"space-viewer@example.test", "username":"space-viewer", "password":"qa-viewer-password", "name":"Space viewer" }))).await;
+    assert_eq!(status, StatusCode::CREATED);
+    let viewer = registered["access_token"].as_str().unwrap();
+    let (_, viewer_me) = call(&app, Method::GET, "/api/v1/users/me", Some(viewer), None).await;
+    let viewer_id: Uuid = viewer_me["id"].as_str().unwrap().parse().unwrap();
+    let (status, _) = call(
+        &app,
+        Method::GET,
+        "/api/v1/spaces/SHARED/projects",
+        Some(viewer),
+        None,
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "association must not grant space access"
+    );
+    sqlx::query("INSERT INTO space_members(space_id,user_id,role) VALUES($1,$2,'viewer')")
+        .bind(space)
+        .bind(viewer_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let (status, visible) = call(
+        &app,
+        Method::GET,
+        "/api/v1/spaces/SHARED/projects",
+        Some(viewer),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        visible["projects"][0]["name"],
+        Value::Null,
+        "local Wiki access must not grant external catalog visibility"
+    );
+    let (status, _) = call(
+        &app,
+        Method::DELETE,
+        &relation("SHARED", 0),
+        Some(viewer),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let (status, _) = call(
+        &app,
+        Method::GET,
+        &format!(
+            "/api/v1/spaces/SHARED/available-tasks?registry_instance_id={registry}&namespace_id={}",
+            projects[0].namespace_id
+        ),
+        Some(viewer),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let (status, filtered_history) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/managed-task-links/{tracker}/{task}"),
+        Some(viewer),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        filtered_history.as_array().unwrap().len(),
+        1,
+        "a private neighboring space must not hide the authorized document or expose its own link"
+    );
+    assert_eq!(filtered_history[0]["document_id"], document_id.to_string());
+    // Space Admin may remove a known link without external catalog visibility.
+    sqlx::query("UPDATE space_members SET role='admin' WHERE space_id=$1 AND user_id=$2")
+        .bind(space)
+        .bind(viewer_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let (status, _) = call(
+        &app,
+        Method::DELETE,
+        &relation("SHARED", 1),
+        Some(viewer),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let (status, _) = call(
+        &app,
+        Method::PUT,
+        &relation("SHARED", 1),
+        Some(viewer),
+        Some(json!({})),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "local membership must not grant access to attach external projects"
+    );
+    let (status, _) = call(
+        &app,
+        Method::GET,
+        &format!(
+            "/api/v1/spaces/SHARED/available-tasks?registry_instance_id={registry}&namespace_id={}",
+            projects[0].namespace_id
+        ),
+        Some(viewer),
+        None,
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "Space Admin must not gain external task catalog access through an association"
+    );
+    let (status, _) = call(&app, Method::POST, "/api/v1/spaces/SHARED/managed-task-links", Some(viewer), Some(json!({ "namespace": projects[0], "task": {"tracker_instance_id":tracker,"task_id":task}, "document_id":document_id, "revision_id":Uuid::now_v7() }))).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    for index in 0..2 {
+        let (status, error) = call(
+            &app,
+            Method::DELETE,
+            &relation("SHARED", index),
+            Some(&token),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::NO_CONTENT, "{error}");
+    }
+    let (status, context) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/documents/{document_id}/space-context"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(context["space"]["id"], space.to_string());
+    assert_eq!(context["projects"], json!([]));
+    let (status, history) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/managed-task-links/{tracker}/{task}"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(history.as_array().unwrap().len(), 2);
+    let retained = history
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|link| link["document_id"] == document_id.to_string())
+        .unwrap();
+    assert_eq!(retained["revision_id"], revision.to_string());
+    assert_eq!(retained["namespace"], json!(projects[0]));
+    let (_, unchanged) = call(
+        &app,
+        Method::GET,
+        &format!("/api/v1/documents/{document_id}"),
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(unchanged["title"], "Kept content");
+    let count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM audit_log WHERE action='space.project_link'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(count, 3, "no duplicate audit after repeat");
+    pool.close().await;
+}
+
+#[tokio::test]
+async fn wiki_postgres_space_project_migration_preserves_archived_history_and_refuses_lossy_rollback()
+ {
+    let Ok(database_url) = env::var("WIKI_TEST_DATABASE_URL") else {
+        return;
+    };
+    reset_postgres(&database_url).await;
+    let (_app, _) = postgres_test_app(
+        database_url.clone(),
+        env::temp_dir().join(format!("wiki-migration-{}", Uuid::now_v7())),
+    )
+    .await;
+    let pool = PgPoolOptions::new()
+        .max_connections(2)
+        .connect(&database_url)
+        .await
+        .unwrap();
+    let migrations = sqlx::migrate::Migrator::new(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../migrations"),
+    )
+    .await
+    .unwrap();
+    migrations.undo(&pool, 202610120001).await.unwrap();
+    let row = sqlx::query("SELECT id,owner_id FROM spaces WHERE key='SDLC'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let space: Uuid = row.get("id");
+    let owner: Uuid = row.get("owner_id");
+    let registry = Uuid::now_v7();
+    let project = Uuid::now_v7();
+    let command = shared::resource_context::OwnerCommand {
+        schema_version: 1,
+        namespace: shared::resource_context::NamespaceRef {
+            registry_instance_id: registry,
+            namespace_id: project,
+        },
+        resource: shared::resource_context::ResourceRef {
+            kind: shared::resource_context::ResourceKind::WikiSpace,
+            instance_id: Uuid::now_v7(),
+            resource_id: space,
+        },
+        operation_id: Uuid::now_v7(),
+        generation: 1,
+        state: "active".into(),
+        create_spec: None,
+    };
+    sqlx::query("INSERT INTO wiki_namespace_bindings(resource_id,registry_instance_id,namespace_id,generation,state,command) VALUES($1,$2,$3,1,'active',$4)").bind(space).bind(registry).bind(project).bind(json!(command)).execute(&pool).await.unwrap();
+    let document = Uuid::now_v7();
+    let revision = Uuid::now_v7();
+    let dossier = Uuid::now_v7();
+    let link = Uuid::now_v7();
+    sqlx::query("INSERT INTO documents(id,space_id,slug,title,owner_id) VALUES($1,$2,'history','History',$3)").bind(document).bind(space).bind(owner).execute(&pool).await.unwrap();
+    sqlx::query("INSERT INTO document_revisions(id,document_id,version,title,content_markdown,content_html,content_text,content_checksum,author_id) VALUES($1,$2,1,'History','unchanged','unchanged','unchanged','checksum',$3)").bind(revision).bind(document).bind(owner).execute(&pool).await.unwrap();
+    sqlx::query("INSERT INTO task_dossiers(id,space_id,task_key,tracker_instance_id,task_id) VALUES($1,$2,'OLD-1',$3,$4)").bind(dossier).bind(space).bind(Uuid::now_v7()).bind(Uuid::now_v7()).execute(&pool).await.unwrap();
+    sqlx::query("INSERT INTO managed_task_document_links(id,space_id,dossier_id,document_id,revision_id,created_by) VALUES($1,$2,$3,$4,$5,$6)").bind(link).bind(space).bind(dossier).bind(document).bind(revision).bind(owner).execute(&pool).await.unwrap();
+    sqlx::query("UPDATE spaces SET archived_at=now() WHERE id=$1")
+        .bind(space)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let mut archived = command;
+    archived.generation = 2;
+    archived.state = "archived".into();
+    archived.operation_id = Uuid::now_v7();
+    sqlx::query("UPDATE wiki_namespace_bindings SET generation=2,state='archived',command=$2 WHERE resource_id=$1").bind(space).bind(json!(archived)).execute(&pool).await.unwrap();
+    migrations.run(&pool).await.unwrap();
+    let row = sqlx::query("SELECT l.id,l.registry_instance_id,l.namespace_id,r.content_checksum FROM managed_task_document_links l JOIN document_revisions r ON r.id=l.revision_id WHERE l.id=$1").bind(link).fetch_one(&pool).await.unwrap();
+    assert_eq!(row.get::<Uuid, _>("id"), link);
+    assert_eq!(row.get::<Uuid, _>("registry_instance_id"), registry);
+    assert_eq!(row.get::<Uuid, _>("namespace_id"), project);
+    assert_eq!(row.get::<String, _>("content_checksum"), "checksum");
+    let associations: i64 = sqlx::query_scalar("SELECT count(*) FROM wiki_space_projects WHERE space_id=$1 AND registry_instance_id=$2 AND namespace_id=$3").bind(space).bind(registry).bind(project).fetch_one(&pool).await.unwrap();
+    assert_eq!(associations, 1);
+    // A reversible legacy-only state can downgrade and upgrade without changing IDs.
+    migrations.undo(&pool, 202610120001).await.unwrap();
+    migrations.run(&pool).await.unwrap();
+    let independent = Uuid::now_v7();
+    sqlx::query("INSERT INTO spaces(id,key,name,owner_id) VALUES($1,'NEWREL','New relation',$2)")
+        .bind(independent)
+        .bind(owner)
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO wiki_space_projects(space_id,registry_instance_id,namespace_id) VALUES($1,$2,$3)").bind(independent).bind(registry).bind(project).execute(&pool).await.unwrap();
+    assert!(
+        migrations.undo(&pool, 202610120001).await.is_err(),
+        "downgrade must not delete a new independent association"
+    );
+    let count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM wiki_space_projects WHERE space_id=$1")
+            .bind(independent)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(count, 1);
+    pool.close().await;
+}

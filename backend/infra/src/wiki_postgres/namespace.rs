@@ -206,6 +206,7 @@ impl PostgresWikiBackend {
             .execute(&mut *tx)
             .await
             .map_err(AppError::database)?;
+        let mut initial_binding = false;
         if let Some(row) = sqlx::query(
             "SELECT command FROM wiki_namespace_bindings WHERE resource_id=$1 FOR UPDATE",
         )
@@ -224,6 +225,7 @@ impl PostgresWikiBackend {
                 return Ok(old.readback(true));
             }
         } else {
+            initial_binding = true;
             if command.state != "active" {
                 return Err(AppError::conflict("binding_required_before_lifecycle"));
             }
@@ -283,6 +285,14 @@ impl PostgresWikiBackend {
         }
         sqlx::query("INSERT INTO wiki_namespace_bindings(resource_id,registry_instance_id,namespace_id,generation,state,command) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(resource_id) DO UPDATE SET generation=EXCLUDED.generation,state=EXCLUDED.state,command=EXCLUDED.command")
             .bind(command.resource.resource_id).bind(command.namespace.registry_instance_id).bind(command.namespace.namespace_id).bind(command.generation).bind(&command.state).bind(serde_json::to_value(command).map_err(|e| AppError::Internal(e.to_string()))?).execute(&mut *tx).await.map_err(|error| { tracing::warn!(error=%error,"namespace owner write rejected"); AppError::conflict("namespace_binding_rejected") })?;
+        if initial_binding {
+            // Provisioning supplies the initial association, never a permanent
+            // parent. A later replay/lifecycle update must not restore an
+            // association that a space administrator deliberately removed.
+            sqlx::query("INSERT INTO wiki_space_projects(space_id,registry_instance_id,namespace_id) VALUES($1,$2,$3) ON CONFLICT DO NOTHING")
+                .bind(command.resource.resource_id).bind(command.namespace.registry_instance_id)
+                .bind(command.namespace.namespace_id).execute(&mut *tx).await.map_err(AppError::database)?;
+        }
         tx.commit().await.map_err(AppError::database)?;
         Ok(command.readback(true))
     }
@@ -431,7 +441,18 @@ pub(in crate::wiki_postgres) mod namespace_postgres_tests {
                 .unwrap()
                 .matches(&archived)
         );
-        let error = sqlx::query("UPDATE documents SET title='changed' WHERE id=$1")
+        // Project lifecycle is provenance; it no longer freezes an independent space.
+        sqlx::query("UPDATE documents SET title='changed' WHERE id=$1")
+            .bind(document)
+            .execute(&backend.pool)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE spaces SET archived_at=now() WHERE id=$1")
+            .bind(space)
+            .execute(&backend.pool)
+            .await
+            .unwrap();
+        let error = sqlx::query("UPDATE documents SET title='blocked' WHERE id=$1")
             .bind(document)
             .execute(&backend.pool)
             .await

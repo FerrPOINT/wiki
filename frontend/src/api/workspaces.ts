@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { projectIdentity, sortProjectNavigation, type NamespaceLocation } from '@sdlc/ui/lib'
 import type { components } from './generated'
 import { apiRequest } from './client'
@@ -14,7 +14,7 @@ export function documentPath(
 ) {
   const source = new URLSearchParams(search),
     params = new URLSearchParams()
-  for (const key of ['task_id', 'tracker_instance_id'])
+  for (const key of ['task_id', 'tracker_instance_id', 'registry_instance_id', 'namespace_id'])
     for (const value of source.getAll(key)) params.append(key, value)
   if (all) params.set('project_scope', 'all')
   return `/documents/${encodeURIComponent(id)}${params.size ? '?' + params : ''}`
@@ -50,6 +50,42 @@ export function useWorkspaceCatalog(enabled = true) {
           )
         if (!page.items.length) throw new Error('Каталог изменился. Обновите страницу.')
       }
+    },
+  })
+}
+
+export type SpaceProjects = components['schemas']['SpaceProjectsResponse']
+export type WorkspaceSpace = components['schemas']['WorkspaceSpace']
+export function invalidateWorkspaceQueries(client: QueryClient) {
+  return client.invalidateQueries({
+    predicate: ({ queryKey }) =>
+      queryKey[0] === 'wiki' &&
+      ['space-projects', 'document-space', 'workspace', 'workspace-catalog', 'audit-log'].includes(
+        String(queryKey[1]),
+      ),
+  })
+}
+export function useSpaceProjects(key: string, enabled = true) {
+  const actor = useAuthStore((state) => state.userId)
+  return useQuery({
+    queryKey: ['wiki', 'space-projects', actor, key],
+    enabled: enabled && !!key,
+    queryFn: ({ signal }) =>
+      apiRequest<SpaceProjects>(`/api/v1/spaces/${encodeURIComponent(key)}/projects`, { signal }),
+  })
+}
+export function useSpaceProjectMutation(key: string) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ({ project, attach }: { project: NamespaceLocation; attach: boolean }) =>
+      apiRequest<void>(
+        `/api/v1/spaces/${encodeURIComponent(key)}/projects/${projectIdentity(project)}`,
+        {
+          method: attach ? 'PUT' : 'DELETE',
+        },
+      ),
+    onSuccess: async () => {
+      await invalidateWorkspaceQueries(client)
     },
   })
 }

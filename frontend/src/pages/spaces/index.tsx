@@ -1,5 +1,5 @@
 import { FormEvent, type RefObject, useRef, useState } from 'react'
-// Explicit space/document destinations resolve their own binding, not the previously selected project.
+// Spaces own documents independently of their project associations.
 import { Link } from 'react-router'
 
 import {
@@ -39,6 +39,7 @@ import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime, formatDocumentType, shortText } from '@/shared/lib/wiki-format'
 import type { Space, SpaceTreeNode } from '@/api/wiki'
 import { DossierMenu } from '@/widgets/dossier-menu'
+import { SpaceProjectsEditor } from '@/features/space-projects/SpaceProjectsEditor'
 
 const selectClassName =
   'flex min-h-10 w-full rounded-md border border-border-strong bg-surface px-3 py-1 text-sm text-text-primary shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50'
@@ -85,7 +86,7 @@ function SpaceTreePreview({ spaceKey }: { spaceKey: string }) {
       {documents.map((document) => (
         <Link
           key={document.id}
-          to={`/documents/${document.slug}`}
+          to={`/documents/${document.id}`}
           className="block truncate text-sm text-text-secondary hover:text-accent"
         >
           {document.title}
@@ -256,6 +257,8 @@ function SpaceDetails({
           )}
         </form>
       )}
+
+      <SpaceProjectsEditor spaceKey={space.key} canManage={Boolean(canManage)} />
 
       <ConfirmDialog
         open={archiveOpen}

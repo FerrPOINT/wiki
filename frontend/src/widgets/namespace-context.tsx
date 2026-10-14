@@ -7,11 +7,15 @@ import {
   projectNavigationScope,
   withNamespaceLocation,
 } from '@sdlc/ui/lib'
-import type { components } from '@/api/generated'
 import { apiRequest } from '@/api/client'
-import { useWorkspace, useWorkspaceCatalog, workspacePath } from '@/api/workspaces'
+import {
+  useWorkspace,
+  useWorkspaceCatalog,
+  useSpaceProjects,
+  workspacePath,
+  type SpaceProjects,
+} from '@/api/workspaces'
 import { useAuthStore } from '@/shared/auth/store'
-export type ResourceContext = components['schemas']['ResourceContextSummary']
 
 /** Presentation-only scope for controls; the shell resolves and authorizes the resource. */
 export function useProjectRouteRef() {
@@ -40,48 +44,63 @@ export function useNamespaceContext() {
   const actor = useAuthStore((state) => state.userId)
   const spaces = new URLSearchParams(location.search).getAll('space')
   const explicitSpace = spaces[0]
-  const directSpace = useQuery({
-    queryKey: ['wiki', 'space-context', actor, explicitSpace],
-    enabled: enabled && !scope.ref && !scope.malformed && spaces.length === 1 && !!explicitSpace,
+  const malformed = scope.malformed || Boolean(match && !pathRef) || spaces.length > 1
+  const directSpace = useSpaceProjects(explicitSpace ?? '', enabled && !malformed)
+  const document = useMatch('/documents/:documentId/*')?.params.documentId
+  const direct = useQuery({
+    queryKey: ['wiki', 'document-space', actor, document],
+    enabled: enabled && !malformed && !!document && document !== 'new',
     queryFn: ({ signal }) =>
-      apiRequest<ResourceContext | null>(
-        `/api/v1/spaces/${encodeURIComponent(explicitSpace!)}/namespace-context`,
+      apiRequest<SpaceProjects>(
+        `/api/v1/documents/${encodeURIComponent(document!)}/space-context`,
         { signal },
       ),
   })
-  const document = useMatch('/documents/:documentId/*')?.params.documentId
-  const direct = useQuery({
-    queryKey: ['wiki', 'document-context', actor, document],
-    enabled: enabled && !scope.ref && !scope.malformed && !!document && document !== 'new',
-    queryFn: ({ signal }) =>
-      apiRequest<ResourceContext | null>(`/api/v1/documents/${document}/namespace-context`, {
-        signal,
-      }),
-  })
-  const ref =
-    scope.ref ?? direct.data?.binding.namespace ?? directSpace.data?.binding.namespace ?? null
-  const malformed = scope.malformed || Boolean(match && !pathRef) || spaces.length > 1
+  const clearProjectScope = Boolean(
+    enabled &&
+    document &&
+    document !== 'new' &&
+    direct.data &&
+    scope.ref &&
+    !direct.data.projects.some(
+      (project) => projectIdentity(project.namespace) === projectIdentity(scope.ref!),
+    ),
+  )
+  const ref = enabled && !clearProjectScope ? scope.ref : null
   const workspace = useWorkspace(ref, enabled && !malformed)
-  const resource = useQuery({
-    queryKey: ['wiki', 'namespace-context', actor, ref?.registry_instance_id, ref?.namespace_id],
-    enabled: enabled && !!ref && !malformed,
-    queryFn: ({ signal }) =>
-      apiRequest<ResourceContext>(`/api/v1/namespace-contexts/${projectIdentity(ref!)}`, {
-        signal,
-      }),
-  })
+  const choices = workspace.data?.spaces ?? []
+  const own =
+    document && document !== 'new' ? direct.data : explicitSpace ? directSpace.data : undefined
+  const space =
+    own?.space ??
+    (choices.length === 1 && !explicitSpace && choices[0]?.resource_status === 'connected'
+      ? choices[0]
+      : undefined)
+  const conflict = Boolean(
+    (space && explicitSpace && space.key !== explicitSpace) ||
+    (own &&
+      ref &&
+      !own.projects.some((project) => projectIdentity(project.namespace) === projectIdentity(ref))),
+  )
   return {
     ref,
+    clearProjectScope,
     malformed,
-    all: scope.all,
+    all: clearProjectScope || scope.all,
     workspace,
+    choices,
+    conflict,
+    projects: own?.projects ?? [],
     query: {
-      ...resource,
-      isPending:
-        (resource.isPending && !!ref) ||
-        (direct.isPending && direct.fetchStatus === 'fetching') ||
-        (directSpace.isPending && directSpace.fetchStatus === 'fetching'),
-      isError: resource.isError || direct.isError || directSpace.isError,
+      data: space
+        ? { resource_key: space.key, label: space.name, id: space.id, status: space.status }
+        : undefined,
+      isPending: Boolean(
+        (ref && !own && workspace.isPending) ||
+        (document && document !== 'new' && direct.isPending) ||
+        (explicitSpace && directSpace.isPending),
+      ),
+      isError: Boolean((ref && !own && workspace.isError) || direct.isError || directSpace.isError),
     },
   }
 }

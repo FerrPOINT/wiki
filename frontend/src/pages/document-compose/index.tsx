@@ -1,4 +1,5 @@
 import { useNamespaceContext } from '@/widgets/namespace-context'
+import { documentPath } from '@/api/workspaces'
 import { FormEvent, useEffect, useState } from 'react'
 import Markdown from 'react-markdown'
 import { NamespaceLink as Link } from '@sdlc/ui/ui'
@@ -86,7 +87,8 @@ export function DocumentComposePage() {
     event.preventDefault()
     if (
       namespace.malformed ||
-      (namespace.ref && (!namespace.query.data || namespace.query.data.binding.state !== 'active'))
+      namespace.conflict ||
+      (namespace.ref && (!namespace.query.data || namespace.query.data.status !== 'active'))
     )
       return
     createDocument.mutate(
@@ -106,9 +108,7 @@ export function DocumentComposePage() {
       },
       {
         onSuccess: (document) =>
-          setCreatedDocumentPath(
-            `/documents/${document.id}?${new URLSearchParams([...searchParams].filter(([key]) => ['task_id', 'tracker_instance_id'].includes(key)))}`,
-          ),
+          setCreatedDocumentPath(documentPath(document.id, searchParams.toString())),
       },
     )
   }

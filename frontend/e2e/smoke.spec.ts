@@ -1,5 +1,6 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
 import { exportJWK, generateKeyPair, SignJWT } from 'jose'
+import { createServer } from 'node:http'
 
 const baseURL =
   process.env.PLAYWRIGHT_BASE_URL ??
@@ -207,6 +208,24 @@ async function installWikiApiMocks(page: Page) {
   const oidcValue = Buffer.alloc(32, 7).toString('base64url')
   const issuer = 'http://localhost:7701'
 
+  // Use a real redirect: synthetic redirect fulfillment is unsupported by
+  // WebKit, while an inline script creates a public-to-loopback navigation.
+  const authorizationServer = createServer((request, response) => {
+    const url = new URL(request.url!, issuer)
+    const callback = new URL('/sso/callback', baseURL)
+    callback.searchParams.set('code', 'mock-code')
+    callback.searchParams.set('state', url.searchParams.get('state')!)
+    response.writeHead(302, { location: callback.href })
+    response.end()
+  })
+  await new Promise<void>((resolve, reject) => {
+    authorizationServer.once('error', reject)
+    authorizationServer.listen(0, '127.0.0.1', resolve)
+  })
+  const address = authorizationServer.address()
+  if (!address || typeof address === 'string') throw new Error('Missing SSO fixture address')
+  page.once('close', () => authorizationServer.close())
+
   // Make browser-only PKCE values predictable so the mocked callback can
   // validate the same state and nonce without reaching Central Auth.
   await page.addInitScript(() => {
@@ -222,12 +241,7 @@ async function installWikiApiMocks(page: Page) {
     const request = route.request()
     const url = new URL(request.url())
     if (url.pathname === '/oidc/authorize') {
-      const callbackUrl = `${baseURL}/sso/callback?code=mock-code&state=${url.searchParams.get('state')}`
-      return route.fulfill({
-        status: 200,
-        contentType: 'text/html',
-        body: `<!doctype html><script>location.replace(${JSON.stringify(callbackUrl)})</script>`,
-      })
+      return route.continue({ url: `http://127.0.0.1:${address.port}${url.pathname}${url.search}` })
     }
     if (url.pathname === '/oidc/jwks') return routeJson(route, { keys: [jwk] })
     if (url.pathname === '/oidc/token') {
@@ -288,6 +302,19 @@ async function installWikiApiMocks(page: Page) {
       return routeJson(route, { access_token: 'demo-token', refresh_token: 'demo-refresh' })
     }
     if (method === 'POST' && path === '/auth/logout') return route.fulfill({ status: 204 })
+    if (method === 'GET' && /spaces\/[^/]+\/projects$/.test(path))
+      return routeJson(route, {
+        space: {
+          id: 'space-base',
+          key: 'BASE',
+          name: 'База знаний Base',
+          status: 'active',
+          resource_status: 'connected',
+        },
+        projects: [],
+      })
+    if (method === 'GET' && path === '/workspace-projects')
+      return routeJson(route, { items: [], total: 0 })
     if (method === 'GET' && path === '/users/me') return routeJson(route, user)
     if (method === 'GET' && path === '/users') return routeJson(route, { users: currentUsers })
     if (method === 'PUT' && path.startsWith('/users/')) {
@@ -624,15 +651,15 @@ test.describe('wiki smoke', () => {
     await page.setViewportSize({ width: 375, height: 812 })
     await installWikiApiMocks(page)
     await gotoWiki(page)
-    await gotoWiki(page, '/tasks/BASE-42')
-    await expect(page.getByRole('heading', { name: 'BASE-42' })).toBeVisible()
+    await gotoWiki(page, '/spaces')
+    await expect(page.getByRole('heading', { name: 'Пространства', exact: true })).toBeVisible()
 
     const trigger = page.getByRole('button', { name: 'Открыть навигацию' })
     await trigger.click()
     const dialog = page.getByRole('dialog', { name: 'Навигация Wiki' })
 
     await expect(dialog).toBeVisible()
-    await expect(dialog.getByRole('link', { name: 'Задачи' })).toHaveAttribute(
+    await expect(dialog.getByRole('link', { name: 'Пространства' })).toHaveAttribute(
       'aria-current',
       'page',
     )
@@ -740,6 +767,89 @@ test.describe('wiki smoke', () => {
     await page.getByRole('link', { name: 'Пространства', exact: true }).click()
     await dialog.getByRole('button', { name: 'Подтвердить' }).click()
     await expect(page).toHaveURL(`${baseURL}/spaces`)
+  })
+
+  test('manages multiple project links without losing the independent document destination', async ({
+    page,
+  }) => {
+    await installWikiApiMocks(page)
+    const registry = '11111111-1111-4111-8111-111111111111'
+    const projects = [1, 2].map((n) => ({
+      namespace: {
+        registry_instance_id: registry,
+        namespace_id: `22222222-2222-4222-8222-${String(n).padStart(12, '0')}`,
+      },
+      name: 'Общий проект',
+      tracker: {
+        kind: 'tracker_project',
+        instance_id: '33333333-3333-4333-8333-333333333333',
+        resource_id: `44444444-4444-4444-8444-${String(n).padStart(12, '0')}`,
+      },
+      generation: 1,
+      observed_at: now,
+      resource_status: 'not_connected',
+      spaces: [],
+      binding: null,
+      space_key: null,
+      project_key: `P${n}`,
+      state: 'active',
+      available: true,
+      stale: false,
+    }))
+    let linked: typeof projects = []
+    await page.route('**/api/v1/workspace-projects?**', (route) =>
+      routeJson(route, { items: projects, total: projects.length }),
+    )
+    await page.route('**/api/v1/spaces/BASE/projects**', (route) => {
+      const path = new URL(route.request().url()).pathname
+      const project = projects.find((project) => path.endsWith(project.namespace.namespace_id))
+      if (route.request().method() === 'PUT' && project) {
+        linked = [...linked, project]
+        return route.fulfill({ status: 204 })
+      }
+      if (route.request().method() === 'DELETE' && project) {
+        linked = linked.filter((item) => item !== project)
+        return route.fulfill({ status: 204 })
+      }
+      return routeJson(route, {
+        space: {
+          id: 'space-base',
+          key: 'BASE',
+          name: 'База знаний Base',
+          status: 'active',
+          resource_status: 'connected',
+        },
+        projects: linked,
+      })
+    })
+    await page.setViewportSize({ width: 375, height: 812 })
+    await gotoWiki(page, '/spaces')
+    await page.getByRole('button', { name: /База знаний Base/ }).click()
+    const editor = page.getByRole('region', { name: 'Проекты пространства' })
+    await expect(editor.getByText('Самостоятельное пространство · проектов нет')).toBeVisible()
+    for (const project of projects) {
+      await editor
+        .getByLabel('Добавить проект')
+        .selectOption(`${registry}/${project.namespace.namespace_id}`)
+      await editor.getByRole('button', { name: 'Добавить', exact: true }).click()
+      await expect(
+        editor.getByRole('link', { name: `Общий проект · ${project.project_key}` }),
+      ).toBeVisible()
+    }
+    await expect(editor.getByRole('button', { name: 'Отвязать проект Общий проект' })).toHaveCount(
+      2,
+    )
+    await editor.getByRole('button', { name: 'Отвязать проект Общий проект' }).first().click()
+    await expect(editor.getByRole('button', { name: 'Отвязать проект Общий проект' })).toHaveCount(
+      1,
+    )
+    await editor.getByRole('button', { name: 'Отвязать проект Общий проект' }).click()
+    await expect(editor.getByText('Самостоятельное пространство · проектов нет')).toBeVisible()
+    await expect(page.getByRole('link', { name: /^Требования к Wiki MVP/ })).toHaveAttribute(
+      'href',
+      '/documents/product-requirements',
+    )
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   })
 
   test('archives a space only after explicit confirmation and keeps its archived status visible', async ({
@@ -979,7 +1089,7 @@ test.describe('wiki smoke', () => {
     await page.getByRole('button', { name: 'Сбросить фильтры' }).click()
     await expect(page.getByRole('link', { name: /Материал smoke-проверки фронта/ })).toBeVisible()
     await page.getByRole('link', { name: /Материал smoke-проверки фронта/ }).click()
-    await expect(page).toHaveURL(`${baseURL}/evidence?id=${evidence.id}`)
+    await expect(page).toHaveURL(`${baseURL}/evidence?id=${evidence.id}&space=BASE`)
     const selectedMaterial = page
       .getByRole('heading', { name: 'Выбранный материал' })
       .locator('..')

@@ -1,8 +1,8 @@
 import { ResourceList, ResourceListRow } from '@sdlc/ui/ui'
 import type { components } from '@/api/generated'
-import { useLocation, useParams } from 'react-router'
+import { Link, useLocation, useParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
-import { LoadingState, NamespaceLink as Link, usePlatformServices } from '@sdlc/ui/ui'
+import { LoadingState, usePlatformServices } from '@sdlc/ui/ui'
 import { withNamespaceLocation } from '@sdlc/ui/lib'
 import { apiRequest } from '@/api/client'
 import { useNamespaceContext } from '@/widgets/namespace-context'
@@ -66,7 +66,7 @@ export function ManagedTaskPage() {
                   className="text-accent"
                   to={withNamespaceLocation(
                     `/documents/${link.document_id}/revisions/${link.revision_id}`,
-                    ref,
+                    null,
                   )}
                 >
                   {link.title} · ревизия {link.version}
