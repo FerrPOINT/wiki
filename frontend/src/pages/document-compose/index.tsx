@@ -82,6 +82,7 @@ export function DocumentComposePage() {
   useEffect(() => {
     if (
       initialSpace ||
+      spaceKey ||
       spaceChosen ||
       namespace.ref ||
       spacesQuery.isLoading ||
@@ -96,6 +97,7 @@ export function DocumentComposePage() {
     )
   }, [
     initialSpace,
+    spaceKey,
     spaceChosen,
     namespace.ref,
     spacesQuery.isLoading,

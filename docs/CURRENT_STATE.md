@@ -1,5 +1,14 @@
 # Current State - Wiki
 
+> **UI candidate 2026-10-14:** PR #75 incorporates main `4416a5c` and Base UI
+> `6a210dca877b5e3e04f01c619c7ca309b5c1bae3`. Catalogue refresh preserves the
+> document's initial destination; an unavailable space blocks saving until the
+> user explicitly chooses another. Draft publication and empty-draft fixes from
+> main remain intact. Local frontend: 235 tests, typecheck/lint/format/build and
+> OpenAPI check; 15 API-fixture scenarios passed in Chromium/Firefox/WebKit,
+> including refresh, navigation protection and publication. These checks do not
+> confirm live SSO or the pending cross-product acceptance. Runtime is unchanged.
+
 > **Header update 2026-10-01:** общий `PlatformHeader` и navigation-only sidebar;
 > команда создания сохранена в desktop Header и mobile drawer. Account identity
 > не дублирует email. API/SSO hook не меняются. Локальный frontend gate: 182/182;

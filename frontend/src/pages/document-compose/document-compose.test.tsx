@@ -274,6 +274,50 @@ describe('DocumentComposePage', () => {
     expect(createDocumentMutate).not.toHaveBeenCalled()
   })
 
+  it('does not move an automatically selected draft when BASE appears on catalogue refresh', async () => {
+    setupCompose({}, '/documents/new')
+    await screen.findByRole('button', { name: 'Пространство: Engineering (ENG)' })
+    fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Engineering draft' } })
+    const previous = useSpaces.mock.results.at(-1)!.value
+    useSpaces.mockReturnValue({
+      ...previous,
+      data: {
+        spaces: [
+          { ...previous.data.spaces[0], id: 'space-base', key: 'BASE', name: 'Base' },
+          ...previous.data.spaces,
+        ],
+      },
+    })
+    fireEvent.change(screen.getByLabelText('Markdown документа'), {
+      target: { value: 'Private engineering content' },
+    })
+    expect(screen.getByRole('button', { name: 'Пространство: Engineering (ENG)' })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить черновик' }))
+    expect(createDocumentMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ spaceKey: 'ENG' }),
+      expect.any(Object),
+    )
+  })
+
+  it('blocks saving when the automatically selected space disappears instead of choosing another', async () => {
+    setupCompose({}, '/documents/new')
+    await screen.findByRole('button', { name: 'Пространство: Engineering (ENG)' })
+    const previous = useSpaces.mock.results.at(-1)!.value
+    useSpaces.mockReturnValue({
+      ...previous,
+      data: {
+        spaces: [{ ...previous.data.spaces[0], id: 'space-base', key: 'BASE', name: 'Base' }],
+      },
+    })
+    fireEvent.change(screen.getByLabelText('Название'), {
+      target: { value: 'Keep my engineering draft' },
+    })
+    expect(screen.getByRole('button', { name: 'Сохранить черновик' })).toBeDisabled()
+    expect(screen.getByText(/Выбранное пространство недоступно/)).toBeVisible()
+    expect(screen.getByLabelText('Название')).toHaveValue('Keep my engineering draft')
+    expect(createDocumentMutate).not.toHaveBeenCalled()
+  })
+
   it('retains input when the catalogue is unavailable rather than inventing BASE', () => {
     setupCompose({}, '/documents/new', { data: undefined, isError: true, refetch: vi.fn() })
     fireEvent.change(screen.getByLabelText('Markdown документа'), {
