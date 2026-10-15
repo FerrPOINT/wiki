@@ -1,5 +1,4 @@
-# Automatic build: unit tests plus static/security/compatibility checks.
-# Full integration/slow acceptance is the manual release.yml workflow.
+# Automatic: unit tests and changed application build; manual release.yml for integration/slow.
 name: CI
 on:
   push:
@@ -18,6 +17,7 @@ jobs:
       backend: ${{ steps.classify.outputs.backend }}
       frontend: ${{ steps.classify.outputs.frontend }}
       frontend_build: ${{ steps.classify.outputs.frontend_build }}
+      backend_build: ${{ steps.classify.outputs.backend_build }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -140,6 +140,18 @@ jobs:
         run: |-
           cargo fmt --all -- --check
           cargo test --locked -p domain --lib
+      - name: Build changed application after isolated units
+        if: needs.changes.outputs.backend_build == 'true'
+        run: cargo build --locked --workspace
+        env:
+          SQLX_OFFLINE: "true"
+      - name: OpenAPI drift gate
+        run: |
+          cargo run --locked -p api --bin openapi-gen ../openapi/openapi.json.generated
+          diff -u ../openapi/openapi.json ../openapi/openapi.json.generated
+        if: needs.changes.outputs.backend_build == 'true'
+    env:
+      SQLX_OFFLINE: "true"
   frontend:
     needs: changes
     if: needs.changes.outputs.frontend == 'true'
