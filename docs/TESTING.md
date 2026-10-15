@@ -221,3 +221,8 @@ Node 22.20.0; OpenAPI generation/checks сохраняются в producer.
 Docker unit stage явно получает `frontend/nginx.conf`: routing tests читают
 фактический config. Он остаётся вне Vite application COPY; изменение config
 повторяет относящиеся unit и packaging, сохраняя application compilation cache.
+
+WikiSearch unit явно разделяет legacy search (namespace=false) и Namespace
+global-search cases (true). Оба входят в ordinary unit; mocks/env очищаются
+после каждого case, в том числе вне legacy describe. Production build flags
+не должны молча менять смысл legacy fixture или выключать Namespace regressions.

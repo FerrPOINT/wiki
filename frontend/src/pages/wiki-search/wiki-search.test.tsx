@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { WikiSearchPage } from './'
 
@@ -67,11 +67,13 @@ function setupSearch(
   return router
 }
 
-describe('WikiSearchPage', () => {
-  afterEach(() => {
-    vi.clearAllMocks()
-    vi.unstubAllEnvs()
-  })
+afterEach(() => {
+  vi.clearAllMocks()
+  vi.unstubAllEnvs()
+})
+
+describe('WikiSearchPage legacy search', () => {
+  beforeEach(() => vi.stubEnv('VITE_NAMESPACE_ENABLED', 'false'))
 
   it('sends result type and expanded filters to the API hook', async () => {
     const router = setupSearch()
