@@ -6,9 +6,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/generate-exports.mjs && tsc --noEmit && vite build",
+    "build": "pnpm run test:unit && node scripts/generate-exports.mjs && tsc --noEmit && vite build",
     "typecheck": "node scripts/generate-exports.mjs && tsc --noEmit",
-    "test": "vitest run",
+    "test": "pnpm run test:unit",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "preview": "vite preview --host 127.0.0.1 --port 4174 --strictPort",
@@ -21,7 +21,9 @@
     "openapi:check": "node node_modules/@sdlc/ui/scripts/sdlc-openapi-check.mjs --spec ../openapi/openapi.json --schema src/api/generated.ts",
     "openapi:compat": "node scripts/base-openapi-compat.mjs",
     "postinstall": "openapi-typescript ../openapi/openapi.json -o src/api/generated.ts && node scripts/generate-exports.mjs",
-    "theme:check": "node ../../services-base/frontend/scripts/sdlc-effective-theme-check.mjs"
+    "theme:check": "node ../../services-base/frontend/scripts/sdlc-effective-theme-check.mjs",
+    "test:unit": "vitest run --exclude \"**/*.integration.test.*\" --exclude \"**/*.slow.test.*\" --exclude \"**/*.e2e.test.*\"",
+    "test:all": "vitest run"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.13",
