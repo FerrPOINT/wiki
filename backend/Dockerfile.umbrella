@@ -27,9 +27,8 @@ COPY wiki/backend/server ./server
 COPY wiki/backend/cli ./cli
 
 RUN --mount=type=cache,id=wiki-cargo-registry-rust-1.88,target=/usr/local/cargo/registry,sharing=shared \
-    --mount=type=cache,id=wiki-cargo-target-rust-1.88,target=/cargo-target,sharing=locked \
-    CARGO_TARGET_DIR=/cargo-target cargo build --locked --release --bin server \
-    && install -m 0755 /cargo-target/release/server /app/wiki-server
+    cargo build --locked --release --bin server \
+    && install -m 0755 target/release/server /app/wiki-server
 
 FROM debian:bookworm-slim
 RUN apt-get update \
