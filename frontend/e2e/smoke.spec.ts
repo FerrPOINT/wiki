@@ -615,6 +615,101 @@ async function gotoWiki(page: Page, path = '/') {
 }
 
 test.describe('wiki smoke', () => {
+  for (const outcome of ['success', 'failure'] as const) {
+    test(`locks the submitted create draft until ${outcome} and preserves the request`, async ({
+      page,
+    }, testInfo) => {
+      await installWikiApiMocks(page)
+      let release!: () => void
+      let submitted!: () => void
+      const pending = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const started = new Promise<void>((resolve) => {
+        submitted = resolve
+      })
+      const created = {
+        ...document,
+        id: 'pending-create',
+        title: 'Отправленный черновик',
+        status: 'draft',
+        body_markdown: '',
+        body_html: '',
+        draft_markdown: '# Отправленный текст',
+        current_revision: null,
+      }
+      let writes = 0
+      let payload: unknown
+      await page.route('**/api/v1/spaces/BASE/documents', async (route) => {
+        if (route.request().method() !== 'POST') return route.fallback()
+        writes++
+        payload = route.request().postDataJSON()
+        submitted()
+        await pending
+        return outcome === 'success'
+          ? routeJson(route, created, 201)
+          : routeJson(route, { code: 'VALIDATION_ERROR', message: 'Validation failed' }, 422)
+      })
+      await page.route('**/api/v1/documents/pending-create', (route) => routeJson(route, created))
+      await page.route('**/api/v1/documents/pending-create/revisions', (route) =>
+        routeJson(route, { revisions: [] }),
+      )
+      try {
+        await gotoWiki(page, '/documents/new')
+        await page.getByLabel('Название', { exact: true }).fill(created.title)
+        await page.getByLabel('Markdown документа').fill(created.draft_markdown)
+        await page.getByLabel('Задача', { exact: true }).fill('BASE-42')
+        await page.getByLabel('Фаза', { exact: true }).fill('implementation')
+        await page.getByRole('button', { name: 'Сохранить черновик', exact: true }).click()
+        await started
+        for (const label of [
+          'Название',
+          'Markdown документа',
+          'Задача',
+          'Фаза',
+          'Тип',
+          'Адрес (slug)',
+        ]) {
+          await expect(page.getByLabel(label, { exact: true })).toBeDisabled()
+        }
+        await expect(page.getByRole('button', { name: /^Пространство:/ })).toBeDisabled()
+        await expect(page.getByRole('button', { name: 'Требования', exact: true })).toBeDisabled()
+        expect(payload).toMatchObject({
+          title: created.title,
+          content_markdown: created.draft_markdown,
+          task_key: 'BASE-42',
+          phase_key: 'implementation',
+        })
+        if (outcome === 'success') {
+          for (const width of [375, 1920, 2560]) {
+            await page.setViewportSize({ width, height: width === 375 ? 812 : 1080 })
+            await page.screenshot({
+              path: testInfo.outputPath(`pending-create-${width}.png`),
+              fullPage: true,
+            })
+          }
+        }
+        release()
+        if (outcome === 'success') {
+          await expect(page).toHaveURL(/\/documents\/pending-create(?:\?|$)/)
+          await expect(
+            page.getByRole('heading', { name: created.title, exact: true }),
+          ).toBeVisible()
+        } else {
+          await expect(page.getByRole('alert')).toBeVisible()
+          await expect(page.getByLabel('Название', { exact: true })).toBeEnabled()
+          await expect(page.getByLabel('Markdown документа')).toBeEnabled()
+          await expect(page.getByLabel('Markdown документа')).toHaveValue(created.draft_markdown)
+          await expect(page.getByLabel('Задача', { exact: true })).toHaveValue('BASE-42')
+          await expect(page).toHaveURL(/\/documents\/new(?:\?|$)/)
+        }
+        expect(writes).toBe(1)
+      } finally {
+        release()
+      }
+    })
+  }
+
   test('keeps the manually chosen template after URL initialization and saves that content', async ({
     page,
   }, testInfo) => {
