@@ -4,7 +4,7 @@ import { getSafeBrowserStorage } from '@/shared/lib/browser-storage'
 
 export const ssoConfig = {
   issuer: import.meta.env.VITE_AUTH_ISSUER ?? 'http://localhost:7701',
-  clientId: 'wiki',
+  clientId: import.meta.env.VITE_AUTH_CLIENT_ID ?? 'wiki',
 }
 
 export const useAuthStore = createAuthStore({
