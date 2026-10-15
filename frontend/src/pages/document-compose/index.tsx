@@ -49,7 +49,7 @@ export function DocumentComposePage() {
   const [slug, setSlug] = useState('')
   const [taskKey, setTaskKey] = useState('')
   const [phaseKey, setPhaseKey] = useState('')
-  const [appliedTemplateId, setAppliedTemplateId] = useState('')
+  const [templateInitialized, setTemplateInitialized] = useState(false)
   const [editorTab, setEditorTab] = useState<'write' | 'preview'>('write')
   const [createdDocumentPath, setCreatedDocumentPath] = useState<string | null>(null)
   const spacesQuery = useSpaces()
@@ -110,17 +110,17 @@ export function DocumentComposePage() {
     if (!template) return
     setDocumentType(template.document_type)
     setBody(template.body_markdown)
-    setAppliedTemplateId(template.id)
+    setTemplateInitialized(true)
   }
 
   useEffect(() => {
-    if (!requestedTemplateId || appliedTemplateId === requestedTemplateId) return
+    if (!requestedTemplateId || templateInitialized) return
     const template = templatesQuery.data?.templates.find((item) => item.id === requestedTemplateId)
     if (!template) return
     setDocumentType(template.document_type)
     setBody(template.body_markdown)
-    setAppliedTemplateId(template.id)
-  }, [appliedTemplateId, requestedTemplateId, templatesQuery.data?.templates])
+    setTemplateInitialized(true)
+  }, [templateInitialized, requestedTemplateId, templatesQuery.data?.templates])
 
   useEffect(() => {
     if (createdDocumentPath) navigate(createdDocumentPath)
@@ -308,7 +308,10 @@ export function DocumentComposePage() {
                   className="min-h-96 font-mono text-sm"
                   aria-label="Markdown документа"
                   value={body}
-                  onChange={(event) => setBody(event.target.value)}
+                  onChange={(event) => {
+                    setBody(event.target.value)
+                    setTemplateInitialized(true)
+                  }}
                   placeholder="Начните писать Markdown или примените шаблон выше"
                   required
                 />
@@ -386,7 +389,10 @@ export function DocumentComposePage() {
                   id="document-type"
                   list="document-type-options"
                   value={documentType}
-                  onChange={(event) => setDocumentType(event.target.value)}
+                  onChange={(event) => {
+                    setDocumentType(event.target.value)
+                    setTemplateInitialized(true)
+                  }}
                 />
                 <datalist id="document-type-options">
                   {typeOptions.map((type) => (

@@ -1,13 +1,23 @@
 # Current State - Wiki
 
 > **UI candidate 2026-10-14:** PR #75 incorporates main `4416a5c` and Base UI
-> `6a210dca877b5e3e04f01c619c7ca309b5c1bae3`. Catalogue refresh preserves the
+> `6b9dd35a92bb095debf166724e4ecb1cb0e8ceb0`. Catalogue refresh preserves the
 > document's initial destination; an unavailable space blocks saving until the
 > user explicitly chooses another. Draft publication and empty-draft fixes from
 > main remain intact. Local frontend: 235 tests, typecheck/lint/format/build and
 > OpenAPI check; 15 API-fixture scenarios passed in Chromium/Firefox/WebKit,
 > including refresh, navigation protection and publication. These checks do not
 > confirm live SSO or the pending cross-product acceptance. Runtime is unchanged.
+
+> **Editor fix 2026-10-15:** the URL template only initializes an untouched draft.
+> A delayed template response preserves an edited body/type, including a cleared
+> body; an explicit template selection is not reset to the URL template.
+> Four failing regression cases now pass. Local frontend: 239 tests,
+> lint/typecheck/OpenAPI/build passed. Backend, lockfile and runtime are unchanged.
+> 24 API-fixture scenarios passed in Chromium/Firefox/WebKit with Namespace UI
+> enabled; template-selection screenshots at 375/1920/2560 were inspected.
+> These browser scenarios use synthetic Auth/API and do not prove live SSO.
+> Docker recovery is managed separately; no container QA was started for this fix.
 
 > **Header update 2026-10-01:** общий `PlatformHeader` и navigation-only sidebar;
 > команда создания сохранена в desktop Header и mobile drawer. Account identity
