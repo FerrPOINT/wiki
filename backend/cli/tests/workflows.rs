@@ -192,6 +192,7 @@ impl Server {
                 .args(["--api-url", &url, "--token", "fixture-token"])
                 .args(args)
                 .env_remove("SDLC_API_TOKEN")
+                .env_remove("PDLC_API_TOKEN")
                 .env_remove("CICD_PROFILE")
                 .env_remove("WIKI_TOKEN")
                 .env_remove("TASKTRACKER_TOKEN")
@@ -404,14 +405,22 @@ async fn parsing_errors_are_json_and_do_not_echo_credentials() {
 
 #[tokio::test]
 async fn token_priority_is_flag_then_wiki_then_shared() {
-    let server = Server::start(vec![(200, json!([])), (200, json!([])), (200, json!([]))]).await;
-    for choice in 0..3 {
+    let server = Server::start(vec![(200, json!([])); 6]).await;
+    for variant in 0..6 {
+        let shared_variable = if variant < 3 {
+            "SDLC_API_TOKEN"
+        } else {
+            "PDLC_API_TOKEN"
+        };
+        let choice = variant % 3;
         let url = format!("{}/api/v1", server.url);
         let output = tokio::task::spawn_blocking(move || {
             let mut command = Command::new(env!("CARGO_BIN_EXE_wiki"));
             command
                 .env("WIKI_TOKEN", "wiki-token")
-                .env("SDLC_API_TOKEN", "common-token")
+                .env_remove("SDLC_API_TOKEN")
+                .env_remove("PDLC_API_TOKEN")
+                .env(shared_variable, "common-token")
                 .args(["--api-url", &url]);
             if choice == 0 {
                 command.args(["--token", "flag-token"]);
@@ -426,14 +435,53 @@ async fn token_priority_is_flag_then_wiki_then_shared() {
         success(&output);
     }
     let requests = server.requests();
-    for (request, token) in requests
-        .iter()
-        .zip(["flag-token", "wiki-token", "common-token"])
-    {
+    assert_eq!(requests.len(), 6);
+    for (request, token) in requests.iter().zip(
+        ["flag-token", "wiki-token", "common-token"]
+            .into_iter()
+            .cycle(),
+    ) {
         assert_eq!(
             request.authorization.as_deref(),
             Some(format!("Bearer {token}").as_str())
         );
+    }
+}
+
+#[tokio::test]
+async fn conflicting_shared_token_aliases_fail_before_http_without_revealing_values() {
+    let server = Server::start(vec![]).await;
+    let url = format!("{}/api/v1", server.url);
+    let output = tokio::task::spawn_blocking(move || {
+        Command::new(env!("CARGO_BIN_EXE_wiki"))
+            .env("PDLC_API_TOKEN", "canonical-private-fixture")
+            .env("SDLC_API_TOKEN", "legacy-private-fixture")
+            .args([
+                "--api-url",
+                &url,
+                "--token",
+                "explicit-private-fixture",
+                "space",
+                "list",
+            ])
+            .output()
+            .unwrap()
+    })
+    .await
+    .unwrap();
+    assert!(!output.status.success());
+    assert!(server.requests().is_empty());
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    for secret in [
+        "canonical-private-fixture",
+        "legacy-private-fixture",
+        "explicit-private-fixture",
+    ] {
+        assert!(!text.contains(secret));
     }
 }
 

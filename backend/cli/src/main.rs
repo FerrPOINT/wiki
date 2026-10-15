@@ -643,7 +643,7 @@ async fn main() -> std::process::ExitCode {
         Ok(cli) => cli,
         Err(error) => return support::parse_error(error),
     };
-    let configured_token = match pdlc_cli_core::platform_env("API_TOKEN") {
+    let configured_token = match pdlc_shared::platform_env("API_TOKEN") {
         Ok(value) => value,
         Err(error) => {
             support::report(&anyhow::Error::new(error), cli.error_format, &[]);
