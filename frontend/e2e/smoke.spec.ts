@@ -306,7 +306,10 @@ async function installWikiApiMocks(page: Page) {
       return routeJson(route, { access_token: 'demo-token', refresh_token: 'demo-refresh' })
     }
     if (method === 'POST' && path === '/auth/logout') return route.fulfill({ status: 204 })
-    if (method === 'GET' && /spaces\/[^/]+\/projects$/.test(path))
+    if (
+      method === 'GET' &&
+      (/spaces\/[^/]+\/projects$/.test(path) || /documents\/[^/]+\/space-context$/.test(path))
+    )
       return routeJson(route, {
         space: {
           id: 'space-base',
@@ -612,6 +615,107 @@ async function gotoWiki(page: Page, path = '/') {
 }
 
 test.describe('wiki smoke', () => {
+  test('keeps the manually chosen template after URL initialization and saves that content', async ({
+    page,
+  }, testInfo) => {
+    await installWikiApiMocks(page)
+    const releaseTemplate = {
+      id: 'release',
+      name: 'Выпуск',
+      document_type: 'release_note',
+      body_markdown: '# Выпуск',
+    }
+    await page.route('**/api/v1/templates', (route) =>
+      routeJson(route, { templates: [template, releaseTemplate] }),
+    )
+    const created = {
+      ...document,
+      id: 'template-draft',
+      title: 'Регламент релиза',
+      document_type: releaseTemplate.document_type,
+      status: 'draft',
+      body_markdown: '',
+      body_html: '',
+      draft_markdown: releaseTemplate.body_markdown,
+      current_revision: null,
+    }
+    await page.route('**/api/v1/spaces/BASE/documents', (route) => routeJson(route, created, 201))
+    await page.route('**/api/v1/documents/template-draft', (route) => routeJson(route, created))
+    await page.route('**/api/v1/documents/template-draft/revisions', (route) =>
+      routeJson(route, { revisions: [] }),
+    )
+    await gotoWiki(page, '/documents/new?template=requirements')
+    await expect(page.getByLabel('Markdown документа')).toHaveValue(template.body_markdown)
+    await page.getByLabel('Название').fill('Регламент релиза')
+    await page.getByRole('button', { name: 'Выпуск', exact: true }).click()
+    await expect(page.getByLabel('Markdown документа')).toHaveValue(releaseTemplate.body_markdown)
+    await expect(page.getByLabel('Тип', { exact: true })).toHaveValue('release_note')
+    for (const width of [375, 1920, 2560]) {
+      await page.setViewportSize({ width, height: width === 375 ? 812 : 1080 })
+      await expect(page.getByLabel('Markdown документа')).toHaveValue(releaseTemplate.body_markdown)
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+          ),
+        )
+        .toBe(true)
+      await page.screenshot({
+        path: testInfo.outputPath(`template-selection-${width}.png`),
+        fullPage: true,
+      })
+    }
+    const write = page.waitForRequest(
+      (request) =>
+        request.method() === 'POST' &&
+        new URL(request.url()).pathname === '/api/v1/spaces/BASE/documents',
+    )
+    await page.getByRole('button', { name: 'Сохранить черновик' }).click()
+    expect((await write).postDataJSON()).toMatchObject({
+      content_markdown: '# Выпуск',
+      document_type: 'release_note',
+      title: 'Регламент релиза',
+    })
+    await expect(page).toHaveURL(/\/documents\/template-draft(?:\?|$)/)
+    await expect(page.getByRole('heading', { name: 'Регламент релиза', exact: true })).toBeVisible()
+  })
+
+  for (const editedField of ['body', 'type'] as const) {
+    test(`keeps edited ${editedField} when the URL template arrives late`, async ({ page }) => {
+      await installWikiApiMocks(page)
+      let release!: () => void
+      const arrival = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      await page.route('**/api/v1/templates', async (route) => {
+        await arrival
+        await routeJson(route, { templates: [template] })
+      })
+      try {
+        await gotoWiki(page, '/documents/new?template=requirements')
+        await page.getByLabel('Название').fill('Независимый черновик')
+        if (editedField === 'body') {
+          await page.getByLabel('Markdown документа').fill('# Мой текст')
+        } else {
+          await page.getByLabel('Тип', { exact: true }).fill('research_note')
+        }
+        release()
+        await expect(page.getByRole('button', { name: 'Требования', exact: true })).toBeVisible()
+        await expect(page.getByLabel('Markdown документа')).toHaveValue(
+          editedField === 'body' ? '# Мой текст' : '',
+        )
+        await expect(page.getByLabel('Тип', { exact: true })).toHaveValue(
+          editedField === 'type' ? 'research_note' : 'page',
+        )
+        await page.getByRole('button', { name: 'Требования', exact: true }).click()
+        await expect(page.getByLabel('Markdown документа')).toHaveValue(template.body_markdown)
+        await expect(page.getByLabel('Тип', { exact: true })).toHaveValue('requirements')
+      } finally {
+        release()
+      }
+    })
+  }
+
   test('preserves draft destination across catalogue refresh and requires an explicit replacement', async ({
     page,
   }, testInfo) => {

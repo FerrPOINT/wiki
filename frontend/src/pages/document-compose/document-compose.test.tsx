@@ -35,6 +35,7 @@ function setupCompose(
   createOverrides: Record<string, unknown> = {},
   initialRoute = '/documents/new?space=eng',
   spaceOverrides: Record<string, unknown> = {},
+  templateOverrides: Record<string, unknown> = {},
 ) {
   useSpaces.mockReturnValue({
     data: {
@@ -70,6 +71,7 @@ function setupCompose(
     },
     isLoading: false,
     isError: false,
+    ...templateOverrides,
   })
   useCreateDocument.mockReturnValue({
     mutate: createDocumentMutate,
@@ -233,6 +235,118 @@ describe('DocumentComposePage', () => {
       },
       { onSuccess: expect.any(Function) },
     )
+  })
+
+  it('keeps an explicitly selected template instead of reapplying the URL template', () => {
+    setupCompose(
+      {},
+      '/documents/new?space=eng&template=tpl-test-plan',
+      {},
+      {
+        data: {
+          templates: [
+            {
+              id: 'tpl-test-plan',
+              name: 'План проверки',
+              document_type: 'test_plan',
+              body_markdown: '# Проверка',
+            },
+            {
+              id: 'tpl-release',
+              name: 'Выпуск',
+              document_type: 'release_note',
+              body_markdown: '# Выпуск',
+            },
+          ],
+        },
+      },
+    )
+    expect(screen.getByLabelText('Markdown документа')).toHaveValue('# Проверка')
+    fireEvent.click(screen.getByRole('button', { name: 'Выпуск' }))
+    expect(screen.getByLabelText('Markdown документа')).toHaveValue('# Выпуск')
+    expect(screen.getByLabelText('Тип')).toHaveValue('release_note')
+    fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Релиз' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить черновик' }))
+    expect(createDocumentMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.objectContaining({
+          content_markdown: '# Выпуск',
+          document_type: 'release_note',
+        }),
+      }),
+      expect.any(Object),
+    )
+  })
+
+  it.each(['# Мой текст', ''])(
+    'does not replace an edited body when the requested template arrives late: %j',
+    (body) => {
+      setupCompose(
+        {},
+        '/documents/new?space=eng&template=tpl-test-plan',
+        {},
+        {
+          data: undefined,
+          isLoading: true,
+        },
+      )
+      fireEvent.change(screen.getByLabelText('Markdown документа'), {
+        target: { value: 'Начатый текст' },
+      })
+      fireEvent.change(screen.getByLabelText('Markdown документа'), { target: { value: body } })
+      useTemplates.mockReturnValue({
+        data: {
+          templates: [
+            {
+              id: 'tpl-test-plan',
+              name: 'План проверки',
+              document_type: 'test_plan',
+              body_markdown: '# Проверка',
+            },
+          ],
+        },
+        isLoading: false,
+        isError: false,
+      })
+      fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Мой документ' } })
+      expect(screen.getByLabelText('Markdown документа')).toHaveValue(body)
+      expect(screen.getByLabelText('Тип')).toHaveValue('page')
+      expect(createDocumentMutate).not.toHaveBeenCalled()
+      fireEvent.click(screen.getByRole('button', { name: 'План проверки' }))
+      expect(screen.getByLabelText('Markdown документа')).toHaveValue('# Проверка')
+      expect(screen.getByLabelText('Тип')).toHaveValue('test_plan')
+    },
+  )
+
+  it('does not replace an explicitly edited document type when the requested template arrives late', () => {
+    setupCompose(
+      {},
+      '/documents/new?space=eng&template=tpl-test-plan',
+      {},
+      {
+        data: undefined,
+        isLoading: true,
+      },
+    )
+    fireEvent.change(screen.getByLabelText('Тип'), { target: { value: 'research_note' } })
+    useTemplates.mockReturnValue({
+      data: {
+        templates: [
+          {
+            id: 'tpl-test-plan',
+            name: 'План проверки',
+            document_type: 'test_plan',
+            body_markdown: '# Проверка',
+          },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+    })
+    fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Исследование' } })
+    expect(screen.getByLabelText('Тип')).toHaveValue('research_note')
+    expect(screen.getByLabelText('Markdown документа')).toHaveValue('')
+    expect(createDocumentMutate).not.toHaveBeenCalled()
   })
 
   it('renders validation errors without leaking request identifiers', () => {
