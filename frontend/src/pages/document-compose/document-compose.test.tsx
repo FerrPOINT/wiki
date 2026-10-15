@@ -97,6 +97,31 @@ describe('DocumentComposePage', () => {
     vi.clearAllMocks()
   })
 
+  it('locks the submitted draft while document creation is pending', () => {
+    setupCompose({ isPending: true })
+
+    for (const label of [
+      'Название',
+      'Markdown документа',
+      'Тип',
+      'Адрес (slug)',
+      'Задача',
+      'Фаза',
+    ]) {
+      expect(screen.getByLabelText(label, { exact: true })).toBeDisabled()
+    }
+    expect(screen.getByRole('button', { name: 'План проверки' })).toBeDisabled()
+  })
+
+  it('does not submit another create request while the first is pending', () => {
+    setupCompose({ isPending: true })
+
+    const form = screen.getByLabelText('Название').closest('form')!
+    fireEvent.submit(form)
+
+    expect(createDocumentMutate).not.toHaveBeenCalled()
+  })
+
   it('creates a document through the shared API hook and navigates to the result', async () => {
     const router = setupCompose()
 

@@ -138,7 +138,7 @@ export function DocumentComposePage() {
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!canSave) return
+    if (!canSave || createDocument.isPending) return
     createDocument.mutate(
       {
         spaceKey: namespace.ref ? namespace.query.data!.resource_key : selectedSpace!.key,
@@ -204,6 +204,7 @@ export function DocumentComposePage() {
                 <Input
                   id="document-title"
                   value={title}
+                  disabled={createDocument.isPending}
                   onChange={(event) => setTitle(event.target.value)}
                   placeholder="Название документа"
                   required
@@ -228,6 +229,7 @@ export function DocumentComposePage() {
                         aria-describedby={field['aria-describedby']}
                         label="Пространство"
                         value={spaceKey}
+                        disabled={createDocument.isPending}
                         selectedLabel={
                           selectedSpace ? `${selectedSpace.name} (${selectedSpace.key})` : undefined
                         }
@@ -287,6 +289,7 @@ export function DocumentComposePage() {
                 <button
                   key={template.id}
                   type="button"
+                  disabled={createDocument.isPending}
                   className="min-h-10 rounded-md border border-border px-2.5 py-1.5 text-xs text-text-secondary hover:bg-surface-raised hover:text-text-primary"
                   onClick={() => applyTemplate(template.id)}
                 >
@@ -308,6 +311,7 @@ export function DocumentComposePage() {
                   className="min-h-96 font-mono text-sm"
                   aria-label="Markdown документа"
                   value={body}
+                  disabled={createDocument.isPending}
                   onChange={(event) => {
                     setBody(event.target.value)
                     setTemplateInitialized(true)
@@ -344,6 +348,7 @@ export function DocumentComposePage() {
                 <Input
                   id="document-task"
                   value={taskKey}
+                  disabled={createDocument.isPending}
                   onChange={(event) => setTaskKey(event.target.value)}
                   placeholder="Ключ задачи"
                 />
@@ -353,6 +358,7 @@ export function DocumentComposePage() {
                 <Input
                   id="document-phase"
                   value={phaseKey}
+                  disabled={createDocument.isPending}
                   onChange={(event) => setPhaseKey(event.target.value)}
                   placeholder="Ключ фазы"
                 />
@@ -389,6 +395,7 @@ export function DocumentComposePage() {
                   id="document-type"
                   list="document-type-options"
                   value={documentType}
+                  disabled={createDocument.isPending}
                   onChange={(event) => {
                     setDocumentType(event.target.value)
                     setTemplateInitialized(true)
@@ -407,6 +414,7 @@ export function DocumentComposePage() {
                 <Input
                   id="document-slug"
                   value={slug}
+                  disabled={createDocument.isPending}
                   onChange={(event) => setSlug(event.target.value)}
                   placeholder="создастся автоматически"
                 />
