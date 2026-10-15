@@ -17,3 +17,8 @@ Runtime и package build scripts сохраняют прежние публич�
 
 Frontend CI handoff: один `dist` с manifest/digests, затем verified nginx packaging.
 Команда self-check и product flags: [TESTING](../TESTING.md#передача-frontend-artifact). SDK/UI/skills pins сохраняются.
+
+Shell unit использует QueryClientProvider с actor-scoped workspace-catalog cache;
+wrapper сохраняется и при rerender. Namespace mode определяет ожидаемый context
+slot. Native qualification проверяет false/true без сетевых запросов; production
+source, UI pin и release набор не меняются.
