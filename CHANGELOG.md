@@ -10,6 +10,11 @@
 
 ## [Unreleased]
 
+- Dev frontend учитывает `VITE_AUTH_CLIENT_ID` во всех SSO-операциях;
+  без настройки сохраняется клиент `wiki`.
+- Frontend text files сохраняют LF при Git checkout на Windows; проверка
+  форматирования согласована с `.prettierrc` и `core.autocrlf=true`.
+
 - Обычные списки ресурсов используют общий ResourceList Base: отступы, разделители и hover/focus едины; продуктовая сетка и действия сохранены.
 
 - Standalone frontend build проверяет `.base-ui-revision`; SDK pin и legacy fallback сохраняются.

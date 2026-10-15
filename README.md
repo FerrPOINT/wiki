@@ -83,6 +83,10 @@ curl -fsS http://127.0.0.1:3456/api/v1/health/ready
 
 Frontend dev:
 
+Workspace helper задаёт собственные `VITE_AUTH_ISSUER`, `VITE_AUTH_CLIENT_ID`
+и `VITE_API_BASE_URL`. Callback клиента Auth должен соответствовать Dev origin;
+без настройки client ID сохраняется `wiki`. См. [Local Setup](docs/LOCAL_SETUP.md).
+
 ```bash
 cd frontend
 pnpm install

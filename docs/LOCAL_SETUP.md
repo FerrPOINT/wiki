@@ -7,8 +7,8 @@
 | Docker + Compose | 24.x | для Postgres, backend/frontend containers and optional Traefik |
 | Rust | 1.88+ | backend workspace |
 | cargo | 1.88+ | backend workspace |
-| Node.js | 22 LTS | frontend |
-| pnpm | 9.x | frontend package manager |
+| Node.js | 22.20.0 | frontend |
+| pnpm | 10.28.1 | frontend package manager |
 | just | — | task runner (опционально) |
 | git | 2.40+ | — |
 
@@ -100,10 +100,22 @@ cargo watch -x run --bin server
 
 ## 5. Frontend
 
+Workspace helper передаёт настройки собственного стенда:
+
+| Переменная | Назначение |
+|---|---|
+| `VITE_AUTH_ISSUER` | Собственный Auth issuer; default `http://localhost:7701` |
+| `VITE_AUTH_CLIENT_ID` | SSO-клиент с зарегистрированным `<Dev origin>/sso/callback`; default `wiki` |
+| `VITE_API_BASE_URL` | Собственный backend для браузерного API и Dev proxy |
+
+Вход, callback, восстановление и выход используют один `ssoConfig`.
+Git attributes закрепляют LF для текстовых файлов frontend, включая Windows
+checkout с `core.autocrlf=true`; это соответствует `.prettierrc`.
+
 ```bash
 cd frontend
 
-pnpm install
+pnpm install --frozen-lockfile
 pnpm dev
 
 # Типизация
