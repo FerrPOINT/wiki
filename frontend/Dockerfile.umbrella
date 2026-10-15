@@ -1,4 +1,4 @@
-# Umbrella build for the SDLC fleet root compose (context = /opt/dev/sdlc).
+# Umbrella build for PDLC root Compose (context = the parent source workspace).
 # The repo's own frontend/Dockerfile builds with context=repo-root only; this
 # variant additionally stages the sibling services-base frontend so the
 # `@pdlc/ui` file dependency (../../services-base/base-modules/ui) resolves.
