@@ -7,7 +7,7 @@ ProjectBoundary разрешает Space до монтирования стра�
 в Wiki; Base не получает доменные API-клиенты или policy.
 
 Central Auth владеет human identity, браузерными сессиями и личными токенами.
-Wiki проверяет issuer/audience/signature/session через общий `sdlc-auth-core`,
+Wiki проверяет issuer/audience/signature/session через общий `pdlc-auth-core`,
 а локальная таблица `users` хранит только проекцию по неизменяемому `central_sub`
 для авторов и внешних ключей. Машинные runtime credentials не смешиваются с
 пользовательской авторизацией.

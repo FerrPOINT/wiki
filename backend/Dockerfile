@@ -1,19 +1,19 @@
 # Umbrella build for the SDLC fleet root compose (context = /opt/dev/sdlc).
 # The repo's own backend/Dockerfile builds with context=backend only; this
 # variant additionally stages the sibling services-base checkout so the
-# sdlc-auth-core path dependency (../../../services-base/...) resolves.
+# pdlc-auth-core path dependency (../../../services-base/...) resolves.
 FROM rust:1.88.0-slim-bookworm AS builder
 
 RUN apt-get update && apt-get install -y pkg-config libssl-dev unzip curl unzip && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-# infra/Cargo.toml: sdlc-auth-core = { path = "../../../services-base/..." }
+# infra/Cargo.toml: pdlc-auth-core = { path = "../../../services-base/..." }
 # /app/infra/../../../services-base == /services-base
-# sdlc-auth-core inherits workspace.package fields; stage a minimal root manifest.
+# pdlc-auth-core inherits workspace.package fields; stage a minimal root manifest.
 COPY services-base/Cargo.toml /services-base/Cargo.toml
-COPY services-base/crates/sdlc-telemetry /services-base/crates/sdlc-telemetry
-COPY services-base/crates/sdlc-auth-core /services-base/crates/sdlc-auth-core
-COPY services-base/crates/sdlc-shared /services-base/crates/sdlc-shared
+COPY services-base/crates/pdlc-telemetry /services-base/crates/pdlc-telemetry
+COPY services-base/crates/pdlc-auth-core /services-base/crates/pdlc-auth-core
+COPY services-base/crates/pdlc-shared /services-base/crates/pdlc-shared
 COPY wiki/backend/Cargo.toml wiki/backend/Cargo.lock* ./
 COPY wiki/backend/shared ./shared
 COPY wiki/backend/domain ./domain

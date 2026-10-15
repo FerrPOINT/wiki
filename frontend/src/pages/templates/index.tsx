@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from 'react'
-import { CodeBlock, NamespaceLink as Link, ResourceList, ResourceListRow } from '@sdlc/ui/ui'
+import { CodeBlock, NamespaceLink as Link, ResourceList, ResourceListRow } from '@pdlc/ui/ui'
 import { useSearchParams } from 'react-router'
 import {
   CheckCircle2,
@@ -12,7 +12,7 @@ import {
   X,
 } from 'lucide-react'
 import { useCreateTemplate, useCurrentUser, useTemplates } from '@/shared/api/hooks'
-import { Button, EmptyState, ErrorState, Input, Label, LoadingState, Textarea } from '@sdlc/ui/ui'
+import { Button, EmptyState, ErrorState, Input, Label, LoadingState, Textarea } from '@pdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDocumentType } from '@/shared/lib/wiki-format'
 import type { Template } from '@/api/wiki'

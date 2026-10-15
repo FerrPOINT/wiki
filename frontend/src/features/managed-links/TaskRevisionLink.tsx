@@ -1,11 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router'
-import { Button, Label } from '@sdlc/ui/ui'
+import { Button, Label } from '@pdlc/ui/ui'
 import { useQuery } from '@tanstack/react-query'
 import { apiRequest } from '@/api/client'
 import { useNamespaceContext } from '@/widgets/namespace-context'
 import { useSpaceProjects } from '@/api/workspaces'
-import { projectIdentity } from '@sdlc/ui/lib'
+import { projectIdentity } from '@pdlc/ui/lib'
 import type { components } from '@/api/generated'
 import { useAuthStore } from '@/shared/auth/store'
 

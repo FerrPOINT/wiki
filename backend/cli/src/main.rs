@@ -643,7 +643,14 @@ async fn main() -> std::process::ExitCode {
         Ok(cli) => cli,
         Err(error) => return support::parse_error(error),
     };
-    let token = cli.token.or_else(|| std::env::var("SDLC_API_TOKEN").ok());
+    let configured_token = match pdlc_cli_core::platform_env("API_TOKEN") {
+        Ok(value) => value,
+        Err(error) => {
+            support::report(&anyhow::Error::new(error), cli.error_format, &[]);
+            return std::process::ExitCode::FAILURE;
+        }
+    };
+    let token = cli.token.or(configured_token);
     let secrets = token
         .clone()
         .into_iter()

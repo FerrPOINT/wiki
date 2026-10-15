@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router'
-import { parseNamespaceLocation, withNamespaceLocation } from '@sdlc/ui/lib'
+import { parseNamespaceLocation, withNamespaceLocation } from '@pdlc/ui/lib'
 import { useNamespaceContext } from './namespace-context'
 import { projectResourceLabel } from './workspace-navigation'
 

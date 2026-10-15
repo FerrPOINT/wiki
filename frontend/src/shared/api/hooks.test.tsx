@@ -23,7 +23,7 @@ import {
 import { useAuthStore } from '@/shared/auth/store'
 
 const sso = vi.hoisted(() => ({ endSso: vi.fn() }))
-vi.mock('@sdlc/ui/sso', () => ({ endSso: sso.endSso }))
+vi.mock('@pdlc/ui/sso', async importOriginal => ({ ...await importOriginal<typeof import('@pdlc/ui/sso')>(), endSso: sso.endSso }))
 
 const archiveDocument = vi.hoisted(() => vi.fn())
 const createDocument = vi.hoisted(() => vi.fn())

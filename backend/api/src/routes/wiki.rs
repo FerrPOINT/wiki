@@ -290,7 +290,7 @@ pub async fn require_wiki_auth(
         })
         .ok_or(shared::AppError::Unauthorized)?;
 
-    if token.starts_with("sdlc_pat_") {
+    if pdlc_auth_core::is_personal_token(token) {
         let central = infra::wiki_postgres::central_auth::try_central(token)
             .await?
             .ok_or(shared::AppError::Unauthorized)?;

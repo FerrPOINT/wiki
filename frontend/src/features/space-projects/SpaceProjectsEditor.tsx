@@ -8,8 +8,8 @@ import {
   LoadingState,
   ResourceList,
   ResourceListRow,
-} from '@sdlc/ui/ui'
-import { projectIdentity, withNamespaceLocation } from '@sdlc/ui/lib'
+} from '@pdlc/ui/ui'
+import { projectIdentity, withNamespaceLocation } from '@pdlc/ui/lib'
 import {
   useSpaceProjects,
   useSpaceProjectMutation,

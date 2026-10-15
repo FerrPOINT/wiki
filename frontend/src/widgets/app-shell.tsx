@@ -1,11 +1,11 @@
-import { SidebarNavigationGroup, useSidebarDisclosure } from '@sdlc/ui/ui'
-import { SidebarItem } from '@sdlc/ui/ui'
+import { SidebarNavigationGroup, useSidebarDisclosure } from '@pdlc/ui/ui'
+import { SidebarItem } from '@pdlc/ui/ui'
 import { NamespaceShellContext } from './namespace-context'
 import { useEffect, useState, type ElementType } from 'react'
-import { NamespaceLink as Link } from '@sdlc/ui/ui'
+import { NamespaceLink as Link } from '@pdlc/ui/ui'
 import { Outlet, useLocation } from 'react-router'
-import { NamespaceNavLink as NavLink } from '@sdlc/ui/ui'
-import { useProjectDisclosures } from '@sdlc/ui/lib'
+import { NamespaceNavLink as NavLink } from '@pdlc/ui/ui'
+import { useProjectDisclosures } from '@pdlc/ui/lib'
 import { WorkspaceNavigation, useDocumentDisclosures } from './workspace-navigation'
 import { ProjectBoundary } from './project-boundary'
 import {
@@ -35,7 +35,7 @@ import {
   PlatformHeader,
   PlatformMark,
   ThemeMenuItems,
-} from '@sdlc/ui/ui'
+} from '@pdlc/ui/ui'
 import { useCurrentUser, useLogout } from '@/shared/api/hooks'
 
 type NavItem = {

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import { projectIdentity, sortProjectNavigation, type NamespaceLocation } from '@sdlc/ui/lib'
+import { projectIdentity, sortProjectNavigation, type NamespaceLocation } from '@pdlc/ui/lib'
 import type { components } from './generated'
 import { apiRequest } from './client'
 import { useAuthStore } from '@/shared/auth/store'

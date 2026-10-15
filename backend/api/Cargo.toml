@@ -7,8 +7,8 @@ license-file.workspace = true
 publish = false
 
 [dependencies]
-sdlc-telemetry = { path = "../../../services-base/crates/sdlc-telemetry" }
-sdlc-shared = { path = "../../../services-base/crates/sdlc-shared" }
+pdlc-telemetry = { path = "../../../services-base/crates/pdlc-telemetry" }
+pdlc-shared = { path = "../../../services-base/crates/pdlc-shared" }
 shared = { path = "../shared" }
 domain = { path = "../domain" }
 app = { path = "../app" }

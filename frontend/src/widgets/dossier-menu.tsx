@@ -1,13 +1,13 @@
 import { Link, useLocation } from 'react-router'
 import { MoreHorizontal } from 'lucide-react'
-import { withNamespaceLocation, type NamespaceLocation } from '@sdlc/ui/lib'
+import { withNamespaceLocation, type NamespaceLocation } from '@pdlc/ui/lib'
 import {
   Button,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@sdlc/ui/ui'
+} from '@pdlc/ui/ui'
 import { workspacePath } from '@/api/workspaces'
 
 export function DossierMenu({

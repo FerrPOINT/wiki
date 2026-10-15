@@ -1,7 +1,7 @@
 import { useNamespaceContext } from '@/widgets/namespace-context'
 import { TaskRevisionLink } from '@/features/managed-links/TaskRevisionLink'
 import { FormEvent, useEffect, useRef, useState } from 'react'
-import { NamespaceLink as Link } from '@sdlc/ui/ui'
+import { NamespaceLink as Link } from '@pdlc/ui/ui'
 import { useParams } from 'react-router'
 import {
   Archive,
@@ -27,19 +27,19 @@ import {
   usePublishDocument,
   useUpdateDocumentDraft,
 } from '@/shared/api/hooks'
-import { ConfirmDialog, EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
-import { Button } from '@sdlc/ui/ui'
-import { Card, CardContent, CardHeader, CardTitle } from '@sdlc/ui/ui'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@sdlc/ui/ui'
-import { Input } from '@sdlc/ui/ui'
-import { Label } from '@sdlc/ui/ui'
-import { Textarea } from '@sdlc/ui/ui'
+import { ConfirmDialog, EmptyState, ErrorState, LoadingState } from '@pdlc/ui/ui'
+import { Button } from '@pdlc/ui/ui'
+import { Card, CardContent, CardHeader, CardTitle } from '@pdlc/ui/ui'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@pdlc/ui/ui'
+import { Input } from '@pdlc/ui/ui'
+import { Label } from '@pdlc/ui/ui'
+import { Textarea } from '@pdlc/ui/ui'
 import {
   formatApiErrorForUser,
   formatFirstApiErrorForUser,
   hasApiErrorCode,
 } from '@/shared/lib/api-error'
-import { UnsavedChangesGuard } from '@sdlc/ui/ui'
+import { UnsavedChangesGuard } from '@pdlc/ui/ui'
 import {
   formatDateTime,
   formatDocumentStatus,

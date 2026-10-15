@@ -1,17 +1,18 @@
+import { platformEnv } from '@pdlc/ui/environment'
 import { mkdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test } from '@playwright/test'
 
-test.skip(process.env.SDLC_LIVE_QA !== '1', 'Requires live Wiki and Central Auth')
+test.skip(platformEnv('LIVE_QA') !== '1', 'Requires live Wiki and Central Auth')
 test.skip(({ browserName }) => browserName !== 'chromium', 'Single browser live acceptance')
 test.use({ trace: 'off', hasTouch: true })
 
 const account =
-  process.env.SDLC_LIVE_QA === '1'
+  platformEnv('LIVE_QA') === '1'
     ? (JSON.parse(
         readFileSync(
-          process.env.SDLC_QA_SESSION_FILE ??
+          platformEnv('QA_SESSION_FILE') ??
             fileURLToPath(
               new URL('../../../services-base/deploy/.local/qa-session.json', import.meta.url),
             ),

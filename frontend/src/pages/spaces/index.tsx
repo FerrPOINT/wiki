@@ -29,11 +29,11 @@ import {
   LoadingState,
   ResourceList,
   ResourceListRow,
-} from '@sdlc/ui/ui'
-import { Button } from '@sdlc/ui/ui'
-import { Input } from '@sdlc/ui/ui'
-import { Label } from '@sdlc/ui/ui'
-import { Textarea } from '@sdlc/ui/ui'
+} from '@pdlc/ui/ui'
+import { Button } from '@pdlc/ui/ui'
+import { Input } from '@pdlc/ui/ui'
+import { Label } from '@pdlc/ui/ui'
+import { Textarea } from '@pdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime, formatDocumentType, shortText } from '@/shared/lib/wiki-format'
 import type { Space, SpaceTreeNode } from '@/api/wiki'

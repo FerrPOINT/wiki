@@ -1,7 +1,7 @@
 # Umbrella build for the SDLC fleet root compose (context = /opt/dev/sdlc).
 # The repo's own frontend/Dockerfile builds with context=repo-root only; this
 # variant additionally stages the sibling services-base frontend so the
-# `@sdlc/ui` file dependency (../../services-base/frontend) resolves.
+# `@pdlc/ui` file dependency (../../services-base/base-modules/ui) resolves.
 FROM node:22.20.0-bookworm-slim AS builder
 
 RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
@@ -10,7 +10,7 @@ RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
 # Tailwind's shared UI source path resolve the same way as a local checkout.
 WORKDIR /workspace/wiki/frontend
 COPY wiki/frontend/package.json wiki/frontend/pnpm-lock.yaml wiki/frontend/pnpm-workspace.yaml ./
-COPY services-base/frontend /workspace/services-base/frontend
+COPY services-base/base-modules/ui /workspace/services-base/base-modules/ui
 COPY wiki/openapi/openapi.json /workspace/wiki/openapi/openapi.json
 COPY wiki/frontend/scripts/generate-exports.mjs ./scripts/generate-exports.mjs
 # pnpm resolves file: dependencies from the importer package root.
@@ -25,6 +25,8 @@ ARG VITE_PLATFORM_SERVICES_URL=""
 ENV VITE_PLATFORM_SERVICES_URL=${VITE_PLATFORM_SERVICES_URL}
 ARG VITE_AUTH_ISSUER="http://localhost:7701"
 ENV VITE_AUTH_ISSUER=${VITE_AUTH_ISSUER}
+ARG VITE_AUTH_NAMESPACE="sdlc"
+ENV VITE_AUTH_NAMESPACE=${VITE_AUTH_NAMESPACE}
 ARG VITE_PLATFORM_ORIGIN=""
 ENV VITE_PLATFORM_ORIGIN=${VITE_PLATFORM_ORIGIN}
 RUN pnpm generate:api && pnpm build

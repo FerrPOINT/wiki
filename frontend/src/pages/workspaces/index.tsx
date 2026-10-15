@@ -1,6 +1,6 @@
 import { useLocation } from 'react-router'
-import { NamespaceLink as Link, ProjectAvatar, ResourceList, ResourceListRow } from '@sdlc/ui/ui'
-import { projectIdentity, withNamespaceLocation } from '@sdlc/ui/lib'
+import { NamespaceLink as Link, ProjectAvatar, ResourceList, ResourceListRow } from '@pdlc/ui/ui'
+import { projectIdentity, withNamespaceLocation } from '@pdlc/ui/lib'
 import { documentPath, useWorkspaceCatalog, workspacePath } from '@/api/workspaces'
 import { useNamespaceContext } from '@/widgets/namespace-context'
 import { projectResourceLabel } from '@/widgets/workspace-navigation'

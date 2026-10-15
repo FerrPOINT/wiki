@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Loader, NamespaceLink as Link, ResourceList, ResourceListRow } from '@sdlc/ui/ui'
+import { Loader, NamespaceLink as Link, ResourceList, ResourceListRow } from '@pdlc/ui/ui'
 
 import {
   ArrowRight,
@@ -12,11 +12,11 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { usePhaseSummaries, useSpaces, useTaskSummaries, useWikiSearch } from '@/shared/api/hooks'
-import { Button, EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
+import { Button, EmptyState, ErrorState, LoadingState } from '@pdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime } from '@/shared/lib/wiki-format'
 import { resolveSpaceKey } from '@/shared/lib/space-selection'
-import { usePlatformReadiness } from '@sdlc/ui/platform'
+import { usePlatformReadiness } from '@pdlc/ui/platform'
 
 const selectClassName =
   'min-h-10 rounded-md border border-border bg-surface px-3 text-sm text-text-primary focus-visible:outline-2 focus-visible:outline-accent'

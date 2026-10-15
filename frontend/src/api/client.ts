@@ -1,5 +1,5 @@
 import { useAuthStore } from '@/shared/auth/store'
-import { getPlatformProduct } from '@sdlc/ui/platform'
+import { getPlatformProduct } from '@pdlc/ui/platform'
 
 const rawBaseUrl = import.meta.env.VITE_API_BASE_URL ?? ''
 export const apiBaseUrl = rawBaseUrl.replace(/\/api\/v1\/?$/, '')

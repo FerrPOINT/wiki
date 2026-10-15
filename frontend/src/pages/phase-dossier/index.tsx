@@ -1,13 +1,13 @@
 import { useProjectRouteRef } from '@/widgets/namespace-context'
 import { type FormEvent, useRef, useState } from 'react'
-import { NamespaceLink as Link, ResourceList, ResourceListRow } from '@sdlc/ui/ui'
+import { NamespaceLink as Link, ResourceList, ResourceListRow } from '@pdlc/ui/ui'
 import { useParams, useSearchParams } from 'react-router'
 import { FileCheck2, FileText, Link2, Search } from 'lucide-react'
 import { useLinkPhaseDocument, usePhase, usePhaseSummaries, useSpaces } from '@/shared/api/hooks'
-import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
-import { Button } from '@sdlc/ui/ui'
-import { Input } from '@sdlc/ui/ui'
-import { Label } from '@sdlc/ui/ui'
+import { EmptyState, ErrorState, LoadingState } from '@pdlc/ui/ui'
+import { Button } from '@pdlc/ui/ui'
+import { Input } from '@pdlc/ui/ui'
+import { Label } from '@pdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import {
   clearDossierCatalogParams,

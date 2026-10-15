@@ -1,8 +1,8 @@
 //! Login proxy to the central fleet auth-server via the shared
-//! `sdlc_auth_core::service_bridge` (env: WIKI_AUTH__CENTRAL_LOGIN_URL).
+//! `pdlc_auth_core::service_bridge` (env: WIKI_AUTH__CENTRAL_LOGIN_URL).
 
 use super::central_auth::BRIDGE;
-use sdlc_auth_core::service_bridge::CentralTokenPair;
+use pdlc_auth_core::service_bridge::CentralTokenPair;
 
 /// Central login proxy; `None` = not configured / rejected / unreachable
 /// (transport errors are logged, local login stays the fallback).
