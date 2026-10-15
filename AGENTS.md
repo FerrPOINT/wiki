@@ -37,8 +37,8 @@
 
 ### 4. Тестирование
 
-- Backend: `cargo fmt`, `cargo clippy`, `cargo test`, интеграционные тесты с PostgreSQL testcontainer.
-- Frontend: Vitest + Playwright.
+- Обычная сборка/разработка: backend `cargo test --locked -p domain --lib`, frontend `pnpm test:unit`; команды и scope — `.quality-gate.json`.
+- Integration с PostgreSQL, Playwright и полный набор — ручной release gate по `docs/TESTING.md`.
 - После UI-изменений — скриншоты full-page (375 / 1920 / 2560).
 - Все новые endpoint — curl-проверка.
 
@@ -63,8 +63,8 @@
 
 ### 8. Проверка перед завершением
 
-- [ ] Все тесты проходят.
-- [ ] Линтеры (`clippy`, `eslint`, `prettier`) чистые.
+- [ ] Пройдены unit/static checks затронутых компонентов; повтор использует подходящие receipts.
+- [ ] Для релиза отдельно подтверждены integration/slow/full coverage и необходимые security/data/live gates на exact candidate; невыполненные проверки обозначены NOT RUN.
 - [ ] Документация актуальна.
 - [ ] Коммиты запушены, если пользователь просил push.
 - [ ] Пользователь увидел результат (скриншот / curl / лог).
