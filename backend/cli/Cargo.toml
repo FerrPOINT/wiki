@@ -11,7 +11,7 @@ name = "wiki"
 path = "src/main.rs"
 
 [dependencies]
-pdlc-shared = { path = "../../../services-base/crates/pdlc-shared", default-features = false }
+pdlc-shared = { path = "../../../services-base/base-modules/rust/pdlc-shared", default-features = false }
 tempfile = "3"
 clap = { workspace = true, features = ["derive", "env"] }
 reqwest = { workspace = true, features = ["json", "multipart", "rustls-tls"] }
