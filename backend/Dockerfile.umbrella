@@ -4,6 +4,7 @@
 # variant additionally stages the sibling services-base checkout so the
 # sdlc-auth-core path dependency (../../../services-base/...) resolves.
 FROM rust:1.88.0-slim-bookworm AS builder
+ARG CARGO_BUILD_JOBS=2
 
 RUN apt-get update && apt-get install -y pkg-config libssl-dev unzip curl unzip && rm -rf /var/lib/apt/lists/*
 
@@ -15,6 +16,22 @@ COPY services-base/Cargo.toml /services-base/Cargo.toml
 COPY services-base/crates/sdlc-telemetry /services-base/crates/sdlc-telemetry
 COPY services-base/crates/sdlc-auth-core /services-base/crates/sdlc-auth-core
 COPY services-base/crates/sdlc-shared /services-base/crates/sdlc-shared
+COPY wiki/backend/api/Cargo.toml api/Cargo.toml
+COPY wiki/backend/app/Cargo.toml app/Cargo.toml
+COPY wiki/backend/Cargo.toml wiki/backend/Cargo.lock* ./
+COPY wiki/backend/cli/Cargo.toml cli/Cargo.toml
+COPY wiki/backend/domain/Cargo.toml domain/Cargo.toml
+COPY wiki/backend/infra/Cargo.toml infra/Cargo.toml
+COPY wiki/backend/migration/Cargo.toml migration/Cargo.toml
+COPY wiki/backend/server/Cargo.toml server/Cargo.toml
+COPY wiki/backend/shared/Cargo.toml shared/Cargo.toml
+# Immutable dependency layer; all product packages are removed before real source COPY.
+RUN --mount=type=cache,id=wiki-cargo-registry-rust-1.88,target=/usr/local/cargo/registry,sharing=shared \
+    for package in api app cli domain infra migration server shared; do mkdir -p "$package/src"; printf '%s\n' '' > "$package/src/lib.rs"; printf '%s\n' 'fn main() {}' > "$package/src/main.rs"; done \
+    && cargo build --locked --release --bin server \
+    && cargo clean --release -p api -p app -p wiki-cli -p domain -p infra -p migration -p server -p shared \
+    && rm -rf -- api/src app/src cli/src domain/src infra/src migration/src server/src shared/src
+
 COPY wiki/backend/Cargo.toml wiki/backend/Cargo.lock* ./
 COPY wiki/backend/shared ./shared
 COPY wiki/backend/domain ./domain
