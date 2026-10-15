@@ -25,7 +25,7 @@ COPY wiki/backend/api ./api
 COPY wiki/backend/server ./server
 COPY wiki/backend/cli ./cli
 
-RUN cargo build --locked --release --bin server
+RUN cargo test --locked --release -p domain --lib && cargo build --locked --release --bin server
 
 FROM debian:bookworm-slim
 RUN apt-get update \
