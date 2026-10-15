@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { endSso } from '@sdlc/ui/sso'
+import { endSso } from '@pdlc/ui/sso'
 import { getCurrentUser, login, register } from '@/api/auth'
 import {
   archiveSpace,

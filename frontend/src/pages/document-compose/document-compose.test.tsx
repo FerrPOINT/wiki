@@ -34,6 +34,8 @@ vi.mock('@/shared/api/hooks', () => ({
 function setupCompose(
   createOverrides: Record<string, unknown> = {},
   initialRoute = '/documents/new?space=eng',
+  spaceOverrides: Record<string, unknown> = {},
+  templateOverrides: Record<string, unknown> = {},
 ) {
   useSpaces.mockReturnValue({
     data: {
@@ -54,6 +56,7 @@ function setupCompose(
     },
     isLoading: false,
     isError: false,
+    ...spaceOverrides,
   })
   useTemplates.mockReturnValue({
     data: {
@@ -68,6 +71,7 @@ function setupCompose(
     },
     isLoading: false,
     isError: false,
+    ...templateOverrides,
   })
   useCreateDocument.mockReturnValue({
     mutate: createDocumentMutate,
@@ -91,6 +95,31 @@ function setupCompose(
 describe('DocumentComposePage', () => {
   afterEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('locks the submitted draft while document creation is pending', () => {
+    setupCompose({ isPending: true })
+
+    for (const label of [
+      'Название',
+      'Markdown документа',
+      'Тип',
+      'Адрес (slug)',
+      'Задача',
+      'Фаза',
+    ]) {
+      expect(screen.getByLabelText(label, { exact: true })).toBeDisabled()
+    }
+    expect(screen.getByRole('button', { name: 'План проверки' })).toBeDisabled()
+  })
+
+  it('does not submit another create request while the first is pending', () => {
+    setupCompose({ isPending: true })
+
+    const form = screen.getByLabelText('Название').closest('form')!
+    fireEvent.submit(form)
+
+    expect(createDocumentMutate).not.toHaveBeenCalled()
   })
 
   it('creates a document through the shared API hook and navigates to the result', async () => {
@@ -192,13 +221,13 @@ describe('DocumentComposePage', () => {
     expect(dialog).toHaveTextContent('Несохранённые изменения будут потеряны')
     expect(router.state.location.pathname).toBe('/documents/new')
 
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Отмена' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Остаться' }))
     expect(screen.getByLabelText('Название')).toHaveValue('Черновик')
     expect(router.state.location.pathname).toBe('/documents/new')
 
     await act(async () => router.navigate('/spaces'))
     fireEvent.click(
-      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Подтвердить' }),
+      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Покинуть' }),
     )
     await waitFor(() => expect(router.state.location.pathname).toBe('/spaces'))
   })
@@ -233,6 +262,118 @@ describe('DocumentComposePage', () => {
     )
   })
 
+  it('keeps an explicitly selected template instead of reapplying the URL template', () => {
+    setupCompose(
+      {},
+      '/documents/new?space=eng&template=tpl-test-plan',
+      {},
+      {
+        data: {
+          templates: [
+            {
+              id: 'tpl-test-plan',
+              name: 'План проверки',
+              document_type: 'test_plan',
+              body_markdown: '# Проверка',
+            },
+            {
+              id: 'tpl-release',
+              name: 'Выпуск',
+              document_type: 'release_note',
+              body_markdown: '# Выпуск',
+            },
+          ],
+        },
+      },
+    )
+    expect(screen.getByLabelText('Markdown документа')).toHaveValue('# Проверка')
+    fireEvent.click(screen.getByRole('button', { name: 'Выпуск' }))
+    expect(screen.getByLabelText('Markdown документа')).toHaveValue('# Выпуск')
+    expect(screen.getByLabelText('Тип')).toHaveValue('release_note')
+    fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Релиз' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить черновик' }))
+    expect(createDocumentMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.objectContaining({
+          content_markdown: '# Выпуск',
+          document_type: 'release_note',
+        }),
+      }),
+      expect.any(Object),
+    )
+  })
+
+  it.each(['# Мой текст', ''])(
+    'does not replace an edited body when the requested template arrives late: %j',
+    (body) => {
+      setupCompose(
+        {},
+        '/documents/new?space=eng&template=tpl-test-plan',
+        {},
+        {
+          data: undefined,
+          isLoading: true,
+        },
+      )
+      fireEvent.change(screen.getByLabelText('Markdown документа'), {
+        target: { value: 'Начатый текст' },
+      })
+      fireEvent.change(screen.getByLabelText('Markdown документа'), { target: { value: body } })
+      useTemplates.mockReturnValue({
+        data: {
+          templates: [
+            {
+              id: 'tpl-test-plan',
+              name: 'План проверки',
+              document_type: 'test_plan',
+              body_markdown: '# Проверка',
+            },
+          ],
+        },
+        isLoading: false,
+        isError: false,
+      })
+      fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Мой документ' } })
+      expect(screen.getByLabelText('Markdown документа')).toHaveValue(body)
+      expect(screen.getByLabelText('Тип')).toHaveValue('page')
+      expect(createDocumentMutate).not.toHaveBeenCalled()
+      fireEvent.click(screen.getByRole('button', { name: 'План проверки' }))
+      expect(screen.getByLabelText('Markdown документа')).toHaveValue('# Проверка')
+      expect(screen.getByLabelText('Тип')).toHaveValue('test_plan')
+    },
+  )
+
+  it('does not replace an explicitly edited document type when the requested template arrives late', () => {
+    setupCompose(
+      {},
+      '/documents/new?space=eng&template=tpl-test-plan',
+      {},
+      {
+        data: undefined,
+        isLoading: true,
+      },
+    )
+    fireEvent.change(screen.getByLabelText('Тип'), { target: { value: 'research_note' } })
+    useTemplates.mockReturnValue({
+      data: {
+        templates: [
+          {
+            id: 'tpl-test-plan',
+            name: 'План проверки',
+            document_type: 'test_plan',
+            body_markdown: '# Проверка',
+          },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+    })
+    fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Исследование' } })
+    expect(screen.getByLabelText('Тип')).toHaveValue('research_note')
+    expect(screen.getByLabelText('Markdown документа')).toHaveValue('')
+    expect(createDocumentMutate).not.toHaveBeenCalled()
+  })
+
   it('renders validation errors without leaking request identifiers', () => {
     setupCompose({
       isError: true,
@@ -246,5 +387,83 @@ describe('DocumentComposePage', () => {
     const alert = screen.getByRole('alert')
     expect(alert).toHaveTextContent('Проверьте заполнение полей: Название: required')
     expect(alert).not.toHaveTextContent('requestId')
+  })
+  it('blocks creation when the confirmed space catalogue is empty and keeps the entered draft', () => {
+    setupCompose({}, '/documents/new', { data: { spaces: [] } })
+    fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Keep my draft' } })
+    expect(screen.getByRole('button', { name: 'Сохранить черновик' })).toBeDisabled()
+    expect(screen.getByText(/Нет доступных пространств/)).toBeInTheDocument()
+    expect(screen.getByLabelText('Название')).toHaveValue('Keep my draft')
+    expect(createDocumentMutate).not.toHaveBeenCalled()
+  })
+
+  it('selects an existing non-BASE space for a blank URL without creating a dirty draft', async () => {
+    setupCompose({}, '/documents/new')
+    await screen.findByRole('button', { name: 'Пространство: Engineering (ENG)' })
+    const event = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
+    expect(screen.getByRole('button', { name: 'Сохранить черновик' })).toBeEnabled()
+  })
+
+  it('does not replace an unavailable explicit space with the first accessible one', () => {
+    setupCompose({}, '/documents/new?space=MISSING')
+    expect(screen.getByText(/Выбранное пространство недоступно/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Сохранить черновик' })).toBeDisabled()
+    expect(createDocumentMutate).not.toHaveBeenCalled()
+  })
+
+  it('does not move an automatically selected draft when BASE appears on catalogue refresh', async () => {
+    setupCompose({}, '/documents/new')
+    await screen.findByRole('button', { name: 'Пространство: Engineering (ENG)' })
+    fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Engineering draft' } })
+    const previous = useSpaces.mock.results.at(-1)!.value
+    useSpaces.mockReturnValue({
+      ...previous,
+      data: {
+        spaces: [
+          { ...previous.data.spaces[0], id: 'space-base', key: 'BASE', name: 'Base' },
+          ...previous.data.spaces,
+        ],
+      },
+    })
+    fireEvent.change(screen.getByLabelText('Markdown документа'), {
+      target: { value: 'Private engineering content' },
+    })
+    expect(screen.getByRole('button', { name: 'Пространство: Engineering (ENG)' })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить черновик' }))
+    expect(createDocumentMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ spaceKey: 'ENG' }),
+      expect.any(Object),
+    )
+  })
+
+  it('blocks saving when the automatically selected space disappears instead of choosing another', async () => {
+    setupCompose({}, '/documents/new')
+    await screen.findByRole('button', { name: 'Пространство: Engineering (ENG)' })
+    const previous = useSpaces.mock.results.at(-1)!.value
+    useSpaces.mockReturnValue({
+      ...previous,
+      data: {
+        spaces: [{ ...previous.data.spaces[0], id: 'space-base', key: 'BASE', name: 'Base' }],
+      },
+    })
+    fireEvent.change(screen.getByLabelText('Название'), {
+      target: { value: 'Keep my engineering draft' },
+    })
+    expect(screen.getByRole('button', { name: 'Сохранить черновик' })).toBeDisabled()
+    expect(screen.getByText(/Выбранное пространство недоступно/)).toBeVisible()
+    expect(screen.getByLabelText('Название')).toHaveValue('Keep my engineering draft')
+    expect(createDocumentMutate).not.toHaveBeenCalled()
+  })
+
+  it('retains input when the catalogue is unavailable rather than inventing BASE', () => {
+    setupCompose({}, '/documents/new', { data: undefined, isError: true, refetch: vi.fn() })
+    fireEvent.change(screen.getByLabelText('Markdown документа'), {
+      target: { value: 'Unsaved body' },
+    })
+    expect(screen.getByRole('button', { name: 'Сохранить черновик' })).toBeDisabled()
+    expect(screen.getByLabelText('Markdown документа')).toHaveValue('Unsaved body')
+    expect(createDocumentMutate).not.toHaveBeenCalled()
   })
 })

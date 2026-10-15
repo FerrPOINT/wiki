@@ -26,7 +26,7 @@
 
 ## 🎯 Позиционирование
 
-**Wiki** — self-hosted knowledge base платформы Base для FerrPOINT: spaces, documents, revisions, task dossiers, workflow phases, evidence, attachments, search и audit.
+**Wiki** — self-hosted knowledge base платформы PDLC для FerrPOINT: spaces, documents, revisions, task dossiers, workflow phases, evidence, attachments, search и audit.
 
 Репозиторий сокращён до Wiki MVP runtime: public API/OpenAPI, CLI surface, frontend shell и SQLx/PostgreSQL persistence. Скопированные task-tracker backend-модули и старые зависимости удалены из активного workspace.
 
@@ -260,3 +260,5 @@ wiki/
 Proprietary source-available. Not open source. Viewing/evaluation only.
 
 Commercial, production, resale, redistribution, SaaS/hosting use require written license from FerrPOINT. См. [LICENSE](LICENSE), [NOTICE](NOTICE) и [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+Нормативные термины и зависимости: [PDLC и интеграция с Base](docs/PDLC_BASE_INTEGRATION.md).

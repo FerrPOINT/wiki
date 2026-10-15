@@ -7,7 +7,7 @@ license-file.workspace = true
 publish = false
 
 [dependencies]
-sdlc-auth-core = { path = "../../../services-base/crates/sdlc-auth-core" }
+pdlc-auth-core = { path = "../../../services-base/crates/pdlc-auth-core" }
 shared = { path = "../shared" }
 domain = { path = "../domain" }
 serde.workspace = true

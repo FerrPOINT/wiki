@@ -13,7 +13,7 @@ import {
   Label,
   LoadingState,
   ResourceList,
-} from '@sdlc/ui/ui'
+} from '@pdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime, formatDocumentType } from '@/shared/lib/wiki-format'
 import type { SearchParams, SearchResult } from '@/api/wiki'

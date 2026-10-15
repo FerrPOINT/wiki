@@ -16,7 +16,7 @@ import {
   usePlatformServices,
   ResourceList,
   ResourceListRow,
-} from '@sdlc/ui/ui'
+} from '@pdlc/ui/ui'
 import { useUsers } from '@/shared/api/hooks'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 

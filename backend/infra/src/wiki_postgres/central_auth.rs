@@ -1,16 +1,16 @@
 //! Wiki wiring of the shared central-auth bridge.
 //!
-//! JWKS mechanics live in `sdlc_auth_core::service_bridge`; this file only
+//! JWKS mechanics live in `pdlc_auth_core::service_bridge`; this file only
 //! maps bridge outcomes to wiki types.
 
-use sdlc_auth_core::service_bridge::{BridgeOutcome, ServiceBridge};
+use pdlc_auth_core::service_bridge::{BridgeOutcome, ServiceBridge};
 use shared::{AppError, AuthConfig, WikiClaims};
 
 /// Env prefix: WIKI_AUTH__CENTRAL_{JWKS_URI,ISSUER}.
 pub static BRIDGE: ServiceBridge = ServiceBridge::new("WIKI_AUTH__CENTRAL");
 
 /// Central-first bearer validation. `Ok(None)` = legacy path.
-pub async fn try_central(token: &str) -> Result<Option<sdlc_auth_core::AuthContext>, AppError> {
+pub async fn try_central(token: &str) -> Result<Option<pdlc_auth_core::AuthContext>, AppError> {
     Ok(try_central_with_name(token)
         .await?
         .map(|(context, _)| context))
@@ -18,7 +18,7 @@ pub async fn try_central(token: &str) -> Result<Option<sdlc_auth_core::AuthConte
 
 pub async fn try_central_with_name(
     token: &str,
-) -> Result<Option<(sdlc_auth_core::AuthContext, Option<String>)>, AppError> {
+) -> Result<Option<(pdlc_auth_core::AuthContext, Option<String>)>, AppError> {
     let (outcome, name) = BRIDGE.try_token_with_name(token).await;
     match outcome {
         BridgeOutcome::Validated(ctx) => Ok(Some((ctx, name))),
@@ -40,7 +40,7 @@ pub fn legacy_config_ok(_config: &AuthConfig) -> bool {
 
 /// Maps a central identity onto wiki claims; `user_id` is resolved by the
 /// caller from the immutable central subject, never from an email match.
-pub fn claims_for(ctx: &sdlc_auth_core::AuthContext, wiki_user_id: String) -> WikiClaims {
+pub fn claims_for(ctx: &pdlc_auth_core::AuthContext, wiki_user_id: String) -> WikiClaims {
     WikiClaims {
         user_id: wiki_user_id,
         session_id: ctx.session_id.clone(),

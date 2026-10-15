@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router'
 import { ChevronRight, FileCheck2, FileText, LayoutDashboard } from 'lucide-react'
-import { Button, NamespaceNavLink, ProjectNavigationGroup, SidebarItem } from '@sdlc/ui/ui'
-import { projectIdentity, withNamespaceLocation, type useProjectDisclosures } from '@sdlc/ui/lib'
+import { Button, NamespaceNavLink, ProjectNavigationGroup, SidebarItem } from '@pdlc/ui/ui'
+import { projectIdentity, withNamespaceLocation, type useProjectDisclosures } from '@pdlc/ui/lib'
 import {
   documentPath,
   useWorkspaceCatalog,

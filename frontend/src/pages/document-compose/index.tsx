@@ -2,21 +2,22 @@ import { useNamespaceContext } from '@/widgets/namespace-context'
 import { documentPath } from '@/api/workspaces'
 import { FormEvent, useEffect, useState } from 'react'
 import Markdown from 'react-markdown'
-import { NamespaceLink as Link } from '@sdlc/ui/ui'
-import { useNamespaceNavigate as useNavigate } from '@sdlc/ui/ui'
+import { NamespaceLink as Link } from '@pdlc/ui/ui'
+import { useNamespaceNavigate as useNavigate } from '@pdlc/ui/ui'
 import { useSearchParams } from 'react-router'
 import { FileText, GitBranch, Save, Tag } from 'lucide-react'
-import { defaultSpaceKey, useCreateDocument, useSpaces, useTemplates } from '@/shared/api/hooks'
-import { ErrorState, LoadingState } from '@sdlc/ui/ui'
-import { Button } from '@sdlc/ui/ui'
-import { Card, CardContent, CardHeader, CardTitle } from '@sdlc/ui/ui'
-import { Input } from '@sdlc/ui/ui'
-import { Label } from '@sdlc/ui/ui'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@sdlc/ui/ui'
-import { Textarea } from '@sdlc/ui/ui'
+import { useCreateDocument, useSpaces, useTemplates } from '@/shared/api/hooks'
+import { ErrorState, FormField, LoadingState, SearchableSelect } from '@pdlc/ui/ui'
+import { Button } from '@pdlc/ui/ui'
+import { Card, CardContent, CardHeader, CardTitle } from '@pdlc/ui/ui'
+import { Input } from '@pdlc/ui/ui'
+import { Label } from '@pdlc/ui/ui'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@pdlc/ui/ui'
+import { Textarea } from '@pdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDocumentType } from '@/shared/lib/wiki-format'
-import { UnsavedChangesGuard } from '@/shared/ui/unsaved-changes-guard'
+import { resolveSpaceKey } from '@/shared/lib/space-selection'
+import { UnsavedChangesGuard } from '@pdlc/ui/ui'
 
 const typeOptions = [
   'page',
@@ -36,38 +37,90 @@ export function DocumentComposePage() {
   const navigate = useNavigate()
   const namespace = useNamespaceContext()
   const [searchParams] = useSearchParams()
-  const initialSpace = (searchParams.get('space') ?? defaultSpaceKey).toUpperCase()
+  const initialSpace = searchParams.get('space')?.trim().toUpperCase() ?? ''
   const requestedTemplateId = searchParams.get('template')?.trim() ?? ''
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [spaceKey, setSpaceKey] = useState(initialSpace)
+  const [spaceChosen, setSpaceChosen] = useState(false)
+  const [spaceSearch, setSpaceSearch] = useState('')
+  const [spaceOffset, setSpaceOffset] = useState(0)
   const [documentType, setDocumentType] = useState('page')
   const [slug, setSlug] = useState('')
   const [taskKey, setTaskKey] = useState('')
   const [phaseKey, setPhaseKey] = useState('')
-  const [appliedTemplateId, setAppliedTemplateId] = useState('')
+  const [templateInitialized, setTemplateInitialized] = useState(false)
   const [editorTab, setEditorTab] = useState<'write' | 'preview'>('write')
   const [createdDocumentPath, setCreatedDocumentPath] = useState<string | null>(null)
   const spacesQuery = useSpaces()
   const templatesQuery = useTemplates()
   const createDocument = useCreateDocument()
+  const availableSpaces = (spacesQuery.data?.spaces ?? []).filter(
+    (space) => space.status === 'active',
+  )
+  const selectedSpace = availableSpaces.find(
+    (space) => space.key.toUpperCase() === spaceKey.toUpperCase(),
+  )
+  const filteredSpaces = availableSpaces.filter((space) =>
+    `${space.name} ${space.key}`
+      .toLocaleLowerCase()
+      .includes(spaceSearch.trim().toLocaleLowerCase()),
+  )
+  const canSave =
+    !namespace.malformed &&
+    !namespace.conflict &&
+    (namespace.ref
+      ? !namespace.query.isPending &&
+        !namespace.query.isError &&
+        namespace.query.data?.status === 'active'
+      : !spacesQuery.isLoading && !spacesQuery.isError && Boolean(selectedSpace))
+  const spaceProblem = namespace.malformed
+    ? 'Некорректная ссылка на пространство Namespace'
+    : !namespace.ref && !spacesQuery.isLoading && !spacesQuery.isError && spaceKey && !selectedSpace
+      ? 'Выбранное пространство недоступно. Выберите доступное пространство.'
+      : undefined
+  useEffect(() => {
+    if (
+      initialSpace ||
+      spaceKey ||
+      spaceChosen ||
+      namespace.ref ||
+      spacesQuery.isLoading ||
+      spacesQuery.isError
+    )
+      return
+    setSpaceKey(
+      resolveSpaceKey(
+        null,
+        (spacesQuery.data?.spaces ?? []).filter((space) => space.status === 'active'),
+      ),
+    )
+  }, [
+    initialSpace,
+    spaceKey,
+    spaceChosen,
+    namespace.ref,
+    spacesQuery.isLoading,
+    spacesQuery.isError,
+    spacesQuery.data,
+  ])
 
   function applyTemplate(templateId: string) {
     const template = templatesQuery.data?.templates.find((item) => item.id === templateId)
     if (!template) return
     setDocumentType(template.document_type)
     setBody(template.body_markdown)
-    setAppliedTemplateId(template.id)
+    setTemplateInitialized(true)
   }
 
   useEffect(() => {
-    if (!requestedTemplateId || appliedTemplateId === requestedTemplateId) return
+    if (!requestedTemplateId || templateInitialized) return
     const template = templatesQuery.data?.templates.find((item) => item.id === requestedTemplateId)
     if (!template) return
     setDocumentType(template.document_type)
     setBody(template.body_markdown)
-    setAppliedTemplateId(template.id)
-  }, [appliedTemplateId, requestedTemplateId, templatesQuery.data?.templates])
+    setTemplateInitialized(true)
+  }, [templateInitialized, requestedTemplateId, templatesQuery.data?.templates])
 
   useEffect(() => {
     if (createdDocumentPath) navigate(createdDocumentPath)
@@ -77,7 +130,7 @@ export function DocumentComposePage() {
     createdDocumentPath === null &&
     (title.trim().length > 0 ||
       body.trim().length > 0 ||
-      spaceKey !== initialSpace ||
+      (spaceChosen && spaceKey !== initialSpace) ||
       documentType !== 'page' ||
       slug.trim().length > 0 ||
       taskKey.trim().length > 0 ||
@@ -85,17 +138,10 @@ export function DocumentComposePage() {
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (
-      namespace.malformed ||
-      namespace.conflict ||
-      (namespace.ref && (!namespace.query.data || namespace.query.data.status !== 'active'))
-    )
-      return
+    if (!canSave || createDocument.isPending) return
     createDocument.mutate(
       {
-        spaceKey: namespace.ref
-          ? namespace.query.data!.resource_key
-          : spaceKey.trim().toUpperCase() || defaultSpaceKey,
+        spaceKey: namespace.ref ? namespace.query.data!.resource_key : selectedSpace!.key,
         body: {
           title: title.trim(),
           slug: normalizeOptional(slug),
@@ -133,7 +179,7 @@ export function DocumentComposePage() {
             <FileText className="h-4 w-4" />
             Предпросмотр
           </Button>
-          <Button size="sm" disabled={createDocument.isPending}>
+          <Button size="sm" disabled={createDocument.isPending || !canSave}>
             <Save className="h-4 w-4" />
             {createDocument.isPending ? 'Сохраняем...' : 'Сохранить черновик'}
           </Button>
@@ -158,29 +204,82 @@ export function DocumentComposePage() {
                 <Input
                   id="document-title"
                   value={title}
+                  disabled={createDocument.isPending}
                   onChange={(event) => setTitle(event.target.value)}
                   placeholder="Название документа"
                   required
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="document-space">Пространство</Label>
-                <Input
-                  id="document-space"
-                  readOnly={Boolean(namespace.ref)}
-                  list="document-space-options"
-                  value={namespace.ref ? (namespace.query.data?.resource_key ?? '') : spaceKey}
-                  disabled={Boolean(namespace.ref)}
-                  onChange={(event) => setSpaceKey(event.target.value.toUpperCase())}
-                  required
-                />
-                <datalist id="document-space-options">
-                  {(spacesQuery.data?.spaces ?? []).map((space) => (
-                    <option key={space.key} value={space.key}>
-                      {space.name}
-                    </option>
-                  ))}
-                </datalist>
+                <FormField id="document-space" label="Пространство" error={spaceProblem}>
+                  {(field) =>
+                    namespace.ref ? (
+                      <Input
+                        id={field.id}
+                        aria-invalid={field['aria-invalid']}
+                        aria-describedby={field['aria-describedby']}
+                        value={namespace.query.data?.resource_key ?? ''}
+                        readOnly
+                        disabled
+                      />
+                    ) : (
+                      <SearchableSelect
+                        id={field.id}
+                        aria-invalid={field['aria-invalid']}
+                        aria-describedby={field['aria-describedby']}
+                        label="Пространство"
+                        value={spaceKey}
+                        disabled={createDocument.isPending}
+                        selectedLabel={
+                          selectedSpace ? `${selectedSpace.name} (${selectedSpace.key})` : undefined
+                        }
+                        placeholder="Выберите пространство"
+                        allowEmpty={false}
+                        options={filteredSpaces
+                          .slice(spaceOffset, spaceOffset + 50)
+                          .map((space) => ({
+                            value: space.key,
+                            label: `${space.name} (${space.key})`,
+                          }))}
+                        search={spaceSearch}
+                        onSearch={(value) => {
+                          setSpaceSearch(value)
+                          setSpaceOffset(0)
+                        }}
+                        offset={spaceOffset}
+                        pageSize={50}
+                        total={filteredSpaces.length}
+                        onPage={setSpaceOffset}
+                        onChange={(value) => {
+                          setSpaceKey(value)
+                          setSpaceChosen(true)
+                        }}
+                        loading={spacesQuery.isLoading}
+                        error={
+                          spacesQuery.isError ? 'Не удалось загрузить пространства' : undefined
+                        }
+                        onRetry={() => {
+                          void spacesQuery.refetch()
+                        }}
+                      />
+                    )
+                  }
+                </FormField>
+                {namespace.ref && !canSave && (
+                  <p role="status">Привязка пространства не подтверждена.</p>
+                )}
+                {!namespace.ref &&
+                  !spacesQuery.isLoading &&
+                  !spacesQuery.isError &&
+                  !selectedSpace &&
+                  !spaceProblem && (
+                    <p role="status">
+                      {availableSpaces.length
+                        ? 'Выбранное пространство недоступно. Выберите доступное пространство.'
+                        : 'Нет доступных пространств. Создайте пространство или получите доступ.'}{' '}
+                      <Link to="/spaces">К пространствам</Link>
+                    </p>
+                  )}
               </div>
             </div>
 
@@ -190,6 +289,7 @@ export function DocumentComposePage() {
                 <button
                   key={template.id}
                   type="button"
+                  disabled={createDocument.isPending}
                   className="min-h-10 rounded-md border border-border px-2.5 py-1.5 text-xs text-text-secondary hover:bg-surface-raised hover:text-text-primary"
                   onClick={() => applyTemplate(template.id)}
                 >
@@ -211,7 +311,11 @@ export function DocumentComposePage() {
                   className="min-h-96 font-mono text-sm"
                   aria-label="Markdown документа"
                   value={body}
-                  onChange={(event) => setBody(event.target.value)}
+                  disabled={createDocument.isPending}
+                  onChange={(event) => {
+                    setBody(event.target.value)
+                    setTemplateInitialized(true)
+                  }}
                   placeholder="Начните писать Markdown или примените шаблон выше"
                   required
                 />
@@ -244,6 +348,7 @@ export function DocumentComposePage() {
                 <Input
                   id="document-task"
                   value={taskKey}
+                  disabled={createDocument.isPending}
                   onChange={(event) => setTaskKey(event.target.value)}
                   placeholder="Ключ задачи"
                 />
@@ -253,6 +358,7 @@ export function DocumentComposePage() {
                 <Input
                   id="document-phase"
                   value={phaseKey}
+                  disabled={createDocument.isPending}
                   onChange={(event) => setPhaseKey(event.target.value)}
                   placeholder="Ключ фазы"
                 />
@@ -289,7 +395,11 @@ export function DocumentComposePage() {
                   id="document-type"
                   list="document-type-options"
                   value={documentType}
-                  onChange={(event) => setDocumentType(event.target.value)}
+                  disabled={createDocument.isPending}
+                  onChange={(event) => {
+                    setDocumentType(event.target.value)
+                    setTemplateInitialized(true)
+                  }}
                 />
                 <datalist id="document-type-options">
                   {typeOptions.map((type) => (
@@ -304,6 +414,7 @@ export function DocumentComposePage() {
                 <Input
                   id="document-slug"
                   value={slug}
+                  disabled={createDocument.isPending}
                   onChange={(event) => setSlug(event.target.value)}
                   placeholder="создастся автоматически"
                 />

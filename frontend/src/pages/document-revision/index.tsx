@@ -1,6 +1,6 @@
-import { LoadingState, NamespaceLink as Link } from '@sdlc/ui/ui'
+import { LoadingState, NamespaceLink as Link } from '@pdlc/ui/ui'
 import { useParams } from 'react-router'
-import { withNamespaceLocation } from '@sdlc/ui/lib'
+import { withNamespaceLocation } from '@pdlc/ui/lib'
 import { useDocument, useDocumentRevision } from '@/shared/api/hooks'
 import { useNamespaceContext } from '@/widgets/namespace-context'
 import { TaskRevisionLink } from '@/features/managed-links/TaskRevisionLink'

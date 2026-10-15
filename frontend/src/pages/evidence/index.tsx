@@ -1,6 +1,6 @@
 import { useProjectRouteRef } from '@/widgets/namespace-context'
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { NamespaceLink as Link, ResourceList, ResourceListRow } from '@sdlc/ui/ui'
+import { NamespaceLink as Link, ResourceList, ResourceListRow } from '@pdlc/ui/ui'
 import { useSearchParams } from 'react-router'
 import {
   CheckCircle2,
@@ -34,7 +34,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@sdlc/ui/ui'
+} from '@pdlc/ui/ui'
 import {
   useAttachment,
   useCreateEvidence,

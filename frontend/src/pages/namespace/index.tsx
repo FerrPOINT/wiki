@@ -1,5 +1,5 @@
 import { Navigate, useLocation } from 'react-router'
-import { withNamespaceLocation } from '@sdlc/ui/lib'
+import { withNamespaceLocation } from '@pdlc/ui/lib'
 import { workspacePath } from '@/api/workspaces'
 import { useNamespaceContext } from '@/widgets/namespace-context'
 export function NamespacePage() {

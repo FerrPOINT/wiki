@@ -111,9 +111,10 @@ dependencies = [
  "infra",
  "metrics",
  "metrics-exporter-prometheus",
+ "pdlc-auth-core",
+ "pdlc-shared",
+ "pdlc-telemetry",
  "reqwest",
- "sdlc-shared",
- "sdlc-telemetry",
  "serde",
  "serde_json",
  "shared",
@@ -141,8 +142,8 @@ dependencies = [
  "domain",
  "hex",
  "jsonwebtoken",
+ "pdlc-auth-core",
  "rand_core 0.6.4",
- "sdlc-auth-core",
  "serde",
  "sha2 0.10.9",
  "shared",
@@ -1605,8 +1606,8 @@ dependencies = [
  "async-trait",
  "chrono",
  "domain",
+ "pdlc-auth-core",
  "reqwest",
- "sdlc-auth-core",
  "serde",
  "serde_json",
  "serial_test",
@@ -2142,6 +2143,51 @@ name = "pathdiff"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df94ce210e5bc13cb6651479fa48d14f601d9858cfe0467f43ae157023b938d3"
+
+[[package]]
+name = "pdlc-auth-core"
+version = "0.1.0"
+dependencies = [
+ "argon2",
+ "axum",
+ "chrono",
+ "jsonwebtoken",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tokio",
+ "tower",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "pdlc-shared"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tower-http 0.7.1",
+ "tracing",
+ "utoipa",
+ "uuid",
+]
+
+[[package]]
+name = "pdlc-telemetry"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "pdlc-shared",
+ "tokio",
+ "tower",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
 
 [[package]]
 name = "pem"
@@ -2842,50 +2888,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
-name = "sdlc-auth-core"
-version = "0.1.0"
-dependencies = [
- "argon2",
- "axum",
- "chrono",
- "jsonwebtoken",
- "reqwest",
- "serde",
- "serde_json",
- "thiserror 2.0.20",
- "tokio",
- "tower",
- "tracing",
- "uuid",
-]
-
-[[package]]
-name = "sdlc-shared"
-version = "0.1.0"
-dependencies = [
- "axum",
- "serde",
- "serde_json",
- "thiserror 2.0.20",
- "tower-http 0.7.1",
- "tracing",
- "utoipa",
- "uuid",
-]
-
-[[package]]
-name = "sdlc-telemetry"
-version = "0.1.0"
-dependencies = [
- "axum",
- "tokio",
- "tower",
- "tracing",
- "tracing-subscriber",
- "uuid",
-]
-
-[[package]]
 name = "security-framework"
 version = "3.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3028,8 +3030,8 @@ dependencies = [
  "app",
  "axum",
  "infra",
+ "pdlc-telemetry",
  "reqwest",
- "sdlc-telemetry",
  "serde_json",
  "serial_test",
  "shared",
@@ -3089,7 +3091,7 @@ dependencies = [
  "chrono",
  "config",
  "http",
- "sdlc-shared",
+ "pdlc-shared",
  "serde",
  "serde_json",
  "thiserror 2.0.20",
@@ -4328,6 +4330,7 @@ dependencies = [
  "axum",
  "clap",
  "hex",
+ "pdlc-shared",
  "reqwest",
  "serde",
  "serde_json",

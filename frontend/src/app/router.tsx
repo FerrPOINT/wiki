@@ -1,5 +1,5 @@
-import { LoadingState } from '@sdlc/ui/ui'
-import { createProductRouter, PlatformRoute } from '@sdlc/ui/platform'
+import { LoadingState } from '@pdlc/ui/ui'
+import { createProductRouter, PlatformRoute } from '@pdlc/ui/platform'
 import { lazy, Suspense, type ReactElement } from 'react'
 import { Navigate, type RouteObject } from 'react-router'
 import { RequireAuth } from '@/shared/auth/require-auth'

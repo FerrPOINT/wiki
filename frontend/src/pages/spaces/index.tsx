@@ -13,7 +13,6 @@ import {
   Search,
 } from 'lucide-react'
 import {
-  defaultSpaceKey,
   useArchiveSpace,
   useCreateSpace,
   useCurrentUser,
@@ -30,11 +29,11 @@ import {
   LoadingState,
   ResourceList,
   ResourceListRow,
-} from '@sdlc/ui/ui'
-import { Button } from '@sdlc/ui/ui'
-import { Input } from '@sdlc/ui/ui'
-import { Label } from '@sdlc/ui/ui'
-import { Textarea } from '@sdlc/ui/ui'
+} from '@pdlc/ui/ui'
+import { Button } from '@pdlc/ui/ui'
+import { Input } from '@pdlc/ui/ui'
+import { Label } from '@pdlc/ui/ui'
+import { Textarea } from '@pdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime, formatDocumentType, shortText } from '@/shared/lib/wiki-format'
 import type { Space, SpaceTreeNode } from '@/api/wiki'
@@ -369,7 +368,7 @@ export function SpacesPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {isSystemAdmin && (
+          {isSystemAdmin && spaces.length > 0 && (
             <Button
               type="button"
               size="sm"
@@ -381,9 +380,11 @@ export function SpacesPage() {
               <Plus className="h-4 w-4" /> Создать пространство
             </Button>
           )}
-          <Button asChild size="sm" className="min-h-11 md:hidden">
-            <Link to="/documents/new">Новый документ</Link>
-          </Button>
+          {spaces.some((space) => space.status === 'active') && (
+            <Button asChild size="sm" className="min-h-11 md:hidden">
+              <Link to="/documents/new">Новый документ</Link>
+            </Button>
+          )}
         </div>
       </section>
 
@@ -406,9 +407,20 @@ export function SpacesPage() {
         <EmptyState
           message="Пространства ещё не созданы"
           action={
-            <Button asChild size="sm" variant="secondary">
-              <Link to={`/documents/new?space=${defaultSpaceKey}`}>Создать первый документ</Link>
-            </Button>
+            isSystemAdmin ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={() => setShowCreate(true)}
+              >
+                Создать пространство
+              </Button>
+            ) : (
+              <p className="text-sm text-text-muted">
+                Получите доступ к пространству у администратора.
+              </p>
+            )
           }
         />
       )}

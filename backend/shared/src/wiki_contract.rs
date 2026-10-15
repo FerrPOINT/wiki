@@ -789,7 +789,7 @@ pub struct LinkDocumentRequest {
 pub struct TaskPageResponse {
     /// A key URL resolves only when the dossier identity is unambiguous.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub managed_task_ref: Option<sdlc_shared::resource_context::TaskRef>,
+    pub managed_task_ref: Option<pdlc_shared::resource_context::TaskRef>,
     pub space_key: String,
     pub task_key: String,
     pub title: Option<String>,

@@ -2175,11 +2175,11 @@ pub fn hash_token(token: &str) -> String {
 }
 
 pub fn hash_password(password: &str) -> Result<String, AppError> {
-    sdlc_auth_core::password::hash_password(password).map_err(AppError::internal)
+    pdlc_auth_core::password::hash_password(password).map_err(AppError::internal)
 }
 
 pub fn verify_password(password: &str, hash: &str) -> Result<bool, AppError> {
-    sdlc_auth_core::password::verify_password(password, hash).map_err(AppError::internal)
+    pdlc_auth_core::password::verify_password(password, hash).map_err(AppError::internal)
 }
 
 pub fn create_token(

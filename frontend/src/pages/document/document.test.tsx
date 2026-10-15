@@ -342,7 +342,7 @@ describe('DocumentPage', () => {
     )
     expect(view.router.state.location.pathname).toBe('/documents/product-requirements')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Подтвердить' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Покинуть' }))
     await waitFor(() => expect(view.router.state.location.pathname).toBe('/evidence'))
   })
 

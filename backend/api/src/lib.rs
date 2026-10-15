@@ -598,7 +598,7 @@ async fn request_id_middleware(request: Request, next: Next) -> Response {
         .get(REQUEST_ID_HEADER)
         .and_then(normalize_request_id)
         .unwrap_or_else(new_request_id);
-    sdlc_telemetry::run_with_request_id(request, next, request_id).await
+    pdlc_telemetry::run_with_request_id(request, next, request_id).await
 }
 
 fn normalize_request_id(value: &HeaderValue) -> Option<String> {
@@ -614,7 +614,7 @@ fn new_request_id() -> String {
 }
 
 fn cors_layer(origins: &[String]) -> tower_http::cors::CorsLayer {
-    sdlc_shared::cors::cors_layer(origins)
+    pdlc_shared::cors::cors_layer(origins)
 }
 
 fn with_security_headers<S>(router: Router<S>) -> Router<S>

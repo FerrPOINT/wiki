@@ -270,7 +270,7 @@ impl PostgresWikiAuthRepository<'_> {
     /// Central subjects never auto-link to historical local email rows.
     async fn find_or_link_central_user(
         &self,
-        ctx: &sdlc_auth_core::AuthContext,
+        ctx: &pdlc_auth_core::AuthContext,
         display_name: &str,
     ) -> Result<WikiAuthUserRecord, shared::AppError> {
         let display_name = display_name.trim();
@@ -822,8 +822,8 @@ mod central_directory_tests {
         }
     }
 
-    fn context(email: &str) -> sdlc_auth_core::AuthContext {
-        sdlc_auth_core::AuthContext {
+    fn context(email: &str) -> pdlc_auth_core::AuthContext {
+        pdlc_auth_core::AuthContext {
             user_id: Uuid::now_v7().to_string(),
             email: Some(email.into()),
             role: None,
@@ -1037,7 +1037,7 @@ mod central_directory_tests {
             backend: &backend,
             request_id: None,
         };
-        let mut context = sdlc_auth_core::AuthContext {
+        let mut context = pdlc_auth_core::AuthContext {
             user_id: Uuid::now_v7().to_string(),
             role: None,
             scopes: Default::default(),

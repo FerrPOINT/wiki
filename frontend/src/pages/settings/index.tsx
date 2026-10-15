@@ -1,6 +1,6 @@
 import { Check, Database, Globe2, KeyRound, Minus, Settings2 } from 'lucide-react'
 import { useWikiSettings } from '@/shared/api/hooks'
-import { ErrorState, LoadingState } from '@sdlc/ui/ui'
+import { ErrorState, LoadingState } from '@pdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatBytes } from '@/shared/lib/wiki-format'
 

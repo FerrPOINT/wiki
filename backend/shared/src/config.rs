@@ -109,7 +109,7 @@ impl Default for MaintenanceConfig {
     }
 }
 
-pub use sdlc_shared::DatabaseConfig;
+pub use pdlc_shared::DatabaseConfig;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerConfig {
