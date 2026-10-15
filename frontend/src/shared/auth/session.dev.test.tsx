@@ -37,29 +37,32 @@ describe('deployment-owned SSO client', () => {
     })
   })
 
-  it.each([undefined, 'pdlc'])('uses the same configured client for logout / %s', async (namespace) => {
-    vi.stubEnv('VITE_AUTH_CLIENT_ID', 'wiki-dev')
-    vi.stubEnv('VITE_AUTH_NAMESPACE', namespace)
-    const { QueryClient, QueryClientProvider } = await import('@tanstack/react-query')
-    const { useLogout } = await import('@/shared/api/hooks')
-    const client = new QueryClient({ defaultOptions: { mutations: { gcTime: 0 } } })
-    try {
-      const { result } = renderHook(() => useLogout(), {
-        wrapper: ({ children }) => (
-          <QueryClientProvider client={client}>{children}</QueryClientProvider>
-        ),
-      })
-      await act(async () => {
-        await result.current.mutateAsync()
-      })
-      expect(sso.endSso).toHaveBeenCalledWith({
-        issuer: 'http://localhost:8701',
-        clientId: 'wiki-dev',
-        namespace: namespace ?? 'sdlc',
-      })
-    } finally {
-      cleanup()
-      client.clear()
-    }
-  })
+  it.each([undefined, 'pdlc'])(
+    'uses the same configured client for logout / %s',
+    async (namespace) => {
+      vi.stubEnv('VITE_AUTH_CLIENT_ID', 'wiki-dev')
+      vi.stubEnv('VITE_AUTH_NAMESPACE', namespace)
+      const { QueryClient, QueryClientProvider } = await import('@tanstack/react-query')
+      const { useLogout } = await import('@/shared/api/hooks')
+      const client = new QueryClient({ defaultOptions: { mutations: { gcTime: 0 } } })
+      try {
+        const { result } = renderHook(() => useLogout(), {
+          wrapper: ({ children }) => (
+            <QueryClientProvider client={client}>{children}</QueryClientProvider>
+          ),
+        })
+        await act(async () => {
+          await result.current.mutateAsync()
+        })
+        expect(sso.endSso).toHaveBeenCalledWith({
+          issuer: 'http://localhost:8701',
+          clientId: 'wiki-dev',
+          namespace: namespace ?? 'sdlc',
+        })
+      } finally {
+        cleanup()
+        client.clear()
+      }
+    },
+  )
 })
