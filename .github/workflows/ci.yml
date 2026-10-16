@@ -159,7 +159,7 @@ jobs:
           SQLX_OFFLINE: "true"
       - name: OpenAPI drift gate
         run: |
-          cargo run --locked -p api --bin openapi-gen ../openapi/openapi.json.generated
+          "${CARGO_TARGET_DIR:-target}/debug/openapi-gen" ../openapi/openapi.json.generated
           diff -u ../openapi/openapi.json ../openapi/openapi.json.generated
         if: needs.changes.outputs.backend_build == 'true'
     env:
