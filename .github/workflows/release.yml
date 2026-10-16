@@ -40,6 +40,9 @@ jobs:
               raise SystemExit('Packaged Base revision mismatch')
           if hashlib.sha256((root/'scripts/vendor/base_quality_selection.py').read_bytes()).hexdigest()!=receipt['sha256']:
               raise SystemExit('Packaged Base selector checksum mismatch')
+          cache=receipt['rust_target_cache']
+          assert cache['file']=='base_rust_target_cache.py'
+          assert hashlib.sha256((root/'scripts/vendor'/cache['file']).read_bytes()).hexdigest()==cache['sha256']
           PY
       - id: classify
         env:
@@ -113,6 +116,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: wiki/backend
+      - name: Reset restored local crates once; keep compiled external dependencies
+        working-directory: wiki/backend
+        run: python3 ../scripts/vendor/base_rust_target_cache.py
       - run: cargo fmt --all -- --check
       - run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - name: Test with isolated PostgreSQL
@@ -239,6 +245,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: wiki/backend
+      - name: Reset restored local crates once; keep compiled external dependencies
+        working-directory: wiki/backend
+        run: python3 ../scripts/vendor/base_rust_target_cache.py
       - name: Check declared minimum independently of release builds
         working-directory: wiki/backend
         run: cargo check --locked --workspace --all-targets

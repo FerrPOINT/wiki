@@ -46,3 +46,5 @@ generator и полный manifest определяют его cache key. Неп
 
 Vitest ограничен четырьмя workers. Это предел параллелизма, не RAM quota;
 изменение только vitest config проверяет unit и сохраняет application artifact.
+
+CI Rust target после restore готовится через `python3 ../scripts/vendor/base_rust_target_cache.py` из `backend/`; версия и checksum включены в отдельный Base quality packet.
