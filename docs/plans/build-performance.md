@@ -22,3 +22,9 @@ Shell unit использует QueryClientProvider с actor-scoped workspace-ca
 wrapper сохраняется и при rerender. Namespace mode определяет ожидаемый context
 slot. Native qualification проверяет false/true без сетевых запросов; production
 source, UI pin и release набор не меняются.
+
+Отдельные test setup и `vitest.config.ts` исключены из production COPY
+и `frontend:build` inputs, но остаются входами unit/static. Только эти явно
+объявленные пути допускают пропуск CI compilation; общий `vite.config.ts`
+с aliases/plugins остаётся полноценным build input. Ошибка unit блокирует
+получение нового образа даже при сохранённой production compilation.
