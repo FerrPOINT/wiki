@@ -12,7 +12,8 @@ Docker frontend: раздельные unit/compile stages, unit/static пере�
 TypeScript проверяется один раз в обязательном unit stage; compile получает
 готовые generated outputs и запускает Vite без повторного `generate:api`.
 production COPY исключает тесты. Frozen dependencies сохраняют общий совместимый
-pnpm download store. Dockerfile syntax 1.19 и parent digests закреплены.
+pnpm download store. Parent digests закреплены; Dockerfile frontend, общий RUN slot и
+ограничения Windows producers определяет стандарт Base.
 Runtime и package build scripts сохраняют прежние публичные команды.
 
 Frontend CI handoff: один `dist` с manifest/digests, затем verified nginx packaging.
@@ -38,3 +39,6 @@ generator и полный manifest определяют его cache key. Неп
 проверяются и копируются после frontend sources в unit/application stages.
 Изменение scripts/spec не запускает повторный install; отсутствие output или
 ошибка generation блокируют результат, включая прогретый compile cache.
+
+Vitest ограничен четырьмя workers. Это предел параллелизма, не RAM quota;
+изменение только vitest config проверяет unit и сохраняет application artifact.
