@@ -1,10 +1,12 @@
+# syntax=docker/dockerfile:1.27.1@sha256:4edf897a3ffa55b89f906fc8cc78afdb3f1834cc9c7083565e611a8a7d5fe99e
 # Umbrella build for the SDLC fleet root compose (context = /opt/dev/sdlc).
 # The repo's own backend/Dockerfile builds with context=backend only; this
 # variant additionally stages the sibling services-base checkout so the
 # sdlc-auth-core path dependency (../../../services-base/...) resolves.
 FROM rust:1.88.0-slim-bookworm AS builder
+ARG PDLC_RUN_SLOT_SHARING=locked
 
-RUN apt-get update && apt-get install -y pkg-config libssl-dev unzip curl unzip && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=cache,id=pdlc-host-run-slot-v1,target=/.__pdlc_build_slot__,sharing=${PDLC_RUN_SLOT_SHARING} apt-get update && apt-get install -y pkg-config libssl-dev unzip curl unzip && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 # infra/Cargo.toml: sdlc-auth-core = { path = "../../../services-base/..." }
@@ -25,10 +27,11 @@ COPY wiki/backend/api ./api
 COPY wiki/backend/server ./server
 COPY wiki/backend/cli ./cli
 
-RUN cargo test --locked --release -p domain --lib && cargo build --locked --release --bin server
+RUN --mount=type=cache,id=pdlc-host-run-slot-v1,target=/.__pdlc_build_slot__,sharing=${PDLC_RUN_SLOT_SHARING} cargo test --locked --release -p domain --lib && cargo build --locked --release --bin server
 
 FROM debian:bookworm-slim
-RUN apt-get update \
+ARG PDLC_RUN_SLOT_SHARING=locked
+RUN --mount=type=cache,id=pdlc-host-run-slot-v1,target=/.__pdlc_build_slot__,sharing=${PDLC_RUN_SLOT_SHARING} apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates libssl3 wget \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid 10001 wiki \
