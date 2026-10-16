@@ -11,9 +11,9 @@ WORKDIR /app
 # /app/infra/../../../services-base == /services-base
 # pdlc-auth-core inherits workspace.package fields; stage a minimal root manifest.
 COPY services-base/Cargo.toml /services-base/Cargo.toml
-COPY services-base/crates/pdlc-telemetry /services-base/crates/pdlc-telemetry
-COPY services-base/crates/pdlc-auth-core /services-base/crates/pdlc-auth-core
-COPY services-base/crates/pdlc-shared /services-base/crates/pdlc-shared
+COPY services-base/base-modules/rust/pdlc-telemetry /services-base/base-modules/rust/pdlc-telemetry
+COPY services-base/base-modules/rust/pdlc-auth-core /services-base/base-modules/rust/pdlc-auth-core
+COPY services-base/base-modules/rust/pdlc-shared /services-base/base-modules/rust/pdlc-shared
 COPY wiki/backend/Cargo.toml wiki/backend/Cargo.lock* ./
 COPY wiki/backend/shared ./shared
 COPY wiki/backend/domain ./domain

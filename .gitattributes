@@ -3,3 +3,5 @@
 *.ps1 text eol=crlf
 backend/migrations/*.sql text eol=lf
 frontend/** text=auto eol=lf
+# Generated API snapshots match the Linux generator byte for byte.
+/openapi/openapi.json text eol=lf

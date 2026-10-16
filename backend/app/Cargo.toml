@@ -7,7 +7,7 @@ license-file.workspace = true
 publish = false
 
 [dependencies]
-pdlc-auth-core = { path = "../../../services-base/crates/pdlc-auth-core" }
+pdlc-auth-core = { path = "../../../services-base/base-modules/rust/pdlc-auth-core" }
 shared = { path = "../shared" }
 domain = { path = "../domain" }
 serde.workspace = true

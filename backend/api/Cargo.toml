@@ -7,9 +7,9 @@ license-file.workspace = true
 publish = false
 
 [dependencies]
-pdlc-auth-core = { path = "../../../services-base/crates/pdlc-auth-core" }
-pdlc-telemetry = { path = "../../../services-base/crates/pdlc-telemetry" }
-pdlc-shared = { path = "../../../services-base/crates/pdlc-shared" }
+pdlc-auth-core = { path = "../../../services-base/base-modules/rust/pdlc-auth-core" }
+pdlc-telemetry = { path = "../../../services-base/base-modules/rust/pdlc-telemetry" }
+pdlc-shared = { path = "../../../services-base/base-modules/rust/pdlc-shared" }
 shared = { path = "../shared" }
 domain = { path = "../domain" }
 app = { path = "../app" }
