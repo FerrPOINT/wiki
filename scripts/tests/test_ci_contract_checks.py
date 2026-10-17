@@ -26,7 +26,8 @@ class CiContractChecksTest(unittest.TestCase):
         workflow = WORKFLOW.read_text(encoding="utf-8")
         frontend_job = workflow.split("\n  frontend:\n", 1)[1].split("\n  deny:\n", 1)[0]
         self.assertIn("fetch-depth: 0", frontend_job)
-        self.assertIn("pnpm openapi:check", frontend_job)
+        self.assertIn("pnpm install --frozen-lockfile --ignore-scripts=false", frontend_job)
+        self.assertIn("git diff --exit-code -- pnpm-lock.yaml src/api/generated.ts src/api/generated-exports.ts", frontend_job)
         self.assertIn("pnpm openapi:compat", frontend_job)
         self.assertIn("pnpm format:check", frontend_job)
 

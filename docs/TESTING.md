@@ -226,3 +226,13 @@ WikiSearch unit явно разделяет legacy search (namespace=false) и N
 global-search cases (true). Оба входят в ordinary unit; mocks/env очищаются
 после каждого case, в том числе вне legacy describe. Production build flags
 не должны молча менять смысл legacy fixture или выключать Namespace regressions.
+
+## Одна OpenAPI generation в CI
+
+В frontend job автоматического CI и ручного release `postinstall` выполняет
+generation во время frozen install; project lifecycle явно включён. Сразу после
+установки Git проверяет tracked outputs и отсутствие drift, без второго
+generator invocation. Проверяемые outputs: `src/api/generated.ts`, `src/api/generated-exports.ts`.
+Lockfile, backward compatibility и backend OpenAPI drift gates сохраняются.
+Самостоятельный `pnpm openapi:check` остаётся проверкой для окружения, в котором
+generation ещё не выполнялась; его не добавляют повторно после postinstall.
