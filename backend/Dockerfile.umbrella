@@ -1,11 +1,15 @@
-# syntax=docker/dockerfile:1
+# syntax=docker/dockerfile:1.27.1@sha256:4edf897a3ffa55b89f906fc8cc78afdb3f1834cc9c7083565e611a8a7d5fe99e
 # Umbrella build for the SDLC fleet root compose (context = /opt/dev/sdlc).
 # The repo's own backend/Dockerfile builds with context=backend only; this
 # variant additionally stages the sibling services-base checkout so the
 # pdlc-auth-core path dependency (../../../services-base/...) resolves.
-FROM rust:1.88.0-slim-bookworm AS builder
+FROM rust:1.88.0-slim-bookworm@sha256:38bc5a86d998772d4aec2348656ed21438d20fcdce2795b56ca434cf21430d89 AS dependencies
+ARG PDLC_RUN_SLOT_SHARING=locked
+ARG TARGETARCH
+ARG CARGO_REGISTRY_CACHE_ID=pdlc-operator-downloads-v1-cargo188
+ARG CARGO_BUILD_JOBS=2
 
-RUN apt-get update && apt-get install -y pkg-config libssl-dev unzip curl unzip && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=cache,id=pdlc-host-run-slot-v1,target=/.__pdlc_build_slot__,sharing=${PDLC_RUN_SLOT_SHARING} apt-get update && apt-get install -y pkg-config libssl-dev unzip curl unzip && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 # infra/Cargo.toml: pdlc-auth-core = { path = "../../../services-base/..." }
@@ -15,6 +19,44 @@ COPY services-base/Cargo.toml /services-base/Cargo.toml
 COPY services-base/base-modules/rust/pdlc-telemetry /services-base/base-modules/rust/pdlc-telemetry
 COPY services-base/base-modules/rust/pdlc-auth-core /services-base/base-modules/rust/pdlc-auth-core
 COPY services-base/base-modules/rust/pdlc-shared /services-base/base-modules/rust/pdlc-shared
+COPY wiki/backend/api/Cargo.toml api/Cargo.toml
+COPY wiki/backend/app/Cargo.toml app/Cargo.toml
+COPY wiki/backend/Cargo.toml wiki/backend/Cargo.lock* ./
+COPY wiki/backend/cli/Cargo.toml cli/Cargo.toml
+COPY wiki/backend/domain/Cargo.toml domain/Cargo.toml
+COPY wiki/backend/infra/Cargo.toml infra/Cargo.toml
+COPY wiki/backend/migration/Cargo.toml migration/Cargo.toml
+COPY wiki/backend/server/Cargo.toml server/Cargo.toml
+COPY wiki/backend/shared/Cargo.toml shared/Cargo.toml
+# Immutable dependency layer; all product packages are removed before real source COPY.
+RUN --mount=type=cache,id=pdlc-host-run-slot-v1,target=/.__pdlc_build_slot__,sharing=${PDLC_RUN_SLOT_SHARING} --mount=type=cache,target=/usr/local/cargo/registry,id=${CARGO_REGISTRY_CACHE_ID}-${TARGETARCH},sharing=locked \
+    for package in api app cli domain infra migration server shared; do mkdir -p "$package/src"; printf '%s\n' '' > "$package/src/lib.rs"; printf '%s\n' 'fn main() {}' > "$package/src/main.rs"; done \
+    && cargo build --locked --release --bin server \
+    && cargo clean --release -p api -p app -p wiki-cli -p domain -p infra -p migration -p server -p shared
+
+FROM dependencies AS unit-dependencies
+ARG PDLC_RUN_SLOT_SHARING=locked
+# Compile the test dependency graph before mutable product sources.
+RUN --mount=type=cache,id=pdlc-host-run-slot-v1,target=/.__pdlc_build_slot__,sharing=${PDLC_RUN_SLOT_SHARING} --mount=type=cache,target=/usr/local/cargo/registry,id=${CARGO_REGISTRY_CACHE_ID}-${TARGETARCH},sharing=locked \
+    cargo test --locked --release -p domain --lib --no-run \
+    && cargo clean --release -p api -p app -p wiki-cli -p domain -p infra -p migration -p server -p shared
+
+FROM unit-dependencies AS unit
+ARG PDLC_RUN_SLOT_SHARING=locked
+RUN --mount=type=cache,id=pdlc-host-run-slot-v1,target=/.__pdlc_build_slot__,sharing=${PDLC_RUN_SLOT_SHARING} rm -rf -- domain/src shared/src
+ARG TARGETARCH
+ARG CARGO_REGISTRY_CACHE_ID=pdlc-operator-downloads-v1-cargo188
+COPY wiki/backend/domain ./domain
+COPY wiki/backend/shared ./shared
+RUN --mount=type=cache,id=pdlc-host-run-slot-v1,target=/.__pdlc_build_slot__,sharing=${PDLC_RUN_SLOT_SHARING} --mount=type=cache,target=/usr/local/cargo/registry,id=${CARGO_REGISTRY_CACHE_ID}-${TARGETARCH},sharing=locked cargo test --locked --release -p domain --lib && printf 'passed\n' > /tmp/rust-unit-check
+
+FROM dependencies AS builder
+ARG PDLC_RUN_SLOT_SHARING=locked
+ARG TARGETARCH
+ARG CARGO_REGISTRY_CACHE_ID=pdlc-operator-downloads-v1-cargo188
+RUN --mount=type=cache,id=pdlc-host-run-slot-v1,target=/.__pdlc_build_slot__,sharing=${PDLC_RUN_SLOT_SHARING} --mount=type=bind,from=unit,source=/tmp/rust-unit-check,target=/tmp/rust-unit-check test "$(cat /tmp/rust-unit-check)" = passed
+RUN --mount=type=cache,id=pdlc-host-run-slot-v1,target=/.__pdlc_build_slot__,sharing=${PDLC_RUN_SLOT_SHARING} rm -rf -- api/src app/src cli/src infra/src migration/src server/src domain/src shared/src
+
 COPY wiki/backend/Cargo.toml wiki/backend/Cargo.lock* ./
 COPY wiki/backend/shared ./shared
 COPY wiki/backend/domain ./domain
@@ -26,13 +68,13 @@ COPY wiki/backend/api ./api
 COPY wiki/backend/server ./server
 COPY wiki/backend/cli ./cli
 
-RUN --mount=type=cache,id=wiki-cargo-registry-rust-1.88,target=/usr/local/cargo/registry,sharing=shared \
-    --mount=type=cache,id=wiki-cargo-target-rust-1.88,target=/cargo-target,sharing=locked \
-    CARGO_TARGET_DIR=/cargo-target cargo build --locked --release --bin server \
-    && install -m 0755 /cargo-target/release/server /app/wiki-server
+RUN --mount=type=cache,id=pdlc-host-run-slot-v1,target=/.__pdlc_build_slot__,sharing=${PDLC_RUN_SLOT_SHARING} --mount=type=cache,target=/usr/local/cargo/registry,id=${CARGO_REGISTRY_CACHE_ID}-${TARGETARCH},sharing=locked \
+    cargo build --locked --release --bin server \
+    && install -m 0755 target/release/server /app/wiki-server
 
-FROM debian:bookworm-slim
-RUN apt-get update \
+FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587
+ARG PDLC_RUN_SLOT_SHARING=locked
+RUN --mount=type=cache,id=pdlc-host-run-slot-v1,target=/.__pdlc_build_slot__,sharing=${PDLC_RUN_SLOT_SHARING} apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates libssl3 wget \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid 10001 wiki \
@@ -41,7 +83,7 @@ RUN apt-get update \
     && chown -R wiki:wiki /app /var/lib/wiki
 WORKDIR /app
 COPY --from=builder --chown=wiki:wiki /app/wiki-server /usr/local/bin/wiki-server
-RUN test -f /usr/local/bin/wiki-server && test -x /usr/local/bin/wiki-server
+RUN --mount=type=cache,id=pdlc-host-run-slot-v1,target=/.__pdlc_build_slot__,sharing=${PDLC_RUN_SLOT_SHARING} test -f /usr/local/bin/wiki-server && test -x /usr/local/bin/wiki-server
 COPY --from=builder --chown=wiki:wiki /app/migrations ./migrations
 ENV WIKI_MIGRATIONS_DIR=/app/migrations
 USER wiki

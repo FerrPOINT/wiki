@@ -1,5 +1,11 @@
 # Testing Strategy - Wiki
 
+Актуальная политика 2026-10-15: unit/static запускаются при обычной сборке;
+integration/slow/full coverage и browser/live — вручную перед релизом.
+Команды быстрых уровней приведены в разделе «Тестовые уровни (2026-10-15)» ниже.
+Прежняя полная матрица и тяжёлые команды этого документа сохранены как
+ручные release checks; они не запускаются автоматически после каждой правки.
+
 ## 1. Principles
 
 ### Live Detail Geometry
@@ -182,3 +188,62 @@ Baseline test fixtures:
 проверяет закрытый DB pool и неполные claims отдельно. CI явно запускает
 mixed_central_directory_preserves_identity_and_disabled_state_in_postgres
 на своём PostgreSQL; workspace test не исполняет ignored-тест автоматически.
+
+## Тестовые уровни (2026-10-15)
+
+Обязательная общая политика: [Base TESTING](https://github.com/FerrPOINT/services-base/blob/ad724088e9a63b1e353fb5b28e4308e9ae6f45ae/docs/TESTING.md).
+Выбор компонентов и native commands: `.quality-gate.json`.
+
+### Разработка и сборка
+
+Backend: `cargo test --locked -p domain --lib` из backend/.
+
+Frontend из frontend/: `pnpm test:unit`, `pnpm build` включает unit.
+`pnpm test` — unit alias, `pnpm test:all` — прежний полный набор.
+Playwright, packed-consumer и effective-theme проверки — ручной release.
+
+### Ручная релизная проверка
+
+Полный прежний набор сохранён в `.github/workflows/release.yml`: только
+workflow_dispatch на exact ref. Автоматический CI не поднимает PostgreSQL
+и не запускает длительные/browser/live тесты.
+
+Required security/data/compatibility checks и thresholds сохраняются.
+Unit success не заменяет ручную приёмку; NOT RUN не означает PASS.
+
+## Передача frontend artifact
+
+CI `frontend` передаёт `tested-frontend-dist` в `frontend-package`; отдельный consumer не устанавливает Node/dependencies.
+Проверка графа: `python scripts/vendor/base_frontend_artifact.py check-ci --root .`.
+[Формат/команды Base](https://github.com/FerrPOINT/services-base/blob/a9b1ae9869784676957c193a75bd92a2a0480dc1/docs/BUILD_PERFORMANCE.md#передача-frontend-artifact); packet pin — `.quality-tooling-revision`.
+Node 22.20.0; OpenAPI generation/checks сохраняются в producer.
+
+Docker unit stage явно получает `frontend/nginx.conf`: routing tests читают
+фактический config. Он остаётся вне Vite application COPY; изменение config
+повторяет относящиеся unit и packaging, сохраняя application compilation cache.
+
+WikiSearch unit явно разделяет legacy search (namespace=false) и Namespace
+global-search cases (true). Оба входят в ordinary unit; mocks/env очищаются
+после каждого case, в том числе вне legacy describe. Production build flags
+не должны молча менять смысл legacy fixture или выключать Namespace regressions.
+
+## Одна OpenAPI generation в CI
+
+В frontend job автоматического CI и ручного release `postinstall` выполняет
+generation во время frozen install; project lifecycle явно включён. Сразу после
+установки Git проверяет tracked outputs и отсутствие drift, без второго
+generator invocation. Проверяемые outputs: `src/api/generated.ts`, `src/api/generated-exports.ts`.
+Lockfile, backward compatibility и backend OpenAPI drift gates сохраняются.
+Самостоятельный `pnpm openapi:check` остаётся проверкой для окружения, в котором
+generation ещё не выполнялась; его не добавляют повторно после postinstall.
+
+## Точные Rust artifacts обычной сборки
+
+`backend:build` в `.quality-gate.json` выбирает только package/bin targets
+поставляемого runtime: `server`.
+Outputs именованы явно; отсутствие любого required executable завершает gate
+ошибкой. Случайный соседний executable не попадает в artifact.
+CLI `wiki`, migration и OpenAPI остаются отдельными consumers; их workspace/release проверки сохранены.
+`backend:quality` сохраняет полные workspace clippy/tests в ручном release;
+MSRV/features/OpenAPI и необходимые integration gates не сокращаются.
+Fresh target между source exports и registry/compiler-cache policy Base сохраняются.

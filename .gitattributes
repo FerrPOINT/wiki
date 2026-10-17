@@ -5,3 +5,11 @@ backend/migrations/*.sql text eol=lf
 frontend/** text=auto eol=lf
 # Generated API snapshots match the Linux generator byte for byte.
 /openapi/openapi.json text eol=lf
+
+# Canonical bytes for the exact Base frontend tooling packet.
+scripts/vendor/base_quality_selection.py text eol=lf
+scripts/vendor/base_frontend_artifact.py text eol=lf
+frontend/Dockerfile.prebuilt text eol=lf
+frontend/Dockerfile.prebuilt.dockerignore text eol=lf
+# Canonical bytes for the exact Base Rust cache helper.
+scripts/vendor/base_rust_target_cache.py text eol=lf

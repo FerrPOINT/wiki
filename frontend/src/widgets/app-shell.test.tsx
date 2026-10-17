@@ -3,6 +3,9 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { ThemeProvider } from '@pdlc/ui/lib'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import type { ReactNode } from 'react'
+import { useAuthStore } from '@/shared/auth/store'
 
 import { AppShell } from './app-shell'
 
@@ -45,12 +48,21 @@ afterEach(() => {
 })
 
 function renderShell(initialPath = '/') {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: Infinity, gcTime: 0 } },
+  })
+  client.setQueryData(['wiki', 'workspace-catalog', useAuthStore.getState().userId], [])
   return render(
     <ThemeProvider>
       <MemoryRouter initialEntries={[initialPath]}>
         <AppShell />
       </MemoryRouter>
     </ThemeProvider>,
+    {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    },
   )
 }
 
@@ -65,7 +77,13 @@ describe('AppShell', () => {
     expect(screen.getByRole('link', { name: /пространства/i })).toHaveAttribute('href', '/spaces')
     expect(screen.queryByRole('link', { name: /задачи/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /фазы/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /материалы/i })).toHaveAttribute('href', '/evidence')
+    if (import.meta.env.VITE_NAMESPACE_ENABLED === 'true') {
+      expect(screen.queryByRole('link', { name: /материалы/i })).not.toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Проекты' })).toHaveAttribute('href', '/projects')
+    } else {
+      expect(screen.getByRole('link', { name: /материалы/i })).toHaveAttribute('href', '/evidence')
+      expect(screen.queryByRole('link', { name: 'Проекты' })).not.toBeInTheDocument()
+    }
     expect(screen.queryByRole('link', { name: /шаблоны/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /аудит/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /пользователи/i })).not.toBeInTheDocument()
@@ -114,7 +132,12 @@ describe('AppShell', () => {
       [...header.querySelectorAll('[data-platform-header-slot]')].map((slot) =>
         slot.getAttribute('data-platform-header-slot'),
       ),
-    ).toEqual(['leading', 'services', 'actions'])
+    ).toEqual([
+      'leading',
+      'services',
+      ...(import.meta.env.VITE_NAMESPACE_ENABLED === 'true' ? ['context'] : []),
+      'actions',
+    ])
     expect(
       within(header).getByRole('button', { name: 'Открыть список сервисов: Wiki' }),
     ).toBeInTheDocument()
