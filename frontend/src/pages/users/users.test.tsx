@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { useNamespaceNavigate as useNavigate } from '@pdlc/ui/ui'
+import { PlatformServicesProvider, useNamespaceNavigate as useNavigate } from '@pdlc/ui/ui'
 import { MemoryRouter, useLocation } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { UsersPage } from './'
@@ -25,7 +25,11 @@ function RouterState() {
   )
 }
 
-function setupUsers(overrides: Record<string, unknown> = {}, initialEntry = '/users') {
+function setupUsers(
+  overrides: Record<string, unknown> = {},
+  initialEntry = '/users',
+  catalogUrl: string | null = null,
+) {
   useUsers.mockReturnValue({
     data: {
       users: [
@@ -51,10 +55,12 @@ function setupUsers(overrides: Record<string, unknown> = {}, initialEntry = '/us
     ...overrides,
   })
   render(
-    <MemoryRouter initialEntries={[initialEntry]}>
-      <UsersPage />
-      <RouterState />
-    </MemoryRouter>,
+    <PlatformServicesProvider catalogUrl={catalogUrl}>
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <UsersPage />
+        <RouterState />
+      </MemoryRouter>
+    </PlatformServicesProvider>,
   )
 }
 
@@ -62,22 +68,47 @@ describe('UsersPage', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.clearAllMocks()
+    vi.unstubAllGlobals()
   })
 
   it('shows Wiki profiles without local password or role controls', () => {
     setupUsers()
     expect(screen.getByRole('heading', { name: 'Профили Wiki' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Учётные записи' })).toHaveAttribute(
-      'href',
-      'http://localhost:7772/users',
-    )
+    expect(screen.queryByRole('link', { name: 'Учётные записи' })).not.toBeInTheDocument()
     expect(screen.getAllByText('Редактор')).toHaveLength(2)
     expect(screen.getAllByText('Профиль отключён')).toHaveLength(2)
     expect(screen.getAllByText('Профиль доступен')).toHaveLength(2)
     expect(screen.queryByLabelText(/пароль|роль/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /создать|сохранить/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Учётные записи' })).toHaveClass('h-10')
     expect(screen.getByRole('textbox', { name: 'Поиск пользователей' })).toHaveClass('h-10')
+  })
+
+  it('uses the exact Admin origin supplied by the runtime catalog', async () => {
+    const request = vi.fn(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            services: [
+              {
+                key: 'admin-panel',
+                label: 'Own Admin',
+                url: 'https://admin.example.test',
+                ui_url: 'https://admin.example.test',
+                health: 'unknown',
+              },
+            ],
+          }),
+        ),
+      ),
+    )
+    vi.stubGlobal('fetch', request)
+    setupUsers({}, '/users', 'https://catalog.example.test/services')
+    const link = await screen.findByRole('link', { name: 'Учётные записи' })
+    expect(link).toHaveAttribute('href', 'https://admin.example.test/users')
+    expect(link).toHaveClass('h-10')
+    expect(request).toHaveBeenCalledWith('https://catalog.example.test/services', {
+      cache: 'no-store',
+    })
   })
 
   it('filters users by name and email without losing the directory', () => {

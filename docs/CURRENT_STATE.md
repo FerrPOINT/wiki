@@ -1,5 +1,15 @@
 # Current State - Wiki
 
+> **Каталог UI, исходники 2026-10-17:** Base UI #245 закреплён независимо
+> от Rust SDK. В профиле CI прошли 247 frontend tests, frozen build,
+> lint/typecheck/format/OpenAPI/package и effective theme в трёх темах.
+> Страница профилей использует адрес Admin из настоящего runtime provider.
+> Глобальный Namespace=true для legacy fixtures пока не квалифицирован:
+> обнаружены отсутствующие providers и прежние ожидания навигации. Флаг
+> runtime сохраняется. Hosted CI не объявляется зелёным: на других текущих
+> exact-head jobs аккаунт отказывает до исполнения из-за billing/spending limit;
+> результат этой ветки фиксируется в её PR. Установка учитывается отдельно.
+
 > **UI candidate 2026-10-14:** PR #75 incorporates main `4416a5c` and Base UI
 > `6b9dd35a92bb095debf166724e4ecb1cb0e8ceb0`. Catalogue refresh preserves the
 > document's initial destination; an unavailable space blocks saving until the
