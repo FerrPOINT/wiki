@@ -1,7 +1,8 @@
+import { AppShell as BaseAppShell } from '@pdlc/ui/ui'
 import { SidebarNavigationGroup, useSidebarDisclosure } from '@pdlc/ui/ui'
 import { SidebarItem } from '@pdlc/ui/ui'
 import { NamespaceShellContext } from './namespace-context'
-import { useEffect, useState, type ElementType } from 'react'
+import { type ElementType } from 'react'
 import { NamespaceLink as Link } from '@pdlc/ui/ui'
 import { Outlet, useLocation } from 'react-router'
 import { NamespaceNavLink as NavLink } from '@pdlc/ui/ui'
@@ -15,23 +16,16 @@ import {
   Home,
   Library,
   LogOut,
-  Menu,
   Search,
   ShieldCheck,
   User,
 } from 'lucide-react'
 import {
   Button,
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  PageFrame,
   PlatformHeader,
   PlatformMark,
   ThemeMenuItems,
@@ -58,16 +52,16 @@ function SidebarLink({
   icon: Icon,
   label,
   onClick,
-  responsiveLabel = false,
+  compact = false,
 }: {
   to: string
   icon: ElementType
   label: string
   onClick?: () => void
-  responsiveLabel?: boolean
+  compact?: boolean
 }) {
   return (
-    <SidebarItem asChild compact={responsiveLabel ? 'responsive' : false}>
+    <SidebarItem asChild compact={compact}>
       <NavLink to={to} end={to === '/'} onClick={onClick} aria-label={label} title={label}>
         <Icon aria-hidden />
         <span className="base-sidebar-item-label">{label}</span>
@@ -79,11 +73,11 @@ function SidebarLink({
 function NavigationList({
   items,
   onNavigate,
-  responsiveLabels = false,
+  compact = false,
 }: {
   items: NavItem[]
   onNavigate?: () => void
-  responsiveLabels?: boolean
+  compact?: boolean
 }) {
   return (
     <nav className="flex flex-col gap-1" aria-label="Основная навигация">
@@ -92,7 +86,7 @@ function NavigationList({
           key={item.to}
           {...item}
           onClick={onNavigate}
-          responsiveLabel={responsiveLabels}
+          compact={compact}
         />
       ))}
     </nav>
@@ -100,29 +94,10 @@ function NavigationList({
 }
 
 export function AppShell() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [projectRail, setProjectRail] = useState(
-    () => !window.matchMedia('(min-width: 1280px)').matches,
-  )
   const location = useLocation()
   const { data: user } = useCurrentUser()
   const logout = useLogout()
   const identity = user?.display_name?.trim() || user?.email || 'Пользователь'
-
-  useEffect(() => {
-    const desktop = window.matchMedia('(min-width: 768px)')
-    const closeOnDesktop = () => {
-      if (desktop.matches) setMobileMenuOpen(false)
-    }
-    desktop.addEventListener('change', closeOnDesktop)
-    const expanded = window.matchMedia('(min-width: 1280px)')
-    const updateRail = () => setProjectRail(!expanded.matches)
-    expanded.addEventListener('change', updateRail)
-    return () => {
-      desktop.removeEventListener('change', closeOnDesktop)
-      expanded.removeEventListener('change', updateRail)
-    }
-  }, [])
 
   const namespaceEnabled = import.meta.env.VITE_NAMESPACE_ENABLED === 'true'
   const disclosures = useProjectDisclosures('wiki:collapsed-projects:v1')
@@ -149,10 +124,10 @@ export function AppShell() {
     <SidebarNavigationGroup
       label="Служебное"
       active={utilityActive}
-      compact={responsive ? 'responsive' : false}
+      compact={responsive}
       {...utilities}
     >
-      <NavigationList items={utilityItems} responsiveLabels={responsive} onNavigate={onNavigate} />
+      <NavigationList items={utilityItems} compact={responsive} onNavigate={onNavigate} />
     </SidebarNavigationGroup>
   )
   const pageLayout =
@@ -163,132 +138,105 @@ export function AppShell() {
         : 'wide'
 
   return (
-    <div className="min-h-screen bg-background text-text-primary">
-      <PlatformHeader
-        currentServiceKey="wiki"
-        context={
-          import.meta.env.VITE_NAMESPACE_ENABLED === 'true' ? <NamespaceShellContext /> : undefined
-        }
-        leading={
-          <>
-            <Dialog open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-              <DialogTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-11 w-11 md:hidden"
-                  aria-label="Открыть навигацию"
-                >
-                  <Menu className="h-5 w-5" aria-hidden />
-                </Button>
-              </DialogTrigger>
-              <DialogContent
-                aria-describedby={undefined}
-                className="!left-0 !top-0 !flex !h-dvh !max-h-dvh !w-[min(320px,calc(100%-2rem))] !max-w-none !translate-x-0 !translate-y-0 !flex-col !gap-0 !rounded-none !border-y-0 !border-l-0 !p-0 [&>button]:h-11 [&>button]:w-11"
-              >
-                <DialogHeader className="flex h-[var(--shell-header-height)] shrink-0 justify-center border-b border-border px-4 pr-14 text-left">
-                  <DialogTitle className="text-base">
-                    <span className="sr-only">Навигация Wiki</span>
-                    <span className="flex items-center gap-3" aria-hidden>
-                      <PlatformMark size="shell" withName={false} />
-                      <span>Wiki</span>
-                    </span>
-                  </DialogTitle>
-                </DialogHeader>
-                <div className="min-h-0 flex-1 overflow-y-auto p-3">
-                  <Button asChild className="mb-3 min-h-11 w-full gap-2">
-                    <Link to="/documents/new" onClick={() => setMobileMenuOpen(false)}>
-                      <FilePlus2 className="h-4 w-4" aria-hidden />
-                      Новый документ
-                    </Link>
-                  </Button>
-                  <NavigationList items={navItems} onNavigate={() => setMobileMenuOpen(false)} />
-                  {namespaceEnabled && (
-                    <WorkspaceNavigation
-                      disclosures={disclosures}
-                      documents={documents}
-                      onNavigate={() => setMobileMenuOpen(false)}
-                    />
-                  )}
-                  {utilityNavigation(false, () => setMobileMenuOpen(false))}
-                </div>
-              </DialogContent>
-            </Dialog>
-
-            <Link
-              to="/"
-              className="hidden h-11 min-w-11 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus min-[360px]:flex md:h-10 md:min-w-10"
-              aria-label="Wiki"
-            >
-              <PlatformMark size="shell" withName={false} />
-            </Link>
-          </>
-        }
-        actions={
-          <>
-            <Button asChild size="sm" className="hidden h-10 min-w-10 gap-2 px-3 md:inline-flex">
-              <Link to="/documents/new" aria-label="Новый документ">
+    <BaseAppShell
+      currentServiceKey="wiki"
+      title="Wiki"
+      layout={pageLayout}
+      collapsibleSidebar
+      sidebarStorageKey="wiki:sidebar-collapsed"
+      renderNavigation={({ compact, mobile, onNavigate }) => (
+        <>
+          {mobile && (
+            <Button asChild className="mb-3 min-h-11 w-full gap-2">
+              <Link to="/documents/new" onClick={onNavigate}>
                 <FilePlus2 className="h-4 w-4" aria-hidden />
-                <span>Новый документ</span>
+                Новый документ
               </Link>
             </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-11 w-11 md:h-10 md:w-10"
-                  aria-label="Аккаунт"
-                >
-                  <User className="h-5 w-5" aria-hidden />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-64 max-w-[calc(100vw-2rem)]">
-                <div className="break-words px-2 py-1.5 text-sm font-medium text-text-primary">
-                  {identity}
-                </div>
-                {user?.email && user.email !== identity && (
-                  <div className="break-words px-2 pb-2 text-xs text-text-muted">{user.email}</div>
-                )}
-                <ThemeMenuItems />
-                <DropdownMenuItem
-                  onSelect={() => logout.mutate()}
-                  className="min-h-11 gap-2 text-text-secondary md:min-h-10"
-                >
-                  <LogOut className="h-4 w-4" aria-hidden />
-                  <span>Выйти</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </>
-        }
-      />
-      <aside className="fixed bottom-0 left-0 top-[var(--shell-header-height)] z-20 hidden w-[var(--shell-sidebar-compact)] flex-col border-r border-border bg-surface md:flex xl:w-[var(--shell-sidebar-expanded)]">
-        <div className="min-h-0 flex-1 overflow-y-auto p-2 xl:p-3">
-          <NavigationList items={navItems} responsiveLabels />
+          )}
+          <NavigationList items={navItems} compact={compact} onNavigate={onNavigate} />
           {namespaceEnabled && (
             <WorkspaceNavigation
               disclosures={disclosures}
               documents={documents}
-              compact={projectRail}
+              compact={compact}
+              onNavigate={onNavigate}
             />
           )}
-          {utilityNavigation(true)}
-        </div>
-      </aside>
-      <div className="md:pl-[var(--shell-sidebar-compact)] xl:pl-[var(--shell-sidebar-expanded)]">
-        <main className="shell-main min-h-[calc(100dvh-var(--shell-header-height))]">
-          <PageFrame mode={pageLayout}>
-            {namespaceEnabled ? (
-              <ProjectBoundary>
-                <Outlet />
-              </ProjectBoundary>
-            ) : (
-              <Outlet />
-            )}
-          </PageFrame>
-        </main>
-      </div>
-    </div>
+          {utilityNavigation(compact, onNavigate)}
+        </>
+      )}
+      renderHeader={(navigationTrigger) => (
+        <PlatformHeader
+          currentServiceKey="wiki"
+          context={
+            import.meta.env.VITE_NAMESPACE_ENABLED === 'true' ? (
+              <NamespaceShellContext />
+            ) : undefined
+          }
+          leading={
+            <>
+              {navigationTrigger}
+
+              <Link
+                to="/"
+                className="hidden h-11 min-w-11 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus min-[360px]:flex md:h-10 md:min-w-10"
+                aria-label="Wiki"
+              >
+                <PlatformMark size="shell" withName={false} />
+              </Link>
+            </>
+          }
+          actions={
+            <>
+              <Button asChild size="sm" className="hidden h-10 min-w-10 gap-2 px-3 md:inline-flex">
+                <Link to="/documents/new" aria-label="Новый документ">
+                  <FilePlus2 className="h-4 w-4" aria-hidden />
+                  <span>Новый документ</span>
+                </Link>
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-11 w-11 md:h-10 md:w-10"
+                    aria-label="Аккаунт"
+                  >
+                    <User className="h-5 w-5" aria-hidden />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64 max-w-[calc(100vw-2rem)]">
+                  <div className="break-words px-2 py-1.5 text-sm font-medium text-text-primary">
+                    {identity}
+                  </div>
+                  {user?.email && user.email !== identity && (
+                    <div className="break-words px-2 pb-2 text-xs text-text-muted">
+                      {user.email}
+                    </div>
+                  )}
+                  <ThemeMenuItems />
+                  <DropdownMenuItem
+                    onSelect={() => logout.mutate()}
+                    className="min-h-11 gap-2 text-text-secondary md:min-h-10"
+                  >
+                    <LogOut className="h-4 w-4" aria-hidden />
+                    <span>Выйти</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          }
+        />
+      )}
+    >
+      {namespaceEnabled ? (
+        <ProjectBoundary>
+          <Outlet />
+        </ProjectBoundary>
+      ) : (
+        <Outlet />
+      )}
+    </BaseAppShell>
   )
 }
