@@ -213,6 +213,17 @@ Unit success не заменяет ручную приёмку; NOT RUN не о�
 
 ## Передача frontend artifact
 
+Prepared quality gates `frontend:types`, `frontend:tests` и `frontend:build`
+объявляют `descriptor_input_contract: "prepared-frontend-v1"`; build дополнительно
+объявляет `artifact_input_contract: "git-source-v1"`. Совместимый exact Base
+использует общую с preparer модель и сохраняет полную validation provenance:
+несвязанная gate правка не пересобирает dist при прежних фактических build inputs.
+Unknown/copied descriptor, source/config/toolchain изменения и stale plan
+сохраняют обязательную invalidation. Unit receipt остаётся привязан к exact commit.
+Контракт и qualification requirements принадлежат разделу 13 Base
+`docs/PERFORMANCE_SPEC.md`. Старый runner сохраняет полный descriptor guard;
+новый режим требует совместимого quality tooling, independent pins не меняются.
+
 CI `frontend` передаёт `tested-frontend-dist` в `frontend-package`; отдельный consumer не устанавливает Node/dependencies.
 Проверка графа: `python scripts/vendor/base_frontend_artifact.py check-ci --root .`.
 [Формат/команды Base](https://github.com/FerrPOINT/services-base/blob/a9b1ae9869784676957c193a75bd92a2a0480dc1/docs/BUILD_PERFORMANCE.md#передача-frontend-artifact); packet pin — `.quality-tooling-revision`.
