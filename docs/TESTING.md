@@ -224,6 +224,15 @@ Unknown/copied descriptor, source/config/toolchain изменения и stale p
 `docs/PERFORMANCE_SPEC.md`. Старый runner сохраняет полный descriptor guard;
 новый режим требует совместимого quality tooling, independent pins не меняются.
 
+Tailwind исключает test/spec/e2e/setup sources на уровне CSS `@source not`,
+включая явно подключённый UI package. Unit fixtures не являются источником
+production utilities. `src/test/source-inputs.test.ts` проверяет настоящий
+Tailwind compiler/oxide scanner: fixture-only classes не попадают в CSS,
+production/library classes и соседний `contest.tsx` сохраняются. Одного
+`exclude_inputs` в build fingerprint для этого недостаточно. Тест не меняет
+production source/dependencies, использует собственный временный fixture и
+входит в обычный Vitest unit-набор.
+
 CI `frontend` передаёт `tested-frontend-dist` в `frontend-package`; отдельный consumer не устанавливает Node/dependencies.
 Проверка графа: `python scripts/vendor/base_frontend_artifact.py check-ci --root .`.
 [Формат/команды Base](https://github.com/FerrPOINT/services-base/blob/a9b1ae9869784676957c193a75bd92a2a0480dc1/docs/BUILD_PERFORMANCE.md#передача-frontend-artifact); packet pin — `.quality-tooling-revision`.
