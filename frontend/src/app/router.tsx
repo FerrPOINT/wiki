@@ -147,5 +147,5 @@ export function createWikiRoutes(namespaceEnabled: boolean): RouteObject[] {
 
 export const router = createProductRouter(
   createWikiRoutes(import.meta.env.VITE_NAMESPACE_ENABLED === 'true'),
-  { serviceKey: 'wiki', portalOrigin: import.meta.env.VITE_PLATFORM_ORIGIN },
+  { basename: import.meta.env.BASE_URL, serviceKey: 'wiki', portalOrigin: import.meta.env.VITE_PLATFORM_ORIGIN },
 )

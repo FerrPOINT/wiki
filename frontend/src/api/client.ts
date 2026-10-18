@@ -1,7 +1,7 @@
 import { useAuthStore } from '@/shared/auth/store'
 import { getPlatformProduct } from '@pdlc/ui/platform'
 
-const rawBaseUrl = import.meta.env.VITE_API_BASE_URL ?? ''
+const rawBaseUrl = import.meta.env.VITE_API_BASE_URL ?? import.meta.env.BASE_URL.replace(/\/$/, '')
 export const apiBaseUrl = rawBaseUrl.replace(/\/api\/v1\/?$/, '')
 const requestIdHeader = 'X-Request-ID'
 
@@ -200,7 +200,7 @@ export async function refreshAccessToken(): Promise<boolean> {
     return false
   }
   useAuthStore.getState().logout()
-  window.location.assign('/login')
+  window.location.assign(`${import.meta.env.BASE_URL}login`)
   return false
 }
 
