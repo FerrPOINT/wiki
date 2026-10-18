@@ -1,6 +1,3 @@
-import '@testing-library/jest-dom/vitest'
-import '@/shared/i18n/config'
-
 class MemoryStorage implements Storage {
   private readonly items = new Map<string, string>()
 
@@ -42,5 +39,11 @@ function installStorage(name: 'localStorage' | 'sessionStorage') {
   }
 }
 
-installStorage('localStorage')
-installStorage('sessionStorage')
+if (typeof window !== 'undefined') {
+  await import('@testing-library/jest-dom/vitest')
+  await import('@/shared/i18n/config')
+  installStorage('localStorage')
+  installStorage('sessionStorage')
+}
+
+export {}

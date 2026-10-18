@@ -94,6 +94,26 @@ runtime сервиса. Production build, install и source export для изм
 Полные timings/hashes и дальнейшая qualification ведутся в Base performance
 execution ledger. Unit proof не заменяет integration/slow/live release gates.
 
+Семь suites без browser consumers используют `@vitest-environment node`:
+`wiki-audit-filters`, `wiki-dossier-summaries`, `api-error`, `search-scope`,
+`space-selection`, `nginx-routing`, `source-inputs`. Их прежние 26 cases и
+assertions сохранены. API suites подменяют client, проверяя сериализацию, без
+auth/storage/browser fixtures; auth и React suites остаются в jsdom.
+Общий setup загружает jest-dom/i18n и готовит storage только при наличии window.
+
+Три warm samples того же selected набора на одной Windows-среде:
+
+| Setup | Wall, median | CPU Job, median | Peak committed Job, median |
+| --- | --- | --- | --- |
+| Прежний jsdom/browser setup | 3,672 с | 12,000 с | 705 150 976 bytes |
+| Node без browser bootstrap | 2,094 с | 4,531 с | 437 207 040 bytes |
+
+Это измерение семи suites, не всего приложения или physical RAM. До/после
+совпали effective environment и case digest; install/generation/app build: 0.
+Новая Node-регрессия падает на прежней инициализации i18n; DOM-регрессия сохраняет
+русский перевод, matchers и оба storage. Соседний auth-storage test также проходит.
+Новые guard cases входят в обычный `test:unit`; integration/slow не перемещались.
+
 Unit/component tests:
 
 - app shell navigation, account menu and logout;
