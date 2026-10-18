@@ -71,6 +71,29 @@ rail/gap/position и intentional wide columns, границы 1023/1024 и 1279/
 
 ## 3. Frontend Tests
 
+На Windows с закреплёнными Node 22.20.0 / pnpm 10.28.1 / Vitest 4.1.11
+unit runner использует `threads`, максимум 4 workers и `isolate: true`.
+На остальных платформах сохранён `forks`: Windows qualification не подтверждает
+профиль Linux. При изменении toolchain, native dependencies или process APIs
+сначала повторить применимую квалификацию; `--pool=forks` — явный диагностический
+override, а не повод менять тесты ради прохождения threads.
+
+Три warm-пары на source `e8c822c`, одинаковые 247 tests / 35 files, один общий
+host slot, порядок forks/threads → threads/forks → forks/threads:
+
+| Pool | Wall, median | CPU Job, median | Peak committed Job, range | Processes |
+| --- | --- | --- | --- | --- |
+| forks | 31,703 с | 144,203 с | 932 810 752–1 004 494 848 bytes | 45 |
+| threads | 30,438 с | 137,156 с | 954 155 008–1 011 957 760 bytes | 10 |
+
+Во второй паре threads был медленнее. Профиль выбран по меньшему median wall,
+CPU во всех трёх парах и числу процессов; значимой экономии RAM не показано.
+Это private Windows Job с pnpm/supervisor, не physical RAM/RSS или требование
+runtime сервиса. Production build, install и source export для измерений не
+выполнялись; исходные test cases/assertions и browser isolation сохранены.
+Полные timings/hashes и дальнейшая qualification ведутся в Base performance
+execution ledger. Unit proof не заменяет integration/slow/live release gates.
+
 Unit/component tests:
 
 - app shell navigation, account menu and logout;

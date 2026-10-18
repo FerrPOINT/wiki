@@ -8,6 +8,9 @@ export default mergeConfig(
       globals: true,
       environment: 'jsdom',
       maxWorkers: 4,
+      // Threads are qualified on the pinned Windows toolchain; other hosts keep forks.
+      pool: process.platform === 'win32' ? 'threads' : 'forks',
+      isolate: true,
       setupFiles: ['./src/test/setup.ts'],
       include: ['src/**/*.test.{ts,tsx}'],
     },
