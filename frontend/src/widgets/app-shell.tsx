@@ -82,12 +82,7 @@ function NavigationList({
   return (
     <nav className="flex flex-col gap-1" aria-label="Основная навигация">
       {items.map((item) => (
-        <SidebarLink
-          key={item.to}
-          {...item}
-          onClick={onNavigate}
-          compact={compact}
-        />
+        <SidebarLink key={item.to} {...item} onClick={onNavigate} compact={compact} />
       ))}
     </nav>
   )

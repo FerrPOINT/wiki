@@ -247,14 +247,14 @@ describe('AppShell', () => {
   })
 })
 
-
 it('uses the shared Base sidebar and compact-state contract', () => {
-  mockHooks(); renderShell()
+  mockHooks()
+  renderShell()
   const shell = document.querySelector('[data-base-shell]')!
   expect(document.querySelectorAll('aside')).toHaveLength(1)
   expect(shell.getAttribute('data-sidebar-mode')).toBe('expanded')
-  fireEvent.click(screen.getByRole('button', {name:'Свернуть меню'}))
+  fireEvent.click(screen.getByRole('button', { name: 'Свернуть меню' }))
   expect(shell.getAttribute('data-sidebar-mode')).toBe('compact')
-  fireEvent.click(screen.getByRole('button', {name:'Развернуть меню'}))
+  fireEvent.click(screen.getByRole('button', { name: 'Развернуть меню' }))
   expect(shell.getAttribute('data-sidebar-mode')).toBe('expanded')
 })
