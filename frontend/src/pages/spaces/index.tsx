@@ -23,6 +23,7 @@ import {
   useUsers,
 } from '@/shared/api/hooks'
 import {
+  Select,
   ConfirmDialog,
   EmptyState,
   ErrorState,
@@ -39,9 +40,6 @@ import { formatDateTime, formatDocumentType, shortText } from '@/shared/lib/wiki
 import type { Space, SpaceTreeNode } from '@/api/wiki'
 import { DossierMenu } from '@/widgets/dossier-menu'
 import { SpaceProjectsEditor } from '@/features/space-projects/SpaceProjectsEditor'
-
-const selectClassName =
-  'flex min-h-10 w-full rounded-md border border-border-strong bg-surface px-3 py-1 text-sm text-text-primary shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50'
 
 function flattenTree(nodes: SpaceTreeNode[], limit = 5): SpaceTreeNode[] {
   const result: SpaceTreeNode[] = []
@@ -444,9 +442,9 @@ export function SpacesPage() {
                 className="min-h-10 pl-9"
               />
             </div>
-            <select
+            <Select
               aria-label="Статус пространства"
-              className={selectClassName}
+              className="w-full"
               value={status}
               onChange={(event) => {
                 setStatus(event.target.value)
@@ -456,10 +454,10 @@ export function SpacesPage() {
               <option value="all">Все статусы</option>
               <option value="active">Активные</option>
               <option value="archived">Архивные</option>
-            </select>
-            <select
+            </Select>
+            <Select
               aria-label="Сортировка пространств"
-              className={selectClassName}
+              className="w-full"
               value={sort}
               onChange={(event) => {
                 setSort(event.target.value)
@@ -468,7 +466,7 @@ export function SpacesPage() {
             >
               <option value="updated">Сначала обновлённые</option>
               <option value="name">По названию</option>
-            </select>
+            </Select>
             {currentUserQuery.data && (
               <label className="flex min-h-10 cursor-pointer items-center gap-2 whitespace-nowrap text-sm text-text-secondary">
                 <input

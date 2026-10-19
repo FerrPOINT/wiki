@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Loader, NamespaceLink as Link, ResourceList, ResourceListRow } from '@pdlc/ui/ui'
+import { Select, Loader, NamespaceLink as Link, ResourceList, ResourceListRow } from '@pdlc/ui/ui'
 
 import {
   ArrowRight,
@@ -17,9 +17,6 @@ import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime } from '@/shared/lib/wiki-format'
 import { resolveSpaceKey } from '@/shared/lib/space-selection'
 import { usePlatformReadiness } from '@pdlc/ui/platform'
-
-const selectClassName =
-  'min-h-10 rounded-md border border-border bg-surface px-3 text-sm text-text-primary focus-visible:outline-2 focus-visible:outline-accent'
 
 interface DashboardMetricProps {
   error?: string
@@ -172,9 +169,9 @@ export function DashboardPage() {
               <label htmlFor="overview-space" className="shrink-0 text-sm text-text-muted">
                 Пространство
               </label>
-              <select
+              <Select
                 id="overview-space"
-                className={`${selectClassName} max-w-64 min-w-0`}
+                className="w-auto max-w-64 min-w-0"
                 value={activeSpaceKey}
                 onChange={(event) => setRequestedSpaceKey(event.target.value)}
                 disabled={spacesQuery.isLoading || spaces.length === 0}
@@ -185,7 +182,7 @@ export function DashboardPage() {
                     {space.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
             <Link
               to="/spaces"

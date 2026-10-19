@@ -1,5 +1,11 @@
 import { FormEvent, useEffect, useRef, useState } from 'react'
-import { CodeBlock, NamespaceLink as Link, ResourceList, ResourceListRow } from '@pdlc/ui/ui'
+import {
+  Select,
+  CodeBlock,
+  NamespaceLink as Link,
+  ResourceList,
+  ResourceListRow,
+} from '@pdlc/ui/ui'
 import { useSearchParams } from 'react-router'
 import {
   CheckCircle2,
@@ -27,8 +33,6 @@ const typeOptions = [
 ]
 const pageSize = 12
 const searchDebounceMs = 300
-const selectClassName =
-  'min-h-10 w-full rounded-md border border-border-strong bg-surface px-3 text-sm text-text-primary focus-visible:outline-2 focus-visible:outline-accent'
 
 function templateIcon(documentType: string) {
   if (documentType === 'requirements') return ClipboardCheck
@@ -310,9 +314,9 @@ export function TemplatesPage() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="template-type">Тип документа</Label>
-              <select
+              <Select
                 id="template-type"
-                className={selectClassName}
+                className="w-full"
                 value={documentType}
                 onChange={(event) => setDocumentType(event.target.value)}
                 disabled={createTemplate.isPending}
@@ -322,7 +326,7 @@ export function TemplatesPage() {
                     {formatDocumentType(type)}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
           </div>
           <div className="space-y-1.5">
@@ -402,9 +406,9 @@ export function TemplatesPage() {
                 }}
               />
             </div>
-            <select
+            <Select
               aria-label="Тип шаблона"
-              className={selectClassName}
+              className="w-full"
               value={typeFilter}
               onChange={(event) => {
                 setTypeFilter(event.target.value)
@@ -417,7 +421,7 @@ export function TemplatesPage() {
                   {formatDocumentType(type)}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
           <p className="text-xs text-text-muted">
             Показано {visibleTemplates.length} из {filteredTemplates.length} шаблонов

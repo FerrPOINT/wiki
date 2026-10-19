@@ -6,6 +6,7 @@ import { SearchResultLink } from '@/widgets/search-result-link'
 import { FileCheck2, FileText, GitBranch, ListFilter, Search } from 'lucide-react'
 import { useWikiSearch } from '@/shared/api/hooks'
 import {
+  Select,
   Button,
   EmptyState,
   ErrorState,
@@ -35,8 +36,6 @@ const documentTypes = [
 type ResultTypeFilter = (typeof resultTypes)[number]['value']
 type DocumentTypeFilter = (typeof documentTypes)[number]
 const pageSize = 20
-const selectClassName =
-  'min-h-10 w-full rounded-md border border-border-strong bg-surface px-3 text-sm text-text-primary focus-visible:outline-2 focus-visible:outline-accent'
 
 function resultIcon(type: string) {
   if (type === 'evidence') return FileCheck2
@@ -252,9 +251,9 @@ export function WikiSearchPage() {
       <h1 className="text-2xl font-bold">Поиск</h1>
       <div className="space-y-1">
         <Label htmlFor="search-scope">Область поиска</Label>
-        <select
+        <Select
           id="search-scope"
-          className={selectClassName}
+          className="w-full"
           value={searchScope.scope}
           onChange={(event) => changeScope(event.target.value)}
         >
@@ -262,7 +261,7 @@ export function WikiSearchPage() {
             Текущий проект
           </option>
           <option value="all">Все доступные пространства</option>
-        </select>
+        </Select>
       </div>
 
       <section aria-label="Параметры поиска" className="space-y-3">
@@ -342,9 +341,9 @@ export function WikiSearchPage() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="search-document-type">Тип документа</Label>
-              <select
+              <Select
                 id="search-document-type"
-                className={selectClassName}
+                className="w-full"
                 value={documentTypeDraft}
                 onChange={(event) => {
                   setDocumentTypeDraft(event.target.value as DocumentTypeFilter)
@@ -355,7 +354,7 @@ export function WikiSearchPage() {
                     {type === 'all' ? 'Любой тип' : formatDocumentType(type)}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
             <div className="flex flex-wrap justify-end gap-2 sm:col-span-2 xl:col-span-4">
               {(activeFilterCount > 0 ||

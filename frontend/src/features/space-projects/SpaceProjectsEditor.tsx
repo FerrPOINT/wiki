@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import {
+  Select,
   Button,
   EmptyState,
   ErrorState,
@@ -116,12 +117,12 @@ export function SpaceProjectsEditor({
         <form onSubmit={attach} className="flex flex-wrap items-end gap-2">
           <div className="min-w-0 flex-1 space-y-1.5">
             <Label htmlFor={`${spaceKey}-project`}>Добавить проект</Label>
-            <select
+            <Select
               id={`${spaceKey}-project`}
               value={selected}
               onChange={(event) => setSelected(event.target.value)}
               disabled={mutation.isPending || !available.length}
-              className="min-h-10 w-full rounded-md border border-border bg-surface px-3"
+              className="w-full"
             >
               <option value="">
                 {catalog.isPending
@@ -138,7 +139,7 @@ export function SpaceProjectsEditor({
                   {project.name} · {project.project_key}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
           <Button disabled={!selected || mutation.isPending}>Добавить</Button>
         </form>

@@ -1,6 +1,6 @@
 import { useProjectRouteRef } from '@/widgets/namespace-context'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
-import { NamespaceLink as Link, ResourceList, ResourceListRow } from '@pdlc/ui/ui'
+import { Select, NamespaceLink as Link, ResourceList, ResourceListRow } from '@pdlc/ui/ui'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { FileCheck2, FileText, GitBranch, Link2, Search } from 'lucide-react'
 import {
@@ -29,9 +29,6 @@ import {
 } from '@/shared/lib/wiki-format'
 
 const pageSize = 12
-
-const selectClassName =
-  'flex min-h-10 w-full rounded-md border border-border-strong bg-surface px-3 py-1 text-sm text-text-primary shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50'
 
 type SpaceOption = {
   key: string
@@ -87,9 +84,9 @@ function SpaceSelector({
   return (
     <div className="w-full space-y-1.5 sm:w-64">
       <Label htmlFor="task-space-selector">Пространство</Label>
-      <select
+      <Select
         id="task-space-selector"
-        className={selectClassName}
+        className="w-full"
         value={value}
         onChange={(event) => onChange(event.target.value)}
         disabled={
@@ -106,7 +103,7 @@ function SpaceSelector({
             {space.name ? `${space.key} · ${space.name}` : space.key}
           </option>
         ))}
-      </select>
+      </Select>
     </div>
   )
 }
