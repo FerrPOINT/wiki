@@ -4,6 +4,9 @@
 from __future__ import annotations
 
 import unittest
+import json
+import runpy
+import shlex
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -30,6 +33,54 @@ class CiContractChecksTest(unittest.TestCase):
         self.assertIn("git diff --exit-code -- pnpm-lock.yaml src/api/generated.ts src/api/generated-exports.ts", frontend_job)
         self.assertIn("pnpm openapi:compat", frontend_job)
         self.assertIn("pnpm format:check", frontend_job)
+
+
+class BackendUnitBoundaryTests(unittest.TestCase):
+    TEST_FILES = ("backend/domain/src/value_objects/tests.rs", "backend/domain/src/wiki/tests.rs")
+
+    def test_both_recipes_keep_tests_in_unit_and_out_of_production(self):
+        for name in ("Dockerfile", "Dockerfile.umbrella"):
+            text = (ROOT / "backend" / name).read_text(encoding="utf-8")
+            unit = text.split("FROM unit-dependencies AS unit\n", 1)[1].split("FROM dependencies AS builder\n", 1)[0]
+            builder = text.split("FROM dependencies AS builder\n", 1)[1].split("FROM debian:", 1)[0]
+            self.assertIn("COPY wiki/backend/domain ./domain", unit)
+            lines = [shlex.split(line) for line in builder.splitlines() if line.startswith("COPY ") and "wiki/backend/domain" in line]
+            self.assertEqual(len(lines), 1)
+            excludes = {word.removeprefix("--exclude=") for word in lines[0] if word.startswith("--exclude=")}
+            self.assertEqual(excludes, {"**/src/value_objects/tests.rs", "**/src/wiki/tests.rs"})
+
+    def test_all_thirteen_existing_units_stay_behind_cfg_test_modules(self):
+        count = 0
+        for name in self.TEST_FILES:
+            source = ROOT / name
+            count += source.read_text(encoding="utf-8").count("#[test]")
+            owner = source.parent.with_suffix(".rs")
+            include = source.relative_to(owner.parent).as_posix()
+            self.assertIn('#[cfg(test)]\n#[path = "' + include + '"]\nmod tests;', owner.read_text(encoding="utf-8"))
+        self.assertEqual(count, 13)
+
+    def test_installed_selector_keeps_each_test_edit_out_of_artifacts(self):
+        selector = runpy.run_path(str(ROOT / "scripts/vendor/base_quality_selection.py"))
+        for path in self.TEST_FILES:
+            plan = selector["plan"](ROOT, profile="build", changed=[path])
+            self.assertNotIn("backend:build", {g["id"] for g in plan["gates"]})
+            units = selector["plan"](ROOT, profile="unit", changed=[path])
+            self.assertTrue(any(g.get("test_tier") == "unit" and g["component"] == "backend" for g in units["gates"]))
+        for path in ("backend/domain/src/wiki.rs", "backend/domain/src/value_objects.rs"):
+            plan = selector["plan"](ROOT, profile="build", changed=[path])
+            self.assertIn("backend:build", {g["id"] for g in plan["gates"]})
+
+    def test_artifact_exclusions_are_exact_known_test_files(self):
+        manifest = json.loads((ROOT / ".quality-gate.json").read_text(encoding="utf-8"))
+        artifact = next(g for g in manifest["gates"] if g["id"] == "backend:build")
+        for path in self.TEST_FILES:
+            self.assertIn(path, artifact["exclude_inputs"])
+            self.assertIn(path, manifest["backend_unit_inputs"])
+
+    def test_build_contract_module_selects_only_its_pure_tooling_gate(self):
+        selector = runpy.run_path(str(ROOT / "scripts/vendor/base_quality_selection.py"))
+        plan = selector["plan"](ROOT, profile="build", changed=["scripts/tests/test_ci_contract_checks.py"])
+        self.assertEqual([g["id"] for g in plan["gates"]], ["tooling:build-contracts"])
 
 
 if __name__ == "__main__":

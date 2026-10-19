@@ -57,7 +57,7 @@ RUN --mount=type=cache,id=pdlc-host-run-slot-v1,target=/.__pdlc_build_slot__,sha
 
 COPY wiki/backend/Cargo.toml wiki/backend/Cargo.lock* ./
 COPY wiki/backend/shared ./shared
-COPY wiki/backend/domain ./domain
+COPY --exclude=**/src/value_objects/tests.rs --exclude=**/src/wiki/tests.rs wiki/backend/domain ./domain
 COPY wiki/backend/infra ./infra
 COPY wiki/backend/migration ./migration
 COPY wiki/backend/migrations ./migrations

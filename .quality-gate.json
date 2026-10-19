@@ -24,6 +24,9 @@
       ".namespace-base-revision",
       ".github/**",
       "openapi/**"
+    ],
+    "tooling": [
+      "scripts/tests/test_ci_contract_checks.py"
     ]
   },
   "gates": [
@@ -365,7 +368,9 @@
       "kind": "artifact",
       "exclude_inputs": [
         "backend/tests/**",
-        "backend/**/tests/**"
+        "backend/**/tests/**",
+        "backend/domain/src/value_objects/tests.rs",
+        "backend/domain/src/wiki/tests.rs"
       ],
       "artifact_outputs": [
         "server"
@@ -407,6 +412,40 @@
         "CPLUS_INCLUDE_PATH"
       ],
       "test_tier": "artifact"
+    },
+    {
+      "id": "tooling:build-contracts",
+      "component": "tooling",
+      "profiles": [
+        "fast",
+        "unit",
+        "build",
+        "integrated",
+        "release"
+      ],
+      "argv": [
+        "{python}",
+        "-B",
+        "-m",
+        "unittest",
+        "scripts.tests.test_ci_contract_checks",
+        "-q"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "scripts/tests/test_ci_contract_checks.py",
+        ".quality-gate.json",
+        ".github/workflows/ci.yml",
+        ".github/workflows/release.yml",
+        "backend/Dockerfile*",
+        "backend/domain/src/value_objects.rs",
+        "backend/domain/src/wiki.rs",
+        "backend/domain/src/value_objects/tests.rs",
+        "backend/domain/src/wiki/tests.rs",
+        "scripts/vendor/**"
+      ],
+      "cacheable": true,
+      "test_tier": "static"
     }
   ],
   "additional_acceptance": "Existing product CI/CONTRIBUTING: MSRV/features, ignored DB, OpenAPI/packed consumer/themes, security and live acceptance remain separate mandatory gates where applicable.",
@@ -445,6 +484,8 @@
   },
   "backend_unit_inputs": [
     "backend/tests/**",
-    "backend/**/tests/**"
+    "backend/**/tests/**",
+    "backend/domain/src/value_objects/tests.rs",
+    "backend/domain/src/wiki/tests.rs"
   ]
 }

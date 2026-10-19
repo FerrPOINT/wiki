@@ -1,5 +1,18 @@
 # Быстрые повторные проверки и сборка
 
+Два существующих Rust test-only файла `backend/domain/src/value_objects/tests.rs`
+и `backend/domain/src/wiki/tests.rs` сохраняют все13domain units и cfg(test)
+подключения. Оба backend recipes копируют их в unit stage и исключают только из
+production COPY; descriptor использует те же точные artifact exclusions и
+`backend_unit_inputs`. Изменение этих файлов выбирает backend units без
+application build; production owners `value_objects.rs`/`wiki.rs` сохраняют build.
+Docker COPY использует [штатный --exclude](https://docs.docker.com/reference/dockerfile/#copy---exclude).
+Source regression не заменяет native unchanged/unit-only/failed-unit gate.
+
+Существующий CI contract module является pure tooling component. Он исполняется
+один раз в ordinary CI и выбирает собственный `tooling:build-contracts` через
+installed selector, без frontend/backend producers. SDK/quality pins сохранены.
+
 Ordinary backend CI после workspace build запускает
 `${CARGO_TARGET_DIR:-target}/debug/openapi-gen` с прежним output path.
 Обязательный schema diff сохранён; готовый generator не компилируется повторно.
