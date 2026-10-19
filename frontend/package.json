@@ -14,14 +14,15 @@
     "preview": "vite preview --host 127.0.0.1 --port 4174 --strictPort",
     "shoot:evidence": "node scripts/shoot-evidence.mjs",
     "generate:api": "openapi-typescript ../openapi/openapi.json -o src/api/generated.ts && node scripts/generate-exports.mjs",
-    "lint": "eslint . --max-warnings=0 && pnpm lint:semantic",
+    "lint": "eslint . --max-warnings=0 && pnpm lint:semantic && pnpm shell:check",
     "lint:semantic": "node scripts/pdlc-semantic-classes-check.mjs --css src/index.css --src src",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "openapi:check": "node node_modules/@pdlc/ui/scripts/pdlc-openapi-check.mjs --spec ../openapi/openapi.json --schema src/api/generated.ts",
     "openapi:compat": "node scripts/base-openapi-compat.mjs",
     "postinstall": "openapi-typescript ../openapi/openapi.json -o src/api/generated.ts && node scripts/generate-exports.mjs",
-    "theme:check": "node ../../services-base/base-modules/ui/scripts/pdlc-effective-theme-check.mjs"
+    "theme:check": "node ../../services-base/base-modules/ui/scripts/pdlc-effective-theme-check.mjs",
+    "shell:check": "node ../../services-base/base-modules/ui/scripts/check-ui-contract.mjs --repo .. --shell-only --shell frontend/src/widgets/app-shell.tsx --tooling-from package.json"
   },
   "dependencies": {
     "@pdlc/ui": "file:../../services-base/base-modules/ui",

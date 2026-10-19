@@ -169,7 +169,7 @@ describe('AppShell', () => {
     renderShell()
     const trigger = screen.getByRole('button', { name: 'Открыть навигацию' })
     fireEvent.click(trigger)
-    const dialog = await screen.findByRole('dialog', { name: 'Навигация Wiki' })
+    const dialog = await screen.findByRole('dialog', { name: 'Wiki' })
     const create = within(dialog).getByRole('link', { name: 'Новый документ' })
     expect(create).toHaveAttribute('href', '/documents/new')
     fireEvent.click(create)
@@ -191,12 +191,13 @@ describe('AppShell', () => {
     const { unmount } = renderShell()
     fireEvent.click(screen.getByRole('button', { name: 'Открыть навигацию' }))
     await screen.findByRole('dialog')
-    const listener = media.addEventListener.mock.calls[0]?.[1] as () => void
+    const listener = media.addEventListener.mock.calls.at(-1)?.[1] as () => void
     expect(listener).toBeTypeOf('function')
     media.matches = true
     act(() => listener())
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(document.body).not.toHaveStyle({ pointerEvents: 'none' })
+    expect(screen.getByRole('main')).toHaveFocus()
     unmount()
     expect(media.removeEventListener).toHaveBeenCalledWith('change', listener)
   })
@@ -233,15 +234,27 @@ describe('AppShell', () => {
 
     await user.click(trigger)
 
-    const dialog = await screen.findByRole('dialog', { name: 'Навигация Wiki' })
+    const dialog = await screen.findByRole('dialog', { name: 'Wiki' })
     expect(within(dialog).getByRole('navigation', { name: 'Основная навигация' })).toBeVisible()
     expect(dialog.contains(document.activeElement)).toBe(true)
 
     await user.keyboard('{Escape}')
 
     await waitFor(() =>
-      expect(screen.queryByRole('dialog', { name: 'Навигация Wiki' })).not.toBeInTheDocument(),
+      expect(screen.queryByRole('dialog', { name: 'Wiki' })).not.toBeInTheDocument(),
     )
     expect(trigger).toHaveFocus()
   })
+})
+
+it('uses the shared Base sidebar and compact-state contract', () => {
+  mockHooks()
+  renderShell()
+  const shell = document.querySelector('[data-base-shell]')!
+  expect(document.querySelectorAll('aside')).toHaveLength(1)
+  expect(shell.getAttribute('data-sidebar-mode')).toBe('expanded')
+  fireEvent.click(screen.getByRole('button', { name: 'Свернуть меню' }))
+  expect(shell.getAttribute('data-sidebar-mode')).toBe('compact')
+  fireEvent.click(screen.getByRole('button', { name: 'Развернуть меню' }))
+  expect(shell.getAttribute('data-sidebar-mode')).toBe('expanded')
 })
