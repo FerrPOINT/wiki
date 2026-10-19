@@ -1,3 +1,4 @@
+import { Select } from '@pdlc/ui/ui'
 import { useEffect, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { parseNamespaceLocation, withNamespaceLocation } from '@pdlc/ui/lib'
@@ -65,10 +66,10 @@ export function ProjectBoundary({ children }: { children: ReactNode }) {
       <section className="max-w-xl space-y-3">
         <h1 className="text-xl font-semibold">Выберите пространство проекта</h1>
         <label htmlFor="project-space">Пространство</label>
-        <select
+        <Select
           id="project-space"
           value=""
-          className="min-h-10 w-full rounded-md border border-border bg-surface px-3"
+          className="w-full"
           onChange={(event) => {
             const next = new URLSearchParams(location.search)
             next.set('space', event.target.value)
@@ -92,7 +93,7 @@ export function ProjectBoundary({ children }: { children: ReactNode }) {
               {choice.status === 'archived' ? ' · В архиве' : ''}
             </option>
           ))}
-        </select>
+        </Select>
       </section>
     )
   return children

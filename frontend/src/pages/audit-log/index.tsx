@@ -2,7 +2,14 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { ChevronLeft, ChevronRight, ListFilter, RefreshCw } from 'lucide-react'
 import { useAuditLog, useUsers } from '@/shared/api/hooks'
-import { EmptyState, ErrorState, LoadingState, ResourceList, ResourceListRow } from '@pdlc/ui/ui'
+import {
+  Select,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  ResourceList,
+  ResourceListRow,
+} from '@pdlc/ui/ui'
 import { Button } from '@pdlc/ui/ui'
 import { Input } from '@pdlc/ui/ui'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@pdlc/ui/ui'
@@ -35,8 +42,7 @@ const actionLabels: Record<string, string> = {
 }
 
 const PAGE_SIZE = 20
-const selectClassName =
-  'min-h-10 w-full rounded-md border border-border-strong bg-surface px-3 text-sm text-text-primary focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50'
+
 const entityTypes = [
   ['document', 'Документ'],
   ['space', 'Пространство'],
@@ -289,9 +295,9 @@ export function AuditLogPage() {
                 <label htmlFor="audit-action" className="text-sm font-medium">
                   Действие
                 </label>
-                <select
+                <Select
                   id="audit-action"
-                  className={selectClassName}
+                  className="w-full"
                   value={draftFilters.action}
                   onChange={(event) => updateDraft('action', event.target.value)}
                 >
@@ -304,15 +310,15 @@ export function AuditLogPage() {
                       {label}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
               <div className="space-y-1">
                 <label htmlFor="audit-entity-type" className="text-sm font-medium">
                   Тип объекта
                 </label>
-                <select
+                <Select
                   id="audit-entity-type"
-                  className={selectClassName}
+                  className="w-full"
                   value={draftFilters.entity_type}
                   onChange={(event) => updateDraft('entity_type', event.target.value)}
                 >
@@ -326,7 +332,7 @@ export function AuditLogPage() {
                       {label}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
               <div className="space-y-1">
                 <label htmlFor="audit-actor" className="text-sm font-medium">
@@ -377,9 +383,9 @@ export function AuditLogPage() {
                   </div>
                 ) : (
                   <div className="space-y-1">
-                    <select
+                    <Select
                       id="audit-actor"
-                      className={selectClassName}
+                      className="w-full"
                       value={draftFilters.actor_id}
                       disabled={usersQuery.isLoading}
                       onChange={(event) => updateDraft('actor_id', event.target.value)}
@@ -396,7 +402,7 @@ export function AuditLogPage() {
                           {user.display_name ?? user.username ?? user.email} · {user.email}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                     <Button
                       type="button"
                       size="sm"

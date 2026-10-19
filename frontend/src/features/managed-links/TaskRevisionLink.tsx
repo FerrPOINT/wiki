@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router'
-import { Button, Label } from '@pdlc/ui/ui'
+import { Select, Button, Label } from '@pdlc/ui/ui'
 import { useQuery } from '@tanstack/react-query'
 import { apiRequest } from '@/api/client'
 import { useNamespaceContext } from '@/widgets/namespace-context'
@@ -91,10 +91,10 @@ export function TaskRevisionLink({
       <h2 className="font-semibold">Связать эту ревизию с задачей</h2>
       <div className="space-y-2">
         <Label htmlFor={`task-project-${documentId}`}>Проект задачи</Label>
-        <select
+        <Select
           id={`task-project-${documentId}`}
           value={ref ? projectIdentity(ref) : ''}
-          className="min-h-10 w-full rounded-md border border-border bg-surface px-3"
+          className="w-full"
           onChange={(event) => {
             setProjectChoice(event.target.value)
             setSelected('')
@@ -110,7 +110,7 @@ export function TaskRevisionLink({
               {project.name} · {project.project_key}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
       {!ref ? (
         <p role="status">Выберите связанный проект, чтобы загрузить задачи.</p>
@@ -121,12 +121,12 @@ export function TaskRevisionLink({
       ) : (
         <div className="space-y-2">
           <Label htmlFor={`task-ref-${documentId}`}>Задача проекта</Label>
-          <select
+          <Select
             id={`task-ref-${documentId}`}
             required
             value={selected}
             onChange={(event) => setSelected(event.target.value)}
-            className="min-h-10 w-full rounded-md border border-border bg-surface px-3"
+            className="w-full"
           >
             <option value="">Выберите задачу</option>
             {selected &&
@@ -141,7 +141,7 @@ export function TaskRevisionLink({
                 {item.task_key} · {item.label}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
       )}
       <div className="flex flex-wrap gap-2">
