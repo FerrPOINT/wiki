@@ -106,3 +106,12 @@ Detail и summary ports используют ту же подтверждённ�
 Evidence является самостоятельным материалом пространства: привязка к задаче/фазе
 или документу не делает его автоматически private draft. Это правило не расширяет
 допуск к другому Space и требует самостоятельной квалификации download/search.
+
+## Исходный срок составного HTTP-ответа
+
+Wiki сохраняет более короткую validity canonical Tracker результата в typed
+in-process response extension. Входящие response headers не являются proof.
+Внешний auth middleware сужает исходный wall/monotonic deadline; время после
+межсервисного await не запускает новый отсчёт. No-store применяется к защищённому
+ответу. Тело/download прекращается по original deadline даже при idle upstream,
+не ожидая следующего chunk. Это не новый grant и не расширение строгого DTO.

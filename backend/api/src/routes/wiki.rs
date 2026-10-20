@@ -310,19 +310,7 @@ pub async fn require_wiki_auth(
     req.extensions_mut().insert(claims);
     let response = run_idempotent_request(backend, actor_id, req, next).await?;
     if let Some(scope) = scope {
-        scope.require_current()?;
-        let (parts, body) = response.into_parts();
-        use futures_util::StreamExt;
-        let stream = body.into_data_stream().map(move |chunk| {
-            if !scope.is_current() {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::PermissionDenied,
-                    "space_admission_expired",
-                ));
-            }
-            chunk.map_err(std::io::Error::other)
-        });
-        return Ok(Response::from_parts(parts, Body::from_stream(stream)));
+        return super::space_response::guard(response, scope);
     }
     Ok(response)
 }

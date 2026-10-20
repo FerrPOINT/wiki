@@ -135,6 +135,31 @@ impl WikiSpaceAdmission {
             .filter(|id| self.allows_draft_read(*id))
             .collect())
     }
+    /// Narrow a response against this original wall/monotonic window. Subtract
+    /// from its existing deadline instead of starting a fresh clock after a hop.
+    pub fn response_deadline(&self, until: i64) -> Result<(i64, Instant), AppError> {
+        self.require_current()?;
+        let validity = self
+            .admission
+            .validity
+            .attenuate(until)
+            .ok_or(AppError::Forbidden)?;
+        let reduction = self
+            .admission
+            .validity
+            .valid_until
+            .checked_sub(validity.valid_until)
+            .and_then(|value| u64::try_from(value).ok())
+            .ok_or(AppError::Forbidden)?;
+        let deadline = self
+            .deadline
+            .checked_sub(std::time::Duration::from_secs(reduction))
+            .ok_or(AppError::Forbidden)?;
+        if Instant::now() >= deadline {
+            return Err(AppError::Forbidden);
+        }
+        Ok((validity.valid_until, deadline))
+    }
     /// Bound identity, independent of whether this request grants read or write.
     pub fn subject_identity(&self) -> Result<&CentralIdentity, AppError> {
         self.require_current()?;
@@ -302,6 +327,28 @@ mod tests {
                 },
             ],
         )
+    }
+    #[test]
+    fn response_window_only_narrows_the_original_monotonic_deadline() {
+        let (subject, admission, mappings) = fixture();
+        let until = admission.validity.valid_until;
+        let scope = WikiSpaceAdmission::confirmed(subject, admission, mappings).unwrap();
+        let (_, original) = scope.response_deadline(i64::MAX).unwrap();
+        let (shorter, deadline) = scope.response_deadline(until - 5).unwrap();
+        assert_eq!(shorter, until - 5);
+        assert_eq!(
+            original.duration_since(deadline),
+            std::time::Duration::from_secs(5)
+        );
+        assert_eq!(
+            scope.response_deadline(until + 10).unwrap(),
+            (until, original)
+        );
+        assert!(
+            scope
+                .response_deadline(chrono::Utc::now().timestamp())
+                .is_err()
+        );
     }
     #[test]
     fn write_only_scope_keeps_identity_binding_without_creating_a_read_grant() {

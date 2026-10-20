@@ -90,13 +90,7 @@ pub async fn canonical_list(
     Extension(claims): Extension<WikiClaims>,
     Path(key): Path<String>,
     axum::extract::Query(page): axum::extract::Query<CanonicalPage>,
-) -> Result<
-    (
-        [(axum::http::header::HeaderName, &'static str); 1],
-        Json<shared::wiki_contract::SpaceProjectsV2>,
-    ),
-    AppError,
-> {
+) -> Result<axum::response::Response, AppError> {
     let value = backend
         .namespace_port()?
         .canonical_space_projects(
@@ -114,8 +108,14 @@ pub async fn canonical_list(
             "space_project_context_expired".into(),
         ));
     }
-    Ok((
-        [(axum::http::header::CACHE_CONTROL, "no-store")],
-        Json(value),
-    ))
+    use axum::response::IntoResponse;
+    let scope = claims.admission.as_ref().ok_or(AppError::Forbidden)?;
+    let until = value.validity.valid_until;
+    let mut response = Json(value).into_response();
+    super::space_response::restrict(&mut response, scope, until)?;
+    response.headers_mut().insert(
+        axum::http::header::CACHE_CONTROL,
+        axum::http::HeaderValue::from_static("private, no-store"),
+    );
+    Ok(response)
 }
