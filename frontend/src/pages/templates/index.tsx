@@ -1,11 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from 'react'
-import {
-  Select,
-  CodeBlock,
-  NamespaceLink as Link,
-  ResourceList,
-  ResourceListRow,
-} from '@pdlc/ui/ui'
+import {Select, CodeBlock, NamespaceLink as Link, ResourceList, ResourceListRow, Button, EmptyState, ErrorState, Input, Label, LoadingState, Textarea} from '@pdlc/ui/ui'
 import { useSearchParams } from 'react-router'
 import {
   CheckCircle2,
@@ -18,7 +12,7 @@ import {
   X,
 } from 'lucide-react'
 import { useCreateTemplate, useCurrentUser, useTemplates } from '@/shared/api/hooks'
-import { Button, EmptyState, ErrorState, Input, Label, LoadingState, Textarea } from '@pdlc/ui/ui'
+
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDocumentType } from '@/shared/lib/wiki-format'
 import type { Template } from '@/api/wiki'
@@ -440,7 +434,8 @@ export function TemplatesPage() {
                     <li key={template.id}>
                       <ResourceListRow asChild>
                         <div className="flex min-w-0 items-center gap-2">
-                          <button
+                          <Button
+                            variant="ghost"
                             type="button"
                             aria-expanded={expanded}
                             aria-controls={`template-body-${template.id}`}
@@ -461,7 +456,7 @@ export function TemplatesPage() {
                               className={`h-4 w-4 shrink-0 text-text-muted transition-transform ${expanded ? 'rotate-180' : ''}`}
                               aria-hidden
                             />
-                          </button>
+                          </Button>
                           <Link
                             to={`/documents/new?template=${encodeURIComponent(template.id)}`}
                             aria-label={`Использовать шаблон ${template.name}`}

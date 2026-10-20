@@ -1,18 +1,12 @@
+import {Disclosure, Select, EmptyState, ErrorState, LoadingState, ResourceList, ResourceListRow, Button, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@pdlc/ui/ui'
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { ChevronLeft, ChevronRight, ListFilter, RefreshCw } from 'lucide-react'
 import { useAuditLog, useUsers } from '@/shared/api/hooks'
-import {
-  Select,
-  EmptyState,
-  ErrorState,
-  LoadingState,
-  ResourceList,
-  ResourceListRow,
-} from '@pdlc/ui/ui'
-import { Button } from '@pdlc/ui/ui'
-import { Input } from '@pdlc/ui/ui'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@pdlc/ui/ui'
+
+
+
+
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime } from '@/shared/lib/wiki-format'
 
@@ -521,17 +515,14 @@ export function AuditLogPage() {
                           {event.entity_type}: {event.entity_id}
                         </dd>
                       </dl>
-                      <details className="mt-1 text-xs">
-                        <summary className="min-h-10 cursor-pointer py-2 text-text-secondary hover:text-text-primary">
-                          Технические данные
-                        </summary>
+                      <Disclosure className="mt-1 text-xs" summary={<>Технические данные</>}>
                         <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 pb-2">
                           <dt className="text-text-muted">Действие</dt>
                           <dd className="min-w-0 break-all font-mono">{event.action}</dd>
                           <dt className="text-text-muted">Запрос</dt>
                           <dd className="min-w-0 break-all font-mono">{event.request_id}</dd>
                         </dl>
-                      </details>
+                      </Disclosure>
                     </li>
                   </ResourceListRow>
                 ))}

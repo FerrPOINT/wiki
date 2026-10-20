@@ -22,19 +22,11 @@ import {
   useUpdateSpace,
   useUsers,
 } from '@/shared/api/hooks'
-import {
-  Select,
-  ConfirmDialog,
-  EmptyState,
-  ErrorState,
-  LoadingState,
-  ResourceList,
-  ResourceListRow,
-} from '@pdlc/ui/ui'
-import { Button } from '@pdlc/ui/ui'
-import { Input } from '@pdlc/ui/ui'
-import { Label } from '@pdlc/ui/ui'
-import { Textarea } from '@pdlc/ui/ui'
+import {Select, ConfirmDialog, EmptyState, ErrorState, LoadingState, ResourceList, ResourceListRow, Checkbox, Button, Input, Label, Textarea} from '@pdlc/ui/ui'
+
+
+
+
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime, formatDocumentType, shortText } from '@/shared/lib/wiki-format'
 import type { Space, SpaceTreeNode } from '@/api/wiki'
@@ -471,14 +463,12 @@ export function SpacesPage() {
             />
             {currentUserQuery.data && (
               <label className="flex min-h-10 cursor-pointer items-center gap-2 whitespace-nowrap text-sm text-text-secondary">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={mineOnly}
-                  onChange={(event) => {
-                    setMineOnly(event.target.checked)
+                  onCheckedChange={(checked) => {
+                    setMineOnly(checked === true)
                     resetListPosition()
                   }}
-                  className="h-4 w-4 accent-accent"
                 />
                 Только мои
               </label>
@@ -500,7 +490,8 @@ export function SpacesPage() {
                   return (
                     <li key={space.key}>
                       <ResourceListRow asChild interactive>
-                        <button
+                        <Button
+                          variant="ghost"
                           ref={expanded ? expandedSpaceRef : undefined}
                           type="button"
                           aria-expanded={expanded}
@@ -537,7 +528,7 @@ export function SpacesPage() {
                             className={`mt-1 h-4 w-4 shrink-0 text-text-muted transition-transform ${expanded ? 'rotate-180' : ''}`}
                             aria-hidden
                           />
-                        </button>
+                        </Button>
                       </ResourceListRow>
                       {expanded && (
                         <div id={`space-details-${space.key}`}>
