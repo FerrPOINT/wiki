@@ -15,6 +15,7 @@ use uuid::Uuid;
 struct PostgresWikiSpaceRepository<'a> {
     backend: &'a PostgresWikiBackend,
     request_id: Option<&'a str>,
+    admission: Option<std::sync::Arc<shared::wiki_space_access::WikiSpaceAdmission>>,
 }
 
 async fn fetch_space_by_key(
@@ -35,9 +36,18 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
         Box::pin(async move {
             let rows = sqlx::query(SPACE_LIST_SQL)
                 .bind(user_id)
+                .bind(
+                    self.admission
+                        .as_ref()
+                        .map(|scope| scope.readable_ids())
+                        .transpose()?,
+                )
                 .fetch_all(&self.backend.pool)
                 .await
                 .map_err(shared::AppError::database)?;
+            if let Some(scope) = self.admission.as_ref() {
+                scope.require_current()?;
+            }
             Ok(rows.iter().map(space_response_from_row).collect())
         })
     }
@@ -352,6 +362,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiSpaceRepository {
             backend: self,
             request_id: None,
+            admission: self.read_admission(Some(claims)).await?,
         };
         WikiSpaceUseCase::new(&repository).list(user_id).await
     }
@@ -361,10 +372,14 @@ impl PostgresWikiBackend {
         claims: &WikiClaims,
         body: CreateSpaceRequest,
     ) -> Result<SpaceResponse, shared::AppError> {
+        if self.admission_active().await? {
+            return Err(shared::AppError::conflict("space_metadata_owned_by_admin"));
+        }
         let actor_id = self.ensure_admin(claims).await?;
         let repository = PostgresWikiSpaceRepository {
             backend: self,
             request_id: claims.request_id.as_deref(),
+            admission: self.read_admission(Some(claims)).await?,
         };
         WikiSpaceUseCase::new(&repository)
             .create(actor_id, body)
@@ -381,6 +396,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiSpaceRepository {
             backend: self,
             request_id: None,
+            admission: self.read_admission(Some(claims)).await?,
         };
         WikiSpaceUseCase::new(&repository).get(space_key).await
     }
@@ -391,6 +407,9 @@ impl PostgresWikiBackend {
         space_key: &str,
         body: UpdateSpaceRequest,
     ) -> Result<SpaceResponse, shared::AppError> {
+        if self.admission_active().await? {
+            return Err(shared::AppError::conflict("space_metadata_owned_by_admin"));
+        }
         let space_id = self
             .ensure_space_access(claims, space_key, SpaceAccess::Admin)
             .await?;
@@ -398,6 +417,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiSpaceRepository {
             backend: self,
             request_id: claims.request_id.as_deref(),
+            admission: self.read_admission(Some(claims)).await?,
         };
         WikiSpaceUseCase::new(&repository)
             .update(actor_id, space_id, space_key, body)
@@ -409,6 +429,9 @@ impl PostgresWikiBackend {
         claims: &WikiClaims,
         space_key: &str,
     ) -> Result<SpaceResponse, shared::AppError> {
+        if self.admission_active().await? {
+            return Err(shared::AppError::conflict("space_metadata_owned_by_admin"));
+        }
         let space_id = self
             .ensure_space_access(claims, space_key, SpaceAccess::Admin)
             .await?;
@@ -416,6 +439,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiSpaceRepository {
             backend: self,
             request_id: claims.request_id.as_deref(),
+            admission: self.read_admission(Some(claims)).await?,
         };
         WikiSpaceUseCase::new(&repository)
             .archive(actor_id, space_id, space_key)
@@ -433,6 +457,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiSpaceRepository {
             backend: self,
             request_id: None,
+            admission: self.read_admission(Some(claims)).await?,
         };
         WikiSpaceUseCase::new(&repository)
             .list_members(space_id)
@@ -454,6 +479,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiSpaceRepository {
             backend: self,
             request_id: claims.request_id.as_deref(),
+            admission: self.read_admission(Some(claims)).await?,
         };
         WikiSpaceUseCase::new(&repository)
             .upsert_member(actor_id, space_id, user_id, body)
@@ -474,6 +500,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiSpaceRepository {
             backend: self,
             request_id: claims.request_id.as_deref(),
+            admission: self.read_admission(Some(claims)).await?,
         };
         WikiSpaceUseCase::new(&repository)
             .delete_member(actor_id, space_id, user_id)
@@ -491,6 +518,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiSpaceRepository {
             backend: self,
             request_id: None,
+            admission: self.read_admission(Some(claims)).await?,
         };
         WikiSpaceUseCase::new(&repository)
             .tree(space_id, space_key)

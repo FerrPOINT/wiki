@@ -1,3 +1,6 @@
+mod admission;
+#[cfg(test)]
+mod admission_tests;
 mod audit;
 pub mod central_auth;
 pub mod central_login;
@@ -11,8 +14,13 @@ mod maintenance;
 mod managed_links;
 mod mapping;
 pub mod namespace;
+#[cfg(test)]
+mod project_context_tests;
+mod project_contexts;
+mod project_projection;
 mod queries;
 mod search;
+mod space_owner;
 mod space_projects;
 mod spaces;
 mod templates;
@@ -90,7 +98,12 @@ impl PostgresWikiBackend {
     async fn ensure_admin(&self, claims: &WikiClaims) -> Result<Uuid, shared::AppError> {
         let user_id = parse_uuid(&claims.user_id, "user")?;
         let role = self.active_global_role(user_id).await?;
-        if role == "admin" {
+        let admission = self.read_admission(Some(claims)).await?;
+        if role == "admin"
+            && admission
+                .as_ref()
+                .is_none_or(|scope| scope.confirmed_global_admin())
+        {
             Ok(user_id)
         } else {
             Err(shared::AppError::Forbidden)
@@ -137,7 +150,23 @@ impl PostgresWikiBackend {
         space_id: Uuid,
         required: SpaceAccess,
     ) -> Result<Uuid, shared::AppError> {
+        let admission = self.read_admission(Some(claims)).await?;
         let user_id = parse_uuid(&claims.user_id, "user")?;
+        if let Some(scope) = admission.as_ref() {
+            if !scope.allows(space_id, required != SpaceAccess::View) {
+                return Err(shared::AppError::Forbidden);
+            }
+            if required == SpaceAccess::Admin && !scope.allows_admin(space_id) {
+                return Err(shared::AppError::Forbidden);
+            }
+            if required != SpaceAccess::View {
+                let active:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM wiki_space_catalog WHERE local_space_id=$1 AND admin_revision IS NOT NULL AND state='active')")
+                    .bind(space_id).fetch_one(&self.pool).await.map_err(shared::AppError::database)?;
+                if !active {
+                    return Err(shared::AppError::Forbidden);
+                }
+            }
+        }
         let row = sqlx::query(
             r#"
             SELECT u.global_role, sm.role AS space_role
@@ -155,6 +184,12 @@ impl PostgresWikiBackend {
 
         let global_role: String = row.get("global_role");
         let space_role: Option<String> = row.get("space_role");
+        if let Some(scope) = admission.as_ref() {
+            scope.require_current()?;
+        }
+        if admission.is_some() && required == SpaceAccess::View {
+            return Ok(user_id);
+        }
         if global_role == "admin" || space_role_allows(space_role.as_deref(), required) {
             Ok(user_id)
         } else {
@@ -332,6 +367,30 @@ impl WikiBackendPort for PostgresWikiBackend {
         command: &shared::resource_context::OwnerCommand,
     ) -> Result<shared::resource_context::OwnerReadback, shared::AppError> {
         PostgresWikiBackend::apply_namespace(self, command).await
+    }
+    async fn apply_space_owner_v2(
+        &self,
+        command: &shared::space_owner::SpaceOwnerCommandV2,
+        authority: &shared::space_owner::WikiSpaceOwnerAuthority,
+    ) -> Result<shared::space_owner::SpaceOwnerReadbackV2, shared::AppError> {
+        PostgresWikiBackend::apply_space_owner_v2(self, command, authority).await
+    }
+    async fn canonical_space_projects(
+        &self,
+        claims: &WikiClaims,
+        key: &str,
+        limit: u32,
+        offset: u32,
+    ) -> Result<SpaceProjectsV2, shared::AppError> {
+        PostgresWikiBackend::canonical_space_projects(self, claims, key, limit, offset).await
+    }
+    async fn apply_project_spaces_projection(
+        &self,
+        command: &pdlc_shared::project_spaces::ProjectSpacesProjection,
+        authority: &pdlc_shared::space_lifecycle::SpaceOwnerAuthority,
+    ) -> Result<pdlc_shared::project_spaces::ProjectSpacesProjectionReadback, shared::AppError>
+    {
+        PostgresWikiBackend::apply_project_spaces_projection(self, command, authority).await
     }
     async fn readiness_check(&self) -> Result<(), shared::AppError> {
         let _: i32 = sqlx::query_scalar("SELECT 1")

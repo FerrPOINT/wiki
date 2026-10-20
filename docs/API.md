@@ -274,3 +274,19 @@ Optional `binding/space_key` и старые `namespace-context` endpoints оп�
 Каталог задач и создание новой верифицированной TaskRef-связи требуют Space Edit
 и отдельного доступа к проектному каталогу. Локальная роль в Wiki не выдаёт
 доступ к данным Tracker. Чтение исторических ссылок сохраняет Space View gate.
+
+## Общее пространство: source API v2
+
+Строгие прежние schemas не расширяются. Отдельные новые contracts:
+GET /api/v2/spaces/{space_key}/projects — SpaceProjectsV2 с original actor,
+SpaceRef/ProjectRef и canonical Tracker pagination; PUT
+/api/v2/spaces/{registry}/{space}/owner-state — зарегистрированный Admin owner,
+SpaceOwnerCommandV2/readback без обязательного проекта; PUT
+/api/v2/projects/{tracker}/{project}/spaces/projection — зарегистрированный Tracker,
+original operation/revision/ACK. [Сценарии, отказ legacy и границы](PROJECT_SPACES_PROJECTION.md).
+OpenAPI генерируется из Rust; установка требует полного совместимого cohort.
+
+Обычное чтение документов и task/phase dossier не открывает draft-only metadata.
+Без подтверждённой роли редактора title/status берутся из опубликованной версии;
+search/count/page фильтруются до pagination. Прямой draft-only read —404.
+Read PAT редактора сохраняет чтение черновика без can_edit/права записи.

@@ -8,6 +8,7 @@ pub fn registered_machine(subject: &str) -> bool {
     [
         "WIKI_NAMESPACE__OWNER_SUBJECTS",
         "WIKI_NAMESPACE__READER_SUBJECTS",
+        "WIKI_PROJECTS__TRACKER_SUBJECTS",
     ]
     .iter()
     .any(|key| {
@@ -49,6 +50,11 @@ impl PostgresWikiBackend {
         limit: i64,
         offset: i64,
     ) -> Result<Vec<ResourceCatalogItem>, AppError> {
+        let scope = self.read_admission(Some(claims)).await?;
+        let visible = scope
+            .as_ref()
+            .map(|scope| scope.readable_ids())
+            .transpose()?;
         let instance = std::env::var("WIKI_NAMESPACE__INSTANCE_ID")
             .ok()
             .and_then(|value| value.parse::<Uuid>().ok())
@@ -67,6 +73,7 @@ impl PostgresWikiBackend {
                   SELECT 1 FROM wiki_namespace_bindings b WHERE b.resource_id = s.id
               )
               AND (u.global_role = 'admin' OR sm.role = 'admin')
+              AND ($4::uuid[] IS NULL OR s.id=ANY($4))
             ORDER BY s.key, s.id
             LIMIT $1 OFFSET $2
             "#,
@@ -74,6 +81,7 @@ impl PostgresWikiBackend {
         .bind(limit.clamp(1, 100))
         .bind(offset.max(0))
         .bind(user_id)
+        .bind(visible)
         .fetch_all(&self.pool)
         .await
         .map_err(AppError::database)?;
@@ -89,6 +97,9 @@ impl PostgresWikiBackend {
                 label: row.get("name"),
                 resource_key: row.get("key"),
             });
+        }
+        if let Some(scope) = &scope {
+            scope.require_current()?;
         }
         Ok(result)
     }
@@ -121,6 +132,11 @@ impl PostgresWikiBackend {
         limit: i64,
         offset: i64,
     ) -> Result<Vec<ResourceContextSummary>, AppError> {
+        let scope = self.read_admission(Some(claims)).await?;
+        let visible = scope
+            .as_ref()
+            .map(|scope| scope.readable_ids())
+            .transpose()?;
         let user_id = parse_uuid(&claims.user_id, "user")?;
         let rows = sqlx::query(
             r#"
@@ -130,7 +146,7 @@ impl PostgresWikiBackend {
             JOIN users u ON u.id = $5 AND u.is_active = true
             LEFT JOIN space_members sm ON sm.space_id = s.id AND sm.user_id = u.id
             WHERE ($1::uuid IS NULL OR (b.registry_instance_id = $1 AND b.namespace_id = $2))
-              AND (u.global_role = 'admin' OR sm.role IN ('admin', 'editor', 'viewer'))
+              AND (($6::uuid[] IS NOT NULL AND s.id=ANY($6)) OR ($6::uuid[] IS NULL AND (u.global_role = 'admin' OR sm.role IN ('admin', 'editor', 'viewer'))))
             ORDER BY s.name, s.id
             LIMIT $3 OFFSET $4
             "#,
@@ -140,6 +156,7 @@ impl PostgresWikiBackend {
         .bind(limit.clamp(1, 100))
         .bind(offset.max(0))
         .bind(user_id)
+        .bind(visible)
         .fetch_all(&self.pool)
         .await
         .map_err(AppError::database)?;
@@ -153,6 +170,9 @@ impl PostgresWikiBackend {
                 label: row.get("name"),
                 resource_key: row.get("key"),
             });
+        }
+        if let Some(scope) = &scope {
+            scope.require_current()?;
         }
         Ok(result)
     }
@@ -189,6 +209,14 @@ impl PostgresWikiBackend {
         &self,
         command: &OwnerCommand,
     ) -> Result<OwnerReadback, AppError> {
+        if self.admission_active().await? {
+            return Err(AppError::conflict("space_owner_v2_required"));
+        }
+        let shared:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM wiki_space_catalog c JOIN wiki_space_owner_operations o USING(registry_instance_id,space_id) WHERE c.local_space_id=$1)")
+            .bind(command.resource.resource_id).fetch_one(&self.pool).await.map_err(AppError::database)?;
+        if shared {
+            return Err(AppError::conflict("space_owner_v2_required"));
+        }
         let instance = std::env::var("WIKI_NAMESPACE__INSTANCE_ID")
             .ok()
             .and_then(|v| v.parse().ok())
@@ -544,6 +572,7 @@ pub(in crate::wiki_postgres) mod namespace_postgres_tests {
             user_id: owner.to_string(),
             session_id: None,
             request_id: None,
+            admission: None,
         };
         let resources = backend
             .namespace_available_resources(&claims, 100, 0)
@@ -614,6 +643,7 @@ pub(in crate::wiki_postgres) mod namespace_postgres_tests {
             user_id: reader.to_string(),
             session_id: None,
             request_id: None,
+            admission: None,
         };
         let first_page = backend
             .namespace_contexts(&claims, None, 2, 0)
@@ -678,6 +708,7 @@ pub(in crate::wiki_postgres) mod namespace_postgres_tests {
             user_id: reader.to_string(),
             session_id: None,
             request_id: None,
+            admission: None,
         };
         let resources = backend
             .namespace_available_resources(&claims, 2, 0)

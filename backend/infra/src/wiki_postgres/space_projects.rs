@@ -14,12 +14,21 @@ pub(super) struct ProjectSpaces {
 }
 
 impl PostgresWikiBackend {
+    /// A legacy NamespaceRef response cannot encode canonical ProjectRef-only rows.
+    pub(super) async fn require_legacy_project_context(&self) -> Result<(), AppError> {
+        let owned:bool=sqlx::query_scalar("SELECT tracker_owned OR (SELECT active FROM wiki_space_admission_state WHERE singleton) FROM wiki_project_projection_state WHERE singleton").fetch_one(&self.pool).await.map_err(AppError::database)?;
+        if owned {
+            return Err(AppError::invalid_input("project_catalog_v2_required"));
+        }
+        Ok(())
+    }
     pub(super) async fn spaces_for_projects(
         &self,
         claims: &WikiClaims,
         registry: Uuid,
         projects: &[Uuid],
     ) -> Result<ProjectSpaces, AppError> {
+        self.require_legacy_project_context().await?;
         let rows = sqlx::query(
             "SELECT l.namespace_id,s.id,s.key,s.name,s.namespace_managed,b.command,
              CASE WHEN s.archived_at IS NULL THEN 'active' ELSE 'archived' END AS status,
@@ -83,6 +92,7 @@ impl PostgresWikiBackend {
         let space_id = self
             .ensure_space_access(claims, key, WikiSpaceAccess::View)
             .await?;
+        self.require_legacy_project_context().await?;
         self.namespace_binding(space_id).await?;
         let metadata_visible = match self.project_catalog_actor(claims).await {
             Ok(_) => true,
@@ -176,6 +186,34 @@ impl PostgresWikiBackend {
             Err(error) => return Err(error),
         };
         let mut tx = self.pool.begin().await.map_err(AppError::database)?;
+        sqlx::query("SELECT singleton FROM wiki_space_admission_state WHERE singleton FOR SHARE")
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(AppError::database)?;
+        let tracker_owned: bool = sqlx::query_scalar(
+            "SELECT tracker_owned FROM wiki_project_projection_state WHERE singleton FOR SHARE",
+        )
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(AppError::database)?;
+        let admission_active: bool =
+            sqlx::query_scalar("SELECT active FROM wiki_space_admission_state WHERE singleton")
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(AppError::database)?;
+        if tracker_owned || admission_active {
+            return Err(AppError::Unavailable(
+                "project_links_owned_by_tracker_use_v2".into(),
+            ));
+        }
+        // Same order as owner-v2: catalog barrier precedes the local space row.
+        sqlx::query(
+            "SELECT local_space_id FROM wiki_space_catalog WHERE local_space_id=$1 FOR SHARE",
+        )
+        .bind(space)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(AppError::database)?;
         // Serialize link edits with space archive. No document or project row is
         // moved when this association changes.
         let active = sqlx::query_scalar::<_, bool>(

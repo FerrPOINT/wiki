@@ -17,6 +17,7 @@ struct PostgresWikiDocumentRepository<'a> {
     backend: &'a PostgresWikiBackend,
     request_id: Option<&'a str>,
     include_draft: bool,
+    claims: &'a WikiClaims,
 }
 
 impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
@@ -131,6 +132,9 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
                     self.request_id,
                 )
                 .await?;
+            if let Some(scope) = self.claims.admission.as_ref() {
+                scope.require_current()?;
+            }
             tx.commit().await.map_err(shared::AppError::database)?;
             self.backend
                 .document_response(command.document_id, self.include_draft)
@@ -202,6 +206,9 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
                     self.request_id,
                 )
                 .await?;
+            if let Some(scope) = self.claims.admission.as_ref() {
+                scope.require_current()?;
+            }
             tx.commit().await.map_err(shared::AppError::database)?;
             self.backend
                 .document_response(command.document_id, self.include_draft)
@@ -323,6 +330,9 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
                     self.request_id,
                 )
                 .await?;
+            if let Some(scope) = self.claims.admission.as_ref() {
+                scope.require_current()?;
+            }
             tx.commit().await.map_err(shared::AppError::database)?;
             Ok(revision_response_from_row(&revision_row))
         })
@@ -365,6 +375,9 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
                     self.request_id,
                 )
                 .await?;
+            if let Some(scope) = self.claims.admission.as_ref() {
+                scope.require_current()?;
+            }
             tx.commit().await.map_err(shared::AppError::database)?;
             self.backend
                 .document_response(document_id, self.include_draft)
@@ -410,6 +423,9 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
                     self.request_id,
                 )
                 .await?;
+            if let Some(scope) = self.claims.admission.as_ref() {
+                scope.require_current()?;
+            }
             tx.commit().await.map_err(shared::AppError::database)?;
             self.backend
                 .document_response(document_id, self.include_draft)
@@ -500,6 +516,7 @@ impl PostgresWikiBackend {
             backend: self,
             request_id: claims.request_id.as_deref(),
             include_draft: true,
+            claims,
         };
         WikiDocumentUseCase::new(&repository)
             .create(actor_id, space_id, parent_id, body)
@@ -522,9 +539,14 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiDocumentRepository {
             backend: self,
             request_id: None,
-            include_draft: can_edit,
+            include_draft: self.may_read_document_drafts(claims, space_id).await?,
+            claims,
         };
-        WikiDocumentUseCase::new(&repository).get(document_id).await
+        let mut response = WikiDocumentUseCase::new(&repository)
+            .get(document_id)
+            .await?;
+        response.can_edit &= can_edit;
+        Ok(response)
     }
 
     pub(super) async fn update_document_draft(
@@ -541,6 +563,7 @@ impl PostgresWikiBackend {
             backend: self,
             request_id: claims.request_id.as_deref(),
             include_draft: true,
+            claims,
         };
         WikiDocumentUseCase::new(&repository)
             .update_draft(actor_id, document_id, body)
@@ -561,6 +584,7 @@ impl PostgresWikiBackend {
             backend: self,
             request_id: claims.request_id.as_deref(),
             include_draft: true,
+            claims,
         };
         WikiDocumentUseCase::new(&repository)
             .publish(actor_id, document_id, body)
@@ -580,6 +604,7 @@ impl PostgresWikiBackend {
             backend: self,
             request_id: claims.request_id.as_deref(),
             include_draft: true,
+            claims,
         };
         WikiDocumentUseCase::new(&repository)
             .archive(actor_id, document_id)
@@ -627,6 +652,7 @@ impl PostgresWikiBackend {
             backend: self,
             request_id: claims.request_id.as_deref(),
             include_draft: true,
+            claims,
         };
         WikiDocumentUseCase::new(&repository)
             .move_document(actor_id, document_id, parent_id)
@@ -646,6 +672,7 @@ impl PostgresWikiBackend {
             backend: self,
             request_id: None,
             include_draft: false,
+            claims,
         };
         WikiDocumentUseCase::new(&repository)
             .list_revisions(document_id, query)
@@ -666,6 +693,7 @@ impl PostgresWikiBackend {
             backend: self,
             request_id: None,
             include_draft: false,
+            claims,
         };
         WikiDocumentUseCase::new(&repository)
             .get_revision(document_id, revision_id)
@@ -769,23 +797,14 @@ impl PostgresWikiBackend {
             Some(revision_id) => Some(self.revision_response(document_id, revision_id).await?),
             None => None,
         };
+        if !include_draft && current_revision.is_none() {
+            return Err(shared::AppError::not_found("document", document_id));
+        }
         let task_keys = self.document_task_keys(document_id).await?;
         let phase_keys = self.document_phase_keys(document_id).await?;
-        let evidence = self
-            .list_evidence(
-                None,
-                EvidenceQuery {
-                    space: None,
-                    document_id: Some(document_id.to_string()),
-                    task_key: None,
-                    phase_key: None,
-                    q: None,
-                    cursor: None,
-                    limit: Some(100),
-                },
-            )
-            .await?
-            .evidence;
+        // The document caller has already checked its space. This exact-document
+        // result snapshot is not the public, optionally authenticated evidence list.
+        let evidence = self.evidence_for_document_result(document_id).await?;
         let owner_id: Uuid = row.get("owner_id");
         let status: String = row.get("status");
         let space_active: bool = row.get("space_active");
@@ -798,9 +817,20 @@ impl PostgresWikiBackend {
                 .get::<Option<Uuid>, _>("parent_id")
                 .map(|id| id.to_string()),
             slug: row.get("slug"),
-            title: row.get("title"),
+            title: if include_draft {
+                row.get("title")
+            } else {
+                current_revision
+                    .as_ref()
+                    .map(|revision| revision.title.clone())
+                    .ok_or_else(|| shared::AppError::not_found("document", document_id))?
+            },
             document_type: row.get("document_type"),
-            status,
+            status: if include_draft || status == "archived" {
+                status
+            } else {
+                "published".into()
+            },
             can_edit,
             body_markdown: current_revision
                 .as_ref()

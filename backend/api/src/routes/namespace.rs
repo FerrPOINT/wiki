@@ -325,3 +325,171 @@ fn typed_links(
         })
         .collect()
 }
+
+fn may_apply_owner_v2(ctx: &pdlc_auth_core::AuthContext, registered: bool) -> bool {
+    ctx.session_id.is_none() && registered && ctx.has_scope("wiki:write")
+}
+pub async fn owner_v2_auth(mut req: Request, next: Next) -> Result<Response, AppError> {
+    let token = req
+        .headers()
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .ok_or(AppError::Unauthorized)?
+        .to_owned();
+    let verified = infra::wiki_postgres::central_auth::BRIDGE
+        .try_verified_token(&token)
+        .await
+        .map_err(|e| match e {
+            pdlc_auth_core::service_bridge::VerifiedBridgeError::Unavailable
+            | pdlc_auth_core::service_bridge::VerifiedBridgeError::NotConfigured => {
+                AppError::Unavailable("central_owner_confirmation_unavailable".into())
+            }
+            _ => AppError::Unauthorized,
+        })?;
+    let registered = std::env::var("WIKI_NAMESPACE__OWNER_SUBJECTS")
+        .unwrap_or_default()
+        .split(',')
+        .any(|s| !s.trim().is_empty() && s.trim() == verified.context.user_id);
+    if !may_apply_owner_v2(&verified.context, registered) {
+        return Err(AppError::Forbidden);
+    }
+    let validity = pdlc_shared::space_access::AdmissionValidity::confirmed(
+        verified.lifetime.source_observed_at,
+        verified.lifetime.local_valid_until(),
+        i64::MAX,
+    )
+    .ok_or(AppError::Unauthorized)?;
+    let authority = shared::space_owner::WikiSpaceOwnerAuthority::confirmed(
+        pdlc_shared::space_access::CentralIdentity {
+            issuer: verified.issuer,
+            subject: verified.context.user_id,
+        },
+        token,
+        validity,
+    )?;
+    req.extensions_mut().insert(authority);
+    Ok(next.run(req).await)
+}
+#[utoipa::path(put,operation_id="wiki_space_owner_v2",path="/api/v2/spaces/{registry}/{space}/owner-state",tag="spaces-v2",params(("registry"=Uuid,Path),("space"=Uuid,Path)),request_body=pdlc_shared::space_lifecycle::SpaceOwnerCommandV2,responses((status=200,body=pdlc_shared::space_lifecycle::SpaceOwnerReadbackV2),(status=403,description="Registered owner PAT with exact wiki write scope required"),(status=409,description="Original mapping/revision/operation conflict")))]
+pub async fn apply_space_v2(
+    Extension(backend): Extension<WikiBackend>,
+    Extension(authority): Extension<shared::space_owner::WikiSpaceOwnerAuthority>,
+    Path((registry, space)): Path<(Uuid, Uuid)>,
+    Json(command): Json<pdlc_shared::space_lifecycle::SpaceOwnerCommandV2>,
+) -> Result<Json<pdlc_shared::space_lifecycle::SpaceOwnerReadbackV2>, AppError> {
+    if registry != command.space.registry_instance_id || space != command.space.space_id {
+        return Err(AppError::invalid_input("space_ref_mismatch"));
+    }
+    let result = backend
+        .namespace_port()?
+        .apply_space_owner_v2(&command, &authority)
+        .await?;
+    authority.require_current()?;
+    Ok(Json(result))
+}
+#[cfg(test)]
+mod owner_v2_tests {
+    use super::*;
+    fn context(session: bool, scope: &str) -> pdlc_auth_core::AuthContext {
+        pdlc_auth_core::AuthContext {
+            user_id: "owner-subject".into(),
+            email: None,
+            role: Some("admin".into()),
+            scopes: std::collections::HashSet::from([scope.to_owned()]),
+            session_id: session.then(|| "browser".into()),
+            token: "synthetic".into(),
+        }
+    }
+    #[test]
+    fn owner_v2_needs_registered_machine_and_exact_scope_not_browser_admin() {
+        assert!(may_apply_owner_v2(&context(false, "wiki:write"), true));
+        assert!(!may_apply_owner_v2(&context(true, "wiki:write"), true));
+        assert!(!may_apply_owner_v2(&context(false, "wiki:write"), false));
+        assert!(!may_apply_owner_v2(&context(false, "wiki:read"), true));
+        assert!(!may_apply_owner_v2(
+            &context(false, "task-tracker:write"),
+            true
+        ));
+    }
+}
+
+fn may_apply_project_projection(ctx: &pdlc_auth_core::AuthContext, registered: bool) -> bool {
+    ctx.session_id.is_none() && registered && ctx.has_scope("wiki:write")
+}
+pub async fn project_projection_auth(mut req: Request, next: Next) -> Result<Response, AppError> {
+    let token = req
+        .headers()
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .ok_or(AppError::Unauthorized)?;
+    let verified = infra::wiki_postgres::central_auth::BRIDGE
+        .try_verified_token(token)
+        .await
+        .map_err(|_| AppError::Unavailable("project_owner_confirmation_unavailable".into()))?;
+    let registered = std::env::var("WIKI_PROJECTS__TRACKER_SUBJECTS")
+        .unwrap_or_default()
+        .split(',')
+        .any(|s| !s.trim().is_empty() && s.trim() == verified.context.user_id);
+    if !may_apply_project_projection(&verified.context, registered) {
+        return Err(AppError::Forbidden);
+    }
+    let validity = pdlc_shared::space_access::AdmissionValidity::confirmed(
+        verified.lifetime.source_observed_at,
+        verified.lifetime.local_valid_until(),
+        i64::MAX,
+    )
+    .ok_or(AppError::Unauthorized)?;
+    let proof = pdlc_shared::space_lifecycle::SpaceOwnerAuthority::confirmed(
+        pdlc_shared::space_access::CentralIdentity {
+            issuer: verified.issuer,
+            subject: verified.context.user_id,
+        },
+        validity,
+    )
+    .ok_or(AppError::Unauthorized)?;
+    req.extensions_mut().insert(proof);
+    Ok(next.run(req).await)
+}
+#[utoipa::path(put,operation_id="wiki_project_spaces_projection",path="/api/v2/projects/{tracker}/{project}/spaces/projection",tag="spaces-v2",params(("tracker"=Uuid,Path),("project"=Uuid,Path)),request_body=pdlc_shared::project_spaces::ProjectSpacesProjection,responses((status=200,body=pdlc_shared::project_spaces::ProjectSpacesProjectionReadback),(status=409,description="Original operation, mapping or revision conflict")))]
+pub async fn apply_project_projection(
+    Extension(backend): Extension<WikiBackend>,
+    Extension(proof): Extension<pdlc_shared::space_lifecycle::SpaceOwnerAuthority>,
+    Path((tracker, project)): Path<(Uuid, Uuid)>,
+    Json(command): Json<pdlc_shared::project_spaces::ProjectSpacesProjection>,
+) -> Result<Json<pdlc_shared::project_spaces::ProjectSpacesProjectionReadback>, AppError> {
+    if command.project.tracker_instance_id != tracker || command.project.project_id != project {
+        return Err(AppError::invalid_input("project_ref_mismatch"));
+    }
+    let ack = backend
+        .namespace_port()?
+        .apply_project_spaces_projection(&command, &proof)
+        .await?;
+    if !proof.is_current() {
+        return Err(AppError::Forbidden);
+    }
+    Ok(Json(ack))
+}
+#[cfg(test)]
+mod projection_auth_tests {
+    use super::*;
+    #[test]
+    fn projection_needs_registered_tracker_pat_not_an_admin_session() {
+        let mut ctx = pdlc_auth_core::AuthContext {
+            user_id: "tracker-machine".into(),
+            role: Some("admin".into()),
+            email: None,
+            scopes: std::collections::HashSet::from(["wiki:write".into()]),
+            session_id: None,
+            token: String::new(),
+        };
+        assert!(may_apply_project_projection(&ctx, true));
+        assert!(!may_apply_project_projection(&ctx, false));
+        ctx.session_id = Some("admin-browser".into());
+        assert!(!may_apply_project_projection(&ctx, true));
+        ctx.session_id = None;
+        ctx.scopes = std::collections::HashSet::from(["wiki:read".into()]);
+        assert!(!may_apply_project_projection(&ctx, true));
+    }
+}

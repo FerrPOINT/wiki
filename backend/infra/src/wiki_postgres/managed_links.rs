@@ -25,6 +25,60 @@ pub(super) struct TaskReader {
 }
 
 impl TaskReader {
+    pub(super) fn instance_id(&self) -> Uuid {
+        self.instance
+    }
+    /// Reuse the deployment reader transport/credential; user tokens and roles are not relayed.
+    pub(super) async fn canonical_project_contexts(
+        &self,
+        request: &pdlc_shared::project_spaces::ProjectSpaceContextQuery,
+    ) -> Result<pdlc_shared::project_spaces::ProjectSpaceContextBatch, AppError> {
+        if !request.valid_for(&request.actor.identity.issuer, self.instance) {
+            return Err(AppError::invalid_input("invalid_project_context_query"));
+        }
+        let url = self
+            .endpoint
+            .join("api/v2/project-contexts/query")
+            .map_err(|_| AppError::Unavailable("invalid_tracker_context_endpoint".into()))?;
+        let mut response = self
+            .client
+            .post(url)
+            .bearer_auth(&self.token)
+            .json(request)
+            .send()
+            .await
+            .map_err(|_| AppError::Unavailable("tracker_project_context_unavailable".into()))?;
+        if response.status() == reqwest::StatusCode::CONFLICT {
+            return Err(AppError::conflict("space_policy_revision_changed"));
+        }
+        if !response.status().is_success() {
+            return Err(AppError::Unavailable(
+                "tracker_project_context_unavailable".into(),
+            ));
+        }
+        let mut bytes = Vec::new();
+        while let Some(chunk) = response
+            .chunk()
+            .await
+            .map_err(|_| AppError::Unavailable("tracker_project_context_read_failed".into()))?
+        {
+            if bytes.len().saturating_add(chunk.len()) > 1024 * 1024 {
+                return Err(AppError::Unavailable(
+                    "tracker_project_context_too_large".into(),
+                ));
+            }
+            bytes.extend_from_slice(&chunk);
+        }
+        let value: pdlc_shared::project_spaces::ProjectSpaceContextBatch =
+            serde_json::from_slice(&bytes)
+                .map_err(|_| AppError::Unavailable("invalid_tracker_project_context".into()))?;
+        if !value.valid_for(request, chrono::Utc::now().timestamp()) {
+            return Err(AppError::Unavailable(
+                "tracker_project_context_expired_or_invalid".into(),
+            ));
+        }
+        Ok(value)
+    }
     pub(super) async fn projects(
         &self,
     ) -> Result<Vec<shared::resource_context::ResourceContextSummary>, AppError> {
@@ -302,6 +356,9 @@ impl PostgresWikiBackend {
         namespace: &NamespaceRef,
         task: &TaskRef,
     ) -> Result<Vec<serde_json::Value>, AppError> {
+        if self.admission_active().await? {
+            return Err(AppError::invalid_input("execution_context_v3_required"));
+        }
         let mismatched: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM managed_task_document_links l JOIN task_dossiers t ON t.id=l.dossier_id WHERE t.tracker_instance_id=$1 AND t.task_id=$2 AND (l.registry_instance_id<>$3 OR l.namespace_id<>$4))")
             .bind(task.tracker_instance_id).bind(task.task_id).bind(namespace.registry_instance_id).bind(namespace.namespace_id)
             .fetch_one(&self.pool).await.map_err(AppError::database)?;
@@ -360,11 +417,16 @@ impl PostgresWikiBackend {
         claims: &WikiClaims,
         task: &TaskRef,
     ) -> Result<Vec<serde_json::Value>, AppError> {
+        let scope = self.read_admission(Some(claims)).await?;
+        let visible = scope
+            .as_ref()
+            .map(|scope| scope.readable_ids())
+            .transpose()?;
         let user = self.restricted_user_id(claims).await?;
         // Filter before LIMIT: a private neighboring space must neither leak nor
         // hide documents the caller can read in this shared project.
-        let rows = sqlx::query("SELECT l.space_id,jsonb_build_object('id',l.id,'document_id',d.id,'revision_id',r.id,'title',r.title,'version',r.version,'space_key',s.key,'task_key',t.task_key,'namespace',jsonb_build_object('registry_instance_id',l.registry_instance_id,'namespace_id',l.namespace_id)) AS document FROM managed_task_document_links l JOIN task_dossiers t ON t.id=l.dossier_id JOIN documents d ON d.id=l.document_id JOIN document_revisions r ON r.id=l.revision_id JOIN spaces s ON s.id=l.space_id WHERE t.tracker_instance_id=$1 AND t.task_id=$2 AND ($3::uuid IS NULL OR EXISTS(SELECT 1 FROM space_members sm WHERE sm.space_id=s.id AND sm.user_id=$3 AND sm.role IN ('admin','editor','viewer'))) ORDER BY l.created_at DESC,l.id LIMIT 100")
-            .bind(task.tracker_instance_id).bind(task.task_id).bind(user).fetch_all(&self.pool).await.map_err(AppError::database)?;
+        let rows = sqlx::query("SELECT l.space_id,jsonb_build_object('id',l.id,'document_id',d.id,'revision_id',r.id,'title',r.title,'version',r.version,'space_key',s.key,'task_key',t.task_key,'namespace',jsonb_build_object('registry_instance_id',l.registry_instance_id,'namespace_id',l.namespace_id)) AS document FROM managed_task_document_links l JOIN task_dossiers t ON t.id=l.dossier_id JOIN documents d ON d.id=l.document_id JOIN document_revisions r ON r.id=l.revision_id JOIN spaces s ON s.id=l.space_id WHERE t.tracker_instance_id=$1 AND t.task_id=$2 AND (($4::uuid[] IS NOT NULL AND s.id=ANY($4)) OR ($4::uuid[] IS NULL AND ($3::uuid IS NULL OR EXISTS(SELECT 1 FROM space_members sm WHERE sm.space_id=s.id AND sm.user_id=$3 AND sm.role IN ('admin','editor','viewer'))))) ORDER BY l.created_at DESC,l.id LIMIT 100")
+            .bind(task.tracker_instance_id).bind(task.task_id).bind(user).bind(visible).fetch_all(&self.pool).await.map_err(AppError::database)?;
         let mut result = Vec::new();
         let mut checked = std::collections::BTreeSet::new();
         for row in rows {
@@ -378,6 +440,9 @@ impl PostgresWikiBackend {
                 self.namespace_binding(row.get("space_id")).await?;
             }
             result.push(row.get("document"));
+        }
+        if let Some(scope) = &scope {
+            scope.require_current()?;
         }
         Ok(result)
     }

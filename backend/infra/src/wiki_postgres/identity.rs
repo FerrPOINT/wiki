@@ -46,6 +46,14 @@ async fn persist_central_directory_user(
     pool: &sqlx::PgPool,
     entry: &CentralDirectoryUser,
 ) -> Result<(), shared::AppError> {
+    if entry.status == "pending" {
+        return Ok(());
+    }
+    if !matches!(entry.status.as_str(), "active" | "disabled") {
+        return Err(shared::AppError::Unavailable(
+            "invalid_central_identity_status".into(),
+        ));
+    }
     if entry.status == "disabled" {
         sqlx::query("UPDATE users SET is_active = false, updated_at = now() WHERE central_sub = $1 AND is_active")
             .bind(&entry.id).execute(pool).await.map_err(shared::AppError::database)?;
@@ -55,11 +63,11 @@ async fn persist_central_directory_user(
     let id = Uuid::now_v7();
     sqlx::query(
         "INSERT INTO users (id, email, username, display_name, password_hash, central_sub, global_role, is_active, created_at, updated_at) \
-         VALUES ($1, $2, $3, $4, '!', $5, 'admin', true, now(), now()) \
+         VALUES ($1, $2, $3, $4, '!', $5, 'user', true, now(), now()) \
          ON CONFLICT (central_sub) WHERE central_sub IS NOT NULL DO UPDATE \
-         SET email = EXCLUDED.email, display_name = EXCLUDED.display_name, is_active = true, updated_at = now() \
+         SET email = EXCLUDED.email, display_name = EXCLUDED.display_name, updated_at = now() \
          WHERE users.email IS DISTINCT FROM EXCLUDED.email \
-            OR users.display_name IS DISTINCT FROM EXCLUDED.display_name OR NOT users.is_active"
+            OR users.display_name IS DISTINCT FROM EXCLUDED.display_name"
     )
     .bind(id).bind(&entry.email).bind(format!("central-{}", id.simple()))
     .bind(display_name).bind(&entry.id)
@@ -299,7 +307,7 @@ impl PostgresWikiAuthRepository<'_> {
                 id, email, username, display_name, password_hash, central_sub,
                 global_role, is_active, created_at, updated_at
             )
-            VALUES ($1, $2, $3, $4, '!', $5, 'admin', true, now(), now())
+            VALUES ($1, $2, $3, $4, '!', $5, 'user', true, now(), now())
             ON CONFLICT (central_sub) WHERE central_sub IS NOT NULL DO NOTHING
             "#,
         )
@@ -311,7 +319,7 @@ impl PostgresWikiAuthRepository<'_> {
         .execute(&self.backend.pool)
         .await
         .map_err(shared::AppError::database)?;
-        sqlx::query("UPDATE users SET display_name = $2, global_role = 'admin', is_active = true, updated_at = now() WHERE central_sub = $1 AND (display_name IS DISTINCT FROM $2 OR global_role <> 'admin' OR NOT is_active)")
+        sqlx::query("UPDATE users SET display_name = $2, updated_at = now() WHERE central_sub = $1 AND display_name IS DISTINCT FROM $2")
             .bind(&ctx.user_id).bind(display_name).execute(&self.backend.pool).await.map_err(shared::AppError::database)?;
         let row = sqlx::query(
             "SELECT id, email, username, display_name, password_hash, global_role, is_active \
@@ -630,6 +638,33 @@ impl PostgresWikiBackend {
         &self,
         token: &str,
     ) -> Result<WikiClaims, shared::AppError> {
+        if self.admission_active().await? {
+            let verified = super::central_auth::BRIDGE
+                .try_verified_token(token)
+                .await
+                .map_err(super::admission::auth_error)?;
+            let ctx = &verified.context;
+            if super::namespace::registered_machine(&ctx.user_id)
+                || ctx.role.as_deref() == Some("service_account")
+                || verified.subject_role.as_deref() == Some("service_account")
+            {
+                return Err(shared::AppError::Forbidden);
+            }
+            let repository = PostgresWikiAuthRepository {
+                backend: self,
+                request_id: None,
+            };
+            let record = match verified.display_name.as_deref() {
+                Some(name) => repository.find_or_link_central_user(ctx, name).await?,
+                None => repository.existing_central_user(&ctx.user_id).await?,
+            };
+            let mut claims = super::central_auth::claims_for(ctx, record.id.to_string());
+            claims.admission = Some(
+                self.confirmed_admission(&verified, record.id, record.global_role)
+                    .await?,
+            );
+            return Ok(claims);
+        }
         // Subject and live verified display name come from Central Auth.
         if let Some((ctx, name)) =
             crate::wiki_postgres::central_auth::try_central_with_name(token).await?
@@ -800,6 +835,11 @@ mod central_directory_tests {
     async fn profile_backend() -> PostgresWikiBackend {
         let url = std::env::var("WIKI_TEST_DATABASE_URL").expect("disposable QA database required");
         let pool = sqlx::PgPool::connect(&url).await.unwrap();
+        let database: String = sqlx::query_scalar("SELECT current_database()")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert!(database.ends_with("_test"), "refuse working database");
         let migrations = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../migrations");
         sqlx::migrate::Migrator::new(migrations)
             .await
@@ -1019,6 +1059,104 @@ mod central_directory_tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires a disposable PostgreSQL database in WIKI_TEST_DATABASE_URL"]
+    async fn central_login_never_grants_admin_or_reactivates_a_disabled_local_profile() {
+        let backend = profile_backend().await;
+        let repository = PostgresWikiAuthRepository {
+            backend: &backend,
+            request_id: None,
+        };
+        let ctx = context(&format!("{}@example.test", Uuid::now_v7()));
+        let record = repository
+            .find_or_link_central_user(&ctx, "Ordinary")
+            .await
+            .unwrap();
+        let role: String = sqlx::query_scalar("SELECT global_role FROM users WHERE id=$1")
+            .bind(record.id)
+            .fetch_one(&backend.pool)
+            .await
+            .unwrap();
+        assert_eq!(role, "user");
+        repository
+            .find_or_link_central_user(&ctx, "Renamed")
+            .await
+            .unwrap();
+        let role: String = sqlx::query_scalar("SELECT global_role FROM users WHERE id=$1")
+            .bind(record.id)
+            .fetch_one(&backend.pool)
+            .await
+            .unwrap();
+        assert_eq!(role, "user");
+        // An explicit existing role is preserved, not overwritten by JIT.
+        sqlx::query("UPDATE users SET global_role='admin' WHERE id=$1")
+            .bind(record.id)
+            .execute(&backend.pool)
+            .await
+            .unwrap();
+        repository
+            .find_or_link_central_user(&ctx, "Explicit admin")
+            .await
+            .unwrap();
+        let role: String = sqlx::query_scalar("SELECT global_role FROM users WHERE id=$1")
+            .bind(record.id)
+            .fetch_one(&backend.pool)
+            .await
+            .unwrap();
+        assert_eq!(role, "admin");
+        sqlx::query("UPDATE users SET global_role='user',is_active=false WHERE id=$1")
+            .bind(record.id)
+            .execute(&backend.pool)
+            .await
+            .unwrap();
+        assert!(matches!(
+            repository
+                .find_or_link_central_user(&ctx, "Still disabled")
+                .await,
+            Err(shared::AppError::Unauthorized)
+        ));
+        let state: (String, bool) =
+            sqlx::query_as("SELECT global_role,is_active FROM users WHERE id=$1")
+                .bind(record.id)
+                .fetch_one(&backend.pool)
+                .await
+                .unwrap();
+        assert_eq!(state, ("user".into(), false));
+        backend.pool.close().await;
+    }
+
+    #[tokio::test]
+    #[ignore = "requires a disposable PostgreSQL database in WIKI_TEST_DATABASE_URL"]
+    async fn directory_projection_does_not_grant_or_replace_local_roles() {
+        let backend = profile_backend().await;
+        let mut user = entry("Directory user", "ordinary");
+        persist_central_directory_user(&backend.pool, &user)
+            .await
+            .unwrap();
+        let role: String = sqlx::query_scalar("SELECT global_role FROM users WHERE central_sub=$1")
+            .bind(&user.id)
+            .fetch_one(&backend.pool)
+            .await
+            .unwrap();
+        assert_eq!(role, "user");
+        sqlx::query("UPDATE users SET global_role='admin' WHERE central_sub=$1")
+            .bind(&user.id)
+            .execute(&backend.pool)
+            .await
+            .unwrap();
+        user.display_name = "Renamed directory user".into();
+        persist_central_directory_user(&backend.pool, &user)
+            .await
+            .unwrap();
+        let role: String = sqlx::query_scalar("SELECT global_role FROM users WHERE central_sub=$1")
+            .bind(&user.id)
+            .fetch_one(&backend.pool)
+            .await
+            .unwrap();
+        assert_eq!(role, "admin");
+        backend.pool.close().await;
+    }
+
+    #[tokio::test]
     async fn central_projection_distinguishes_database_failure_from_invalid_claims() {
         let pool = sqlx::PgPool::connect_lazy("postgres://unused@127.0.0.1:1/unused").unwrap();
         pool.close().await;
@@ -1183,5 +1321,48 @@ mod central_directory_tests {
         }
         assert_eq!(snapshot(&pool, &batch).await, after);
         pool.close().await;
+    }
+    #[tokio::test]
+    #[ignore = "requires a disposable PostgreSQL database in WIKI_TEST_DATABASE_URL"]
+    async fn directory_refresh_preserves_local_disable_and_does_not_activate_pending_identity() {
+        let backend = profile_backend().await;
+        let user = entry("Confirmed display name", "same-name");
+        persist_central_directory_user(&backend.pool, &user)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE users SET is_active=false WHERE central_sub=$1")
+            .bind(&user.id)
+            .execute(&backend.pool)
+            .await
+            .unwrap();
+        persist_central_directory_user(&backend.pool, &user)
+            .await
+            .unwrap();
+        let active: bool = sqlx::query_scalar("SELECT is_active FROM users WHERE central_sub=$1")
+            .bind(&user.id)
+            .fetch_one(&backend.pool)
+            .await
+            .unwrap();
+        assert!(
+            !active,
+            "directory refresh cannot undo an explicit product disable"
+        );
+        let mut pending = entry("Pending profile", "pending-profile");
+        pending.status = "pending".into();
+        persist_central_directory_user(&backend.pool, &pending)
+            .await
+            .unwrap();
+        let count: i64 = sqlx::query_scalar("SELECT count(*) FROM users WHERE central_sub=$1")
+            .bind(&pending.id)
+            .fetch_one(&backend.pool)
+            .await
+            .unwrap();
+        assert_eq!(count, 0);
+        pending.status = "unknown-status".into();
+        assert!(
+            persist_central_directory_user(&backend.pool, &pending)
+                .await
+                .is_err()
+        );
     }
 }

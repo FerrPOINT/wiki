@@ -290,7 +290,12 @@ pub async fn require_wiki_auth(
         })
         .ok_or(shared::AppError::Unauthorized)?;
 
-    if pdlc_auth_core::is_personal_token(token) {
+    let mut claims = backend.authenticate_access_token(token).await?;
+    if let Some(scope) = claims.admission.as_ref() {
+        if !scope.allows_method(req.method().as_str()) {
+            return Err(shared::AppError::Forbidden);
+        }
+    } else if pdlc_auth_core::is_personal_token(token) {
         let central = infra::wiki_postgres::central_auth::try_central(token)
             .await?
             .ok_or(shared::AppError::Unauthorized)?;
@@ -298,12 +303,28 @@ pub async fn require_wiki_auth(
             return Err(shared::AppError::Forbidden);
         }
     }
-    let mut claims = backend.authenticate_access_token(token).await?;
     claims.request_id = request_id_from_headers(req.headers());
 
     let actor_id = claims.user_id.clone();
+    let scope = claims.admission.clone();
     req.extensions_mut().insert(claims);
-    run_idempotent_request(backend, actor_id, req, next).await
+    let response = run_idempotent_request(backend, actor_id, req, next).await?;
+    if let Some(scope) = scope {
+        scope.require_current()?;
+        let (parts, body) = response.into_parts();
+        use futures_util::StreamExt;
+        let stream = body.into_data_stream().map(move |chunk| {
+            if !scope.is_current() {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "space_admission_expired",
+                ));
+            }
+            chunk.map_err(std::io::Error::other)
+        });
+        return Ok(Response::from_parts(parts, Body::from_stream(stream)));
+    }
+    Ok(response)
 }
 
 fn request_id_from_headers(headers: &HeaderMap) -> Option<String> {
@@ -337,8 +358,17 @@ async fn run_idempotent_request(
     let request_body = to_bytes(body, idempotency_request_body_limit(&backend))
         .await
         .map_err(|err| shared::AppError::invalid_input(err.to_string()))?;
-    let request_hash =
+    let mut request_hash =
         idempotency_request_hash(parts.headers.get(header::CONTENT_TYPE), &request_body).await?;
+    if let Some(scope) = parts
+        .extensions
+        .get::<WikiClaims>()
+        .and_then(|claims| claims.admission.as_ref())
+    {
+        let mut binding = scope.replay_binding()?;
+        binding.extend_from_slice(request_hash.as_bytes());
+        request_hash = checksum(&binding);
+    }
     let idempotency_request = WikiIdempotencyRequest {
         actor_id,
         key: idempotency_key,
@@ -750,6 +780,7 @@ impl WikiBackend {
             user_id,
             session_id: None,
             request_id: None,
+            admission: None,
         })
     }
 }

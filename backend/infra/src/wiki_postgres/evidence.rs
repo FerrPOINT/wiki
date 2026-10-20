@@ -15,6 +15,7 @@ use uuid::Uuid;
 struct PostgresWikiEvidenceRepository<'a> {
     backend: &'a PostgresWikiBackend,
     request_id: Option<&'a str>,
+    admission: Option<std::sync::Arc<shared::wiki_space_access::WikiSpaceAdmission>>,
 }
 
 impl PostgresWikiEvidenceRepository<'_> {
@@ -147,9 +148,18 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
                 .bind(criteria.cursor.as_ref().map(|cursor| cursor.created_at))
                 .bind(criteria.cursor.as_ref().map(|cursor| cursor.id))
                 .bind(criteria.limit)
+                .bind(
+                    self.admission
+                        .as_ref()
+                        .map(|scope| scope.readable_ids())
+                        .transpose()?,
+                )
                 .fetch_all(&self.backend.pool)
                 .await
                 .map_err(shared::AppError::database)?;
+            if let Some(scope) = self.admission.as_ref() {
+                scope.require_current()?;
+            }
             Ok(rows.iter().map(evidence_response_from_row).collect())
         })
     }
@@ -283,6 +293,31 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
 }
 
 impl PostgresWikiBackend {
+    /// Internal snapshot for a document whose owner admission was checked by its caller.
+    /// Filtering uses the exact document FK, never an unscoped public search.
+    pub(super) async fn evidence_for_document_result(
+        &self,
+        document_id: Uuid,
+    ) -> Result<Vec<EvidenceResponse>, shared::AppError> {
+        let repository = PostgresWikiEvidenceRepository {
+            backend: self,
+            request_id: None,
+            admission: None,
+        };
+        let query = EvidenceQuery {
+            space: None,
+            document_id: Some(document_id.to_string()),
+            task_key: None,
+            phase_key: None,
+            q: None,
+            cursor: None,
+            limit: Some(100),
+        };
+        Ok(WikiEvidenceUseCase::new(&repository)
+            .list(query, Some(document_id), None)
+            .await?
+            .evidence)
+    }
     pub(super) async fn create_evidence(
         &self,
         claims: &WikiClaims,
@@ -312,6 +347,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiEvidenceRepository {
             backend: self,
             request_id: claims.request_id.as_deref(),
+            admission: self.read_admission(Some(claims)).await?,
         };
         WikiEvidenceUseCase::new(&repository)
             .create(actor_id, space_id, document_id, body)
@@ -352,6 +388,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiEvidenceRepository {
             backend: self,
             request_id: None,
+            admission: self.read_admission(claims).await?,
         };
         WikiEvidenceUseCase::new(&repository)
             .list(query, document_id, access_user_id)
@@ -369,6 +406,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiEvidenceRepository {
             backend: self,
             request_id: None,
+            admission: self.read_admission(Some(claims)).await?,
         };
         WikiEvidenceUseCase::new(&repository).get(evidence_id).await
     }
@@ -384,6 +422,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiEvidenceRepository {
             backend: self,
             request_id: claims.request_id.as_deref(),
+            admission: self.read_admission(Some(claims)).await?,
         };
         WikiEvidenceUseCase::new(&repository)
             .upload_attachment(
@@ -406,6 +445,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiEvidenceRepository {
             backend: self,
             request_id: None,
+            admission: self.read_admission(Some(claims)).await?,
         };
         WikiEvidenceUseCase::new(&repository)
             .get_attachment(attachment_id)
@@ -422,6 +462,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiEvidenceRepository {
             backend: self,
             request_id: None,
+            admission: self.read_admission(Some(claims)).await?,
         };
         WikiEvidenceUseCase::new(&repository)
             .download_attachment(attachment_id)
@@ -494,7 +535,13 @@ impl PostgresWikiBackend {
             }
             None => {
                 let role = self.active_global_role(user_id).await?;
-                if role == "admin" || uploaded_by == user_id {
+                let admission = self.read_admission(Some(claims)).await?;
+                if uploaded_by == user_id
+                    || (role == "admin"
+                        && admission
+                            .as_ref()
+                            .is_none_or(|scope| scope.confirmed_global_admin()))
+                {
                     Ok(())
                 } else {
                     Err(shared::AppError::Forbidden)

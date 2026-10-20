@@ -78,3 +78,44 @@ pub async fn unlink(
         .await?;
     Ok(StatusCode::NO_CONTENT)
 }
+
+#[derive(serde::Deserialize, utoipa::IntoParams)]
+pub struct CanonicalPage {
+    pub limit: Option<u32>,
+    pub offset: Option<u32>,
+}
+#[utoipa::path(get,operation_id="wiki_canonical_space_projects",path="/api/v2/spaces/{space_key}/projects",tag="spaces-v2",params(("space_key"=String,Path),CanonicalPage),responses((status=200,body=shared::wiki_contract::SpaceProjectsV2),(status=403,description="Original space admission required"),(status=503,description="Fresh canonical owner context unavailable")))]
+pub async fn canonical_list(
+    Extension(backend): Extension<WikiBackend>,
+    Extension(claims): Extension<WikiClaims>,
+    Path(key): Path<String>,
+    axum::extract::Query(page): axum::extract::Query<CanonicalPage>,
+) -> Result<
+    (
+        [(axum::http::header::HeaderName, &'static str); 1],
+        Json<shared::wiki_contract::SpaceProjectsV2>,
+    ),
+    AppError,
+> {
+    let value = backend
+        .namespace_port()?
+        .canonical_space_projects(
+            &claims,
+            &key,
+            page.limit.unwrap_or(50),
+            page.offset.unwrap_or(0),
+        )
+        .await?;
+    if !value
+        .validity
+        .valid_at(chrono::Utc::now().timestamp(), i64::MAX)
+    {
+        return Err(AppError::Unavailable(
+            "space_project_context_expired".into(),
+        ));
+    }
+    Ok((
+        [(axum::http::header::CACHE_CONTROL, "no-store")],
+        Json(value),
+    ))
+}

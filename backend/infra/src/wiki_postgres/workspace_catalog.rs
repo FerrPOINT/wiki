@@ -103,6 +103,9 @@ impl PostgresWikiBackend {
         offset: i64,
         search: &str,
     ) -> Result<WorkspaceProjectPage, AppError> {
+        // The legacy namespace catalog identifies exactly one Tracker project per
+        // namespace; it cannot represent a canonical M:N ProjectRef set.
+        self.require_legacy_project_context().await?;
         self.project_catalog_actor(claims).await?;
         if !(1..=100).contains(&limit) || offset < 0 {
             return Err(AppError::invalid_input("invalid_project_page"));

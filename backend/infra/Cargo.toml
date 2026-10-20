@@ -14,6 +14,7 @@ serde = { workspace = true }
 reqwest = { workspace = true }
 serde_json = { workspace = true }
 pdlc-auth-core = { path = "../../../services-base/base-modules/rust/pdlc-auth-core" }
+pdlc-shared = { path = "../../../services-base/base-modules/rust/pdlc-shared", default-features = false }
 shared = { path = "../shared" }
 domain = { path = "../domain" }
 app = { path = "../app" }

@@ -15,7 +15,7 @@ pub(super) const SPACE_LIST_SQL: &str = r#"
     FROM spaces s
     JOIN users u ON u.id = $1 AND u.is_active = true
     LEFT JOIN space_members actor_member ON actor_member.space_id = s.id AND actor_member.user_id = u.id
-    WHERE u.global_role = 'admin' OR actor_member.user_id IS NOT NULL
+    WHERE (($2::uuid[] IS NOT NULL AND s.id=ANY($2)) OR ($2::uuid[] IS NULL AND (u.global_role = 'admin' OR actor_member.user_id IS NOT NULL)))
     ORDER BY s.key
 "#;
 
@@ -60,11 +60,10 @@ pub(super) const EVIDENCE_LIST_SQL: &str = r#"
       AND ($2::uuid IS NULL OR e.document_id = $2)
       AND ($3::text IS NULL OR td.task_key = $3)
       AND ($4::text IS NULL OR pd.phase_key = $4)
-      AND ($5::uuid IS NULL OR EXISTS (
-          SELECT 1
-          FROM space_members sm
-          WHERE sm.space_id = e.space_id AND sm.user_id = $5
-      ))
+      AND (($10::uuid[] IS NOT NULL AND e.space_id=ANY($10))
+        OR ($10::uuid[] IS NULL AND ($5::uuid IS NULL OR EXISTS (
+          SELECT 1 FROM space_members sm WHERE sm.space_id=e.space_id AND sm.user_id=$5
+        ))))
       AND ($6::text IS NULL OR strpos(lower(concat_ws(' ', e.title, e.document_id::text,
           td.task_key, pd.phase_key, e.url, e.evidence_type, s.key)), $6) > 0)
       AND ($7::timestamptz IS NULL OR (e.created_at, e.id) < ($7, $8::uuid))
@@ -146,11 +145,11 @@ pub(super) const SEARCH_DOCUMENTS_SQL: &str = r#"
       ))
       AND ($5::text IS NULL OR d.document_type = $5)
       AND ($6::boolean OR d.archived_at IS NULL)
-      AND ($7::uuid IS NULL OR EXISTS (
-          SELECT 1
-          FROM space_members sm
-          WHERE sm.space_id = d.space_id AND sm.user_id = $7
-      ))
+      AND (($12::uuid[] IS NOT NULL AND d.space_id=ANY($12))
+        OR ($12::uuid[] IS NULL AND ($7::uuid IS NULL OR EXISTS (
+          SELECT 1 FROM space_members sm WHERE sm.space_id=d.space_id AND sm.user_id=$7
+        ))))
+      AND ($12::uuid[] IS NULL OR d.current_revision_id IS NOT NULL OR d.space_id=ANY($13::uuid[]))
       AND ($8::timestamptz IS NULL OR (d.updated_at, d.id, 'document'::text) < ($8, $9::uuid, $10::text))
     ORDER BY d.updated_at DESC, d.id DESC
     LIMIT $11
@@ -176,11 +175,10 @@ pub(super) const SEARCH_EVIDENCE_SQL: &str = r#"
       AND ($2::text IS NULL OR s.key = $2)
       AND ($3::text IS NULL OR td.task_key = $3)
       AND ($4::text IS NULL OR pd.phase_key = $4)
-      AND ($5::uuid IS NULL OR EXISTS (
-          SELECT 1
-          FROM space_members sm
-          WHERE sm.space_id = e.space_id AND sm.user_id = $5
-      ))
+      AND (($10::uuid[] IS NOT NULL AND e.space_id=ANY($10))
+        OR ($10::uuid[] IS NULL AND ($5::uuid IS NULL OR EXISTS (
+          SELECT 1 FROM space_members sm WHERE sm.space_id=e.space_id AND sm.user_id=$5
+        ))))
       AND ($6::timestamptz IS NULL OR (e.created_at, e.id, 'evidence'::text) < ($6, $7::uuid, $8::text))
     ORDER BY e.created_at DESC, e.id DESC
     LIMIT $9
