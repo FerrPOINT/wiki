@@ -1,0 +1,136 @@
+diff --git a/.base-revision b/.base-revision
+index e560de2..9fcf157 100644
+--- a/.base-revision
++++ b/.base-revision
+@@ -1 +1 @@
+-0ffb99e209bb62031488cbae1b61c9a2e40faec9
++7e27713077f68c84cb5d5a02f720a594abc643df
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index d44f829..d6d393e 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -6,6 +6,13 @@
+ 
+ ## [Unreleased]
+ 
++- Browser fixtures ждут готовый PageFrame после direct open и повторной SSO,
++  а не только первоначальный URL HTML. Проверки layout/геометрии не ослаблены.
++
++- Audit filters use shared Base labels, preserving field associations and URL state.
++- Base 7e27713 унифицирует подписи полей (12 px) и SSR-значения (14 px).
++  Геометрия shell, API и принятый runtime не меняются.
++
+ - Общий Base snapshot обновлён до 0ffb99e: verified profile/directory contracts
+   и UI dependency graph без замены shell. Принятый runtime не переключается.
+ 
+diff --git a/frontend/e2e/smoke.spec.ts b/frontend/e2e/smoke.spec.ts
+index 343c33c..6e4729b 100644
+--- a/frontend/e2e/smoke.spec.ts
++++ b/frontend/e2e/smoke.spec.ts
+@@ -572,6 +572,8 @@ async function gotoWiki(
+ ) {
+   const target = new URL(path, `${baseURL}/`).toString()
+   await page.goto(target)
++  // The initial document URL can match before the route guard starts SSO.
++  await expect(page.locator('[data-page-layout]')).toBeVisible({ timeout: 10_000 })
+   await expect(page).toHaveURL(new URL(expectedPath, `${baseURL}/`).toString(), { timeout: 10_000 })
+ }
+ 
+@@ -1351,6 +1353,7 @@ test.describe('wiki smoke', () => {
+     for (const theme of ['light', 'gray', 'dark']) {
+       await page.evaluate((value) => localStorage.setItem('theme', value), theme)
+       await page.reload()
++      await expect(page.locator('[data-page-layout]')).toBeVisible({ timeout: 10_000 })
+       for (const width of [375, 767, 768, 1023, 1024, 1279, 1280, 1440, 1920, 2560]) {
+         await page.setViewportSize({ width, height: width < 768 ? 812 : 1080 })
+         await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+diff --git a/frontend/src/pages/audit-log/audit-log.test.tsx b/frontend/src/pages/audit-log/audit-log.test.tsx
+index 5eb9eef..0dac5cc 100644
+--- a/frontend/src/pages/audit-log/audit-log.test.tsx
++++ b/frontend/src/pages/audit-log/audit-log.test.tsx
+@@ -378,6 +378,18 @@ describe('AuditLogPage', () => {
+     const filterButton = screen.getByRole('button', { name: 'Фильтры' })
+     expect(filterButton).toHaveClass('h-10')
+     fireEvent.click(filterButton)
++    for (const id of [
++      'audit-action',
++      'audit-entity-type',
++      'audit-actor',
++      'audit-from',
++      'audit-to',
++    ]) {
++      const label = document.querySelector(`label[for="${id}"]`)
++      expect(label).toHaveClass('base-label')
++      expect(label).not.toHaveClass('text-sm')
++      expect(screen.getByLabelText(label!.textContent!.trim())).toHaveAttribute('id', id)
++    }
+     expect(screen.getByRole('button', { name: 'Ввести UUID' })).toHaveClass('h-10')
+     expect(screen.getByRole('button', { name: 'Сбросить' })).toHaveClass('h-10')
+     expect(screen.getByRole('button', { name: 'Применить' })).toHaveClass('h-10')
+diff --git a/frontend/src/pages/audit-log/index.tsx b/frontend/src/pages/audit-log/index.tsx
+index 9453cd3..43a7302 100644
+--- a/frontend/src/pages/audit-log/index.tsx
++++ b/frontend/src/pages/audit-log/index.tsx
+@@ -5,6 +5,7 @@ import { useAuditLog, useSpaces, useUsers } from '@/shared/api/hooks'
+ import {
+   AuditLogView,
+   EmptyState,
++  Label,
+   ResourceStateView,
+   Select,
+   resourceErrorState,
+@@ -352,9 +353,7 @@ export function AuditLogPage() {
+               >
+                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                   <div className="space-y-1">
+-                    <label htmlFor="audit-action" className="text-sm font-medium">
+-                      Действие
+-                    </label>
++                    <Label htmlFor="audit-action">Действие</Label>
+                     <Select
+                       id="audit-action"
+                       value={draftFilters.action}
+@@ -372,9 +371,7 @@ export function AuditLogPage() {
+                     </Select>
+                   </div>
+                   <div className="space-y-1">
+-                    <label htmlFor="audit-entity-type" className="text-sm font-medium">
+-                      Тип объекта
+-                    </label>
++                    <Label htmlFor="audit-entity-type">Тип объекта</Label>
+                     <Select
+                       id="audit-entity-type"
+                       value={draftFilters.entity_type}
+@@ -395,9 +392,7 @@ export function AuditLogPage() {
+                     </Select>
+                   </div>
+                   <div className="space-y-1">
+-                    <label htmlFor="audit-actor" className="text-sm font-medium">
+-                      Участник
+-                    </label>
++                    <Label htmlFor="audit-actor">Участник</Label>
+                     {manualActorId ||
+                     usersQuery.isError ||
+                     (!usersQuery.isLoading && users.length === 0) ? (
+@@ -475,9 +470,7 @@ export function AuditLogPage() {
+                     )}
+                   </div>
+                   <div className="space-y-1">
+-                    <label htmlFor="audit-from" className="text-sm font-medium">
+-                      С даты (местное время)
+-                    </label>
++                    <Label htmlFor="audit-from">С даты (местное время)</Label>
+                     <Input
+                       id="audit-from"
+                       type="datetime-local"
+@@ -487,9 +480,7 @@ export function AuditLogPage() {
+                     />
+                   </div>
+                   <div className="space-y-1">
+-                    <label htmlFor="audit-to" className="text-sm font-medium">
+-                      До даты (не включая)
+-                    </label>
++                    <Label htmlFor="audit-to">До даты (не включая)</Label>
+                     <Input
+                       id="audit-to"
+                       type="datetime-local"

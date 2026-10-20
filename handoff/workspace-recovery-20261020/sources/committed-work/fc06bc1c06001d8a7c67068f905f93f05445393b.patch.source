@@ -1,0 +1,677 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 914847f..fa66931 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -6,6 +6,11 @@
+ 
+ ## [Unreleased]
+ 
++- Создание документа принадлежит странице, а не общему header или drawer.
++  Поиск использует action slot Base ListPage и проверенное активное пространство;
++  неизвестный родитель, неподтверждённая сессия и terminal 403/404 скрывают действие.
++  Переход сохраняет пространство, navigation и account остаются в Base AppShell.
++
+ - Неизвестный адрес использует Base DetailPage/not-found с одним заголовком
+   и безопасным возвратом; header и drawer не предлагают создание документа.
+ 
+diff --git a/docs/UI_UX_MAP.md b/docs/UI_UX_MAP.md
+index a9c10ad..980c7c6 100644
+--- a/docs/UI_UX_MAP.md
++++ b/docs/UI_UX_MAP.md
+@@ -5,8 +5,11 @@
+ 
+ Shell, sidebar, account, theme и modal drawer принадлежат Base AppShell.
+ Продукт сохраняет navigation permissions, logout и document context.
+-Глобальное создание сохраняет `space` из URL и не дублируется на форме создания,
+-обзоре и каталоге пространств: эти страницы владеют своими действиями.
++Shell и drawer не содержат CRUD-действий: создание документа принадлежит
++страницам обзора, пространств, поиска, документа и шаблонов. Поиск передаёт
++проверенный `space` из применённого URL-фильтра; неизвестное пространство
++не заменяется другим. Неподтверждённая сессия, загрузка или ошибка каталога,
++архивный родитель и terminal 403/404 не предлагают создание.
+ Compose и document view с contextual aside используют `detail-with-aside`;
+ settings использует `reading`, списки и независимые dossier sections — `wide`.
+ Task dossier имеет contextual aside и использует `detail-with-aside`.
+diff --git a/docs/plans/2026-10-04-page-action-ownership.md b/docs/plans/2026-10-04-page-action-ownership.md
+new file mode 100644
+index 0000000..2995410
+--- /dev/null
++++ b/docs/plans/2026-10-04-page-action-ownership.md
+@@ -0,0 +1,40 @@
++# Владение Действиями Wiki
++
++Нормативный источник: Base UI/UX Standard. Это продуктовая карта изменения,
++а не отдельный стандарт shell или новая модель авторизации.
++
++## Изменение
++
++`WIKI-ACTION-OWNERSHIP-01`: header и drawer больше не предоставляют создание
++документа на поиске, dossier и административных страницах. Shell отвечает за
++навигацию и account. Существующие page-owned действия обзора, пространств,
++документа и шаблонов сохраняются; поиск получает action slot Base ListPage.
++
++Поиск использует применённый URL-фильтр пространства, а не ещё не применённый
++текст поля. Явный неизвестный ключ не заменяется другим родителем. Без фильтра
++действует существующий resolveSpaceKey (BASE при наличии, иначе первое
++пространство). Создание доступно при подтверждённой активной сессии и активном
++пространстве из успешно загруженного каталога, без текущего refetch или ошибки.
++Terminal search 403/404 скрывает действие. Backend продолжает проверять права;
++публичные API, роли, схемы и auth store не изменяются.
++
++## Проверки
++
++- Component: отсутствие shell/drawer CRUD на 15 маршрутах, navigation focus,
++  нормализация и сохранение пространства, default/unknown/archived/empty,
++  loading/refetch/cached-error каталога и сессии, inactive user, search 403/404.
++- Browser fixtures: 3 темы и 10 ширин, включая desktop 1440/1920/2560 и
++  responsive boundaries; единственное page action, targets, overflow, drawer
++  Escape/focus, keyboard navigation, reload и Back/Forward, отказные состояния.
++- Source gates: frozen offline Base install, fingerprint, unit/typecheck/lint,
++  semantic/OpenAPI checks, build, общий UI gate и README validator.
++
++Source/fixture evidence не является actual-image, live SSO/roles или README
++release acceptance. Исторические кадры README этим изменением не заменяются.
++
++## Оставшийся Охват
++
++`WIKI-COMPOSITION-PARITY-01`: task/phase dossier и evidence ещё используют
++локальные заголовки вместо общей композиции Base. Их миграция, audit cold-cache
++readability, полная роль/state matrix и выпускная приёмка остаются отдельными
++непринятыми пунктами. Удаление shell CRUD не означает завершение унификации Wiki.
+diff --git a/frontend/e2e/smoke.spec.ts b/frontend/e2e/smoke.spec.ts
+index 03bc88c..5face2e 100644
+--- a/frontend/e2e/smoke.spec.ts
++++ b/frontend/e2e/smoke.spec.ts
+@@ -1166,7 +1166,7 @@ test.describe('wiki smoke', () => {
+     await expect(trigger).toBeFocused()
+   })
+ 
+-  test('keeps contextual creation reachable once per surface through Base drawer and page actions', async ({
++  test('keeps contextual creation in page actions and Base drawer navigation-only', async ({
+     page,
+   }) => {
+     await page.setViewportSize({ width: 375, height: 812 })
+@@ -1174,17 +1174,23 @@ test.describe('wiki smoke', () => {
+     await gotoWiki(page, '/search?space=BASE')
+     const header = page.locator('[data-platform-header]')
+     const trigger = page.getByRole('button', { name: 'Открыть навигацию' })
+-    await expect(header.getByRole('link', { name: 'Новый документ', exact: true })).toBeHidden()
++    await expect(header.getByRole('link', { name: 'Новый документ', exact: true })).toHaveCount(0)
+     await trigger.click()
+     const drawer = page.getByRole('dialog', { name: 'Wiki', exact: true })
+-    const create = drawer.getByRole('link', { name: 'Новый документ', exact: true })
++    await expect(drawer.getByRole('link', { name: 'Новый документ', exact: true })).toHaveCount(0)
++    await page.keyboard.press('Escape')
++    await expect(drawer).toBeHidden()
++    await expect(trigger).toBeFocused()
++    const create = page.locator('.base-page-actions').getByRole('link', {
++      name: 'Новый документ',
++      exact: true,
++    })
+     await expect(create).toHaveAttribute('href', '/documents/new?space=BASE')
+     const target = await create.boundingBox()
+     expect(target?.height).toBeGreaterThanOrEqual(44)
+     await create.click()
+     await expect(page).toHaveURL(`${baseURL}/documents/new?space=BASE`)
+     await expect(drawer).toBeHidden()
+-    await expect(trigger).toBeFocused()
+     await expect(page.locator('[data-page-layout]')).toHaveAttribute(
+       'data-page-layout',
+       'detail-with-aside',
+@@ -1229,6 +1235,198 @@ test.describe('wiki smoke', () => {
+     }
+   })
+ 
++  test('validates search page creation context across Base themes and shell boundaries', async ({
++    page,
++  }, testInfo) => {
++    test.setTimeout(180_000)
++    await installWikiApiMocks(page)
++    const teamSpace = { ...baseSpace, id: 'space-team', key: 'TEAM', name: 'Команда' }
++    let spaces = [teamSpace, baseSpace]
++    let catalogStatus = 200
++    let identityActive = true
++    let identityStatus = 200
++    let searchStatus = 200
++    const errors: string[] = []
++    const responses: Array<{ path: string; status: number }> = []
++    page.on('pageerror', (error) => errors.push(error.message))
++    page.on('response', (response) => {
++      const path = new URL(response.url()).pathname
++      if (path.startsWith('/api/v1/')) responses.push({ path, status: response.status() })
++    })
++    await page.route('**/api/v1/spaces', (route) =>
++      routeJson(
++        route,
++        catalogStatus === 200
++          ? { spaces }
++          : { code: 'SERVICE_UNAVAILABLE', message: 'Catalog unavailable' },
++        catalogStatus,
++      ),
++    )
++    await page.route('**/api/v1/users/me', (route) => {
++      // Keep the mocked login successful; vary only the post-login profile query.
++      if (new URL(page.url()).pathname === '/sso/callback') return routeJson(route, user)
++      return routeJson(
++        route,
++        identityStatus === 200
++          ? { ...user, active: identityActive }
++          : { code: 'SERVICE_UNAVAILABLE', message: 'Identity unavailable' },
++        identityStatus,
++      )
++    })
++    await page.route('**/api/v1/search**', (route) =>
++      searchStatus === 200
++        ? route.fallback()
++        : routeJson(
++            route,
++            { code: searchStatus === 403 ? 'FORBIDDEN' : 'NOT_FOUND', message: 'Unavailable' },
++            searchStatus,
++          ),
++    )
++    await gotoWiki(page, '/search?space=team&keep=1#results')
++    const create = page.getByRole('link', { name: 'Новый документ', exact: true })
++    const geometry: Array<{ theme: string; width: number; height: number }> = []
++    for (const theme of ['light', 'gray', 'dark']) {
++      await page.evaluate((value) => localStorage.setItem('theme', value), theme)
++      await page.reload()
++      for (const width of [375, 767, 768, 1023, 1024, 1279, 1280, 1440, 1920, 2560]) {
++        await page.setViewportSize({ width, height: width < 768 ? 812 : 1080 })
++        await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
++        await expect(page.locator('[data-page-layout]')).toHaveAttribute('data-page-layout', 'wide')
++        await expect(create).toHaveCount(1)
++        await expect(create).toBeVisible()
++        await expect(create).toHaveAttribute('href', '/documents/new?space=TEAM')
++        await expect(
++          page.locator('.base-page-actions').getByRole('link', {
++            name: 'Новый документ',
++            exact: true,
++          }),
++        ).toHaveCount(1)
++        await expect(
++          page.locator('[data-platform-header]').getByRole('link', {
++            name: 'Новый документ',
++            exact: true,
++          }),
++        ).toHaveCount(0)
++        const target = await create.boundingBox()
++        expect(target).not.toBeNull()
++        expect(target!.height).toBeGreaterThanOrEqual(width < 768 ? 44 : 40)
++        expect(target!.x).toBeGreaterThanOrEqual(0)
++        expect(target!.x + target!.width).toBeLessThanOrEqual(width)
++        expect(
++          await page.evaluate(
++            () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
++          ),
++        ).toBe(true)
++        geometry.push({ theme, width, height: target!.height })
++        if (width < 768) {
++          const trigger = page.getByRole('button', { name: 'Открыть навигацию' })
++          await trigger.click()
++          const drawer = page.getByRole('dialog', { name: 'Wiki', exact: true })
++          await expect(
++            drawer.getByRole('link', { name: 'Новый документ', exact: true }),
++          ).toHaveCount(0)
++          await page.keyboard.press('Escape')
++          await expect(drawer).toBeHidden()
++          await expect(trigger).toBeFocused()
++        }
++        await page.screenshot({
++          path: testInfo.outputPath(`search-page-action-${theme}-${width}.png`),
++          fullPage: true,
++        })
++      }
++    }
++    await create.focus()
++    await expect(create).toBeFocused()
++    await page.keyboard.press('Enter')
++    await expect(page).toHaveURL(`${baseURL}/documents/new?space=TEAM`)
++    await expect(page.getByRole('combobox', { name: 'Пространство', exact: true })).toHaveValue(
++      'TEAM',
++    )
++    await page.goBack()
++    await expect(page).toHaveURL(`${baseURL}/search?space=team&keep=1#results`)
++    await expect(create).toHaveAttribute('href', '/documents/new?space=TEAM')
++    await page.goForward()
++    await expect(page).toHaveURL(`${baseURL}/documents/new?space=TEAM`)
++
++    await gotoWiki(page, '/search')
++    await expect(create).toHaveAttribute('href', '/documents/new?space=BASE')
++    await gotoWiki(page, '/search?space=MISSING')
++    await expect(create).toHaveCount(0)
++    await page.reload()
++    await expect(page.getByRole('heading', { name: 'Поиск', exact: true })).toBeVisible()
++    await expect(create).toHaveCount(0)
++    const cases = [
++      'archived',
++      'empty',
++      'catalog-error',
++      'inactive-user',
++      'identity-error',
++      '403',
++      '404',
++    ]
++    for (const state of cases) {
++      spaces =
++        state === 'empty'
++          ? []
++          : [{ ...teamSpace, status: state === 'archived' ? 'archived' : 'active' }, baseSpace]
++      catalogStatus = state === 'catalog-error' ? 503 : 200
++      identityActive = state !== 'inactive-user'
++      identityStatus = state === 'identity-error' ? 503 : 200
++      searchStatus = state === '403' || state === '404' ? Number(state) : 200
++      await gotoWiki(page, '/search?space=TEAM')
++      const responseOffset = responses.length
++      await page.reload()
++      for (const [path, status] of [
++        ['/api/v1/spaces', catalogStatus],
++        ['/api/v1/users/me', identityStatus],
++        ['/api/v1/search', searchStatus],
++      ] as const) {
++        await expect
++          .poll(() =>
++            responses
++              .slice(responseOffset)
++              .some((response) => response.path === path && response.status === status),
++          )
++          .toBe(true)
++      }
++      await expect(page.getByRole('heading', { name: 'Поиск', exact: true })).toBeVisible()
++      if (searchStatus !== 200) {
++        await expect(
++          page.locator(
++            `[data-page-state="${searchStatus === 403 ? 'permission-denied' : 'not-found'}"]`,
++          ),
++        ).toBeVisible({ timeout: 15_000 })
++      } else {
++        await expect(page.getByRole('link', { name: /Требования к Wiki MVP/ })).toBeVisible()
++      }
++      await expect(create).toHaveCount(0)
++      await expect(
++        page.locator('[data-platform-header]').getByRole('link', {
++          name: 'Новый документ',
++          exact: true,
++        }),
++      ).toHaveCount(0)
++    }
++    spaces = [teamSpace, baseSpace]
++    catalogStatus = 200
++    identityActive = true
++    identityStatus = 200
++    searchStatus = 200
++    await gotoWiki(page, '/search?space=TEAM')
++    await page.reload()
++    await expect(create).toHaveCount(1)
++    await expect(create).toHaveAttribute('href', '/documents/new?space=TEAM')
++    expect(errors).toEqual([])
++    await testInfo.attach('search-action-geometry.json', {
++      body: JSON.stringify(
++        { geometry, states: ['unknown-parent', ...cases], pageErrors: errors },
++        null,
++        2,
++      ),
++      contentType: 'application/json',
++    })
++  })
++
+   test('uses Base template controls, states and draft protection across themes and widths', async ({
+     page,
+   }, testInfo) => {
+diff --git a/frontend/src/pages/wiki-search/index.tsx b/frontend/src/pages/wiki-search/index.tsx
+index ab9f043..16e93bd 100644
+--- a/frontend/src/pages/wiki-search/index.tsx
++++ b/frontend/src/pages/wiki-search/index.tsx
+@@ -4,12 +4,13 @@ import {
+   ChevronLeft,
+   ChevronRight,
+   FileCheck2,
++  FilePlus2,
+   FileText,
+   GitBranch,
+   ListFilter,
+   Search,
+ } from 'lucide-react'
+-import { useWikiSearch } from '@/shared/api/hooks'
++import { useCurrentUser, useSpaces, useWikiSearch } from '@/shared/api/hooks'
+ import {
+   Button,
+   EmptyState,
+@@ -23,6 +24,7 @@ import {
+ import { enumQuery, updateQuery, useUrlSearchParams } from '@sdlc/ui/lib'
+ import { formatApiErrorForUser } from '@/shared/lib/api-error'
+ import { formatDateTime, formatDocumentType } from '@/shared/lib/wiki-format'
++import { resolveSpaceKey } from '@/shared/lib/space-selection'
+ import type { SearchParams, SearchResult } from '@/api/wiki'
+ 
+ const resultTypes = [
+@@ -197,6 +199,21 @@ export function WikiSearchPage() {
+     ],
+   )
+   const searchQuery = useWikiSearch(requestParams)
++  const spacesQuery = useSpaces()
++  const currentUserQuery = useCurrentUser()
++  const spaces = spacesQuery.data?.spaces ?? []
++  const selectedSpaceKey = resolveSpaceKey(appliedSpace, spaces)
++  const selectedSpace = spaces.find((space) => space.key === selectedSpaceKey)
++  const canCreateDocument =
++    selectedSpace?.status === 'active' &&
++    currentUserQuery.data?.active === true &&
++    !currentUserQuery.isLoading &&
++    !currentUserQuery.isFetching &&
++    !currentUserQuery.isError &&
++    Boolean(spacesQuery.data) &&
++    !spacesQuery.isLoading &&
++    !spacesQuery.isFetching &&
++    !spacesQuery.isError
+   const results = searchQuery.data?.results ?? []
+   const nextCursor = searchQuery.data?.next_cursor
+   const errorState = searchQuery.isError
+@@ -271,6 +288,17 @@ export function WikiSearchPage() {
+     <ListPage
+       title="Поиск"
+       state={terminalError ? errorState : undefined}
++      actions={
++        canCreateDocument &&
++        !terminalError && (
++          <Button asChild>
++            <Link to={`/documents/new?${new URLSearchParams({ space: selectedSpaceKey })}`}>
++              <FilePlus2 className="h-4 w-4" aria-hidden />
++              Новый документ
++            </Link>
++          </Button>
++        )
++      }
+       filters={
+         <section aria-label="Параметры поиска" className="space-y-3">
+           <form role="search" onSubmit={submitSearch} className="flex min-w-0 gap-2">
+diff --git a/frontend/src/pages/wiki-search/wiki-search.test.tsx b/frontend/src/pages/wiki-search/wiki-search.test.tsx
+index 3ba14c2..7ede275 100644
+--- a/frontend/src/pages/wiki-search/wiki-search.test.tsx
++++ b/frontend/src/pages/wiki-search/wiki-search.test.tsx
+@@ -1,14 +1,18 @@
+ import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+ import { createMemoryRouter, RouterProvider } from 'react-router'
+-import { afterEach, describe, expect, it, vi } from 'vitest'
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+ 
+ import { WikiSearchPage } from './'
+ 
+ const useWikiSearch = vi.hoisted(() => vi.fn())
+ const searchRefetch = vi.hoisted(() => vi.fn())
++const useSpaces = vi.hoisted(() => vi.fn())
++const useCurrentUser = vi.hoisted(() => vi.fn())
+ 
+ vi.mock('@/shared/api/hooks', () => ({
+   useWikiSearch,
++  useSpaces,
++  useCurrentUser,
+ }))
+ 
+ const documentResult = {
+@@ -68,10 +72,110 @@ function setupSearch(
+ }
+ 
+ describe('WikiSearchPage', () => {
++  beforeEach(() => {
++    useSpaces.mockReturnValue({
++      data: {
++        spaces: [
++          { key: 'TEAM', status: 'active' },
++          { key: 'BASE', status: 'active' },
++        ],
++      },
++    })
++    useCurrentUser.mockReturnValue({ data: { active: true } })
++  })
++
+   afterEach(() => {
+     vi.clearAllMocks()
+   })
+ 
++  it('owns one creation action in the Base page header and preserves applied space', () => {
++    setupSearch(undefined, {}, '/search?space=team&q=Wiki&source=qa#results')
++    const create = screen.getByRole('link', { name: 'Новый документ' })
++    expect(create).toHaveAttribute('href', '/documents/new?space=TEAM')
++    expect(create.closest('.base-page-actions')).not.toBeNull()
++    expect(screen.getAllByRole('link', { name: 'Новый документ' })).toHaveLength(1)
++  })
++
++  it('uses the existing default-space selection when search is unfiltered', () => {
++    setupSearch()
++    expect(screen.getByRole('link', { name: 'Новый документ' })).toHaveAttribute(
++      'href',
++      '/documents/new?space=BASE',
++    )
++  })
++
++  it('changes creation context only when the filter is applied and restores it with history', async () => {
++    const router = setupSearch(undefined, {}, '/search?space=BASE&keep=1#results')
++    fireEvent.click(screen.getByRole('button', { name: /Фильтры/ }))
++    fireEvent.change(screen.getByLabelText('Пространство'), { target: { value: 'team' } })
++    const create = screen.getByRole('link', { name: 'Новый документ' })
++    expect(create).toHaveAttribute('href', '/documents/new?space=BASE')
++    fireEvent.click(screen.getByRole('button', { name: 'Применить' }))
++    await waitFor(() => expect(create).toHaveAttribute('href', '/documents/new?space=TEAM'))
++    expect(router.state.location.search).toContain('keep=1')
++    expect(router.state.location.hash).toBe('#results')
++    await router.navigate(-1)
++    await waitFor(() => expect(create).toHaveAttribute('href', '/documents/new?space=BASE'))
++    await router.navigate(1)
++    await waitFor(() => expect(create).toHaveAttribute('href', '/documents/new?space=TEAM'))
++  })
++
++  it.each([
++    ['missing space', { data: { spaces: [] } }, { data: { active: true } }],
++    [
++      'archived space',
++      { data: { spaces: [{ key: 'BASE', status: 'archived' }] } },
++      { data: { active: true } },
++    ],
++    ['loading spaces', { isLoading: true }, { data: { active: true } }],
++    [
++      'refreshing spaces',
++      { data: { spaces: [{ key: 'BASE', status: 'active' }] }, isFetching: true },
++      { data: { active: true } },
++    ],
++    [
++      'failed spaces with cached data',
++      { data: { spaces: [{ key: 'BASE', status: 'active' }] }, isError: true },
++      { data: { active: true } },
++    ],
++    [
++      'inactive identity',
++      { data: { spaces: [{ key: 'BASE', status: 'active' }] } },
++      { data: { active: false } },
++    ],
++    ['missing identity', { data: { spaces: [{ key: 'BASE', status: 'active' }] } }, {}],
++    [
++      'loading identity',
++      { data: { spaces: [{ key: 'BASE', status: 'active' }] } },
++      { isLoading: true },
++    ],
++    [
++      'refreshing identity',
++      { data: { spaces: [{ key: 'BASE', status: 'active' }] } },
++      { data: { active: true }, isFetching: true },
++    ],
++    [
++      'failed identity with cached data',
++      { data: { spaces: [{ key: 'BASE', status: 'active' }] } },
++      { data: { active: true }, isError: true },
++    ],
++  ])('does not offer creation with %s', (_reason, spaces, identity) => {
++    useSpaces.mockReturnValue(spaces)
++    useCurrentUser.mockReturnValue(identity)
++    setupSearch()
++    expect(screen.queryByRole('link', { name: 'Новый документ' })).not.toBeInTheDocument()
++  })
++
++  it('does not redirect an unknown requested space to a different valid parent', () => {
++    setupSearch(undefined, {}, '/search?space=MISSING')
++    expect(screen.queryByRole('link', { name: 'Новый документ' })).not.toBeInTheDocument()
++  })
++
++  it.each([403, 404])('does not offer creation for search status %s', (status) => {
++    setupSearch(undefined, { isError: true, error: { status, message: 'Unavailable' } })
++    expect(screen.queryByRole('link', { name: 'Новый документ' })).not.toBeInTheDocument()
++  })
++
+   it('sends result type and expanded filters to the API hook', async () => {
+     const router = setupSearch()
+ 
+diff --git a/frontend/src/widgets/app-shell.test.tsx b/frontend/src/widgets/app-shell.test.tsx
+index 11cdad9..1e83ad1 100644
+--- a/frontend/src/widgets/app-shell.test.tsx
++++ b/frontend/src/widgets/app-shell.test.tsx
+@@ -125,10 +125,7 @@ describe('AppShell', () => {
+     expect(
+       within(header).getByRole('button', { name: 'Открыть список сервисов: Wiki' }),
+     ).toBeInTheDocument()
+-    expect(within(header).getByRole('link', { name: 'Новый документ' })).toHaveAttribute(
+-      'href',
+-      '/documents/new?space=TEAM',
+-    )
++    expect(within(header).queryByRole('link', { name: 'Новый документ' })).not.toBeInTheDocument()
+     expect(container.querySelectorAll('[data-base-shell]')).toHaveLength(1)
+     expect(container.querySelector('aside')).toHaveClass('base-shell-sidebar')
+     expect(within(container.querySelector('aside')!).getAllByRole('navigation')).toHaveLength(1)
+@@ -172,20 +169,17 @@ describe('AppShell', () => {
+     ).toBeInTheDocument()
+   })
+ 
+-  it('preserves mobile creation and closes the drawer after following its link', async () => {
++  it('keeps the drawer navigation-only and closes it after following a section link', async () => {
+     mockHooks()
+     renderShell('/search?space=TEAM')
+     const trigger = screen.getByRole('button', { name: 'Открыть навигацию' })
+     fireEvent.click(trigger)
+     const dialog = await screen.findByRole('dialog', { name: 'Wiki' })
+-    const create = within(dialog).getByRole('link', { name: 'Новый документ' })
+-    expect(create).toHaveAttribute('href', '/documents/new?space=TEAM')
+-    fireEvent.click(create)
++    expect(within(dialog).queryByRole('link', { name: 'Новый документ' })).not.toBeInTheDocument()
++    const spaces = within(dialog).getByRole('link', { name: 'Пространства' })
++    fireEvent.click(spaces)
+     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+-    expect(document.querySelector('[data-page-layout]')).toHaveAttribute(
+-      'data-page-layout',
+-      'detail-with-aside',
+-    )
++    expect(document.querySelector('[data-page-layout]')).toHaveAttribute('data-page-layout', 'wide')
+     expect(trigger).toHaveFocus()
+   })
+ 
+@@ -265,24 +259,28 @@ describe('AppShell', () => {
+     expect(trigger).toHaveFocus()
+   })
+ 
+-  it('keeps the selected space in global create and avoids a duplicate create on its form', () => {
++  it.each([
++    '/',
++    '/spaces',
++    '/templates',
++    '/documents/document-1',
++    '/documents/new?space=TEAM',
++    '/search?space=TEAM',
++    '/tasks',
++    '/tasks/BASE-42',
++    '/phases',
++    '/phases/implementation',
++    '/evidence',
++    '/audit-log',
++    '/users',
++    '/settings',
++    '/admin',
++  ])('keeps CRUD out of the shell and drawer at %s', async (path) => {
+     mockHooks()
+-    const shell = renderShell('/search?space=TEAM')
+-    expect(screen.getByRole('link', { name: 'Новый документ' })).toHaveAttribute(
+-      'href',
+-      '/documents/new?space=TEAM',
+-    )
+-    shell.unmount()
+-    renderShell('/documents/new?space=TEAM')
++    renderShell(path)
+     expect(screen.queryByRole('link', { name: 'Новый документ' })).not.toBeInTheDocument()
++    fireEvent.click(screen.getByRole('button', { name: 'Открыть навигацию' }))
++    const drawer = await screen.findByRole('dialog', { name: 'Wiki' })
++    expect(within(drawer).queryByRole('link', { name: 'Новый документ' })).not.toBeInTheDocument()
+   })
+-
+-  it.each(['/', '/spaces', '/templates', '/documents/document-1'])(
+-    'leaves creation ownership to the %s page so empty catalogs cannot offer a parentless write',
+-    (path) => {
+-      mockHooks()
+-      renderShell(path)
+-      expect(screen.queryByRole('link', { name: 'Новый документ' })).not.toBeInTheDocument()
+-    },
+-  )
+ })
+diff --git a/frontend/src/widgets/app-shell.tsx b/frontend/src/widgets/app-shell.tsx
+index 67e4874..add76a7 100644
+--- a/frontend/src/widgets/app-shell.tsx
++++ b/frontend/src/widgets/app-shell.tsx
+@@ -1,8 +1,7 @@
+-import { Link, Outlet, useLocation } from 'react-router'
++import { Outlet, useLocation } from 'react-router'
+ import {
+   ClipboardList,
+   FileCheck2,
+-  FilePlus2,
+   FileText,
+   GitBranch,
+   History,
+@@ -13,7 +12,7 @@ import {
+   ShieldCheck,
+   Users,
+ } from 'lucide-react'
+-import { AppShell as BaseAppShell, Button, type ShellNavItem } from '@sdlc/ui/ui'
++import { AppShell as BaseAppShell, type ShellNavItem } from '@sdlc/ui/ui'
+ import { useCurrentUser, useLogout } from '@/shared/api/hooks'
+ 
+ const baseNavItems: ShellNavItem[] = [
+@@ -37,15 +36,6 @@ export function AppShell() {
+   const location = useLocation()
+   const { data: user } = useCurrentUser()
+   const logout = useLogout()
+-  const space = new URLSearchParams(location.search).get('space')
+-  const createHref = `/documents/new${space ? `?${new URLSearchParams({ space })}` : ''}`
+-  const knownRoute =
+-    [...baseNavItems, ...adminNavItems].some((item) => item.to === location.pathname) ||
+-    /^\/(documents|tasks|phases)\/[^/]+$/.test(location.pathname)
+-  const pageOwnsCreate =
+-    !knownRoute ||
+-    ['/', '/spaces', '/templates'].includes(location.pathname) ||
+-    location.pathname.startsWith('/documents/')
+   const layout =
+     location.pathname === '/settings'
+       ? 'reading'
+@@ -60,28 +50,6 @@ export function AppShell() {
+       description="База знаний"
+       navigation={[...baseNavItems, ...(user?.is_system_admin ? adminNavItems : [])]}
+       layout={layout}
+-      actions={
+-        !pageOwnsCreate && (
+-          <Button asChild className="hidden md:inline-flex">
+-            <Link to={createHref} aria-label="Новый документ" title="Новый документ">
+-              <FilePlus2 className="h-4 w-4" aria-hidden />
+-              <span>Новый документ</span>
+-            </Link>
+-          </Button>
+-        )
+-      }
+-      drawerActions={
+-        !pageOwnsCreate
+-          ? (onNavigate) => (
+-              <Button asChild className="w-full">
+-                <Link to={createHref} onClick={onNavigate}>
+-                  <FilePlus2 className="h-4 w-4" aria-hidden />
+-                  Новый документ
+-                </Link>
+-              </Button>
+-            )
+-          : undefined
+-      }
+       account={{
+         label: user?.display_name || user?.email || 'Пользователь',
+         secondary: user?.email,

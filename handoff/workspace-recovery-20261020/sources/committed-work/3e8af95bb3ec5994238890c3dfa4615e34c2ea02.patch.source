@@ -1,0 +1,1592 @@
+diff --git a/docs/UI_UX_MAP.md b/docs/UI_UX_MAP.md
+index bedfb7e..95a4964 100644
+--- a/docs/UI_UX_MAP.md
++++ b/docs/UI_UX_MAP.md
+@@ -10,7 +10,7 @@ Compose и document view с contextual aside используют `detail-with-a
+ settings использует `reading`, списки и независимые dossier sections — `wide`.
+ Task dossier имеет contextual aside и использует `detail-with-aside`.
+ Неизвестный operational URL показывает not-found вместо скрытого redirect.
+-Audit, profiles и settings используют Base AuditLogView/ListPage/DetailPage.
++Audit, profiles, spaces и settings используют Base AuditLogView/ListPage/DetailPage.
+ Terminal 403/404 не предлагают retry и скрывают недоступное содержание;
+ повторяемые ошибки сохраняют retry. Audit сохраняет полученную страницу при
+ сбое фонового обновления, помечая её partial-error, и сохраняет cursor history.
+@@ -25,7 +25,7 @@ actor/entity IDs, без названия документа. Cold-load назв
+ 
+ Этот checkout создан от сохранённого default `c83ff8c`; исходный dirty checkout
+ не переносился. Base dependency устанавливается frozen/offline из выбранного
+-snapshot `5a78740`. `ui:check` проверяет route coverage, shell и installed bytes.
++snapshot `42d5947`. `ui:check` проверяет route coverage, shell и installed bytes.
+ 
+ `qa.status: not-run` означает обязательный, но ещё не принятый сценарий.
+ Полная миграция page compositions, audit readability/cold-cache поведение,
+@@ -53,3 +53,36 @@ Lint/semantic, typecheck/build и installed UI gate (19 patterns) зелёные
+ Browser API/OIDC замоканы; screenshot evidence находится в workspace
+ `audit-artifacts/base-standard-2026-10-01/wiki-page-pattern-browser/`.
+ Известный Node/jsdom warning о localstorage-file остаётся в unit runner.
++
++## Spaces Source Migration
++
++`/spaces` использует Base ListPage, Select, FormField, PendingForm и
++UnsavedChangesGuard. `q/status/sort/owner/page/expanded` принадлежат URL;
++фильтр сбрасывает page/expanded, соседние параметры сохраняются. Каталог
++полный, поэтому поиск и pagination выполняются локально без detail N+1.
++Дерево и legacy membership загружаются только для раскрытой строки.
++
++Черновики остаются в памяти страницы при collapse, фильтрах и Back/Forward;
++уход и reload защищены общим Base guard. После ошибки значения не очищаются.
++Update/archive mutations принадлежат странице, поэтому collapse не сбрасывает
++pending и не позволяет повторить незавершённую запись. Архивация предупреждает
++о потере dirty form; Cancel возвращает фокус инициатору, success — строке списка.
++
++Пустой/полностью архивный каталог не предлагает создание документа без
++активного родителя. На этом маршруте shell не дублирует page create action;
++создание и tree links сохраняют пространство. Старое admin membership не
++разрешает editing после 403. Terminal catalog errors скрывают stale content;
++повторяемый refresh failure сохраняет каталог с partial-error.
++
++Base snapshot `42d59478e3436076c126901ff1449ff6a21146c0`, installed fingerprint
++`ee90377916ac7d9deb207298f25b234fd9aa31a2c44f11b9bf15595f391cb320`.
++Source gate: 206 component tests, lint/semantic, typecheck/build, frozen offline
++install, UI gate (19 patterns) и README validator прошли. 10 Chromium smoke
++tests прошли: 210 mode/theme/width captures для семи representative routes,
++три expanded-draft кадра (375/1920/2560), reload/history, focus return и
++deferred PUT с collapse/double-submit/503. Evidence:
++`audit-artifacts/base-standard-2026-10-01/wiki-spaces-terminal-browser/`
++в workspace. Снимки desktop/mobile просмотрены; API/OIDC замоканы.
++Полная миграция overview и остальных страниц, cold audit document titles,
++live SSO/image acceptance, README provenance и default integration остаются
++незавершёнными. Эти source changes не закрывают release findings автоматически.
+diff --git a/frontend/e2e/smoke.spec.ts b/frontend/e2e/smoke.spec.ts
+index 604c75b..8f5cdc5 100644
+--- a/frontend/e2e/smoke.spec.ts
++++ b/frontend/e2e/smoke.spec.ts
+@@ -590,6 +590,7 @@ test.describe('wiki smoke', () => {
+           ['/tasks/BASE-42', 'detail-with-aside', 'BASE-42'],
+           ['/users', 'wide', 'Профили Wiki'],
+           ['/audit-log', 'wide', 'Аудит'],
++          ['/spaces', 'wide', 'Пространства'],
+         ] as const) {
+           await gotoWiki(page, path)
+           await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible()
+@@ -736,6 +737,7 @@ test.describe('wiki smoke', () => {
+     await expect(dialog).toContainText('Восстановление из интерфейса пока недоступно')
+     await cancel.click()
+     await expect(dialog).not.toBeVisible()
++    await expect(page.getByRole('button', { name: 'Архивировать' })).toBeFocused()
+ 
+     await page.getByRole('button', { name: 'Архивировать' }).click()
+     await dialog.getByRole('button', { name: 'Подтвердить' }).click()
+@@ -747,9 +749,117 @@ test.describe('wiki smoke', () => {
+       'архивировано',
+     )
+     await expect(page.getByRole('button', { name: 'Архивировать' })).not.toBeVisible()
++    await expect(page.getByRole('button', { name: /База знаний Base/ })).toBeFocused()
+     await page.screenshot({ path: 'test-results/wiki-space-archive.png', fullPage: true })
+   })
+ 
++  test('retains space URL context and drafts through collapse, reload and history', async ({
++    page,
++  }, testInfo) => {
++    await installWikiApiMocks(page)
++    await gotoWiki(page, '/spaces?status=active&sort=name&owner=mine&expanded=BASE&keep=yes')
++    const row = page.getByRole('button', { name: /База знаний Base/ })
++    await expect(row).toHaveAttribute('aria-expanded', 'true')
++    await expect(page.getByRole('combobox', { name: 'Статус пространства' })).toHaveValue('active')
++    await expect(page.getByRole('combobox', { name: 'Сортировка пространств' })).toHaveValue('name')
++    await expect(page.getByRole('checkbox', { name: 'Только мои' })).toBeChecked()
++    await page.reload()
++    await expect(row).toHaveAttribute('aria-expanded', 'true')
++    await expect(
++      page.getByRole('link', { name: 'Требования к Wiki MVP требования' }),
++    ).toHaveAttribute('href', '/documents/product-requirements?space=BASE')
++    await page
++      .getByRole('textbox', { name: 'Название пространства' })
++      .fill('Несохранённое название')
++    await row.click()
++    await expect(page).not.toHaveURL(/expanded=/)
++    await page.goBack()
++    await expect(row).toHaveAttribute('aria-expanded', 'true')
++    await expect(page.getByRole('textbox', { name: 'Название пространства' })).toHaveValue(
++      'Несохранённое название',
++    )
++    for (const width of [375, 1920, 2560]) {
++      await page.setViewportSize({ width, height: 1080 })
++      await expect
++        .poll(() =>
++          page.evaluate(
++            () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
++          ),
++        )
++        .toBe(true)
++      const controls = await page
++        .locator('main')
++        .locator(
++          'button:visible,input:visible:not([type="checkbox"]),select:visible,textarea:visible',
++        )
++        .evaluateAll((elements) =>
++          elements.map((element) => ({
++            label: element.getAttribute('aria-label') ?? element.textContent,
++            height: element.getBoundingClientRect().height,
++          })),
++        )
++      expect(controls.filter((control) => control.height < (width < 768 ? 44 : 40) - 0.5)).toEqual(
++        [],
++      )
++      await page.screenshot({
++        path: testInfo.outputPath(`spaces-expanded-draft-${width}.png`),
++        fullPage: true,
++      })
++    }
++    await page.getByRole('link', { name: 'Поиск', exact: true }).click()
++    const dialog = page.getByRole('alertdialog')
++    await expect(dialog).toContainText('Несохранённые изменения')
++    await dialog.getByRole('button', { name: 'Отмена' }).click()
++    await expect(page.getByRole('textbox', { name: 'Название пространства' })).toHaveValue(
++      'Несохранённое название',
++    )
++  })
++
++  test('keeps a pending space write locked across collapse and retains the draft after failure', async ({
++    page,
++  }) => {
++    await installWikiApiMocks(page)
++    let requests = 0
++    let release!: () => void
++    const gate = new Promise<void>((resolve) => {
++      release = resolve
++    })
++    await page.route('**/api/v1/spaces/BASE', async (route) => {
++      if (route.request().method() !== 'PUT') return route.fallback()
++      requests += 1
++      await gate
++      await routeJson(
++        route,
++        { code: 'SERVICE_UNAVAILABLE', message: 'Сохранение временно недоступно' },
++        503,
++      )
++    })
++    try {
++      await gotoWiki(page, '/spaces?expanded=BASE')
++      await page
++        .getByRole('textbox', { name: 'Название пространства' })
++        .fill('Черновик после ошибки')
++      await page.getByRole('button', { name: 'Сохранить', exact: true }).click()
++      await expect.poll(() => requests).toBe(1)
++      const row = page.getByRole('button', { name: /База знаний Base/ })
++      await row.click()
++      await row.click()
++      const form = page.getByRole('form', { name: 'Изменение пространства BASE' })
++      await expect(form.getByRole('textbox', { name: 'Название пространства' })).toBeDisabled()
++      await expect(form.getByRole('button', { name: 'Сохраняем...' })).toBeDisabled()
++      await form.dispatchEvent('submit')
++      expect(requests).toBe(1)
++      release()
++      await expect(form.getByRole('alert')).toContainText('Сохранение временно недоступно')
++      await expect(form.getByRole('textbox', { name: 'Название пространства' })).toHaveValue(
++        'Черновик после ошибки',
++      )
++      await expect(form.getByRole('textbox', { name: 'Название пространства' })).toBeEnabled()
++    } finally {
++      release()
++    }
++  })
++
+   test('keeps long published Markdown inside the viewport with keyboard-scrollable regions', async ({
+     page,
+   }) => {
+diff --git a/frontend/pnpm-lock.yaml b/frontend/pnpm-lock.yaml
+index 0d0f7ad..b80019e 100644
+--- a/frontend/pnpm-lock.yaml
++++ b/frontend/pnpm-lock.yaml
+@@ -3472,6 +3472,7 @@ snapshots:
+   '@sdlc/ui@file:../../services-base/frontend(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(i18next@25.10.10(typescript@5.9.3))(react-dom@19.2.7(react@19.2.7))(react-i18next@15.7.4(i18next@25.10.10(typescript@5.9.3))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@5.9.3))(react-router@8.4.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(yaml@2.9.0)(zustand@5.0.14(@types/react@19.2.17)(react@19.2.7)(use-sync-external-store@1.6.0(react@19.2.7)))':
+     dependencies:
+       '@radix-ui/react-alert-dialog': 1.1.20(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
++      '@radix-ui/react-compose-refs': 1.1.5(@types/react@19.2.17)(react@19.2.7)
+       '@radix-ui/react-dialog': 1.1.20(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+       '@radix-ui/react-dropdown-menu': 2.1.24(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+       '@radix-ui/react-label': 2.1.12(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+diff --git a/frontend/src/pages/document-compose/index.tsx b/frontend/src/pages/document-compose/index.tsx
+index fa387a9..fa6c5a6 100644
+--- a/frontend/src/pages/document-compose/index.tsx
++++ b/frontend/src/pages/document-compose/index.tsx
+@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@sdlc/ui/ui'
+ import { Textarea } from '@sdlc/ui/ui'
+ import { formatApiErrorForUser } from '@/shared/lib/api-error'
+ import { formatDocumentType } from '@/shared/lib/wiki-format'
+-import { UnsavedChangesGuard } from '@/shared/ui/unsaved-changes-guard'
++import { UnsavedChangesGuard } from '@sdlc/ui/ui'
+ 
+ const typeOptions = [
+   'page',
+diff --git a/frontend/src/pages/document/index.tsx b/frontend/src/pages/document/index.tsx
+index 4222197..51921a7 100644
+--- a/frontend/src/pages/document/index.tsx
++++ b/frontend/src/pages/document/index.tsx
+@@ -36,7 +36,7 @@ import {
+   formatFirstApiErrorForUser,
+   hasApiErrorCode,
+ } from '@/shared/lib/api-error'
+-import { UnsavedChangesGuard } from '@/shared/ui/unsaved-changes-guard'
++import { UnsavedChangesGuard } from '@sdlc/ui/ui'
+ import {
+   formatDateTime,
+   formatDocumentStatus,
+diff --git a/frontend/src/pages/spaces/index.tsx b/frontend/src/pages/spaces/index.tsx
+index 989e656..69c81e7 100644
+--- a/frontend/src/pages/spaces/index.tsx
++++ b/frontend/src/pages/spaces/index.tsx
+@@ -1,9 +1,11 @@
+-import { FormEvent, useState } from 'react'
+-import { Link } from 'react-router'
++import { FormEvent, useEffect, useRef, useState, type RefObject } from 'react'
++import { Link, useSearchParams } from 'react-router'
+ import {
+   Archive,
+   BookOpenText,
+   ChevronDown,
++  ChevronLeft,
++  ChevronRight,
+   FileText,
+   FolderOpen,
+   Plus,
+@@ -11,7 +13,6 @@ import {
+   Search,
+ } from 'lucide-react'
+ import {
+-  defaultSpaceKey,
+   useArchiveSpace,
+   useCreateSpace,
+   useCurrentUser,
+@@ -21,17 +22,42 @@ import {
+   useUpdateSpace,
+   useUsers,
+ } from '@/shared/api/hooks'
+-import { ConfirmDialog, EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
++import {
++  ConfirmDialog,
++  EmptyState,
++  FormField,
++  ListPage,
++  LoadingState,
++  PendingForm,
++  ResourceStateView,
++  Select,
++  resourceErrorState,
++  type ResourceState,
++  UnsavedChangesGuard,
++} from '@sdlc/ui/ui'
++import { enumQuery, positiveIntegerQuery, textQuery, updateQuery } from '@sdlc/ui/lib'
+ import { Button } from '@sdlc/ui/ui'
+ import { Input } from '@sdlc/ui/ui'
+-import { Label } from '@sdlc/ui/ui'
+ import { Textarea } from '@sdlc/ui/ui'
+ import { formatApiErrorForUser } from '@/shared/lib/api-error'
+ import { formatDateTime, formatDocumentType, shortText } from '@/shared/lib/wiki-format'
+ import type { Space, SpaceTreeNode } from '@/api/wiki'
+ 
+-const selectClassName =
+-  'flex min-h-10 w-full rounded-md border border-border-strong bg-surface px-3 py-1 text-sm text-text-primary shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50'
++const statusQuery = enumQuery(['all', 'active', 'archived'] as const, 'all')
++const sortQuery = enumQuery(['updated', 'name'] as const, 'updated')
++const mineQuery = enumQuery(['all', 'mine'] as const, 'all')
++const pageQuery = positiveIntegerQuery()
++const searchQuery = textQuery()
++type SpaceDraft = { name: string; description: string }
++type CreateDraft = SpaceDraft & { key: string }
++const emptyCreateDraft: CreateDraft = { key: '', name: '', description: '' }
++
++function queryError(error: unknown, fallback: string, retry: () => void): ResourceState {
++  const state = resourceErrorState(error, retry)
++  return state.kind === 'error'
++    ? { ...state, message: formatApiErrorForUser(error, fallback) }
++    : state
++}
+ 
+ function flattenTree(nodes: SpaceTreeNode[], limit = 5): SpaceTreeNode[] {
+   const result: SpaceTreeNode[] = []
+@@ -62,9 +88,10 @@ function SpaceTreePreview({ spaceKey }: { spaceKey: string }) {
+   if (treeQuery.isLoading) return <LoadingState message="Загружаем дерево" />
+   if (treeQuery.isError) {
+     return (
+-      <ErrorState
+-        message={formatApiErrorForUser(treeQuery.error, 'Не удалось загрузить дерево')}
+-        onRetry={() => treeQuery.refetch()}
++      <ResourceStateView
++        state={queryError(treeQuery.error, 'Не удалось загрузить дерево', () =>
++          treeQuery.refetch(),
++        )}
+       />
+     )
+   }
+@@ -75,11 +102,11 @@ function SpaceTreePreview({ spaceKey }: { spaceKey: string }) {
+       {documents.map((document) => (
+         <Link
+           key={document.id}
+-          to={`/documents/${document.slug}`}
+-          className="block truncate text-sm text-text-secondary hover:text-accent"
++          to={`/documents/${encodeURIComponent(document.slug)}?space=${encodeURIComponent(spaceKey)}`}
++          className="base-control flex items-center text-sm text-text-secondary hover:text-accent"
+         >
+-          {document.title}
+-          <span className="ml-2 text-xs text-text-muted">
++          <span className="min-w-0 truncate">{document.title}</span>
++          <span className="ml-2 shrink-0 text-xs text-text-muted">
+             {formatDocumentType(document.document_type)}
+           </span>
+         </Link>
+@@ -88,14 +115,21 @@ function SpaceTreePreview({ spaceKey }: { spaceKey: string }) {
+   )
+ }
+ 
+-function CreateSpaceForm({ onCreated }: { onCreated: () => void }) {
++function CreateSpaceForm({
++  draft,
++  onChange,
++  onCreated,
++}: {
++  draft: CreateDraft
++  onChange: (draft: CreateDraft) => void
++  onCreated: () => void
++}) {
+   const createSpace = useCreateSpace()
+-  const [key, setKey] = useState('')
+-  const [name, setName] = useState('')
+-  const [description, setDescription] = useState('')
++  const { key, name, description } = draft
+ 
+   function handleSubmit(event: FormEvent<HTMLFormElement>) {
+     event.preventDefault()
++    if (createSpace.isPending || !key.trim() || !name.trim()) return
+     createSpace.mutate(
+       {
+         key: key.trim(),
+@@ -104,9 +138,7 @@ function CreateSpaceForm({ onCreated }: { onCreated: () => void }) {
+       },
+       {
+         onSuccess: () => {
+-          setKey('')
+-          setName('')
+-          setDescription('')
++          onChange(emptyCreateDraft)
+           onCreated()
+         },
+       },
+@@ -114,47 +146,55 @@ function CreateSpaceForm({ onCreated }: { onCreated: () => void }) {
+   }
+ 
+   return (
+-    <form onSubmit={handleSubmit} className="rounded-md border border-border bg-surface p-3">
++    <PendingForm
++      aria-label="Создание пространства"
++      pending={createSpace.isPending}
++      onSubmit={handleSubmit}
++    >
+       <div className="grid gap-3 lg:grid-cols-[10rem_1fr_1.5fr_auto] lg:items-end">
+         <div className="space-y-1.5">
+-          <Label htmlFor="space-key">Ключ</Label>
+-          <Input
+-            id="space-key"
+-            value={key}
+-            onChange={(event) => setKey(event.target.value)}
+-            placeholder="KEY"
+-          />
+-        </div>
+-        <div className="space-y-1.5">
+-          <Label htmlFor="space-name">Название</Label>
+-          <Input
+-            id="space-name"
+-            value={name}
+-            onChange={(event) => setName(event.target.value)}
+-            placeholder="Название пространства"
+-            required
+-          />
+-        </div>
+-        <div className="space-y-1.5">
+-          <Label htmlFor="space-description">Описание</Label>
+-          <Input
+-            id="space-description"
+-            value={description}
+-            onChange={(event) => setDescription(event.target.value)}
+-            placeholder="Описание пространства"
+-          />
++          <FormField id="space-key" label="Ключ" required>
++            {(attrs) => (
++              <Input
++                {...attrs}
++                value={key}
++                onChange={(event) => onChange({ ...draft, key: event.target.value })}
++                placeholder="KEY"
++              />
++            )}
++          </FormField>
+         </div>
++        <FormField id="space-name" label="Название" required>
++          {(attrs) => (
++            <Input
++              {...attrs}
++              value={name}
++              onChange={(event) => onChange({ ...draft, name: event.target.value })}
++              placeholder="Название пространства"
++            />
++          )}
++        </FormField>
++        <FormField id="space-description" label="Описание">
++          {(attrs) => (
++            <Input
++              {...attrs}
++              value={description}
++              onChange={(event) => onChange({ ...draft, description: event.target.value })}
++              placeholder="Описание пространства"
++            />
++          )}
++        </FormField>
+         <Button disabled={createSpace.isPending || !key.trim() || !name.trim()}>
+           <Plus className="h-4 w-4" />
+           {createSpace.isPending ? 'Создаём...' : 'Создать пространство'}
+         </Button>
+       </div>
+       {createSpace.isError && (
+-        <p className="mt-2 text-sm text-danger">
++        <p role="alert" className="mt-2 text-sm text-danger">
+           {formatApiErrorForUser(createSpace.error, 'Не удалось создать пространство')}
+         </p>
+       )}
+-    </form>
++    </PendingForm>
+   )
+ }
+ 
+@@ -162,61 +202,82 @@ function SpaceDetails({
+   currentUserId,
+   isSystemAdmin,
+   onArchived,
++  onUpdated,
++  draft,
++  onDraftChange,
++  updateSpace,
++  archiveSpace,
++  fallbackFocusRef,
+   space,
+ }: {
+   currentUserId?: string
+   isSystemAdmin: boolean
+   onArchived: (space: Space) => void
++  onUpdated: (space: Space) => void
++  draft?: SpaceDraft
++  onDraftChange: (draft: SpaceDraft) => void
++  updateSpace: ReturnType<typeof useUpdateSpace>
++  archiveSpace: ReturnType<typeof useArchiveSpace>
++  fallbackFocusRef: RefObject<HTMLButtonElement | null>
+   space: Space
+ }) {
+   const membersQuery = useSpaceMembers(space.key, !isSystemAdmin)
+-  const updateSpace = useUpdateSpace()
+-  const archiveSpace = useArchiveSpace()
+   const canManage =
+     space.status !== 'archived' &&
+     (isSystemAdmin ||
+-      membersQuery.data?.members.some(
+-        (member) => member.user_id === currentUserId && member.role === 'admin',
+-      ))
+-  const [name, setName] = useState(space.name)
+-  const [description, setDescription] = useState(space.description ?? '')
++      (!membersQuery.isLoading &&
++        !membersQuery.isError &&
++        membersQuery.data?.members.some(
++          (member) => member.user_id === currentUserId && member.role === 'admin',
++        )))
++  const name = draft?.name ?? space.name
++  const description = draft?.description ?? space.description ?? ''
+   const [archiveOpen, setArchiveOpen] = useState(false)
+   const changed =
+     name.trim() !== space.name || nullableText(description) !== (space.description ?? null)
+ 
+   function handleUpdate(event: FormEvent<HTMLFormElement>) {
+     event.preventDefault()
+-    updateSpace.mutate({
+-      spaceKey: space.key,
+-      body: {
+-        name: name.trim(),
+-        description: nullableText(description),
++    if (updateSpace.isPending || archiveSpace.isPending || !changed || !name.trim()) return
++    updateSpace.mutate(
++      {
++        spaceKey: space.key,
++        body: {
++          name: name.trim(),
++          description: nullableText(description),
++        },
+       },
+-    })
++      { onSuccess: onUpdated },
++    )
+   }
+ 
+   return (
+     <div className="space-y-4 border-t border-border bg-surface-raised/40 p-3">
+       {canManage && (
+-        <form onSubmit={handleUpdate} className="space-y-3 rounded-md border border-border p-3">
++        <PendingForm
++          aria-label={`Изменение пространства ${space.key}`}
++          pending={updateSpace.isPending || archiveSpace.isPending}
++          onSubmit={handleUpdate}
++        >
+           <div className="grid gap-3 md:grid-cols-2">
+-            <div className="space-y-1.5">
+-              <Label htmlFor={`${space.key}-name`}>Название пространства</Label>
+-              <Input
+-                id={`${space.key}-name`}
+-                value={name}
+-                onChange={(event) => setName(event.target.value)}
+-                required
+-              />
+-            </div>
+-            <div className="space-y-1.5">
+-              <Label htmlFor={`${space.key}-description`}>Описание</Label>
+-              <Textarea
+-                id={`${space.key}-description`}
+-                value={description}
+-                onChange={(event) => setDescription(event.target.value)}
+-              />
+-            </div>
++            <FormField id={`${space.key}-name`} label="Название пространства" required>
++              {(attrs) => (
++                <Input
++                  {...attrs}
++                  value={name}
++                  onChange={(event) => onDraftChange({ name: event.target.value, description })}
++                />
++              )}
++            </FormField>
++            <FormField id={`${space.key}-description`} label="Описание">
++              {(attrs) => (
++                <Textarea
++                  {...attrs}
++                  value={description}
++                  onChange={(event) => onDraftChange({ name, description: event.target.value })}
++                />
++              )}
++            </FormField>
+           </div>
+           <div className="flex flex-wrap gap-2">
+             <Button size="sm" disabled={updateSpace.isPending || !changed || !name.trim()}>
+@@ -231,27 +292,29 @@ function SpaceDetails({
+                 archiveSpace.reset()
+                 setArchiveOpen(true)
+               }}
+-              disabled={archiveSpace.isPending}
++              disabled={archiveSpace.isPending || updateSpace.isPending}
+             >
+               <Archive className="h-3.5 w-3.5" />
+               Архивировать
+             </Button>
+           </div>
+-          {updateSpace.isError && (
+-            <p className="text-sm text-danger">
+-              {formatApiErrorForUser(updateSpace.error, 'Не удалось обновить пространство')}
+-            </p>
+-          )}
+-        </form>
++          {updateSpace.isError &&
++            (!updateSpace.variables || updateSpace.variables.spaceKey === space.key) && (
++              <p role="alert" className="text-sm text-danger">
++                {formatApiErrorForUser(updateSpace.error, 'Не удалось обновить пространство')}
++              </p>
++            )}
++        </PendingForm>
+       )}
+ 
+       <ConfirmDialog
+         open={archiveOpen}
+         onOpenChange={setArchiveOpen}
++        fallbackFocusRef={fallbackFocusRef}
+         title="Архивировать пространство?"
+-        description={`«${space.name}» (${space.key}) останется доступным для чтения, но изменения документов, материалов и связей будут заблокированы. Восстановление из интерфейса пока недоступно.`}
++        description={`«${space.name}» (${space.key}) останется доступным для чтения, но изменения документов, материалов и связей будут заблокированы. Восстановление из интерфейса пока недоступно.${changed ? ' Несохранённые изменения формы будут потеряны.' : ''}`}
+         onConfirm={() => {
+-          if (!canManage || archiveSpace.isPending) return
++          if (!canManage || archiveSpace.isPending || updateSpace.isPending) return
+           archiveSpace.mutate(space.key, {
+             onSuccess: (archived) => {
+               setArchiveOpen(false)
+@@ -267,7 +330,7 @@ function SpaceDetails({
+         }
+       />
+ 
+-      <div className="space-y-2 rounded-md border border-border p-3">
++      <div className="space-y-2">
+         <div className="flex items-center gap-2 text-xs font-medium uppercase text-text-muted">
+           <BookOpenText className="h-3.5 w-3.5" />
+           Дерево
+@@ -275,12 +338,12 @@ function SpaceDetails({
+         <SpaceTreePreview spaceKey={space.key} />
+       </div>
+       {!isSystemAdmin && membersQuery.isError && (
+-        <ErrorState
+-          message={formatApiErrorForUser(
++        <ResourceStateView
++          state={queryError(
+             membersQuery.error,
+             'Не удалось проверить право на изменение пространства',
++            () => membersQuery.refetch(),
+           )}
+-          onRetry={() => membersQuery.refetch()}
+         />
+       )}
+     </div>
+@@ -290,20 +353,46 @@ function SpaceDetails({
+ export function SpacesPage() {
+   const currentUserQuery = useCurrentUser()
+   const spacesQuery = useSpaces()
++  const updateSpace = useUpdateSpace()
++  const archiveSpace = useArchiveSpace()
++  const [searchParams, setSearchParams] = useSearchParams()
++  const listFocusRef = useRef<HTMLButtonElement | null>(null)
+   const isSystemAdmin = currentUserQuery.data?.is_system_admin === true
+   const usersQuery = useUsers(isSystemAdmin)
+   const users = usersQuery.data?.users ?? []
+   const [recentlyArchived, setRecentlyArchived] = useState<Space | null>(null)
+-  const spaces = (spacesQuery.data?.spaces ?? []).map((space) =>
+-    space.key === recentlyArchived?.key ? recentlyArchived : space,
+-  )
++  const [spaceOverrides, setSpaceOverrides] = useState<Record<string, Space>>({})
++  const [drafts, setDrafts] = useState<Record<string, SpaceDraft>>({})
++  const [createDraft, setCreateDraft] = useState<CreateDraft>(emptyCreateDraft)
++  const spaces = (spacesQuery.data?.spaces ?? []).map((space) => {
++    const updated = spaceOverrides[space.key]
++    return updated && new Date(space.updated_at).getTime() <= new Date(updated.updated_at).getTime()
++      ? updated
++      : space
++  })
++  const dirty =
++    Object.values(createDraft).some(Boolean) ||
++    Object.entries(drafts).some(([key, draft]) => {
++      const space = spaces.find((item) => item.key === key)
++      return (
++        !space ||
++        draft.name.trim() !== space.name ||
++        nullableText(draft.description) !== (space.description ?? null)
++      )
++    })
++  const documentSpace =
++    spaces.find(
++      (space) => space.key === searchParams.get('expanded') && space.status !== 'archived',
++    ) ??
++    spaces.find((space) => space.key === 'BASE' && space.status !== 'archived') ??
++    spaces.find((space) => space.status !== 'archived')
+   const [showCreate, setShowCreate] = useState(false)
+-  const [search, setSearch] = useState('')
+-  const [status, setStatus] = useState('all')
+-  const [sort, setSort] = useState('updated')
+-  const [mineOnly, setMineOnly] = useState(false)
+-  const [page, setPage] = useState(1)
+-  const [expandedKey, setExpandedKey] = useState<string | null>(null)
++  const search = searchQuery.parse(searchParams.get('q'))
++  const status = statusQuery.parse(searchParams.get('status'))
++  const sort = sortQuery.parse(searchParams.get('sort'))
++  const mineOnly = mineQuery.parse(searchParams.get('owner')) === 'mine'
++  const page = pageQuery.parse(searchParams.get('page'))
++  const expandedKey = searchParams.get('expanded')
+   const query = search.trim().toLocaleLowerCase()
+   const filteredSpaces = spaces
+     .filter((space) => status === 'all' || space.status === status)
+@@ -328,132 +417,184 @@ export function SpacesPage() {
+   const currentPage = Math.min(page, pageCount)
+   const visibleSpaces = filteredSpaces.slice((currentPage - 1) * 12, currentPage * 12)
+ 
+-  function resetListPosition() {
+-    setPage(1)
+-    setExpandedKey(null)
++  function filter(patch: Record<string, string | null>, replace = false) {
++    setSearchParams((current) => updateQuery(current, { ...patch, expanded: null }, true), {
++      replace,
++    })
+   }
+ 
+   function handleArchived(space: Space) {
+     setRecentlyArchived(space)
+-    setStatus('all')
+-    setSort('updated')
+-    setPage(1)
+-    setExpandedKey(space.key)
++    handleUpdated(space)
++    setSearchParams((current) =>
++      updateQuery(current, {
++        status: null,
++        sort: null,
++        q: null,
++        owner: null,
++        page: null,
++        expanded: space.key,
++      }),
++    )
+   }
+ 
+-  return (
+-    <div className="space-y-5">
+-      <section className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+-        <div>
+-          <h1 className="text-2xl font-bold">Пространства</h1>
+-          <p className="max-w-3xl text-sm text-text-muted">
+-            Пространства группируют документы по продуктам, командам и контекстам процесса.
+-          </p>
+-        </div>
+-        <div className="flex flex-wrap gap-2">
+-          {isSystemAdmin && (
+-            <Button
+-              type="button"
+-              size="sm"
+-              variant="outline"
+-              className="min-h-10"
+-              aria-expanded={showCreate}
+-              onClick={() => setShowCreate((value) => !value)}
+-            >
+-              <Plus className="h-4 w-4" /> Создать пространство
+-            </Button>
+-          )}
+-          <Button asChild size="sm" className="min-h-10">
+-            <Link to="/documents/new">Новый документ</Link>
+-          </Button>
+-        </div>
+-      </section>
++  function handleUpdated(space: Space) {
++    setSpaceOverrides((current) => ({ ...current, [space.key]: space }))
++    setDrafts((current) => {
++      const next = { ...current }
++      delete next[space.key]
++      return next
++    })
++  }
+ 
+-      {isSystemAdmin && showCreate && <CreateSpaceForm onCreated={() => setShowCreate(false)} />}
++  const errorState = spacesQuery.isError
++    ? queryError(spacesQuery.error, 'Не удалось загрузить пространства', () =>
++        spacesQuery.refetch(),
++      )
++    : undefined
++  const terminal = errorState?.kind === 'permission-denied' || errorState?.kind === 'not-found'
++  const hasCatalog = Boolean(spacesQuery.data)
++  const state: ResourceState = errorState
++    ? errorState.kind === 'error' && hasCatalog && errorState.onRetry
++      ? { ...errorState, kind: 'partial-error' }
++      : errorState
++    : spacesQuery.isLoading
++      ? { kind: 'loading', message: 'Загружаем пространства' }
++      : spaces.length === 0
++        ? { kind: 'empty', message: 'Пространства ещё не созданы' }
++        : { kind: 'ready' }
+ 
+-      {recentlyArchived && (
+-        <p role="status" className="border-l-2 border-success bg-surface-raised px-3 py-2 text-sm">
+-          Пространство «{recentlyArchived.name}» архивировано и остаётся доступным для чтения.
+-        </p>
+-      )}
++  useEffect(() => {
++    if (spacesQuery.isLoading || spacesQuery.isError) return
++    const canonical = updateQuery(searchParams, {
++      q: searchQuery.format(search),
++      status: statusQuery.format(status),
++      sort: sortQuery.format(sort),
++      owner: mineQuery.format(mineOnly ? 'mine' : 'all'),
++      page: pageQuery.format(currentPage),
++    })
++    if (canonical.toString() !== searchParams.toString())
++      setSearchParams(canonical, { replace: true })
++  }, [
++    currentPage,
++    mineOnly,
++    search,
++    searchParams,
++    setSearchParams,
++    sort,
++    spacesQuery.isError,
++    spacesQuery.isLoading,
++    status,
++  ])
+ 
+-      {spacesQuery.isLoading && <LoadingState message="Загружаем пространства" />}
+-      {spacesQuery.isError && (
+-        <ErrorState
+-          message={formatApiErrorForUser(spacesQuery.error, 'Не удалось загрузить пространства')}
+-          onRetry={() => spacesQuery.refetch()}
+-        />
+-      )}
+-      {!spacesQuery.isLoading && !spacesQuery.isError && spaces.length === 0 && (
+-        <EmptyState
+-          message="Пространства ещё не созданы"
+-          action={
+-            <Button asChild size="sm" variant="secondary">
+-              <Link to={`/documents/new?space=${defaultSpaceKey}`}>Создать первый документ</Link>
+-            </Button>
+-          }
+-        />
+-      )}
+-      {!spacesQuery.isLoading && !spacesQuery.isError && spaces.length > 0 && (
+-        <section aria-label="Список пространств" className="space-y-3">
+-          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_11rem_11rem_auto]">
+-            <div className="relative min-w-0">
+-              <Search
+-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
+-                aria-hidden
+-              />
+-              <Input
+-                type="search"
+-                aria-label="Найти пространство"
+-                placeholder="Название, ключ или описание"
+-                value={search}
+-                onChange={(event) => {
+-                  setSearch(event.target.value)
+-                  resetListPosition()
+-                }}
+-                className="min-h-10 pl-9"
+-              />
+-            </div>
+-            <select
+-              aria-label="Статус пространства"
+-              className={selectClassName}
+-              value={status}
+-              onChange={(event) => {
+-                setStatus(event.target.value)
+-                resetListPosition()
+-              }}
+-            >
+-              <option value="all">Все статусы</option>
+-              <option value="active">Активные</option>
+-              <option value="archived">Архивные</option>
+-            </select>
+-            <select
+-              aria-label="Сортировка пространств"
+-              className={selectClassName}
+-              value={sort}
+-              onChange={(event) => {
+-                setSort(event.target.value)
+-                resetListPosition()
+-              }}
+-            >
+-              <option value="updated">Сначала обновлённые</option>
+-              <option value="name">По названию</option>
+-            </select>
+-            {currentUserQuery.data && (
+-              <label className="flex min-h-10 cursor-pointer items-center gap-2 whitespace-nowrap text-sm text-text-secondary">
+-                <input
+-                  type="checkbox"
+-                  checked={mineOnly}
++  return (
++    <>
++      <UnsavedChangesGuard when={dirty} allowSearchChanges />
++      <ListPage
++        title="Пространства"
++        state={state}
++        actions={
++          <div className="flex flex-wrap gap-2">
++            {isSystemAdmin && (
++              <Button
++                type="button"
++                size="sm"
++                variant="outline"
++                className="min-h-10"
++                aria-expanded={showCreate}
++                onClick={() => setShowCreate((value) => !value)}
++              >
++                <Plus className="h-4 w-4" /> Создать пространство
++              </Button>
++            )}
++            {!spacesQuery.isError && documentSpace && (
++              <Button asChild size="sm">
++                <Link to={`/documents/new?space=${encodeURIComponent(documentSpace.key)}`}>
++                  <Plus className="h-4 w-4" />
++                  Новый документ
++                </Link>
++              </Button>
++            )}
++          </div>
++        }
++        filters={
++          <>
++            {isSystemAdmin && (
++              <div hidden={!showCreate} className="w-full">
++                <CreateSpaceForm
++                  draft={createDraft}
++                  onChange={setCreateDraft}
++                  onCreated={() => setShowCreate(false)}
++                />
++              </div>
++            )}
++            {recentlyArchived && (
++              <p
++                role="status"
++                className="border-l-2 border-success bg-surface-raised px-3 py-2 text-sm"
++              >
++                Пространство «{recentlyArchived.name}» архивировано и остаётся доступным для чтения.
++              </p>
++            )}
++
++            {!spacesQuery.isLoading && hasCatalog && !terminal && spaces.length > 0 && (
++              <div className="grid w-full gap-2 sm:grid-cols-[minmax(0,1fr)_11rem_11rem_auto]">
++                <div className="relative min-w-0">
++                  <Search
++                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
++                    aria-hidden
++                  />
++                  <Input
++                    type="search"
++                    aria-label="Найти пространство"
++                    placeholder="Название, ключ или описание"
++                    value={search}
++                    onChange={(event) => {
++                      filter({ q: searchQuery.format(event.target.value) }, true)
++                    }}
++                    className="min-h-10 pl-9"
++                  />
++                </div>
++                <Select
++                  aria-label="Статус пространства"
++                  value={status}
+                   onChange={(event) => {
+-                    setMineOnly(event.target.checked)
+-                    resetListPosition()
++                    filter({ status: statusQuery.format(statusQuery.parse(event.target.value)) })
+                   }}
+-                  className="h-4 w-4 accent-accent"
+-                />
+-                Только мои
+-              </label>
++                >
++                  <option value="all">Все статусы</option>
++                  <option value="active">Активные</option>
++                  <option value="archived">Архивные</option>
++                </Select>
++                <Select
++                  aria-label="Сортировка пространств"
++                  value={sort}
++                  onChange={(event) => {
++                    filter({ sort: sortQuery.format(sortQuery.parse(event.target.value)) })
++                  }}
++                >
++                  <option value="updated">Сначала обновлённые</option>
++                  <option value="name">По названию</option>
++                </Select>
++                {currentUserQuery.data && (
++                  <label className="base-control flex cursor-pointer items-center gap-2 whitespace-nowrap text-sm text-text-secondary">
++                    <input
++                      type="checkbox"
++                      checked={mineOnly}
++                      onChange={(event) => {
++                        filter({ owner: mineQuery.format(event.target.checked ? 'mine' : 'all') })
++                      }}
++                      className="h-4 w-4 accent-accent"
++                    />
++                    Только мои
++                  </label>
++                )}
++              </div>
+             )}
+-          </div>
++          </>
++        }
++      >
++        <section aria-label="Список пространств" className="space-y-3">
+           <p className="text-xs text-text-muted">
+             Показано {visibleSpaces.length} из {filteredSpaces.length} пространств
+           </p>
+@@ -472,14 +613,23 @@ export function SpacesPage() {
+                       type="button"
+                       aria-expanded={expanded}
+                       aria-controls={`space-details-${space.key}`}
+-                      onClick={() => setExpandedKey(expanded ? null : space.key)}
++                      ref={expanded ? listFocusRef : undefined}
++                      onClick={() =>
++                        setSearchParams((current) =>
++                          updateQuery(current, { expanded: expanded ? null : space.key }),
++                        )
++                      }
+                       className="flex min-h-16 w-full min-w-0 items-start gap-3 py-2 text-left transition-colors hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
+                     >
+                       <FolderOpen className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
+                       <span className="min-w-0 flex-1 space-y-1">
+-                        <span className="flex min-w-0 items-center gap-2">
+-                          <span className="truncate text-sm font-semibold">{space.name}</span>
+-                          <span className="shrink-0 text-xs text-text-muted">{space.key}</span>
++                        <span className="flex min-w-0 flex-wrap items-center gap-2">
++                          <span className="max-w-full truncate text-sm font-semibold">
++                            {space.name}
++                          </span>
++                          <span className="min-w-0 break-all text-xs text-text-muted">
++                            {space.key}
++                          </span>
+                           {space.status === 'archived' && (
+                             <span className="shrink-0 text-xs text-warning">
+                               {statusLabel(space.status)}
+@@ -509,6 +659,14 @@ export function SpacesPage() {
+                           currentUserId={currentUserQuery.data?.id}
+                           isSystemAdmin={isSystemAdmin}
+                           onArchived={handleArchived}
++                          updateSpace={updateSpace}
++                          archiveSpace={archiveSpace}
++                          onUpdated={handleUpdated}
++                          draft={drafts[space.key]}
++                          onDraftChange={(draft) =>
++                            setDrafts((current) => ({ ...current, [space.key]: draft }))
++                          }
++                          fallbackFocusRef={listFocusRef}
+                           space={space}
+                         />
+                       </div>
+@@ -527,10 +685,15 @@ export function SpacesPage() {
+                 className="min-h-10"
+                 disabled={currentPage === 1}
+                 onClick={() => {
+-                  setPage(currentPage - 1)
+-                  setExpandedKey(null)
++                  setSearchParams((current) =>
++                    updateQuery(current, {
++                      page: pageQuery.format(currentPage - 1),
++                      expanded: null,
++                    }),
++                  )
+                 }}
+               >
++                <ChevronLeft className="h-4 w-4" aria-hidden />
+                 Назад
+               </Button>
+               <span className="text-sm tabular-nums text-text-muted">
+@@ -543,16 +706,21 @@ export function SpacesPage() {
+                 className="min-h-10"
+                 disabled={currentPage === pageCount}
+                 onClick={() => {
+-                  setPage(currentPage + 1)
+-                  setExpandedKey(null)
++                  setSearchParams((current) =>
++                    updateQuery(current, {
++                      page: pageQuery.format(currentPage + 1),
++                      expanded: null,
++                    }),
++                  )
+                 }}
+               >
+                 Далее
++                <ChevronRight className="h-4 w-4" aria-hidden />
+               </Button>
+             </nav>
+           )}
+         </section>
+-      )}
+-    </div>
++      </ListPage>
++    </>
+   )
+ }
+diff --git a/frontend/src/pages/spaces/spaces.test.tsx b/frontend/src/pages/spaces/spaces.test.tsx
+index b51da72..ea152bd 100644
+--- a/frontend/src/pages/spaces/spaces.test.tsx
++++ b/frontend/src/pages/spaces/spaces.test.tsx
+@@ -1,5 +1,5 @@
+ import { fireEvent, render, screen, within } from '@testing-library/react'
+-import { MemoryRouter } from 'react-router'
++import { createMemoryRouter, RouterProvider, useLocation, useNavigate } from 'react-router'
+ import { afterEach, describe, expect, it, vi } from 'vitest'
+ 
+ import { SpacesPage } from './'
+@@ -57,11 +57,15 @@ function setupSpaces({
+   membersOverrides = {},
+   userOverrides = {},
+   usersOverrides = {},
++  spacesOverrides = {},
++  initialEntry = '/spaces',
+   spaceList,
+ }: {
+   membersOverrides?: Record<string, unknown>
+   userOverrides?: Record<string, unknown>
+   usersOverrides?: Record<string, unknown>
++  spacesOverrides?: Record<string, unknown>
++  initialEntry?: string
+   spaceList?: Array<Record<string, unknown>>
+ } = {}) {
+   useCurrentUser.mockReturnValue({
+@@ -96,6 +100,7 @@ function setupSpaces({
+     isLoading: false,
+     isError: false,
+     refetch: refetchSpaces,
++    ...spacesOverrides,
+   })
+   useSpaceTree.mockReturnValue({
+     data: {
+@@ -151,10 +156,38 @@ function setupSpaces({
+     error: null,
+   })
+ 
+-  render(
+-    <MemoryRouter>
+-      <SpacesPage />
+-    </MemoryRouter>,
++  const router = createMemoryRouter(
++    [
++      {
++        path: '/spaces',
++        element: (
++          <>
++            <SpacesPage />
++            <RouterState />
++          </>
++        ),
++      },
++      { path: '*', element: <h1>Other page</h1> },
++    ],
++    { initialEntries: [initialEntry] },
++  )
++  render(<RouterProvider router={router} />)
++  return router
++}
++
++function RouterState() {
++  const location = useLocation()
++  const navigate = useNavigate()
++  return (
++    <>
++      <output aria-label="URL">
++        {location.pathname}
++        {location.search}
++      </output>
++      <button onClick={() => navigate(-1)}>History back</button>
++      <button onClick={() => navigate(1)}>History forward</button>
++      <button onClick={() => navigate('/other')}>Leave catalog</button>
++    </>
+   )
+ }
+ 
+@@ -179,11 +212,11 @@ describe('SpacesPage', () => {
+     expect(screen.queryByRole('button', { name: 'Назначить' })).not.toBeInTheDocument()
+     expect(screen.getByRole('link', { name: /Требования требования/ })).toHaveAttribute(
+       'href',
+-      '/documents/product-requirements',
++      '/documents/product-requirements?space=BASE',
+     )
+     expect(screen.getByRole('link', { name: /План проверки план проверки/ })).toHaveAttribute(
+       'href',
+-      '/documents/test-plan',
++      '/documents/test-plan?space=BASE',
+     )
+     expect(useSpaceTree).toHaveBeenCalledWith('BASE')
+     expect(useSpaceMembers).toHaveBeenCalledWith('BASE', false)
+@@ -194,16 +227,16 @@ describe('SpacesPage', () => {
+     fireEvent.click(screen.getByRole('button', { name: 'Создать пространство' }))
+     fireEvent.click(screen.getByRole('button', { name: /База знаний Base/ }))
+ 
+-    fireEvent.change(screen.getByLabelText('Ключ'), {
++    fireEvent.change(screen.getByRole('textbox', { name: 'Ключ' }), {
+       target: { value: 'TEAM' },
+     })
+-    fireEvent.change(screen.getByLabelText('Название'), {
++    fireEvent.change(screen.getByRole('textbox', { name: 'Название' }), {
+       target: { value: 'Командная Wiki' },
+     })
+     fireEvent.change(screen.getAllByLabelText('Описание')[0]!, {
+       target: { value: 'Документы команды и решений по задачам' },
+     })
+-    fireEvent.submit(screen.getByLabelText('Ключ').closest('form')!)
++    fireEvent.submit(screen.getByRole('textbox', { name: 'Ключ' }).closest('form')!)
+     expect(createMutate).toHaveBeenCalledWith(
+       {
+         key: 'TEAM',
+@@ -213,17 +246,22 @@ describe('SpacesPage', () => {
+       { onSuccess: expect.any(Function) },
+     )
+ 
+-    fireEvent.change(screen.getByLabelText('Название пространства'), {
++    fireEvent.change(screen.getByRole('textbox', { name: 'Название пространства' }), {
+       target: { value: 'База знаний продукта' },
+     })
+-    fireEvent.submit(screen.getByLabelText('Название пространства').closest('form')!)
+-    expect(updateMutate).toHaveBeenCalledWith({
+-      spaceKey: 'BASE',
+-      body: {
+-        name: 'База знаний продукта',
+-        description: 'Основные документы продукта',
++    fireEvent.submit(
++      screen.getByRole('textbox', { name: 'Название пространства' }).closest('form')!,
++    )
++    expect(updateMutate).toHaveBeenCalledWith(
++      {
++        spaceKey: 'BASE',
++        body: {
++          name: 'База знаний продукта',
++          description: 'Основные документы продукта',
++        },
+       },
+-    })
++      { onSuccess: expect.any(Function) },
++    )
+ 
+     fireEvent.click(screen.getByRole('button', { name: 'Архивировать' }))
+     const dialog = screen.getByRole('alertdialog')
+@@ -245,7 +283,7 @@ describe('SpacesPage', () => {
+     expect(screen.queryByRole('button', { name: 'Создать пространство' })).not.toBeInTheDocument()
+     fireEvent.click(screen.getByRole('button', { name: /База знаний Base/ }))
+     expect(useSpaceMembers).toHaveBeenCalledWith('BASE', true)
+-    expect(screen.getByLabelText('Название пространства')).toBeInTheDocument()
++    expect(screen.getByRole('textbox', { name: 'Название пространства' })).toBeInTheDocument()
+     expect(screen.queryByLabelText('Роль')).not.toBeInTheDocument()
+     expect(screen.queryByRole('button', { name: 'Назначить' })).not.toBeInTheDocument()
+   })
+@@ -258,23 +296,96 @@ describe('SpacesPage', () => {
+       },
+     })
+     fireEvent.click(screen.getByRole('button', { name: /База знаний Base/ }))
+-    expect(screen.queryByLabelText('Название пространства')).not.toBeInTheDocument()
++    expect(screen.queryByRole('textbox', { name: 'Название пространства' })).not.toBeInTheDocument()
+   })
+ 
+-  it('reports legacy membership lookup errors with retry', () => {
++  it('reports denied legacy membership without retry or editing actions', () => {
+     setupSpaces({
+       userOverrides: { data: { ...adminUser, is_system_admin: false } },
+       membersOverrides: {
+         data: undefined,
+         isLoading: false,
+         isError: true,
+-        error: { code: 'FORBIDDEN', message: 'Forbidden' },
++        error: { status: 403, code: 'FORBIDDEN', message: 'Forbidden' },
+       },
+     })
+     fireEvent.click(screen.getByRole('button', { name: /База знаний Base/ }))
+-    expect(screen.getByRole('alert')).toHaveTextContent('Недостаточно прав для действия')
+-    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }))
+-    expect(refetchMembers).toHaveBeenCalled()
++    expect(screen.getByRole('heading', { name: 'Нет доступа' })).toBeInTheDocument()
++    expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument()
++    expect(screen.queryByRole('button', { name: 'Сохранить' })).not.toBeInTheDocument()
++  })
++
++  it('does not retain legacy write permission from stale membership after a 403', () => {
++    setupSpaces({
++      userOverrides: { data: { ...adminUser, is_system_admin: false } },
++      membersOverrides: {
++        data: { members: [{ user_id: adminUser.id, role: 'admin' }] },
++        isError: true,
++        error: { status: 403 },
++      },
++      initialEntry: '/spaces?expanded=BASE',
++    })
++    expect(screen.queryByRole('textbox', { name: 'Название пространства' })).not.toBeInTheDocument()
++    expect(screen.queryByRole('button', { name: 'Архивировать' })).not.toBeInTheDocument()
++    expect(screen.getByRole('heading', { name: 'Нет доступа' })).toBeInTheDocument()
++  })
++
++  it('does not suggest document creation when every space is archived', () => {
++    setupSpaces({
++      spaceList: [
++        {
++          id: 'archived',
++          key: 'OLD',
++          name: 'Архив',
++          status: 'archived',
++          document_count: 0,
++          updated_at: '2026-08-31T11:00:00Z',
++        },
++      ],
++    })
++    expect(screen.queryByRole('link', { name: 'Новый документ' })).not.toBeInTheDocument()
++  })
++
++  it.each([400, 503])(
++    'shows cold HTTP %s as a load error, not an empty catalog, with bounded retry',
++    (status) => {
++      setupSpaces({ spacesOverrides: { data: undefined, isError: true, error: { status } } })
++      expect(screen.getByRole('alert')).toHaveTextContent('Не удалось загрузить пространства')
++      expect(screen.queryByText('Пространства ещё не созданы')).not.toBeInTheDocument()
++      expect(Boolean(screen.queryByRole('button', { name: 'Повторить' }))).toBe(status === 503)
++    },
++  )
++
++  it('shows loading without an empty result or document creation', () => {
++    setupSpaces({ spacesOverrides: { data: undefined, isLoading: true } })
++    expect(screen.getByText('Загружаем пространства')).toBeInTheDocument()
++    expect(screen.queryByText('Пространства ещё не созданы')).not.toBeInTheDocument()
++    expect(screen.queryByRole('link', { name: 'Новый документ' })).not.toBeInTheDocument()
++  })
++
++  it('keeps create values on failure and guards a same-tick duplicate submit', () => {
++    setupSpaces()
++    fireEvent.click(screen.getByRole('button', { name: 'Создать пространство' }))
++    fireEvent.change(screen.getByRole('textbox', { name: 'Ключ' }), { target: { value: 'TEAM' } })
++    fireEvent.change(screen.getByRole('textbox', { name: 'Название' }), {
++      target: { value: 'Команда' },
++    })
++    const form = screen.getByRole('form', { name: 'Создание пространства' })
++    fireEvent.submit(form)
++    fireEvent.submit(form)
++    expect(createMutate).toHaveBeenCalledOnce()
++    useCreateSpace.mockReturnValue({
++      mutate: createMutate,
++      isPending: false,
++      isError: true,
++      error: { code: 'VALIDATION_ERROR' },
++    })
++    fireEvent.change(screen.getByRole('combobox', { name: 'Сортировка пространств' }), {
++      target: { value: 'name' },
++    })
++    expect(screen.getByRole('textbox', { name: 'Ключ' })).toHaveValue('TEAM')
++    expect(screen.getByRole('textbox', { name: 'Название' })).toHaveValue('Команда')
++    expect(within(form).getByRole('alert')).toHaveTextContent('Проверьте заполнение полей')
+   })
+ 
+   it('keeps archived spaces read-only', () => {
+@@ -296,45 +407,17 @@ describe('SpacesPage', () => {
+     })
+ 
+     fireEvent.click(screen.getByRole('button', { name: /База знаний Base/ }))
+-    expect(screen.queryByLabelText('Название пространства')).not.toBeInTheDocument()
++    expect(screen.queryByRole('textbox', { name: 'Название пространства' })).not.toBeInTheDocument()
+     expect(screen.queryByRole('button', { name: 'Архивировать' })).not.toBeInTheDocument()
+   })
+ 
+   it('shows the empty state action for a fresh Wiki instance', () => {
+-    useCurrentUser.mockReturnValue({
+-      data: adminUser,
+-      isLoading: false,
+-      isError: false,
+-    })
+-    useUsers.mockReturnValue({
+-      data: { users: [adminUser] },
+-      isLoading: false,
+-      isError: false,
+-    })
+-    useSpaces.mockReturnValue({
+-      data: { spaces: [] },
+-      isLoading: false,
+-      isError: false,
+-      refetch: refetchSpaces,
+-    })
+-    useCreateSpace.mockReturnValue({
+-      mutate: createMutate,
+-      isPending: false,
+-      isError: false,
+-      error: null,
+-    })
+-
+-    render(
+-      <MemoryRouter>
+-        <SpacesPage />
+-      </MemoryRouter>,
+-    )
++    setupSpaces({ spaceList: [] })
+ 
+     expect(screen.getByText('Пространства ещё не созданы')).toBeInTheDocument()
+-    expect(screen.getByRole('link', { name: 'Создать первый документ' })).toHaveAttribute(
+-      'href',
+-      '/documents/new?space=BASE',
+-    )
++    expect(screen.queryByRole('link', { name: /документ/ })).not.toBeInTheDocument()
++    fireEvent.click(screen.getByRole('button', { name: 'Создать пространство' }))
++    expect(screen.getByRole('form', { name: 'Создание пространства' })).toBeInTheDocument()
+     expect(useSpaceTree).not.toHaveBeenCalled()
+   })
+ 
+@@ -369,5 +452,126 @@ describe('SpacesPage', () => {
+     })
+     expect(screen.getByText('Space 25')).toBeInTheDocument()
+     expect(screen.queryByText('Space 13')).not.toBeInTheDocument()
++    expect(screen.getByLabelText('URL')).toHaveTextContent('/spaces?q=Space+25')
++  })
++
++  it('restores filters and expanded context from the URL and browser history', () => {
++    setupSpaces({
++      initialEntry: '/spaces?q=Base&status=active&sort=name&owner=mine&expanded=BASE&keep=1',
++    })
++    expect(screen.getByRole('searchbox')).toHaveValue('Base')
++    expect(screen.getByRole('combobox', { name: 'Статус пространства' })).toHaveValue('active')
++    expect(screen.getByRole('combobox', { name: 'Сортировка пространств' })).toHaveValue('name')
++    expect(screen.getByRole('checkbox')).toBeChecked()
++    expect(screen.getByRole('button', { name: /База знаний Base/ })).toHaveAttribute(
++      'aria-expanded',
++      'true',
++    )
++    fireEvent.change(screen.getByRole('combobox', { name: 'Статус пространства' }), {
++      target: { value: 'archived' },
++    })
++    expect(screen.getByLabelText('URL')).toHaveTextContent('status=archived')
++    expect(screen.getByLabelText('URL')).not.toHaveTextContent('expanded=')
++    expect(screen.getByLabelText('URL')).toHaveTextContent('keep=1')
++    fireEvent.click(screen.getByRole('button', { name: 'History back' }))
++    expect(screen.getByRole('combobox', { name: 'Статус пространства' })).toHaveValue('active')
++    expect(screen.getByText('Дерево')).toBeInTheDocument()
++    fireEvent.click(screen.getByRole('button', { name: 'History forward' }))
++    expect(screen.getByRole('combobox', { name: 'Статус пространства' })).toHaveValue('archived')
++  })
++
++  it('normalizes invalid filters and clamps a page without dropping unrelated URL context', () => {
++    setupSpaces({
++      initialEntry: '/spaces?status=unknown&sort=unknown&owner=unknown&page=999&keep=yes',
++    })
++    expect(screen.getByRole('combobox', { name: 'Статус пространства' })).toHaveValue('all')
++    expect(screen.getByLabelText('URL')).toHaveTextContent('/spaces?keep=yes')
++  })
++
++  it.each([403, 404])('hides stale catalog and CRUD controls on HTTP %s', (status) => {
++    setupSpaces({ spacesOverrides: { isError: true, error: { status } } })
++    expect(screen.queryByText('База знаний Base')).not.toBeInTheDocument()
++    expect(screen.queryByRole('button', { name: 'Создать пространство' })).not.toBeInTheDocument()
++    expect(screen.queryByRole('link', { name: 'Новый документ' })).not.toBeInTheDocument()
++    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument()
++    expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument()
++  })
++
++  it('retains the catalog on a retryable refresh failure and reports partial error', () => {
++    setupSpaces({ spacesOverrides: { isError: true, error: { status: 503 } } })
++    expect(screen.getByText('База знаний Base')).toBeInTheDocument()
++    expect(document.querySelector('[data-page-state="partial-error"]')).toBeInTheDocument()
++    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }))
++    expect(refetchSpaces).toHaveBeenCalledOnce()
++  })
++
++  it('prevents programmatic submission while pending and preserves values on mutation error', () => {
++    setupSpaces()
++    useCreateSpace.mockReturnValue({
++      mutate: createMutate,
++      isPending: true,
++      isError: true,
++      error: { code: 'VALIDATION_ERROR' },
++    })
++    fireEvent.click(screen.getByRole('button', { name: 'Создать пространство' }))
++    fireEvent.submit(screen.getByRole('form', { name: 'Создание пространства' }))
++    expect(createMutate).not.toHaveBeenCalled()
++    expect(screen.getByRole('textbox', { name: 'Ключ' })).toBeDisabled()
++    expect(screen.getByRole('alert')).toHaveTextContent('Проверьте заполнение полей')
++  })
++
++  it('preserves a create draft when hidden and blocks leaving until confirmed', () => {
++    setupSpaces()
++    const toggle = screen.getByRole('button', { name: 'Создать пространство' })
++    fireEvent.click(toggle)
++    fireEvent.change(screen.getByRole('textbox', { name: 'Ключ' }), { target: { value: 'TEAM' } })
++    fireEvent.click(toggle)
++    fireEvent.click(toggle)
++    expect(screen.getByRole('textbox', { name: 'Ключ' })).toHaveValue('TEAM')
++    fireEvent.click(screen.getByRole('button', { name: 'Leave catalog' }))
++    const dialog = screen.getByRole('alertdialog')
++    expect(screen.queryByRole('heading', { name: 'Other page' })).not.toBeInTheDocument()
++    fireEvent.click(within(dialog).getByRole('button', { name: 'Отмена' }))
++    expect(screen.getByRole('textbox', { name: 'Ключ' })).toHaveValue('TEAM')
++    fireEvent.click(screen.getByRole('button', { name: 'Leave catalog' }))
++    fireEvent.click(
++      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Подтвердить' }),
++    )
++    expect(screen.getByRole('heading', { name: 'Other page' })).toBeInTheDocument()
++  })
++
++  it('preserves edit drafts across collapse, URL filters and a newer background snapshot', () => {
++    setupSpaces({ initialEntry: '/spaces?expanded=BASE' })
++    fireEvent.change(screen.getByRole('textbox', { name: 'Название пространства' }), {
++      target: { value: 'Мой черновик' },
++    })
++    fireEvent.click(screen.getByRole('button', { name: /База знаний Base/ }))
++    expect(screen.queryByRole('textbox', { name: 'Название пространства' })).not.toBeInTheDocument()
++    const result = useSpaces.mock.results.at(-1)!.value
++    useSpaces.mockReturnValue({
++      ...result,
++      data: {
++        spaces: [
++          {
++            ...result.data.spaces[0],
++            name: 'Чужое обновление',
++            updated_at: '2026-10-01T11:00:00Z',
++          },
++        ],
++      },
++    })
++    fireEvent.change(screen.getByRole('combobox', { name: 'Сортировка пространств' }), {
++      target: { value: 'name' },
++    })
++    fireEvent.click(screen.getByRole('button', { name: /Чужое обновление/ }))
++    expect(screen.getByRole('textbox', { name: 'Название пространства' })).toHaveValue(
++      'Мой черновик',
++    )
++    expect(screen.getByRole('link', { name: 'Новый документ' })).toHaveAttribute(
++      'href',
++      '/documents/new?space=BASE',
++    )
++    fireEvent.click(screen.getByRole('button', { name: 'Leave catalog' }))
++    expect(screen.getByRole('alertdialog')).toHaveTextContent('Несохранённые изменения')
+   })
+ })
+diff --git a/frontend/src/shared/ui/unsaved-changes-guard.tsx b/frontend/src/shared/ui/unsaved-changes-guard.tsx
+deleted file mode 100644
+index e4e1ecf..0000000
+--- a/frontend/src/shared/ui/unsaved-changes-guard.tsx
++++ /dev/null
+@@ -1,36 +0,0 @@
+-import { useCallback } from 'react'
+-import { useBeforeUnload, useBlocker } from 'react-router'
+-import { ConfirmDialog } from '@sdlc/ui/ui'
+-
+-interface UnsavedChangesGuardProps {
+-  when: boolean
+-}
+-
+-export function UnsavedChangesGuard({ when }: UnsavedChangesGuardProps) {
+-  const blocker = useBlocker(when)
+-
+-  useBeforeUnload(
+-    useCallback(
+-      (event) => {
+-        if (!when) return
+-        event.preventDefault()
+-        event.returnValue = ''
+-      },
+-      [when],
+-    ),
+-  )
+-
+-  return (
+-    <ConfirmDialog
+-      open={blocker.state === 'blocked'}
+-      onOpenChange={(open) => {
+-        if (!open && blocker.state === 'blocked') blocker.reset()
+-      }}
+-      title="Покинуть страницу?"
+-      description="Несохранённые изменения будут потеряны. Сохраните черновик или подтвердите переход."
+-      onConfirm={() => {
+-        if (blocker.state === 'blocked') blocker.proceed()
+-      }}
+-    />
+-  )
+-}
+diff --git a/frontend/src/widgets/app-shell.test.tsx b/frontend/src/widgets/app-shell.test.tsx
+index f08741d..86950d6 100644
+--- a/frontend/src/widgets/app-shell.test.tsx
++++ b/frontend/src/widgets/app-shell.test.tsx
+@@ -146,7 +146,7 @@ describe('AppShell', () => {
+ 
+   it('keeps the selected space in global create and avoids a duplicate create on its form', () => {
+     mockHooks()
+-    const shell = renderShell('/spaces?space=TEAM')
++    const shell = renderShell('/search?space=TEAM')
+     expect(screen.getByRole('link', { name: 'Новый документ' })).toHaveAttribute(
+       'href',
+       '/documents/new?space=TEAM',
+@@ -155,4 +155,10 @@ describe('AppShell', () => {
+     renderShell('/documents/new?space=TEAM')
+     expect(screen.queryByRole('link', { name: 'Новый документ' })).not.toBeInTheDocument()
+   })
++
++  it('leaves document creation ownership to the spaces page so empty catalogs cannot offer a parentless write', () => {
++    mockHooks()
++    renderShell('/spaces')
++    expect(screen.queryByRole('link', { name: 'Новый документ' })).not.toBeInTheDocument()
++  })
+ })
+diff --git a/frontend/src/widgets/app-shell.tsx b/frontend/src/widgets/app-shell.tsx
+index ce59784..2207599 100644
+--- a/frontend/src/widgets/app-shell.tsx
++++ b/frontend/src/widgets/app-shell.tsx
+@@ -54,7 +54,7 @@ export function AppShell() {
+       navigation={[...baseNavItems, ...(user?.is_system_admin ? adminNavItems : [])]}
+       layout={layout}
+       actions={
+-        location.pathname !== '/documents/new' && (
++        !['/documents/new', '/spaces'].includes(location.pathname) && (
+           <Button asChild>
+             <Link to={createHref} aria-label="Новый документ" title="Новый документ">
+               <FilePlus2 className="h-4 w-4" aria-hidden />

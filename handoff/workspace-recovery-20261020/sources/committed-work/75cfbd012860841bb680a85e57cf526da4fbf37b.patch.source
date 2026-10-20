@@ -1,0 +1,1194 @@
+diff --git a/.base-revision b/.base-revision
+index 5cd7882..4604f10 100644
+--- a/.base-revision
++++ b/.base-revision
+@@ -1 +1 @@
+-cc52d3121335c616415bc8675e229a22f775931a
++193ad1e8fd6260f001640943a5ec07ff04f527d1
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index fa27792..3cbcc72 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -6,7 +6,11 @@
+ 
+ ## [Unreleased]
+ 
+-- Base закреплён на `cc52d3121335c616415bc8675e229a22f775931a`: общий
++- Создание документа использует общие DetailPage/FormField/Select и URL-вкладки.
++  Пространство сохраняется в encoded dossier links; 403/404 и архивный родитель
++  не предлагают создание. Refetch/ошибки блокируют запись и сохраняют черновик;
++  загрузка шаблона не перезаписывает введённый текст, double submit блокируется.
++- Base закреплён на `193ad1e8fd6260f001640943a5ec07ff04f527d1`: общий
+   cross-platform fingerprint и согласованная локальная UI/UX-поставка.
+   Source/dependency checkpoint не заменяет приёмку фактических images и SSO.
+ - `evidence add-file` использует разные стабильные ключи upload/create, производные от явного idempotency key; повтор составной команды больше не вызывает конфликт между этапами.
+diff --git a/docs/COMPOSE_UI.md b/docs/COMPOSE_UI.md
+new file mode 100644
+index 0000000..e962747
+--- /dev/null
++++ b/docs/COMPOSE_UI.md
+@@ -0,0 +1,23 @@
++# Создание Документа
++
++Маршрут: `/documents/new?space=<key>&template=<optional-id>&tab=preview`.
++Композиция Base: `DetailPage`, `detail-with-aside`. Ссылки на dossier передают
++выбранное пространство. По умолчанию открывается Markdown; view-вкладки
++сохраняют остальные query/hash и поддерживают историю. Черновик только в памяти.
++
++Источники: существующие current-user, spaces и необязательный templates query.
++Создание использует действующий document mutation. Для submit нужны свежая
++активная identity и активное пространство; доменные права проверяет сервер.
++API и схемы не меняются; права не выводятся из глобальной роли пользователя.
++
++Spaces source определяет loading/not-found/permission/error состояния страницы.
++Повторяемый cached сбой показывает read-only draft и retry. Terminal/business/
++cancelled ошибки скрывают недоступные источники, не стирая состояние черновика.
++Отсутствующий/архивный родитель не предлагает create и не подменяется BASE.
++Ошибки templates независимы; поздняя автозагрузка шаблона не перезаписывает ввод.
++Submit проверяет обязательный текст на обеих вкладках и native validity;
++повторные вызовы заблокированы до settlement. Ошибка записи сохраняет поля.
++
++Миграция входит в утверждённый workspace-план UI/UX. Browser fixtures являются
++тестовым evidence, а не актуальной README/runtime-приёмкой. Точные snapshot,
++результаты и оставшиеся выпускные требования указаны в workspace-журнале.
+diff --git a/frontend/e2e/smoke.spec.ts b/frontend/e2e/smoke.spec.ts
+index 00681da..76ecd45 100644
+--- a/frontend/e2e/smoke.spec.ts
++++ b/frontend/e2e/smoke.spec.ts
+@@ -1314,6 +1314,155 @@ test.describe('wiki smoke', () => {
+     })
+   })
+ 
++  test('uses Base compose fields, URL tabs and detail geometry across themes and widths', async ({
++    page,
++  }, testInfo) => {
++    test.setTimeout(180_000)
++    await installWikiApiMocks(page)
++    const failures: string[] = []
++    page.on('pageerror', (error) => failures.push(error.message))
++    page.on('console', (message) => {
++      if (message.type() === 'error') failures.push(message.text())
++    })
++    for (const theme of ['dark', 'gray', 'light']) {
++      await gotoWiki(page, '/documents/new?space=BASE&source=search#editor')
++      await page.evaluate((value) => localStorage.setItem('theme', value), theme)
++      await page.reload()
++      await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
++      await page.getByRole('textbox', { name: 'Название', exact: true }).fill(longUnbrokenValue)
++      await page
++        .getByRole('textbox', { name: 'Markdown документа', exact: true })
++        .fill(longUnbrokenValue)
++      for (const width of [375, 767, 768, 1023, 1024, 1279, 1280, 1440, 1920, 2560]) {
++        await page.setViewportSize({ width, height: 1080 })
++        const main = page.locator('[data-page-layout]')
++        await expect(main).toHaveAttribute('data-page-layout', 'detail-with-aside')
++        await expect
++          .poll(() =>
++            main.evaluate((element) =>
++              Array.from(element.querySelectorAll('input, select, button, [role="tab"]'))
++                .filter(
++                  (control) => control.getClientRects().length && !control.closest('[hidden]'),
++                )
++                .every(
++                  (control) =>
++                    control.getBoundingClientRect().height >= (innerWidth < 768 ? 44 : 40),
++                ),
++            ),
++          )
++          .toBe(true)
++        const measurements = await main.evaluate((element) => {
++          const split = element.querySelector('.page-split')!
++          const aside = split.querySelector('aside')!
++          const content = split.firstElementChild!
++          const controls = Array.from(
++            element.querySelectorAll('input, select, button, [role="tab"]'),
++          ).filter((control) => control.getClientRects().length && !control.closest('[hidden]'))
++          return {
++            fits: document.documentElement.scrollWidth <= document.documentElement.clientWidth,
++            aside: aside.getBoundingClientRect().width,
++            stacked: aside.getBoundingClientRect().top >= content.getBoundingClientRect().bottom,
++            targets: controls.map((control) => ({
++              label: control.getAttribute('aria-label') ?? control.textContent ?? control.id,
++              height: control.getBoundingClientRect().height,
++              minHeight: getComputedStyle(control).minHeight,
++            })),
++          }
++        })
++        expect(measurements.fits).toBe(true)
++        await expect
++          .poll(() =>
++            page
++              .getByRole('textbox', { name: 'Markdown документа', exact: true })
++              .evaluate((element) => element.getBoundingClientRect().height),
++          )
++          .toBeGreaterThanOrEqual(384)
++        for (const target of measurements.targets)
++          expect(
++            target.height,
++            `${theme}/${width}: ${JSON.stringify(target)}`,
++          ).toBeGreaterThanOrEqual(width < 768 ? 44 : 40)
++        if (width >= 1024) expect(Math.abs(measurements.aside - 320)).toBeLessThanOrEqual(1)
++        else expect(measurements.stacked).toBe(true)
++        if ([375, 1920, 2560].includes(width)) {
++          expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
++          await page.evaluate(() => {
++            ;(document.activeElement as HTMLElement)?.blur()
++            window.scrollTo(0, 0)
++          })
++          await page.screenshot({
++            path: testInfo.outputPath(`compose-${theme}-${width}.png`),
++            fullPage: true,
++          })
++        }
++      }
++      await page.getByRole('button', { name: 'Предпросмотр' }).click()
++      await expect(page).toHaveURL(
++        `${baseURL}/documents/new?space=BASE&source=search&tab=preview#editor`,
++      )
++      await expect(page.getByRole('alertdialog')).toHaveCount(0)
++      await page.goBack()
++      await expect(
++        page.getByRole('textbox', { name: 'Markdown документа', exact: true }),
++      ).toHaveValue(longUnbrokenValue)
++      await page.getByRole('link', { name: 'Пространства', exact: true }).click()
++      await page.getByRole('alertdialog').getByRole('button', { name: 'Подтвердить' }).click()
++      await expect(page).toHaveURL(/\/spaces/)
++    }
++    expect(failures).toEqual([])
++  })
++
++  test('retains the compose draft across a failed background refresh and explicit retry', async ({
++    page,
++  }) => {
++    await installWikiApiMocks(page)
++    let status = 200
++    let refreshRequests = 0
++    await page.route('**/api/v1/spaces', (route) => {
++      if (status !== 200) refreshRequests++
++      return status === 200
++        ? route.fallback()
++        : routeJson(route, { code: 'SERVICE_UNAVAILABLE', message: 'Unavailable' }, status)
++    })
++    await gotoWiki(page, '/documents/new?space=BASE')
++    const title = page.getByRole('textbox', { name: 'Название', exact: true })
++    await title.fill('Сохранённый в памяти черновик')
++    await page.getByRole('textbox', { name: 'Markdown документа', exact: true }).fill('# Own draft')
++    status = 503
++    await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
++    await expect.poll(() => refreshRequests, { timeout: 15_000 }).toBeGreaterThan(0)
++    await expect(page.locator('[data-page-state="partial-error"]')).toBeVisible({ timeout: 15_000 })
++    await expect(title).toHaveValue('Сохранённый в памяти черновик')
++    await expect(title).toBeDisabled()
++    await expect(page.getByRole('button', { name: 'Сохранить черновик' })).toBeDisabled()
++    status = 200
++    await page.getByRole('button', { name: 'Повторить', exact: true }).click()
++    await expect(title).toBeEnabled()
++    await expect(
++      page.getByRole('textbox', { name: 'Markdown документа', exact: true }),
++    ).toHaveValue('# Own draft')
++  })
++
++  for (const status of [403, 404]) {
++    test(`does not offer compose controls for a space source HTTP ${status}`, async ({ page }) => {
++      await installWikiApiMocks(page)
++      await page.route('**/api/v1/spaces', (route) =>
++        routeJson(
++          route,
++          { code: status === 403 ? 'FORBIDDEN' : 'NOT_FOUND', message: 'Unavailable' },
++          status,
++        ),
++      )
++      await gotoWiki(page, '/documents/new?space=BASE')
++      await expect(
++        page.locator(`[data-page-state="${status === 403 ? 'permission-denied' : 'not-found'}"]`),
++      ).toBeVisible({ timeout: 15_000 })
++      await expect(page.getByRole('button', { name: 'Сохранить черновик' })).toHaveCount(0)
++      await expect(page.getByRole('textbox', { name: 'Название', exact: true })).toHaveCount(0)
++      await expect(page.getByRole('button', { name: 'Повторить', exact: true })).toHaveCount(0)
++    })
++  }
++
+   test('previews a new document and protects its unsaved draft during navigation', async ({
+     page,
+   }) => {
+@@ -1336,11 +1485,11 @@ test.describe('wiki smoke', () => {
+     await page.getByRole('link', { name: 'Пространства', exact: true }).click()
+     const dialog = page.getByRole('alertdialog')
+     await expect(dialog).toContainText('Несохранённые изменения будут потеряны')
+-    await expect(page).toHaveURL(`${baseURL}/documents/new`)
++    await expect(page).toHaveURL(`${baseURL}/documents/new?tab=preview`)
+ 
+     await dialog.getByRole('button', { name: 'Отмена' }).click()
+     await expect(dialog).toBeHidden()
+-    await expect(page).toHaveURL(`${baseURL}/documents/new`)
++    await expect(page).toHaveURL(`${baseURL}/documents/new?tab=preview`)
+     await page.screenshot({ path: 'test-results/wiki-document-draft-preview.png', fullPage: true })
+ 
+     await page.getByRole('link', { name: 'Пространства', exact: true }).click()
+diff --git a/frontend/src/pages/document-compose/document-compose.test.tsx b/frontend/src/pages/document-compose/document-compose.test.tsx
+index 9f59a20..9f7d970 100644
+--- a/frontend/src/pages/document-compose/document-compose.test.tsx
++++ b/frontend/src/pages/document-compose/document-compose.test.tsx
+@@ -1,4 +1,5 @@
+ import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
++import { createContext, useContext } from 'react'
+ import { createMemoryRouter, RouterProvider } from 'react-router'
+ import { afterEach, describe, expect, it, vi } from 'vitest'
+ 
+@@ -7,20 +8,35 @@ import { DocumentComposePage } from './'
+ const useCreateDocument = vi.hoisted(() => vi.fn())
+ const useSpaces = vi.hoisted(() => vi.fn())
+ const useTemplates = vi.hoisted(() => vi.fn())
++const useCurrentUser = vi.hoisted(() => vi.fn())
+ 
+ const createDocumentMutate = vi.hoisted(() => vi.fn())
++const RefreshContext = createContext(0)
++
++function ComposeFixture() {
++  useContext(RefreshContext)
++  return <DocumentComposePage />
++}
++
++function initialQuery(mock: typeof useSpaces) {
++  const result = mock.mock.results[0]
++  if (!result || result.type !== 'return') throw new Error('Query fixture was not initialized')
++  return result.value
++}
+ 
+ vi.mock('@/shared/api/hooks', () => ({
+   defaultSpaceKey: 'BASE',
+   useCreateDocument,
+   useSpaces,
+   useTemplates,
++  useCurrentUser,
+ }))
+ 
+ function setupCompose(
+   createOverrides: Record<string, unknown> = {},
+   initialRoute = '/documents/new?space=eng',
+ ) {
++  useCurrentUser.mockReturnValue({ data: { active: true }, isLoading: false, isError: false })
+   useSpaces.mockReturnValue({
+     data: {
+       spaces: [
+@@ -65,13 +81,26 @@ function setupCompose(
+ 
+   const router = createMemoryRouter(
+     [
+-      { path: '/documents/new', element: <DocumentComposePage /> },
++      { path: '/documents/new', element: <ComposeFixture /> },
+       { path: '*', element: <div>Destination</div> },
+     ],
+     { initialEntries: [initialRoute] },
+   )
+-  render(<RouterProvider router={router} />)
+-  return router
++  let refresh = 0
++  const view = render(
++    <RefreshContext.Provider value={refresh}>
++      <RouterProvider router={router} />
++    </RefreshContext.Provider>,
++  )
++  return {
++    router,
++    rerender: () =>
++      view.rerender(
++        <RefreshContext.Provider value={++refresh}>
++          <RouterProvider router={router} />
++        </RefreshContext.Provider>,
++      ),
++  }
+ }
+ 
+ describe('DocumentComposePage', () => {
+@@ -80,15 +109,12 @@ describe('DocumentComposePage', () => {
+   })
+ 
+   it('creates a document through the shared API hook and navigates to the result', async () => {
+-    const router = setupCompose()
++    const { router } = setupCompose()
+ 
+-    fireEvent.change(screen.getByLabelText('Название'), {
++    fireEvent.change(screen.getByRole('textbox', { name: 'Название' }), {
+       target: { value: '  Новый регламент  ' },
+     })
+-    fireEvent.change(screen.getByLabelText('Пространство'), {
+-      target: { value: 'eng' },
+-    })
+-    fireEvent.change(screen.getByLabelText('Markdown документа'), {
++    fireEvent.change(screen.getByRole('textbox', { name: 'Markdown документа' }), {
+       target: { value: '# Новый регламент' },
+     })
+     fireEvent.click(screen.getByRole('button', { name: 'Сохранить черновик' }))
+@@ -106,7 +132,7 @@ describe('DocumentComposePage', () => {
+           title: 'Новый регламент',
+         },
+       },
+-      { onSuccess: expect.any(Function) },
++      expect.objectContaining({ onSuccess: expect.any(Function) }),
+     )
+ 
+     act(() => createDocumentMutate.mock.calls[0]?.[1]?.onSuccess({ slug: 'new-policy' }))
+@@ -116,9 +142,9 @@ describe('DocumentComposePage', () => {
+ 
+   it('locks inputs and suppresses repeated submission while creation is pending', () => {
+     setupCompose({ isPending: true })
+-    expect(screen.getByLabelText('Название')).toBeDisabled()
+-    expect(screen.getByLabelText('Markdown документа')).toBeDisabled()
+-    const form = screen.getByLabelText('Название').closest('form')
++    expect(screen.getByRole('textbox', { name: 'Название' })).toBeDisabled()
++    expect(screen.getByRole('textbox', { name: 'Markdown документа' })).toBeDisabled()
++    const form = screen.getByRole('textbox', { name: 'Название' }).closest('form')
+     expect(form).toHaveAttribute('aria-busy', 'true')
+     fireEvent.submit(form!)
+     expect(createDocumentMutate).not.toHaveBeenCalled()
+@@ -126,8 +152,10 @@ describe('DocumentComposePage', () => {
+ 
+   it('opens the preview from the page action', () => {
+     setupCompose()
+-    fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Новый регламент' } })
+-    fireEvent.change(screen.getByLabelText('Markdown документа'), {
++    fireEvent.change(screen.getByRole('textbox', { name: 'Название' }), {
++      target: { value: 'Новый регламент' },
++    })
++    fireEvent.change(screen.getByRole('textbox', { name: 'Markdown документа' }), {
+       target: { value: '# Содержание' },
+     })
+ 
+@@ -138,12 +166,14 @@ describe('DocumentComposePage', () => {
+   })
+ 
+   it('keeps an unsaved draft when navigation is cancelled and leaves after confirmation', async () => {
+-    const router = setupCompose()
++    const { router } = setupCompose()
+     const cleanUnloadEvent = new Event('beforeunload', { cancelable: true })
+     window.dispatchEvent(cleanUnloadEvent)
+     expect(cleanUnloadEvent.defaultPrevented).toBe(false)
+ 
+-    fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Черновик' } })
++    fireEvent.change(screen.getByRole('textbox', { name: 'Название' }), {
++      target: { value: 'Черновик' },
++    })
+     const dirtyUnloadEvent = new Event('beforeunload', { cancelable: true })
+     window.dispatchEvent(dirtyUnloadEvent)
+     expect(dirtyUnloadEvent.defaultPrevented).toBe(true)
+@@ -154,7 +184,7 @@ describe('DocumentComposePage', () => {
+     expect(router.state.location.pathname).toBe('/documents/new')
+ 
+     fireEvent.click(within(dialog).getByRole('button', { name: 'Отмена' }))
+-    expect(screen.getByLabelText('Название')).toHaveValue('Черновик')
++    expect(screen.getByRole('textbox', { name: 'Название' })).toHaveValue('Черновик')
+     expect(router.state.location.pathname).toBe('/documents/new')
+ 
+     await act(async () => router.navigate('/spaces'))
+@@ -168,11 +198,13 @@ describe('DocumentComposePage', () => {
+     setupCompose({}, '/documents/new?space=eng&template=tpl-test-plan')
+ 
+     await waitFor(() => {
+-      expect(screen.getByLabelText('Markdown документа')).toHaveValue('# Проверка\n\n- smoke')
++      expect(screen.getByRole('textbox', { name: 'Markdown документа' })).toHaveValue(
++        '# Проверка\n\n- smoke',
++      )
+     })
+     expect(screen.getByLabelText('Тип')).toHaveValue('test_plan')
+ 
+-    fireEvent.change(screen.getByLabelText('Название'), {
++    fireEvent.change(screen.getByRole('textbox', { name: 'Название' }), {
+       target: { value: 'План проверки релиза' },
+     })
+     fireEvent.click(screen.getByRole('button', { name: 'Сохранить черновик' }))
+@@ -190,7 +222,7 @@ describe('DocumentComposePage', () => {
+           title: 'План проверки релиза',
+         },
+       },
+-      { onSuccess: expect.any(Function) },
++      expect.objectContaining({ onSuccess: expect.any(Function) }),
+     )
+   })
+ 
+@@ -208,4 +240,172 @@ describe('DocumentComposePage', () => {
+     expect(alert).toHaveTextContent('Проверьте заполнение полей: Название: required')
+     expect(alert).not.toHaveTextContent('requestId')
+   })
++
++  it('keeps tab history and context in the URL without discarding the draft', async () => {
++    const { router } = setupCompose({}, '/documents/new?space=eng&source=search#editor')
++    fireEvent.change(screen.getByRole('textbox', { name: 'Название' }), {
++      target: { value: 'Draft' },
++    })
++    fireEvent.change(screen.getByRole('textbox', { name: 'Markdown документа' }), {
++      target: { value: '# Draft' },
++    })
++    fireEvent.click(screen.getByRole('button', { name: 'Предпросмотр' }))
++    await waitFor(() => expect(router.state.location.search).toContain('tab=preview'))
++    expect(router.state.location.search).toContain('source=search')
++    expect(router.state.location.hash).toBe('#editor')
++    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
++    await act(async () => router.navigate(-1))
++    expect(screen.getByRole('textbox', { name: 'Markdown документа' })).toHaveValue('# Draft')
++    await act(async () => router.navigate('/documents/new?space=other&source=search#editor'))
++    expect(screen.getByRole('alertdialog')).toBeVisible()
++  })
++
++  it('restores the preview tab on direct opening', () => {
++    setupCompose({}, '/documents/new?space=eng&tab=preview')
++    expect(screen.getByRole('tab', { name: 'Просмотр' })).toHaveAttribute('data-state', 'active')
++  })
++
++  it('blocks refetch-time submission and restores editable draft afterwards', () => {
++    const { rerender } = setupCompose()
++    fireEvent.change(screen.getByRole('textbox', { name: 'Название' }), {
++      target: { value: 'Draft' },
++    })
++    fireEvent.change(screen.getByRole('textbox', { name: 'Markdown документа' }), {
++      target: { value: '# Draft' },
++    })
++    const ready = initialQuery(useSpaces)
++    useSpaces.mockReturnValue({ ...ready, isFetching: true })
++    rerender()
++    expect(screen.getByRole('textbox', { name: 'Название' })).toBeDisabled()
++    fireEvent.submit(screen.getByRole('textbox', { name: 'Название' }).closest('form')!)
++    expect(createDocumentMutate).not.toHaveBeenCalled()
++    useSpaces.mockReturnValue(ready)
++    rerender()
++    expect(screen.getByRole('textbox', { name: 'Название' })).toHaveValue('Draft')
++    expect(screen.getByRole('textbox', { name: 'Markdown документа' })).toBeEnabled()
++  })
++
++  it.each([403, 404, 422, 'cancelled'])(
++    'hides invalid cached sources (%s) without losing the draft',
++    (status) => {
++      const { rerender } = setupCompose()
++      fireEvent.change(screen.getByRole('textbox', { name: 'Название' }), {
++        target: { value: 'Draft' },
++      })
++      const ready = initialQuery(useSpaces)
++      useSpaces.mockReturnValue({
++        ...ready,
++        isError: true,
++        error: status === 'cancelled' ? { kind: 'cancelled' } : { status },
++      })
++      rerender()
++      expect(screen.queryByRole('textbox', { name: 'Название' })).not.toBeInTheDocument()
++      expect(screen.queryByText('Engineering')).not.toBeInTheDocument()
++      expect(screen.queryByRole('button', { name: 'Сохранить черновик' })).not.toBeInTheDocument()
++      expect(createDocumentMutate).not.toHaveBeenCalled()
++      useSpaces.mockReturnValue(ready)
++      rerender()
++      expect(screen.getByRole('textbox', { name: 'Название' })).toHaveValue('Draft')
++    },
++  )
++
++  it('shows cached draft read-only with a retry for a transient source failure', () => {
++    const { rerender } = setupCompose()
++    fireEvent.change(screen.getByRole('textbox', { name: 'Название' }), {
++      target: { value: 'Draft' },
++    })
++    const retry = vi.fn()
++    useSpaces.mockReturnValue({
++      ...initialQuery(useSpaces),
++      isError: true,
++      error: { status: 503 },
++      refetch: retry,
++    })
++    rerender()
++    expect(screen.getByRole('textbox', { name: 'Название' })).toHaveValue('Draft')
++    expect(screen.getByRole('textbox', { name: 'Название' })).toBeDisabled()
++    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }))
++    expect(retry).toHaveBeenCalledOnce()
++  })
++
++  it.each(['missing', 'archived'])('does not offer create for a %s parent', (parent) => {
++    const { rerender } = setupCompose()
++    const ready = initialQuery(useSpaces)
++    useSpaces.mockReturnValue({
++      ...ready,
++      data: {
++        spaces:
++          parent === 'missing'
++            ? []
++            : ready.data.spaces.map((space: Record<string, unknown>) => ({
++                ...space,
++                status: 'archived',
++              })),
++      },
++    })
++    rerender()
++    expect(screen.queryByRole('button', { name: 'Сохранить черновик' })).not.toBeInTheDocument()
++    expect(createDocumentMutate).not.toHaveBeenCalled()
++  })
++
++  it('keeps optional template failures independent and never auto-overwrites typed body', () => {
++    const { rerender } = setupCompose({}, '/documents/new?space=eng&template=tpl-test-plan')
++    const ready = initialQuery(useTemplates)
++    useTemplates.mockReturnValue({ ...ready, data: undefined, isLoading: true })
++    rerender()
++    fireEvent.change(screen.getByRole('textbox', { name: 'Markdown документа' }), {
++      target: { value: '# Own draft' },
++    })
++    useTemplates.mockReturnValue(ready)
++    rerender()
++    expect(screen.getByRole('textbox', { name: 'Markdown документа' })).toHaveValue('# Own draft')
++    useTemplates.mockReturnValue({ ...ready, isError: true, error: { status: 403 } })
++    rerender()
++    expect(screen.queryByRole('button', { name: 'План проверки' })).not.toBeInTheDocument()
++    fireEvent.change(screen.getByRole('textbox', { name: 'Название' }), {
++      target: { value: 'Draft' },
++    })
++    fireEvent.click(screen.getByRole('button', { name: 'Сохранить черновик' }))
++    expect(createDocumentMutate).toHaveBeenCalledOnce()
++  })
++
++  it('validates whitespace in preview and blocks same-tick double submit', async () => {
++    const { router } = setupCompose()
++    const form = screen.getByRole('textbox', { name: 'Название' }).closest('form')!
++    fireEvent.change(screen.getByRole('textbox', { name: 'Название' }), {
++      target: { value: '   ' },
++    })
++    fireEvent.change(screen.getByRole('textbox', { name: 'Markdown документа' }), {
++      target: { value: '   ' },
++    })
++    fireEvent.submit(form)
++    expect(createDocumentMutate).not.toHaveBeenCalled()
++    fireEvent.change(screen.getByRole('textbox', { name: 'Название' }), {
++      target: { value: 'Draft' },
++    })
++    fireEvent.change(screen.getByRole('textbox', { name: 'Markdown документа' }), {
++      target: { value: '# Draft' },
++    })
++    fireEvent.click(screen.getByRole('button', { name: 'Предпросмотр' }))
++    await waitFor(() => expect(router.state.location.search).toContain('tab=preview'))
++    act(() => {
++      fireEvent.submit(form)
++      fireEvent.submit(form)
++    })
++    expect(createDocumentMutate).toHaveBeenCalledOnce()
++  })
++
++  it('encodes dossier links and carries the selected space', () => {
++    setupCompose()
++    fireEvent.change(screen.getByLabelText('Задача'), { target: { value: ' TASK/42 ' } })
++    fireEvent.change(screen.getByLabelText('Фаза'), { target: { value: 'phase#1' } })
++    expect(screen.getByRole('link', { name: 'Задача TASK/42' })).toHaveAttribute(
++      'href',
++      '/tasks/TASK%2F42?space=ENG',
++    )
++    expect(screen.getByRole('link', { name: 'Фаза phase#1' })).toHaveAttribute(
++      'href',
++      '/phases/phase%231?space=ENG',
++    )
++  })
+ })
+diff --git a/frontend/src/pages/document-compose/index.tsx b/frontend/src/pages/document-compose/index.tsx
+index fa6c5a6..4b9ba35 100644
+--- a/frontend/src/pages/document-compose/index.tsx
++++ b/frontend/src/pages/document-compose/index.tsx
+@@ -1,17 +1,34 @@
+-import { FormEvent, useEffect, useState } from 'react'
+-import { Link, useNavigate, useSearchParams } from 'react-router'
+-import { FileText, GitBranch, Save, Tag } from 'lucide-react'
+-import { defaultSpaceKey, useCreateDocument, useSpaces, useTemplates } from '@/shared/api/hooks'
+-import { ErrorState, LoadingState, PendingForm } from '@sdlc/ui/ui'
+-import { Button } from '@sdlc/ui/ui'
+-import { Card, CardContent, CardHeader, CardTitle } from '@sdlc/ui/ui'
+-import { Input } from '@sdlc/ui/ui'
+-import { Label } from '@sdlc/ui/ui'
+-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@sdlc/ui/ui'
+-import { Textarea } from '@sdlc/ui/ui'
++import { FormEvent, useEffect, useRef, useState } from 'react'
++import { Link, useNavigate } from 'react-router'
++import { FileText, GitBranch, Save } from 'lucide-react'
++import { useUrlSearchParams } from '@sdlc/ui/lib'
++import {
++  defaultSpaceKey,
++  useCreateDocument,
++  useCurrentUser,
++  useSpaces,
++  useTemplates,
++} from '@/shared/api/hooks'
++import {
++  Button,
++  DetailPage,
++  ErrorState,
++  FormField,
++  Input,
++  PendingForm,
++  ResourceStateView,
++  Select,
++  Tabs,
++  TabsContent,
++  TabsList,
++  TabsTrigger,
++  Textarea,
++  UnsavedChangesGuard,
++  resourceErrorState,
++  type ResourceState,
++} from '@sdlc/ui/ui'
+ import { formatApiErrorForUser } from '@/shared/lib/api-error'
+ import { formatDocumentType } from '@/shared/lib/wiki-format'
+-import { UnsavedChangesGuard } from '@sdlc/ui/ui'
+ 
+ const typeOptions = [
+   'page',
+@@ -21,6 +38,7 @@ const typeOptions = [
+   'test_plan',
+   'release_note',
+ ]
++const editorSearchKeys = ['tab']
+ 
+ function normalizeOptional(value: string) {
+   const trimmed = value.trim()
+@@ -29,9 +47,10 @@ function normalizeOptional(value: string) {
+ 
+ export function DocumentComposePage() {
+   const navigate = useNavigate()
+-  const [searchParams] = useSearchParams()
+-  const initialSpace = (searchParams.get('space') ?? defaultSpaceKey).toUpperCase()
++  const [searchParams, setSearchParams] = useUrlSearchParams()
++  const initialSpace = (searchParams.get('space') ?? defaultSpaceKey).trim().toUpperCase()
+   const requestedTemplateId = searchParams.get('template')?.trim() ?? ''
++  const editorTab = searchParams.get('tab') === 'preview' ? 'preview' : 'write'
+   const [title, setTitle] = useState('')
+   const [body, setBody] = useState('')
+   const [spaceKey, setSpaceKey] = useState(initialSpace)
+@@ -40,28 +59,100 @@ export function DocumentComposePage() {
+   const [taskKey, setTaskKey] = useState('')
+   const [phaseKey, setPhaseKey] = useState('')
+   const [appliedTemplateId, setAppliedTemplateId] = useState('')
+-  const [editorTab, setEditorTab] = useState<'write' | 'preview'>('write')
++  const [submitAttempted, setSubmitAttempted] = useState(false)
+   const [createdDocumentPath, setCreatedDocumentPath] = useState<string | null>(null)
++  const bodyEdited = useRef(false)
++  const submissionLock = useRef(false)
++  const titleRef = useRef<HTMLInputElement>(null)
+   const spacesQuery = useSpaces()
+   const templatesQuery = useTemplates()
++  const currentUserQuery = useCurrentUser()
+   const createDocument = useCreateDocument()
++  const spacesError = spacesQuery.isError
++    ? resourceErrorState(spacesQuery.error, () => spacesQuery.refetch(), {
++        hasData: Boolean(spacesQuery.data),
++        message: formatApiErrorForUser(spacesQuery.error, 'Не удалось загрузить пространства'),
++      })
++    : undefined
++  const templatesError = templatesQuery.isError
++    ? resourceErrorState(templatesQuery.error, () => templatesQuery.refetch(), {
++        hasData: Boolean(templatesQuery.data),
++        message: formatApiErrorForUser(templatesQuery.error, 'Не удалось загрузить шаблоны'),
++      })
++    : undefined
++  const canReadSpaces = !spacesError || spacesError.kind === 'partial-error'
++  const spaces = canReadSpaces ? (spacesQuery.data?.spaces ?? []) : []
++  const selectedSpace = spaces.find((space) => space.key === spaceKey)
++  const canWrite =
++    Boolean(selectedSpace && selectedSpace.status === 'active') &&
++    Boolean(currentUserQuery.data?.active) &&
++    !currentUserQuery.isLoading &&
++    !currentUserQuery.isFetching &&
++    !currentUserQuery.isError &&
++    Boolean(spacesQuery.data) &&
++    !spacesQuery.isLoading &&
++    !spacesQuery.isFetching &&
++    !spacesQuery.isError
++  const state: ResourceState = currentUserQuery.isError
++    ? resourceErrorState(currentUserQuery.error, () => currentUserQuery.refetch(), {
++        message: formatApiErrorForUser(currentUserQuery.error, 'Не удалось проверить сессию'),
++      })
++    : currentUserQuery.isLoading || spacesQuery.isLoading
++      ? { kind: 'loading', message: 'Загружаем пространство' }
++      : currentUserQuery.data?.active === false
++        ? { kind: 'permission-denied' }
++        : (spacesError ??
++          (!selectedSpace
++            ? { kind: 'not-found', message: `Пространство ${spaceKey} не найдено` }
++            : selectedSpace.status !== 'active'
++              ? {
++                  kind: 'permission-denied',
++                  message: 'Архивное пространство доступно только для чтения',
++                }
++              : { kind: 'ready' }))
++  const showEditor = state.kind === 'ready' || state.kind === 'partial-error'
++  const canApplyTemplate =
++    canWrite && !templatesQuery.isLoading && !templatesQuery.isFetching && !templatesQuery.isError
++  const canReadTemplates = !templatesError || templatesError.kind === 'partial-error'
++  const templates = canReadTemplates ? (templatesQuery.data?.templates ?? []) : []
++
++  function setEditorTab(value: string) {
++    setSearchParams((current) => {
++      const next = new URLSearchParams(current)
++      if (value === 'preview') next.set('tab', 'preview')
++      else next.delete('tab')
++      return next
++    })
++  }
+ 
+   function applyTemplate(templateId: string) {
+-    const template = templatesQuery.data?.templates.find((item) => item.id === templateId)
++    if (!canApplyTemplate || createDocument.isPending) return
++    const template = templates.find((item) => item.id === templateId)
+     if (!template) return
++    bodyEdited.current = true
+     setDocumentType(template.document_type)
+     setBody(template.body_markdown)
+     setAppliedTemplateId(template.id)
+   }
+ 
+   useEffect(() => {
+-    if (!requestedTemplateId || appliedTemplateId === requestedTemplateId) return
++    setSpaceKey(initialSpace)
++  }, [initialSpace])
++
++  useEffect(() => {
++    if (
++      !canApplyTemplate ||
++      bodyEdited.current ||
++      !requestedTemplateId ||
++      appliedTemplateId === requestedTemplateId
++    )
++      return
+     const template = templatesQuery.data?.templates.find((item) => item.id === requestedTemplateId)
+     if (!template) return
+     setDocumentType(template.document_type)
+     setBody(template.body_markdown)
+     setAppliedTemplateId(template.id)
+-  }, [appliedTemplateId, requestedTemplateId, templatesQuery.data?.templates])
++  }, [appliedTemplateId, canApplyTemplate, requestedTemplateId, templatesQuery.data?.templates])
+ 
+   useEffect(() => {
+     if (createdDocumentPath) navigate(createdDocumentPath)
+@@ -69,18 +160,25 @@ export function DocumentComposePage() {
+ 
+   const hasUnsavedChanges =
+     createdDocumentPath === null &&
+-    (title.trim().length > 0 ||
+-      body.trim().length > 0 ||
++    (Boolean(title || body || slug || taskKey || phaseKey) ||
+       spaceKey !== initialSpace ||
+-      documentType !== 'page' ||
+-      slug.trim().length > 0 ||
+-      taskKey.trim().length > 0 ||
+-      phaseKey.trim().length > 0)
++      documentType !== 'page')
++  const titleInvalid = submitAttempted && !title.trim()
++  const bodyInvalid = submitAttempted && !body.trim()
+ 
+   function handleSubmit(event: FormEvent<HTMLFormElement>) {
+     event.preventDefault()
+-    if (createDocument.isPending) return
+-    const submittedSpace = spaceKey.trim().toUpperCase() || defaultSpaceKey
++    if (!canWrite || createDocument.isPending || submissionLock.current || createdDocumentPath)
++      return
++    setSubmitAttempted(true)
++    if (!title.trim() || !body.trim() || !typeOptions.includes(documentType)) {
++      if (!title.trim()) titleRef.current?.focus()
++      else if (!body.trim()) setEditorTab('write')
++      return
++    }
++    if (!event.currentTarget.reportValidity()) return
++    const submittedSpace = spaceKey
++    submissionLock.current = true
+     createDocument.mutate(
+       {
+         spaceKey: submittedSpace,
+@@ -99,206 +197,221 @@ export function DocumentComposePage() {
+           setCreatedDocumentPath(
+             `/documents/${encodeURIComponent(document.slug)}?${new URLSearchParams({ space: document.space_key || submittedSpace })}`,
+           ),
++        onSettled: () => {
++          submissionLock.current = false
++        },
+       },
+     )
+   }
+ 
+   return (
+-    <PendingForm onSubmit={handleSubmit} pending={createDocument.isPending}>
+-      <UnsavedChangesGuard when={hasUnsavedChanges} />
+-      <section className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+-        <div>
+-          <h1 className="text-2xl font-bold">Новый документ</h1>
+-          <p className="mt-1 max-w-3xl text-sm text-text-muted">
+-            Черновик можно связать с задачей, фазой процесса и материалами проверки.
+-          </p>
+-        </div>
+-        <div className="flex flex-wrap gap-2">
+-          <Button
+-            type="button"
+-            size="sm"
+-            variant="secondary"
+-            onClick={() => setEditorTab('preview')}
+-          >
+-            <FileText className="h-4 w-4" />
+-            Предпросмотр
+-          </Button>
+-          <Button size="sm" disabled={createDocument.isPending}>
+-            <Save className="h-4 w-4" />
+-            {createDocument.isPending ? 'Сохраняем...' : 'Сохранить черновик'}
+-          </Button>
+-        </div>
+-      </section>
+-
+-      {createDocument.isError && (
+-        <ErrorState
+-          message={formatApiErrorForUser(createDocument.error, 'Не удалось сохранить документ')}
+-        />
+-      )}
+-
+-      <section className="page-split items-start">
+-        <Card>
+-          <CardHeader>
+-            <CardTitle className="text-base">Редактор</CardTitle>
+-          </CardHeader>
+-          <CardContent className="space-y-4">
+-            <div className="grid gap-4 md:grid-cols-[1fr_12rem]">
+-              <div className="space-y-1.5">
+-                <Label htmlFor="document-title">Название</Label>
+-                <Input
+-                  id="document-title"
+-                  value={title}
+-                  onChange={(event) => setTitle(event.target.value)}
+-                  placeholder="Название документа"
+-                  required
+-                />
+-              </div>
+-              <div className="space-y-1.5">
+-                <Label htmlFor="document-space">Пространство</Label>
+-                <Input
+-                  id="document-space"
+-                  list="document-space-options"
+-                  value={spaceKey}
+-                  onChange={(event) => setSpaceKey(event.target.value.toUpperCase())}
+-                  required
+-                />
+-                <datalist id="document-space-options">
+-                  {(spacesQuery.data?.spaces ?? []).map((space) => (
+-                    <option key={space.key} value={space.key}>
+-                      {space.name}
+-                    </option>
+-                  ))}
+-                </datalist>
+-              </div>
+-            </div>
+-
+-            <div className="flex flex-wrap gap-2">
+-              {templatesQuery.isLoading && <LoadingState message="Загружаем шаблоны" />}
+-              {(templatesQuery.data?.templates ?? []).map((template) => (
+-                <button
+-                  key={template.id}
++    <>
++      <UnsavedChangesGuard
++        when={hasUnsavedChanges || createDocument.isPending}
++        allowSearchKeys={editorSearchKeys}
++      />
++      <PendingForm onSubmit={handleSubmit} pending={createDocument.isPending}>
++        <DetailPage
++          title="Новый документ"
++          state={state}
++          context={showEditor ? selectedSpace?.name : undefined}
++          actions={
++            showEditor ? (
++              <>
++                <Button
+                   type="button"
+-                  className="min-h-10 rounded-md border border-border px-2.5 py-1.5 text-xs text-text-secondary hover:bg-surface-raised hover:text-text-primary"
+-                  onClick={() => applyTemplate(template.id)}
++                  size="sm"
++                  variant="secondary"
++                  onClick={() => setEditorTab('preview')}
+                 >
+-                  {template.name}
+-                </button>
+-              ))}
++                  <FileText className="h-4 w-4" aria-hidden />
++                  Предпросмотр
++                </Button>
++                <Button size="sm" disabled={!canWrite || createDocument.isPending}>
++                  <Save className="h-4 w-4" aria-hidden />
++                  {createDocument.isPending ? 'Сохраняем...' : 'Сохранить черновик'}
++                </Button>
++              </>
++            ) : undefined
++          }
++          asideLabel="Контекст документа"
++          aside={
++            <fieldset disabled={!canWrite} className="base-page-stack border-0 p-0">
++              <section className="base-page-stack">
++                <h2 className="text-base font-semibold">Связи</h2>
++                <FormField id="document-task" label="Задача">
++                  {(attrs) => (
++                    <Input
++                      {...attrs}
++                      value={taskKey}
++                      onChange={(event) => setTaskKey(event.target.value)}
++                      placeholder="Ключ задачи"
++                    />
++                  )}
++                </FormField>
++                <FormField id="document-phase" label="Фаза">
++                  {(attrs) => (
++                    <Input
++                      {...attrs}
++                      value={phaseKey}
++                      onChange={(event) => setPhaseKey(event.target.value)}
++                      placeholder="Ключ фазы"
++                    />
++                  )}
++                </FormField>
++                {taskKey.trim() && (
++                  <Link
++                    to={`/tasks/${encodeURIComponent(taskKey.trim())}?${new URLSearchParams({ space: spaceKey })}`}
++                    className="flex min-h-11 items-center gap-2 break-all text-sm text-accent hover:underline"
++                  >
++                    <FileText className="h-4 w-4 shrink-0" aria-hidden />
++                    Задача {taskKey.trim()}
++                  </Link>
++                )}
++                {phaseKey.trim() && (
++                  <Link
++                    to={`/phases/${encodeURIComponent(phaseKey.trim())}?${new URLSearchParams({ space: spaceKey })}`}
++                    className="flex min-h-11 items-center gap-2 break-all text-sm text-accent hover:underline"
++                  >
++                    <GitBranch className="h-4 w-4 shrink-0" aria-hidden />
++                    Фаза {phaseKey.trim()}
++                  </Link>
++                )}
++              </section>
++              <section className="base-page-stack">
++                <h2 className="text-base font-semibold">Метаданные</h2>
++                <FormField id="document-type" label="Тип">
++                  {(attrs) => (
++                    <Select
++                      {...attrs}
++                      value={documentType}
++                      onChange={(event) => {
++                        bodyEdited.current = true
++                        setDocumentType(event.target.value)
++                      }}
++                    >
++                      {typeOptions.map((type) => (
++                        <option key={type} value={type}>
++                          {formatDocumentType(type)}
++                        </option>
++                      ))}
++                    </Select>
++                  )}
++                </FormField>
++                <FormField id="document-slug" label="Адрес (slug)">
++                  {(attrs) => (
++                    <Input
++                      {...attrs}
++                      value={slug}
++                      onChange={(event) => setSlug(event.target.value)}
++                      placeholder="создастся автоматически"
++                    />
++                  )}
++                </FormField>
++              </section>
++            </fieldset>
++          }
++        >
++          {createDocument.isError && (
++            <ErrorState
++              message={formatApiErrorForUser(createDocument.error, 'Не удалось сохранить документ')}
++            />
++          )}
++          <fieldset disabled={!canWrite} className="base-page-stack border-0 p-0">
++            <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_12rem]">
++              <FormField
++                id="document-title"
++                label="Название"
++                required
++                error={titleInvalid ? 'Введите название' : undefined}
++              >
++                {(attrs) => (
++                  <Input
++                    {...attrs}
++                    ref={titleRef}
++                    value={title}
++                    onChange={(event) => setTitle(event.target.value)}
++                    placeholder="Название документа"
++                  />
++                )}
++              </FormField>
++              <FormField id="document-space" label="Пространство" required>
++                {(attrs) => (
++                  <Select
++                    {...attrs}
++                    value={spaceKey}
++                    onChange={(event) => setSpaceKey(event.target.value)}
++                  >
++                    {spaces
++                      .filter((space) => space.status === 'active')
++                      .map((space) => (
++                        <option key={space.key} value={space.key}>
++                          {space.key} — {space.name}
++                        </option>
++                      ))}
++                  </Select>
++                )}
++              </FormField>
+             </div>
+-
+-            <Tabs
+-              value={editorTab}
+-              onValueChange={(value) => setEditorTab(value as 'write' | 'preview')}
+-            >
++            <section className="space-y-3" aria-label="Шаблоны">
++              {templatesQuery.isLoading && (
++                <ResourceStateView state={{ kind: 'loading', message: 'Загружаем шаблоны' }} />
++              )}
++              {templatesError && <ResourceStateView state={templatesError} />}
++              <div className="flex flex-wrap gap-2">
++                {templates.map((template) => (
++                  <Button
++                    key={template.id}
++                    type="button"
++                    variant="outline"
++                    size="sm"
++                    disabled={!canApplyTemplate}
++                    onClick={() => applyTemplate(template.id)}
++                  >
++                    <FileText className="h-4 w-4 shrink-0" aria-hidden />
++                    {template.name}
++                  </Button>
++                ))}
++              </div>
++            </section>
++            <Tabs value={editorTab} onValueChange={setEditorTab}>
+               <TabsList>
+                 <TabsTrigger value="write">Markdown</TabsTrigger>
+                 <TabsTrigger value="preview">Просмотр</TabsTrigger>
+               </TabsList>
+               <TabsContent value="write">
+-                <Textarea
+-                  className="min-h-96 font-mono text-sm"
+-                  aria-label="Markdown документа"
+-                  value={body}
+-                  onChange={(event) => setBody(event.target.value)}
+-                  placeholder="Начните писать Markdown или примените шаблон выше"
++                <FormField
++                  id="document-body"
++                  label="Markdown документа"
+                   required
+-                />
++                  error={bodyInvalid ? 'Введите текст документа' : undefined}
++                >
++                  {(attrs) => (
++                    <Textarea
++                      {...attrs}
++                      className="min-h-96 font-mono text-sm"
++                      value={body}
++                      onChange={(event) => {
++                        bodyEdited.current = true
++                        setBody(event.target.value)
++                      }}
++                      placeholder="Начните писать Markdown"
++                    />
++                  )}
++                </FormField>
+               </TabsContent>
+               <TabsContent value="preview">
+-                <div className="min-h-96 rounded-md border border-border bg-background p-4">
+-                  <h2 className="text-xl font-semibold">{title}</h2>
+-                  <pre className="mt-4 whitespace-pre-wrap text-sm leading-6 text-text-secondary">
++                <div className="min-h-96 min-w-0 border border-border p-4">
++                  <h2 className="break-words text-lg font-semibold">{title}</h2>
++                  <pre className="mt-4 whitespace-pre-wrap break-words text-sm leading-6 text-text-secondary">
+                     {body}
+                   </pre>
+                 </div>
+               </TabsContent>
+             </Tabs>
+-          </CardContent>
+-        </Card>
+-
+-        <aside className="min-w-0 space-y-4" aria-label="Контекст документа">
+-          <Card>
+-            <CardHeader>
+-              <CardTitle className="text-base">Связи</CardTitle>
+-            </CardHeader>
+-            <CardContent className="space-y-3 text-sm">
+-              <div className="space-y-1.5">
+-                <Label htmlFor="document-task">Задача</Label>
+-                <Input
+-                  id="document-task"
+-                  value={taskKey}
+-                  onChange={(event) => setTaskKey(event.target.value)}
+-                  placeholder="Ключ задачи"
+-                />
+-              </div>
+-              <div className="space-y-1.5">
+-                <Label htmlFor="document-phase">Фаза</Label>
+-                <Input
+-                  id="document-phase"
+-                  value={phaseKey}
+-                  onChange={(event) => setPhaseKey(event.target.value)}
+-                  placeholder="Ключ фазы"
+-                />
+-              </div>
+-              {taskKey && (
+-                <Link
+-                  to={`/tasks/${taskKey}`}
+-                  className="flex items-center gap-2 rounded-md border border-border p-3 hover:bg-surface-raised"
+-                >
+-                  <FileText className="h-4 w-4 text-accent" />
+-                  Задача {taskKey}
+-                </Link>
+-              )}
+-              {phaseKey && (
+-                <Link
+-                  to={`/phases/${phaseKey}`}
+-                  className="flex items-center gap-2 rounded-md border border-border p-3 hover:bg-surface-raised"
+-                >
+-                  <GitBranch className="h-4 w-4 text-accent" />
+-                  Фаза {phaseKey}
+-                </Link>
+-              )}
+-            </CardContent>
+-          </Card>
+-
+-          <Card>
+-            <CardHeader>
+-              <CardTitle className="text-base">Метаданные</CardTitle>
+-            </CardHeader>
+-            <CardContent className="space-y-3">
+-              <div className="space-y-1.5">
+-                <Label htmlFor="document-type">Тип</Label>
+-                <Input
+-                  id="document-type"
+-                  list="document-type-options"
+-                  value={documentType}
+-                  onChange={(event) => setDocumentType(event.target.value)}
+-                />
+-                <datalist id="document-type-options">
+-                  {typeOptions.map((type) => (
+-                    <option key={type} value={type}>
+-                      {formatDocumentType(type)}
+-                    </option>
+-                  ))}
+-                </datalist>
+-              </div>
+-              <div className="space-y-1.5">
+-                <Label htmlFor="document-slug">Адрес (slug)</Label>
+-                <Input
+-                  id="document-slug"
+-                  value={slug}
+-                  onChange={(event) => setSlug(event.target.value)}
+-                  placeholder="создастся автоматически"
+-                />
+-              </div>
+-              <div className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-text-secondary">
+-                <Tag className="h-4 w-4 text-accent" />
+-                Markdown, ревизии, связи
+-              </div>
+-            </CardContent>
+-          </Card>
+-        </aside>
+-      </section>
+-    </PendingForm>
++          </fieldset>
++        </DetailPage>
++      </PendingForm>
++    </>
+   )
+ }

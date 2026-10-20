@@ -1,0 +1,88 @@
+diff --git a/docs/UI_UX_MAP.md b/docs/UI_UX_MAP.md
+index 6247b91..aeb70ea 100644
+--- a/docs/UI_UX_MAP.md
++++ b/docs/UI_UX_MAP.md
+@@ -14,7 +14,7 @@ Task dossier имеет contextual aside и использует `detail-with-as
+ Audit, profiles, spaces и settings используют Base AuditLogView/ListPage/DetailPage.
+ Terminal 403/404 не предлагают retry и скрывают недоступное содержание;
+ повторяемые ошибки сохраняют retry. Audit сохраняет полученную страницу при
+-сбое фонового обновления, помечая её partial-error, и сохраняет cursor history.
++повторяемом сбое фонового обновления, помечая её partial-error, и сохраняет cursor history.
+ Имена участников и пространств получаются общими catalog queries без
+ построчных запросов; диагностические IDs скрыты в доступных disclosure.
+ 
+@@ -26,7 +26,9 @@ actor/entity IDs, без названия документа. Cold-load назв
+ 
+ Этот checkout создан от сохранённого default `c83ff8c`; исходный dirty checkout
+ не переносился. Base dependency устанавливается frozen/offline из выбранного
+-snapshot `2a8de7e`. `ui:check` проверяет route coverage, shell и installed bytes.
++snapshot из `.base-revision`. `ui:check` проверяет exact clean Base SHA,
++route coverage, shell и installed bytes. Значения snapshot в разделах ниже
++относятся только к соответствующему историческому source checkpoint.
+ 
+ `qa.status: not-run` означает обязательный, но ещё не принятый сценарий.
+ Полная миграция page compositions, audit readability/cold-cache поведение,
+@@ -127,3 +129,63 @@ gallery. Cold document audit titles, остальные page compositions и п
+ route/role/state acceptance остаются в работе. Исторические evidence выше
+ не переносятся на новый snapshot автоматически. Node/jsdom localstorage-file
+ и browser FORCE_COLOR warnings сохраняются.
++
++## Shared URL And Search Source Checkpoint
++
++Source `48d5c6384cb3cb779b87d57a1e262e277a3c4e84` перевёл все query mutators
++Wiki на Base `useUrlSearchParams`. Поиск использует ListPage/Select и общую
++классификацию resource errors. Cursor и repeated previous_cursor сохраняются
++в URL; reload и Back/Forward восстанавливают страницу. Изменение критериев
++сбрасывает pagination, сохраняя соседние параметры и fragment. SSO returnTo
++сохраняет pathname/query/hash. Settings использует DashboardLayout.
++
++Base pin: `eb5b832ac6dace06ed9777d70ee9c6d5d186b24f`.
++Frozen offline force install: 451 reused, zero downloads; source/installed
++Base fingerprint:
++`e0b674d779b36b0fb2eb87878f471b7891dd5a67b74f922e6e1e3a831c178d7f`.
++На этом checkpoint прошли 231 units и 18 Chromium tests. 259 fresh PNG:
++210 shell/mode/theme/width, 30 search/theme/width, 10 cached search failures,
++шесть overview missing/partial и три expanded space drafts. Evidence:
++`audit-artifacts/base-standard-2026-10-01/wiki-base-url-source-browser-final/`
++в workspace, включая metadata. Это исторический source checkpoint, не
++актуальная выпускная аттестация следующего audit fix.
++
++## Cached Audit Resource Policy
++
++Runtime source: `bfb1ef7f2abca2756632d176addd6ca133263b25`.
++Base pin/fingerprint совпадает с предыдущим checkpoint. Product fingerprint:
++`97d36943552f7188b104ba1caec5a3f2342ad865af5811e854a901bb23c5cc24`.
++After-commit runtime attestation и installed snapshot не имеют расхождений.
++
++Audit передаёт hasData и пользовательское сообщение общему resourceErrorState,
++не переклассифицируя произвольный error в partial-error локально. Network,
++408/429/503 сохраняют cached entries с предупреждением и retry. 422 и отмена
++запроса скрывают cached entries без retry и ложного empty; 403/404 по-прежнему
++скрывают недоступные данные и filters. Ошибка optional label directory не
++аннулирует успешно полученный независимый аудит.
++
++Прошли 237 units / 24 files, lint/semantic, typecheck/build, touched-file
++Prettier, OpenAPI check/compat saved origin/main, installed UI gate (19
++patterns), README validator / 3 tests и diff check. Final Chromium: 19 passed,
++280 PNG. К предыдущей матрице добавлены семь cached audit outcomes на
++375/1920/2560, overflow и axe проверки; cancellation проверена component tests.
++Desktop 422 и mobile 503 кадры просмотрены. API messages в failure fixtures
++synthetic; это не доказательство полной локализации реальных ответов.
++
++Final evidence:
++`audit-artifacts/base-standard-2026-10-01/wiki-audit-resource-policy-browser-serial/`
++и `wiki-audit-resource-policy-{units,build,lint}-final.log` в workspace.
++Metadata содержит actual dimensions/digests, viewport/theme, capture file mtime,
++source SHA/fingerprints. Начальный parallel browser run диагностический:
++новая матрица превысила default timeout, ещё два SSO перехода не завершились
++в ожидании. После отдельного budget матрицы и последовательного полного
++run все tests прошли; эти failures не подменяются выпускными доказательствами.
++Owned preview завершён; listener 18876 отсутствует.
++
++Cold document/evidence audit titles без N+1 всё ещё не реализованы: текущий
++API не предоставляет title по набору ID. Публичный API не расширялся. Два
++сохранённых default commits c55a3dc/00625ed ещё требуют reconciliation без
++возврата локального shell или потери context/focus поведения. Остальные
++compositions, все routes/roles/states, backend/release gates, immutable images,
++live SSO, real README, default integration и final mirror остаются обязательными.
++Source/mock QA не закрывает исходные release findings автоматически.

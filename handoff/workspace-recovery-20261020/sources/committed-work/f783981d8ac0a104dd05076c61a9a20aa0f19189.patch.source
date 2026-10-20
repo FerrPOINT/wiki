@@ -1,0 +1,1523 @@
+diff --cc CHANGELOG.md
+index f5fc622,91ba50a..99f1213
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@@ -6,52 -6,8 +6,58 @@@
+  
+  ## [Unreleased]
+  
+++- Локальная default-ветка интегрирована с Base UI-источниками; fallback имени
+++  Central Auth и безопасные server-error тексты дополняют существующий transport
+++  formatter. Проверки источников и isolated PostgreSQL не означают runtime rollout.
+++
+ +- Действующие AGENTS/TESTING используют Base как владельца UI/UX и Compose QA.
+ +  Убраны рекомендации второго UI-kit и запуска unprojected PostgreSQL smoke;
+ +  legacy launcher остаётся явно незавершённой миграцией, а не допустимым gate.
+ +  Исторические результаты и runtime не изменены.
+ +
+ +- Base notification ownership gate закреплён единым snapshot. OpenAPI alias
+ +  передаёт явные параметры в Base; без параметров сравнивает с origin/main.
+ +
+ +- Локальный host уведомлений заменён общим Base `Toaster`; тема, размещение,
+ +  локализация и доступные controls принадлежат Base. Sonner обновлён с 2.0.7
+ +  до 2.0.8 для общего peer-контракта. Новых продуктовых уведомлений нет:
+ +  существующие inline states, ошибки и подтверждения остаются на страницах.
+ +
+ +- Создание документа принадлежит странице, а не общему header или drawer.
+ +  Поиск использует action slot Base ListPage и проверенное активное пространство;
+ +  неизвестный родитель, неподтверждённая сессия и terminal 403/404 скрывают действие.
+ +  Переход сохраняет пространство, navigation и account остаются в Base AppShell.
+ +
+ +- Неизвестный адрес использует Base DetailPage/not-found с одним заголовком
+ +  и безопасным возвратом; header и drawer не предлагают создание документа.
+ +
+ +- Выбор пространства в dossier задач и фаз использует Base Select вместо
+ +  локального control: общие responsive targets и focus без изменения URL-state.
+ +
+ +- Режимы просмотра/правки документа используют Base Button вместо локальных
+ +  кнопок: общий focus и responsive target 40/44 px без изменения черновика.
+ +
+ +- Swagger UI assets come from the locked vendored Cargo package instead of a
+ +  separate build-time GitHub ZIP download. Existing OpenAPI endpoints, domain
+ +  API, database schema and application UI are unchanged.
+ +
+ +- Umbrella frontend recipe синхронизирован с обычным Dockerfile: общий Base
+ +  recorder, revision labels и digest pins действуют также для workspace-сборки.
+ +  Проверка candidate не заменяет authenticated runtime/SSO/README приёмку.
+ +
+ +- Frontend image закрепляет Node/nginx по digest и использует frozen install
+ +  Base; общий build record фиксирует revisions, fingerprints и SHA256 assets.
+ +  Сборка кандидата не означает завершение выпускной UI/SSO-приёмки.
+ +
+ +- Создание документа использует общие DetailPage/FormField/Select и URL-вкладки.
+ +  Пространство сохраняется в encoded dossier links; 403/404 и архивный родитель
+ +  не предлагают создание. Refetch/ошибки блокируют запись и сохраняют черновик;
+ +  загрузка шаблона не перезаписывает введённый текст, double submit блокируется.
+ +- Base закреплён на `193ad1e8fd6260f001640943a5ec07ff04f527d1`: общий
+ +  cross-platform fingerprint и согласованная локальная UI/UX-поставка.
+ +  Source/dependency checkpoint не заменяет приёмку фактических images и SSO.
++ - Документирована принятая поставка трёх CLI на sdlc1: backup/restore/rollback, live-проверки, Linux/WSL установка и сохранённые ограничения.
++ 
+  - `evidence add-file` использует разные стабильные ключи upload/create, производные от явного idempotency key; повтор составной команды больше не вызывает конфликт между этапами.
+  
+  - Справка CLI скрывает значения token env variables, сохраняя имена переменных.
+diff --cc docs/ARCHITECTURE.md
+index cbc6695,7f27944..2efc3e8
+--- a/docs/ARCHITECTURE.md
++++ b/docs/ARCHITECTURE.md
+@@@ -46,7 -46,7 +46,7 @@@ UI и CLI используют оди�
+  | --------- | ---------- | ---------- |
+  | Framework | React + TypeScript | SPA |
+  | Build | Vite | Dev/build |
+--| Styling | Tailwind CSS + shadcn/ui | UI kit |
+++| Styling | Tailwind CSS + Base `@sdlc/ui` | Shared UI/UX contracts and primitives |
+  | Server state | TanStack Query | API cache |
+  | Routing | react-router | Навигация |
+  | i18n | i18next | Русский/английский |
+diff --cc docs/plans/2026-10-05-local-default-integration.md
+index 0000000,0000000..07e78cb
+new file mode 100644
+--- /dev/null
++++ b/docs/plans/2026-10-05-local-default-integration.md
+@@@ -1,0 -1,0 +1,35 @@@
+++# Локальная Интеграция Default
+++
+++Selected parent 7dcd552876206794b0fecdd2d2c644748f58a171, local default
+++6d5f31289d52f1a71cb08ee153094de1b30a487b, Base c0f175c67.
+++Без fetch/push/GitHub и изменения принятых runtime images.
+++
+++Сохраняются оба набора изменений: Base shell/compositions/controls/URL states,
+++безопасный transport formatter и default directory-name fallback/server-error
+++copy. CHANGELOG содержит обе истории, действующая архитектура указывает Base,
+++а не второй UI-kit. Клиентские и публичные доменные API, SQL migrations и locks
+++не меняются; identity projection остаётся по central_sub.
+++
+++Приёмка: frozen frontend source gate, полный source browser smoke и fresh Rust
+++fmt/clippy/test/build/OpenAPI. PostgreSQL проверяет весь существующий набор и
+++новый ignored mixed-directory case явно, без skips как замены проверки. QA
+++использует отдельный owned Compose project и disposable PG tmpfs, cleanup в
+++finally; runtime secrets/keys/snapshots/volumes остаются прежними.
+++
+++Browser regression проверяет безопасные page-specific ошибки без серверных
+++подробностей. OIDC smoke разделён по независимым пользовательским сценариям,
+++без увеличения timeout или отключения проверок сохранения/publish/link/context.
+++Cached-refetch smoke ждёт готовую промежуточную страницу перед возвратом и
+++подтверждает новый запрос 503/403: быстрые клики не заменяют реальный remount.
+++После reload счётчик запросов проверяется после готового error-state с прежним
+++timeout, а не до завершения lazy route/SSO bootstrap; URL проверяется до Retry.
+++
+++Геометрическая matrix параметризована по theme/viewport: 30 независимых
+++сценариев с прежними семью routes, 210 captures и всеми geometry assertions.
+++Общий 300-second monolithic test заменён штатным 30-second budget каждого
+++сценария; retries/skips и увеличенные таймауты не добавлены. Полный smoke
+++содержит 64 сценария вместо 35, остальные сценарии сохранены. Предыдущий
+++отказ при конкурентном frontend gate остаётся отдельным evidence.
+++
+++Local source merge не закрывает actual-image/SSO/README/default-ref/mirror
+++приёмку. Эти этапы требуют отдельной проверки готовых сборок и provenance.
+diff --cc frontend/e2e/smoke.spec.ts
+index 76994ef,7477b27..343c33c
+--- a/frontend/e2e/smoke.spec.ts
++++ b/frontend/e2e/smoke.spec.ts
+@@@ -576,581 -570,50 +576,593 @@@ async function gotoWiki
+  }
+  
+  test.describe('wiki smoke', () => {
+ -  test('uses the shared work-area geometry across semantic page modes', async ({
+ +  for (const theme of ['dark', 'gray', 'light'] as const) {
+ +    test(`Base notification bootstrap: empty host in ${theme}`, async ({ page }, testInfo) => {
+ +      await installWikiApiMocks(page)
+ +      await page.addInitScript((value) => localStorage.setItem('theme', value), theme)
+ +      const errors: string[] = []
+ +      page.on('pageerror', (error) => errors.push(error.message))
+ +      page.on('console', (message) => {
+ +        if (message.type() === 'error') errors.push(message.text())
+ +      })
+ +      for (const width of [375, 767, 768, 1023, 1024, 1279, 1280, 1440, 1920, 2560]) {
+ +        await page.setViewportSize({ width, height: 1080 })
+ +        await gotoWiki(page, '/search?space=BASE&q=Wiki&keep=1#results')
+ +        await expect(page.getByRole('heading', { level: 1, name: 'Поиск' })).toBeVisible()
+ +        const region = page.getByRole('region', { name: 'Уведомления', exact: true })
+ +        await expect(region).toHaveCount(1)
+ +        await expect(region.locator('[data-sonner-toast]')).toHaveCount(0)
+ +        await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+ +        await expect(page.locator('[data-page-layout]')).toHaveAttribute('data-page-layout', 'wide')
+ +        expect(
+ +          await page.evaluate(
+ +            () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+ +          ),
+ +        ).toBe(true)
+ +        await page.reload()
+ +        await expect(page).toHaveURL(`${baseURL}/search?space=BASE&q=Wiki&keep=1#results`)
+ +        await expect(page.getByRole('heading', { level: 1, name: 'Поиск' })).toBeVisible()
+ +        await expect(region).toHaveCount(1)
+ +        await expect(region.locator('[data-sonner-toast]')).toHaveCount(0)
+ +        if (width === 375 || width === 1920 || width === 2560) {
+ +          expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
+ +          await page.screenshot({
+ +            path: testInfo.outputPath(`notification-bootstrap-${theme}-${width}.png`),
+ +            fullPage: true,
+ +          })
+ +        }
+ +      }
+ +      expect(errors).toEqual([])
+ +      await testInfo.attach('notification-bootstrap-scope.json', {
+ +        body: JSON.stringify({
+ +          theme,
+ +          emptyHost: true,
+ +          fixtureOnly: true,
+ +          productToastCallers: false,
+ +          actualImages: false,
+ +          releaseAcceptance: false,
+ +        }),
+ +        contentType: 'application/json',
+ +      })
+ +    })
+ +  }
+ +
+ +  test('restores search cursor context through SSO, reload, Back and Forward', async ({ page }) => {
+ +    await installWikiApiMocks(page)
+ +    const records = Array.from({ length: 41 }, (_, index) => ({
+ +      id: `search-${index + 1}`,
+ +      result_type: 'document',
+ +      title: `Документ поиска ${index + 1}`,
+ +      space_key: 'BASE',
+ +      url: `/documents/search-${index + 1}`,
+ +      snippet: 'Безопасные тестовые данные',
+ +      updated_at: now,
+ +    }))
+ +    await page.route('**/api/v1/search?*', (route) => {
+ +      const cursor = new URL(route.request().url()).searchParams.get('cursor')
+ +      const offset = cursor ? Number(cursor.slice(5)) : 0
+ +      return routeJson(route, {
+ +        results: records.slice(offset, offset + 20),
+ +        next_cursor: offset + 20 < records.length ? `page-${offset + 20}` : null,
+ +      })
+ +    })
+ +    const query = '/search?q=Wiki&keep=1&cursor=page-40&previous_cursor=page-20#results'
+ +    await gotoWiki(page, query)
+ +    await expect(page.getByText('Страница 3', { exact: true })).toBeVisible()
+ +    await expect(page.getByRole('link', { name: /Документ поиска 41/ })).toBeVisible()
+ +    await page.reload()
+ +    await expect(page).toHaveURL(`${baseURL}${query}`)
+ +    await expect(page.getByText('Страница 3', { exact: true })).toBeVisible()
+ +    await page.getByRole('button', { name: 'Назад', exact: true }).click()
+ +    await expect(page).toHaveURL(`${baseURL}/search?q=Wiki&keep=1&cursor=page-20#results`)
+ +    await expect(page.getByText('Показано 21–40', { exact: true })).toBeVisible()
+ +    await page.goBack()
+ +    await expect(page.getByText('Страница 3', { exact: true })).toBeVisible()
+ +    await page.goForward()
+ +    await expect(page.getByText('Страница 2', { exact: true })).toBeVisible()
+ +    await page.getByRole('searchbox', { name: 'Поисковый запрос' }).fill('релиз')
+ +    await expect(page).toHaveURL(
+ +      `${baseURL}/search?q=%D1%80%D0%B5%D0%BB%D0%B8%D0%B7&keep=1#results`,
+ +    )
+ +    await expect(page.getByText('Страница 1', { exact: true })).toBeVisible()
+ +    await page.goBack()
+ +    await expect(page.getByText('Страница 2', { exact: true })).toBeVisible()
+ +    await expect(page.getByRole('searchbox', { name: 'Поисковый запрос' })).toHaveValue('Wiki')
+ +    await page.getByRole('button', { name: 'Документы', exact: true }).click()
+ +    await expect(page).toHaveURL(`${baseURL}/search?q=Wiki&keep=1&result_type=document#results`)
+ +  })
+ +
+ +  test('uses Base search composition and controls across themes, widths and cached failures', async ({
+      page,
+    }, testInfo) => {
+ +    test.setTimeout(300_000)
+      await installWikiApiMocks(page)
+ +    let status = 200
+ +    await page.route('**/api/v1/search?*', (route) =>
+ +      status === 0
+ +        ? route.abort('failed')
+ +        : status === 200
+ +          ? route.fallback()
+ +          : routeJson(route, { message: 'Временный сбой тестового поиска' }, status),
+ +    )
+ +    const errors: string[] = []
+ +    page.on('pageerror', (error) => errors.push(error.message))
+ +    await gotoWiki(page, '/search')
+ +    for (const theme of ['dark', 'gray', 'light']) {
+ +      await page.evaluate((value) => localStorage.setItem('theme', value), theme)
+ +      await page.reload()
+ +      for (const width of [375, 767, 768, 1023, 1024, 1279, 1280, 1440, 1920, 2560]) {
+ +        await page.setViewportSize({ width, height: width < 768 ? 812 : 1080 })
+ +        await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+ +        await expect(page.locator('[data-page-layout]')).toHaveAttribute('data-page-layout', 'wide')
+ +        await expect(page.getByRole('link', { name: /Требования к Wiki MVP/ })).toBeVisible()
+ +        await page.getByRole('button', { name: 'Фильтры', exact: true }).click()
+ +        const targets = await page
+ +          .locator('main button, main input, main select')
+ +          .evaluateAll((elements) =>
+ +            elements
+ +              .filter((element) => element.getClientRects().length > 0)
+ +              .map((element) => ({
+ +                label: element.getAttribute('aria-label') ?? element.textContent,
+ +                height: element.getBoundingClientRect().height,
+ +              })),
+ +          )
+ +        expect(targets.length).toBeGreaterThan(5)
+ +        for (const target of targets)
+ +          expect(target.height, String(target.label)).toBeGreaterThanOrEqual(width < 768 ? 44 : 40)
+ +        expect(
+ +          await page.evaluate(
+ +            () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+ +          ),
+ +        ).toBe(true)
+ +        if (width === 375 || width === 1920)
+ +          expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
+ +        await page.screenshot({
+ +          path: testInfo.outputPath(`search-${theme}-${width}.png`),
+ +          fullPage: true,
+ +        })
+ +        await page.getByRole('button', { name: 'Фильтры', exact: true }).click()
+ +      }
+ +    }
+ +    for (const failure of [0, 503, 403, 404, 422]) {
+ +      status = 200
+ +      await page.getByRole('link', { name: 'Пространства', exact: true }).click()
+++      await expect(page.getByRole('heading', { name: 'Пространства', exact: true })).toBeVisible()
+ +      await page.getByRole('link', { name: 'Поиск', exact: true }).click()
+ +      await expect(page.getByRole('link', { name: /Требования к Wiki MVP/ })).toBeVisible()
+ +      status = failure
+ +      await page.getByRole('link', { name: 'Пространства', exact: true }).click()
+++      await expect(page.getByRole('heading', { name: 'Пространства', exact: true })).toBeVisible()
+ +      await page.getByRole('link', { name: 'Поиск', exact: true }).click()
+ +      if (failure === 0 || failure === 503) {
+ +        await expect(page.locator('[data-page-state="partial-error"]')).toBeVisible({
+ +          timeout: 15_000,
+ +        })
+ +        await expect(page.getByRole('link', { name: /Требования к Wiki MVP/ })).toBeVisible()
+ +        await expect(page.getByRole('button', { name: 'Повторить', exact: true })).toBeVisible()
+ +        await expect(page.locator('[data-page-state="partial-error"]')).toContainText(
+-           failure === 0 ? 'Не удалось выполнить поиск' : 'Временный сбой тестового поиска',
+++          'Не удалось выполнить поиск',
+++        )
+++        await expect(page.locator('[data-page-state="partial-error"]')).not.toContainText(
+++          'Временный сбой тестового поиска',
+ +        )
+ +      } else {
+ +        const error =
+ +          failure === 422
+ +            ? page.getByRole('alert')
+ +            : page.locator(
+ +                `[data-page-state="${failure === 403 ? 'permission-denied' : 'not-found'}"]`,
+ +              )
+ +        await expect(error).toBeVisible({ timeout: 15_000 })
+ +        await expect(page.getByRole('link', { name: /Требования к Wiki MVP/ })).toHaveCount(0)
+ +        await expect(page.getByRole('button', { name: 'Повторить', exact: true })).toHaveCount(0)
+ +      }
+ +      for (const width of [375, 1920, 2560]) {
+ +        await page.setViewportSize({ width, height: width < 768 ? 812 : 1080 })
+ +        expect(
+ +          await page.evaluate(
+ +            () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+ +          ),
+ +        ).toBe(true)
+ +        expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
+ +        await page.screenshot({
+ +          path: testInfo.outputPath(`search-cached-${failure}-${width}.png`),
+ +          fullPage: true,
+ +        })
+ +      }
+ +      if (failure === 0) {
+ +        status = 200
+ +        await page.getByRole('button', { name: 'Повторить', exact: true }).click()
+ +        await expect(page.locator('[data-page-state="partial-error"]')).toHaveCount(0)
+ +        await expect(page.getByRole('link', { name: /Требования к Wiki MVP/ })).toBeVisible()
+ +      }
+ +    }
+ +    expect(errors).toEqual([])
+ +  })
+  
+ -    for (const viewport of [
+ -      { width: 375, height: 812 },
+ -      { width: 1440, height: 900 },
+ -      { width: 2560, height: 1440 },
+ -    ]) {
+ -      await page.setViewportSize(viewport)
+ +  test('localizes an initial transport failure and recovers with URL context intact', async ({
+ +    page,
+ +  }, testInfo) => {
+ +    test.setTimeout(180_000)
+ +    await installWikiApiMocks(page)
+ +    let fail = true
+ +    let searchRequests = 0
+ +    await page.route('**/api/v1/search?*', (route) => {
+ +      searchRequests++
+ +      return fail ? route.abort('failed') : route.fallback()
+ +    })
+ +    const errors: string[] = []
+ +    page.on('pageerror', (error) => errors.push(error.message))
+ +    const path = '/search?q=Wiki&space=BASE&keep=1#results'
+ +    await gotoWiki(page, path)
+ +    for (const theme of ['dark', 'gray', 'light']) {
+ +      await page.evaluate((value) => localStorage.setItem('theme', value), theme)
+ +      for (const width of [375, 1440, 1920, 2560]) {
+ +        fail = true
+ +        await page.setViewportSize({ width, height: width < 768 ? 812 : 1080 })
+ +        const attemptsBeforeLoad = searchRequests
+ +        await page.reload()
+-         await expect.poll(() => searchRequests).toBeGreaterThan(attemptsBeforeLoad)
+ +        const error = page.getByRole('alert')
+ +        await expect(error).toContainText('Не удалось выполнить поиск', { timeout: 15_000 })
+++        await expect.poll(() => searchRequests).toBeGreaterThan(attemptsBeforeLoad)
+++        await expect(page).toHaveURL(`${baseURL}${path}`)
+ +        await expect(page.locator('main')).not.toContainText('Failed to fetch')
+ +        await expect(page.locator('[data-page-state="empty"]')).toHaveCount(0)
+ +        await expect(page.locator('[data-page-state="partial-error"]')).toHaveCount(0)
+ +        await expect(page.getByRole('link', { name: /Требования к Wiki MVP/ })).toHaveCount(0)
+ +        await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+ +        expect(
+ +          await page.evaluate(
+ +            () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+ +          ),
+ +        ).toBe(true)
+ +        expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
+ +        await page.screenshot({
+ +          path: testInfo.outputPath(`search-initial-network-${theme}-${width}.png`),
+ +          fullPage: true,
+ +        })
+ +        const attemptsBeforeRetry = searchRequests
+ +        fail = false
+ +        const retry = page.getByRole('button', { name: 'Повторить', exact: true })
+ +        await retry.focus()
+ +        await retry.press('Enter')
+ +        await expect(error).toHaveCount(0)
+ +        await expect(page.getByRole('link', { name: /Требования к Wiki MVP/ })).toBeVisible()
+ +        expect(searchRequests).toBeGreaterThan(attemptsBeforeRetry)
+ +        await expect(page).toHaveURL(`${baseURL}${path}`)
+ +        await expect(page.getByRole('searchbox', { name: 'Поисковый запрос' })).toHaveValue('Wiki')
+ +      }
+ +    }
+ +    expect(errors).toEqual([])
+ +  })
+  
+ -      for (const [path, mode, heading] of [
+ -        ['/', 'wide', 'Wiki'],
+ -        ['/documents/new', 'reading', 'Новый документ'],
+ -        ['/tasks/BASE-42', 'detail-with-aside', 'BASE-42'],
+ -      ] as const) {
+ -        await gotoWiki(page, path)
+ -        await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible()
+ -        const layout = page.locator('[data-page-layout]')
+ -        await expect(layout).toHaveAttribute('data-page-layout', mode)
+ -
+ -        const geometry = await layout.evaluate((element) => {
+ -          const frame = element.parentElement
+ -          const frameStyle = frame ? getComputedStyle(frame) : null
+ -          return {
+ -            documentFits:
+ -              document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+ -            layoutWidth: element.getBoundingClientRect().width,
+ -            availableWidth:
+ -              (frame?.getBoundingClientRect().width ?? 0) -
+ -              Number.parseFloat(frameStyle?.paddingLeft ?? '0') -
+ -              Number.parseFloat(frameStyle?.paddingRight ?? '0'),
+ -          }
+ +  test('restores overview space context after direct login, reload and browser history', async ({
+ +    page,
+ +  }) => {
+ +    await installWikiApiMocks(page)
+ +    await page.route('**/api/v1/spaces', (route) =>
+ +      routeJson(route, {
+ +        spaces: [
+ +          baseSpace,
+ +          { ...baseSpace, id: 'space-team', key: 'TEAM', name: 'Команда', document_count: 42 },
+ +        ],
+ +      }),
+ +    )
+ +    await page.route('**/api/v1/spaces/TEAM/task-summaries?*', (route) =>
+ +      routeJson(route, {
+ +        tasks: [{ ...task, task_key: 'TEAM-1', title: 'Задача команды' }],
+ +        next_cursor: null,
+ +        total: 999,
+ +      }),
+ +    )
+ +    await page.route('**/api/v1/spaces/TEAM/phase-summaries?*', (route) =>
+ +      routeJson(route, { phases: [], next_cursor: null, total: 555 }),
+ +    )
+ +    const scopedReads: URL[] = []
+ +    const pageErrors: string[] = []
+ +    const failedResponses: string[] = []
+ +    page.on('pageerror', (error) => pageErrors.push(error.message))
+ +    page.on('response', (response) => {
+ +      if (response.status() >= 400) failedResponses.push(response.url())
+ +    })
+ +    page.on('request', (request) => {
+ +      const url = new URL(request.url())
+ +      if (url.pathname.endsWith('-summaries')) scopedReads.push(url)
+ +    })
+ +    await gotoWiki(page, '/?space=TEAM&keep=yes&page=3')
+ +    const select = page.getByRole('combobox', { name: 'Пространство', exact: true })
+ +    await expect(select).toHaveValue('TEAM')
+ +    await expect(page.getByRole('link', { name: 'Новый документ', exact: true })).toHaveCount(1)
+ +    await expect(page.getByRole('link', { name: 'Новый документ', exact: true })).toHaveAttribute(
+ +      'href',
+ +      '/documents/new?space=TEAM',
+ +    )
+ +    await expect(page.getByRole('link', { name: 'Найти', exact: true })).toHaveAttribute(
+ +      'href',
+ +      '/search?space=TEAM',
+ +    )
+ +    const stats = page.getByRole('region', { name: 'Показатели Wiki' })
+ +    await expect(stats.getByText('43', { exact: true })).toBeVisible()
+ +    await expect(stats.getByText('999', { exact: true })).toBeVisible()
+ +    await expect(stats.getByText('555', { exact: true })).toBeVisible()
+ +    await page.reload()
+ +    await expect(select).toHaveValue('TEAM')
+ +    await select.selectOption('BASE')
+ +    await expect(page).toHaveURL(`${baseURL}/?space=BASE&keep=yes`)
+ +    await page.goBack()
+ +    await expect(select).toHaveValue('TEAM')
+ +    await expect(page).toHaveURL(`${baseURL}/?space=TEAM&keep=yes&page=3`)
+ +    await page.goForward()
+ +    await expect(select).toHaveValue('BASE')
+ +    await expect(
+ +      page
+ +        .getByRole('region', { name: 'Задачи в Wiki' })
+ +        .getByRole('link', { name: /Требования к Wiki MVP/ }),
+ +    ).toHaveAttribute('href', '/tasks/BASE-42?space=BASE')
+ +    expect(
+ +      scopedReads
+ +        .filter((url) => url.pathname.endsWith('/task-summaries'))
+ +        .every((url) => url.searchParams.get('limit') === '4'),
+ +    ).toBe(true)
+ +    expect(
+ +      scopedReads
+ +        .filter((url) => url.pathname.endsWith('/phase-summaries'))
+ +        .every((url) => url.searchParams.get('limit') === '1'),
+ +    ).toBe(true)
+ +    expect(pageErrors).toEqual([])
+ +    expect(failedResponses).toEqual([])
+ +  })
+ +
+ +  test('does not read or offer CRUD for an unknown overview space and wraps long keys', async ({
+ +    page,
+ +  }, testInfo) => {
+ +    await installWikiApiMocks(page)
+ +    const reads: string[] = []
+ +    page.on('request', (request) => {
+ +      const url = new URL(request.url())
+ +      if (url.pathname === '/api/v1/search' || url.pathname.endsWith('-summaries'))
+ +        reads.push(url.pathname)
+ +    })
+ +    await gotoWiki(page, `/?space=${longUnbrokenValue}`)
+ +    await expect(page.getByRole('heading', { name: 'Объект не найден' })).toBeVisible()
+ +    await expect(page.getByRole('link', { name: 'Все пространства', exact: true })).toBeVisible()
+ +    await expect(page.getByRole('link', { name: 'Новый документ', exact: true })).toHaveCount(0)
+ +    await expect(page.getByRole('button', { name: 'Повторить', exact: true })).toHaveCount(0)
+ +    await expect(page.getByRole('combobox')).toHaveCount(0)
+ +    for (const width of [375, 1920, 2560]) {
+ +      await page.setViewportSize({ width, height: 1080 })
+ +      expect(
+ +        await page.evaluate(
+ +          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+ +        ),
+ +      ).toBe(true)
+ +      await page.screenshot({
+ +        path: testInfo.outputPath(`overview-missing-${width}.png`),
+ +        fullPage: true,
+ +      })
+ +    }
+ +    expect(reads).toEqual([])
+ +  })
+ +
+ +  for (const status of [403, 404, 503]) {
+ +    test(`keeps healthy overview tasks visible after document HTTP ${status} and retries only recoverable failures`, async ({
+ +      page,
+ +    }) => {
+ +      await installWikiApiMocks(page)
+ +      let recovered = false
+ +      await page.route('**/api/v1/search?*', (route) => {
+ +        if (recovered) return routeJson(route, { results: [] })
+ +        return routeJson(
+ +          route,
+ +          {
+ +            code:
+ +              status === 403 ? 'FORBIDDEN' : status === 404 ? 'NOT_FOUND' : 'SERVICE_UNAVAILABLE',
+ +            message: 'Поиск временно недоступен',
+ +          },
+ +          status,
+ +        )
+ +      })
+ +      await gotoWiki(page)
+ +      const documents = page.getByRole('region', { name: 'Последние документы' })
+ +      const tasks = page.getByRole('region', { name: 'Задачи в Wiki' })
+ +      await expect(tasks.getByRole('link', { name: /Требования к Wiki MVP/ })).toBeVisible()
+ +      if (status === 503) {
+-         await expect(documents.getByRole('alert')).toContainText('Поиск временно недоступен', {
+++        await expect(documents.getByRole('alert')).toContainText('Не удалось загрузить документы', {
+ +          timeout: 15_000,
+          })
+++        await expect(documents.getByRole('alert')).not.toContainText('Поиск временно недоступен')
+ +        recovered = true
+ +        await documents.getByRole('button', { name: 'Повторить', exact: true }).click()
+ +        await expect(documents.getByText('Недавние документы не найдены')).toBeVisible()
+ +      } else {
+ +        await expect(
+ +          documents.getByRole('heading', {
+ +            name: status === 403 ? 'Нет доступа' : 'Объект не найден',
+ +          }),
+ +        ).toBeVisible({ timeout: 15_000 })
+ +        await expect(documents.getByRole('button', { name: 'Повторить', exact: true })).toHaveCount(
+ +          0,
+ +        )
+ +        await expect(page.getByRole('link', { name: 'Найти', exact: true })).toHaveCount(0)
+ +        await expect(page.getByRole('link', { name: 'Новый документ', exact: true })).toHaveCount(0)
+ +      }
+ +    })
+ +  }
+ +
+ +  test('retains cached overview documents on a recoverable refresh failure but hides them on denied refresh', async ({
+ +    page,
+ +  }, testInfo) => {
+ +    await installWikiApiMocks(page)
+ +    let status = 200
+-     await page.route('**/api/v1/search?*', (route) =>
+-       status === 200
+++    const readStatuses: number[] = []
+++    await page.route('**/api/v1/search?*', (route) => {
+++      readStatuses.push(status)
+++      return status === 200
+ +        ? route.fallback()
+ +        : routeJson(
+ +            route,
+ +            {
+ +              code: status === 403 ? 'FORBIDDEN' : 'SERVICE_UNAVAILABLE',
+ +              message: longUnbrokenValue,
+ +            },
+ +            status,
+-           ),
+-     )
+++          )
+++    })
+ +    await gotoWiki(page)
+ +    const documents = page.getByRole('region', { name: 'Последние документы' })
+ +    const cachedDocument = documents.getByRole('link', { name: /Требования к Wiki MVP/ })
+ +    await expect(cachedDocument).toHaveAttribute(
+ +      'href',
+ +      '/documents/product-requirements?space=BASE',
+ +    )
+ +    status = 503
+ +    await page.getByRole('link', { name: 'Пространства', exact: true }).click()
+++    await expect(page.getByRole('heading', { name: 'Пространства', exact: true })).toBeVisible()
+++    await expect(page).toHaveURL(`${baseURL}/spaces`)
+ +    await page.getByRole('link', { name: 'Обзор', exact: true }).click()
+++    await expect.poll(() => readStatuses.includes(503)).toBe(true)
+ +    await expect(documents.locator('[data-page-state="partial-error"]')).toBeVisible({
+ +      timeout: 15_000,
+ +    })
+ +    await expect(cachedDocument).toBeVisible()
+ +    for (const width of [375, 1920, 2560]) {
+ +      await page.setViewportSize({ width, height: 1080 })
+ +      expect(
+ +        await page.evaluate(
+ +          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+ +        ),
+ +      ).toBe(true)
+ +      await page.screenshot({
+ +        path: testInfo.outputPath(`overview-partial-${width}.png`),
+ +        fullPage: true,
+ +      })
+ +    }
+ +    status = 403
+ +    await documents.getByRole('button', { name: 'Повторить', exact: true }).click()
+++    await expect.poll(() => readStatuses.includes(403)).toBe(true)
+ +    await expect(documents.getByRole('heading', { name: 'Нет доступа' })).toBeVisible({
+ +      timeout: 15_000,
+ +    })
+ +    await expect(cachedDocument).toHaveCount(0)
+ +    await expect(documents.getByRole('button', { name: 'Повторить', exact: true })).toHaveCount(0)
+ +  })
+ +
+-   test('uses the shared work-area geometry across semantic page modes', async ({
+-     page,
+-   }, testInfo) => {
+-     await installWikiApiMocks(page)
+- 
+-     test.setTimeout(300_000)
+-     for (const theme of ['dark', 'gray', 'light']) {
+-       await gotoWiki(page)
+-       await page.evaluate((value) => localStorage.setItem('theme', value), theme)
+-       for (const width of [375, 767, 768, 1023, 1024, 1279, 1280, 1440, 1920, 2560]) {
+++  for (const theme of ['dark', 'gray', 'light']) {
+++    for (const width of [375, 767, 768, 1023, 1024, 1279, 1280, 1440, 1920, 2560]) {
+++      test(`uses the shared work-area geometry in ${theme} at ${width} across semantic page modes`, async ({
+++        page,
+++      }, testInfo) => {
+++        await installWikiApiMocks(page)
+++        await gotoWiki(page)
+++        await page.evaluate((value) => localStorage.setItem('theme', value), theme)
+ +        const viewport = { width, height: width < 768 ? 812 : 1080 }
+ +        await page.setViewportSize(viewport)
+  
+ -        expect(geometry.documentFits).toBe(true)
+ -        if (mode === 'reading') {
+ -          expect(geometry.layoutWidth).toBeLessThanOrEqual(761)
+ -        } else {
+ -          expect(Math.abs(geometry.layoutWidth - geometry.availableWidth)).toBeLessThanOrEqual(1)
+ +        for (const [path, mode, heading] of [
+ +          ['/', 'wide', 'Wiki'],
+ +          ['/settings', 'reading', 'Настройки'],
+ +          ['/documents/new', 'detail-with-aside', 'Новый документ'],
+ +          ['/tasks/BASE-42', 'detail-with-aside', 'BASE-42'],
+ +          ['/users', 'wide', 'Профили Wiki'],
+ +          ['/audit-log', 'wide', 'Аудит'],
+ +          ['/spaces', 'wide', 'Пространства'],
+ +        ] as const) {
+ +          await gotoWiki(page, path)
+ +          await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible()
+ +          await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+ +          const layout = page.locator('[data-page-layout]')
+ +          await expect(layout).toHaveAttribute('data-page-layout', mode)
+ +
+ +          const geometry = await layout.evaluate((element) => {
+ +            const frame = element.parentElement
+ +            const frameStyle = frame ? getComputedStyle(frame) : null
+ +            return {
+ +              documentFits:
+ +                document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+ +              layoutWidth: element.getBoundingClientRect().width,
+ +              availableWidth:
+ +                (frame?.getBoundingClientRect().width ?? 0) -
+ +                Number.parseFloat(frameStyle?.paddingLeft ?? '0') -
+ +                Number.parseFloat(frameStyle?.paddingRight ?? '0'),
+ +            }
+ +          })
+ +
+ +          expect(geometry.documentFits).toBe(true)
+ +          if (mode === 'reading') {
+ +            expect(geometry.layoutWidth).toBeLessThanOrEqual(761)
+ +          } else {
+ +            expect(Math.abs(geometry.layoutWidth - geometry.availableWidth)).toBeLessThanOrEqual(1)
+ +          }
+ +          await page.screenshot({
+ +            path: testInfo.outputPath(
+ +              `shell-${theme}-${viewport.width}-${mode}-${path.replaceAll('/', '-').replace(/^-/, '') || 'overview'}.png`,
+ +            ),
+ +            fullPage: true,
+ +          })
+          }
+-       }
+++      })
+ +    }
+-   })
+++  }
+ +
+ +  test('uses the Base cached audit error policy without hiding repeatable failures', async ({
+ +    page,
+ +  }, testInfo) => {
+ +    test.setTimeout(180_000)
+ +    await installWikiApiMocks(page)
+ +    let status = 200
+ +    await page.route('**/api/v1/audit-log*', async (route) => {
+ +      if (status === 200) return route.fallback()
+ +      if (status === 0) return route.abort('failed')
+ +      return routeJson(
+ +        route,
+ +        {
+ +          code: status === 422 ? 'VALIDATION_ERROR' : 'SERVICE_UNAVAILABLE',
+ +          message: 'Audit refresh rejected',
+ +        },
+ +        status,
+ +      )
+ +    })
+ +    for (const failure of [0, 408, 429, 503, 403, 404, 422]) {
+ +      status = 200
+ +      await gotoWiki(page, '/spaces')
+ +      await page.getByRole('link', { name: 'Аудит', exact: true }).click()
+ +      const events = page.getByRole('region', { name: 'События аудита' })
+ +      await expect(events.getByText('Создана начальная структура').last()).toBeVisible()
+ +      status = failure
+ +      await page.getByRole('link', { name: 'Пространства', exact: true }).click()
+++      await expect(page.getByRole('heading', { name: 'Пространства', exact: true })).toBeVisible()
+ +      await page.getByRole('link', { name: 'Аудит', exact: true }).click()
+ +      const repeatable = [0, 408, 429, 503].includes(failure)
+ +      const state = repeatable
+ +        ? 'partial-error'
+ +        : failure === 403
+ +          ? 'permission-denied'
+ +          : failure === 404
+ +            ? 'not-found'
+ +            : 'error'
+ +      await expect(
+ +        state === 'error'
+ +          ? events.getByRole('alert')
+ +          : events.locator(`[data-page-state="${state}"]`),
+ +      ).toBeVisible({ timeout: 15_000 })
+ +      if (repeatable) {
+ +        await expect(events.getByText('Создана начальная структура').last()).toBeVisible()
+ +        await expect(events.getByRole('button', { name: 'Повторить', exact: true })).toBeVisible()
+ +      } else {
+ +        await expect(events.getByText('Создана начальная структура')).toHaveCount(0)
+ +        await expect(events.getByRole('button', { name: 'Повторить', exact: true })).toHaveCount(0)
+ +      }
+ +      await expect(events.getByText('Событий аудита пока нет')).toHaveCount(0)
+ +      for (const width of [375, 1920, 2560]) {
+ +        await page.setViewportSize({ width, height: width < 768 ? 812 : 1080 })
+ +        expect(
+ +          await page.evaluate(
+ +            () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+ +          ),
+ +        ).toBe(true)
+ +        expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
+          await page.screenshot({
+ -          path: testInfo.outputPath(`shell-${viewport.width}-${mode}.png`),
+ +          path: testInfo.outputPath(`audit-cached-${failure}-${width}.png`),
+            fullPage: true,
+          })
+        }
+@@@ -1217,565 -648,6 +1229,566 @@@
+      await expect(trigger).toBeFocused()
+    })
+  
+ +  test('keeps contextual creation in page actions and Base drawer navigation-only', async ({
+ +    page,
+ +  }) => {
+ +    await page.setViewportSize({ width: 375, height: 812 })
+ +    await installWikiApiMocks(page)
+ +    await gotoWiki(page, '/search?space=BASE')
+ +    const header = page.locator('[data-platform-header]')
+ +    const trigger = page.getByRole('button', { name: 'Открыть навигацию' })
+ +    await expect(header.getByRole('link', { name: 'Новый документ', exact: true })).toHaveCount(0)
+ +    await trigger.click()
+ +    const drawer = page.getByRole('dialog', { name: 'Wiki', exact: true })
+ +    await expect(drawer.getByRole('link', { name: 'Новый документ', exact: true })).toHaveCount(0)
+ +    await page.keyboard.press('Escape')
+ +    await expect(drawer).toBeHidden()
+ +    await expect(trigger).toBeFocused()
+ +    const create = page.locator('.base-page-actions').getByRole('link', {
+ +      name: 'Новый документ',
+ +      exact: true,
+ +    })
+ +    await expect(create).toHaveAttribute('href', '/documents/new?space=BASE')
+ +    const target = await create.boundingBox()
+ +    expect(target?.height).toBeGreaterThanOrEqual(44)
+ +    await create.click()
+ +    await expect(page).toHaveURL(`${baseURL}/documents/new?space=BASE`)
+ +    await expect(drawer).toBeHidden()
+ +    await expect(page.locator('[data-page-layout]')).toHaveAttribute(
+ +      'data-page-layout',
+ +      'detail-with-aside',
+ +    )
+ +    await expect(header.getByRole('link', { name: 'Новый документ', exact: true })).toHaveCount(0)
+ +
+ +    for (const width of [375, 1920]) {
+ +      await page.setViewportSize({ width, height: width === 1920 ? 1080 : 812 })
+ +      await gotoWiki(page, '/documents/product-requirements')
+ +      await expect(
+ +        page
+ +          .locator('article > section')
+ +          .first()
+ +          .getByRole('heading', { name: document.title, exact: true }),
+ +      ).toBeVisible()
+ +      const documentCreate = page.getByRole('link', { name: 'Новый документ', exact: true })
+ +      await expect(documentCreate).toHaveCount(1)
+ +      await expect(documentCreate).toBeVisible()
+ +      await expect(documentCreate).toHaveAttribute('href', '/documents/new?space=BASE')
+ +      await expect(header.getByRole('link', { name: 'Новый документ', exact: true })).toHaveCount(0)
+ +      await gotoWiki(page, '/templates?space=BASE')
+ +      await expect(page.getByRole('heading', { name: 'Шаблоны', exact: true })).toBeVisible()
+ +      await expect(
+ +        page.getByRole('link', { name: 'Создать документ', exact: true }),
+ +      ).toHaveAttribute('href', '/documents/new?space=BASE')
+ +      const useTemplate = page.getByRole('link', { name: /^Использовать шаблон/ }).first()
+ +      const href = await useTemplate.getAttribute('href')
+ +      expect(new URL(href!, baseURL).searchParams.get('space')).toBe('BASE')
+ +      await expect(header.getByRole('link', { name: 'Новый документ', exact: true })).toHaveCount(0)
+ +      if (width < 768) {
+ +        await trigger.click()
+ +        await expect(drawer.getByRole('link', { name: 'Новый документ', exact: true })).toHaveCount(
+ +          0,
+ +        )
+ +        await page.keyboard.press('Escape')
+ +        await expect(trigger).toBeFocused()
+ +      }
+ +      await page.screenshot({
+ +        path: test.info().outputPath(`contextual-create-${width}.png`),
+ +        fullPage: true,
+ +      })
+ +    }
+ +  })
+ +
+ +  test('validates search page creation context across Base themes and shell boundaries', async ({
+ +    page,
+ +  }, testInfo) => {
+ +    test.setTimeout(180_000)
+ +    await installWikiApiMocks(page)
+ +    const teamSpace = { ...baseSpace, id: 'space-team', key: 'TEAM', name: 'Команда' }
+ +    let spaces = [teamSpace, baseSpace]
+ +    let catalogStatus = 200
+ +    let identityActive = true
+ +    let identityStatus = 200
+ +    let searchStatus = 200
+ +    const errors: string[] = []
+ +    const responses: Array<{ path: string; status: number }> = []
+ +    page.on('pageerror', (error) => errors.push(error.message))
+ +    page.on('response', (response) => {
+ +      const path = new URL(response.url()).pathname
+ +      if (path.startsWith('/api/v1/')) responses.push({ path, status: response.status() })
+ +    })
+ +    await page.route('**/api/v1/spaces', (route) =>
+ +      routeJson(
+ +        route,
+ +        catalogStatus === 200
+ +          ? { spaces }
+ +          : { code: 'SERVICE_UNAVAILABLE', message: 'Catalog unavailable' },
+ +        catalogStatus,
+ +      ),
+ +    )
+ +    await page.route('**/api/v1/users/me', (route) => {
+ +      // Keep the mocked login successful; vary only the post-login profile query.
+ +      if (new URL(page.url()).pathname === '/sso/callback') return routeJson(route, user)
+ +      return routeJson(
+ +        route,
+ +        identityStatus === 200
+ +          ? { ...user, active: identityActive }
+ +          : { code: 'SERVICE_UNAVAILABLE', message: 'Identity unavailable' },
+ +        identityStatus,
+ +      )
+ +    })
+ +    await page.route('**/api/v1/search**', (route) =>
+ +      searchStatus === 200
+ +        ? route.fallback()
+ +        : routeJson(
+ +            route,
+ +            { code: searchStatus === 403 ? 'FORBIDDEN' : 'NOT_FOUND', message: 'Unavailable' },
+ +            searchStatus,
+ +          ),
+ +    )
+ +    await gotoWiki(page, '/search?space=team&keep=1#results')
+ +    const create = page.getByRole('link', { name: 'Новый документ', exact: true })
+ +    const geometry: Array<{ theme: string; width: number; height: number }> = []
+ +    for (const theme of ['light', 'gray', 'dark']) {
+ +      await page.evaluate((value) => localStorage.setItem('theme', value), theme)
+ +      await page.reload()
+ +      for (const width of [375, 767, 768, 1023, 1024, 1279, 1280, 1440, 1920, 2560]) {
+ +        await page.setViewportSize({ width, height: width < 768 ? 812 : 1080 })
+ +        await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+ +        await expect(page.locator('[data-page-layout]')).toHaveAttribute('data-page-layout', 'wide')
+ +        await expect(create).toHaveCount(1)
+ +        await expect(create).toBeVisible()
+ +        await expect(create).toHaveAttribute('href', '/documents/new?space=TEAM')
+ +        await expect(
+ +          page.locator('.base-page-actions').getByRole('link', {
+ +            name: 'Новый документ',
+ +            exact: true,
+ +          }),
+ +        ).toHaveCount(1)
+ +        await expect(
+ +          page.locator('[data-platform-header]').getByRole('link', {
+ +            name: 'Новый документ',
+ +            exact: true,
+ +          }),
+ +        ).toHaveCount(0)
+ +        const target = await create.boundingBox()
+ +        expect(target).not.toBeNull()
+ +        expect(target!.height).toBeGreaterThanOrEqual(width < 768 ? 44 : 40)
+ +        expect(target!.x).toBeGreaterThanOrEqual(0)
+ +        expect(target!.x + target!.width).toBeLessThanOrEqual(width)
+ +        expect(
+ +          await page.evaluate(
+ +            () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+ +          ),
+ +        ).toBe(true)
+ +        geometry.push({ theme, width, height: target!.height })
+ +        if (width < 768) {
+ +          const trigger = page.getByRole('button', { name: 'Открыть навигацию' })
+ +          await trigger.click()
+ +          const drawer = page.getByRole('dialog', { name: 'Wiki', exact: true })
+ +          await expect(
+ +            drawer.getByRole('link', { name: 'Новый документ', exact: true }),
+ +          ).toHaveCount(0)
+ +          await page.keyboard.press('Escape')
+ +          await expect(drawer).toBeHidden()
+ +          await expect(trigger).toBeFocused()
+ +        }
+ +        await page.screenshot({
+ +          path: testInfo.outputPath(`search-page-action-${theme}-${width}.png`),
+ +          fullPage: true,
+ +        })
+ +      }
+ +    }
+ +    await create.focus()
+ +    await expect(create).toBeFocused()
+ +    await page.keyboard.press('Enter')
+ +    await expect(page).toHaveURL(`${baseURL}/documents/new?space=TEAM`)
+ +    await expect(page.getByRole('combobox', { name: 'Пространство', exact: true })).toHaveValue(
+ +      'TEAM',
+ +    )
+ +    await page.goBack()
+ +    await expect(page).toHaveURL(`${baseURL}/search?space=team&keep=1#results`)
+ +    await expect(create).toHaveAttribute('href', '/documents/new?space=TEAM')
+ +    await page.goForward()
+ +    await expect(page).toHaveURL(`${baseURL}/documents/new?space=TEAM`)
+ +
+ +    await gotoWiki(page, '/search')
+ +    await expect(create).toHaveAttribute('href', '/documents/new?space=BASE')
+ +    await gotoWiki(page, '/search?space=MISSING')
+ +    await expect(create).toHaveCount(0)
+ +    await page.reload()
+ +    await expect(page.getByRole('heading', { name: 'Поиск', exact: true })).toBeVisible()
+ +    await expect(create).toHaveCount(0)
+ +    const cases = [
+ +      'archived',
+ +      'empty',
+ +      'catalog-error',
+ +      'inactive-user',
+ +      'identity-error',
+ +      '403',
+ +      '404',
+ +    ]
+ +    for (const state of cases) {
+ +      spaces =
+ +        state === 'empty'
+ +          ? []
+ +          : [{ ...teamSpace, status: state === 'archived' ? 'archived' : 'active' }, baseSpace]
+ +      catalogStatus = state === 'catalog-error' ? 503 : 200
+ +      identityActive = state !== 'inactive-user'
+ +      identityStatus = state === 'identity-error' ? 503 : 200
+ +      searchStatus = state === '403' || state === '404' ? Number(state) : 200
+ +      await gotoWiki(page, '/search?space=TEAM')
+ +      const responseOffset = responses.length
+ +      await page.reload()
+ +      for (const [path, status] of [
+ +        ['/api/v1/spaces', catalogStatus],
+ +        ['/api/v1/users/me', identityStatus],
+ +        ['/api/v1/search', searchStatus],
+ +      ] as const) {
+ +        await expect
+ +          .poll(() =>
+ +            responses
+ +              .slice(responseOffset)
+ +              .some((response) => response.path === path && response.status === status),
+ +          )
+ +          .toBe(true)
+ +      }
+ +      await expect(page.getByRole('heading', { name: 'Поиск', exact: true })).toBeVisible()
+ +      if (searchStatus !== 200) {
+ +        await expect(
+ +          page.locator(
+ +            `[data-page-state="${searchStatus === 403 ? 'permission-denied' : 'not-found'}"]`,
+ +          ),
+ +        ).toBeVisible({ timeout: 15_000 })
+ +      } else {
+ +        await expect(page.getByRole('link', { name: /Требования к Wiki MVP/ })).toBeVisible()
+ +      }
+ +      await expect(create).toHaveCount(0)
+ +      await expect(
+ +        page.locator('[data-platform-header]').getByRole('link', {
+ +          name: 'Новый документ',
+ +          exact: true,
+ +        }),
+ +      ).toHaveCount(0)
+ +    }
+ +    spaces = [teamSpace, baseSpace]
+ +    catalogStatus = 200
+ +    identityActive = true
+ +    identityStatus = 200
+ +    searchStatus = 200
+ +    await gotoWiki(page, '/search?space=TEAM')
+ +    await page.reload()
+ +    await expect(create).toHaveCount(1)
+ +    await expect(create).toHaveAttribute('href', '/documents/new?space=TEAM')
+ +    expect(errors).toEqual([])
+ +    await testInfo.attach('search-action-geometry.json', {
+ +      body: JSON.stringify(
+ +        { geometry, states: ['unknown-parent', ...cases], pageErrors: errors },
+ +        null,
+ +        2,
+ +      ),
+ +      contentType: 'application/json',
+ +    })
+ +  })
+ +
+ +  test('uses Base template controls, states and draft protection across themes and widths', async ({
+ +    page,
+ +  }, testInfo) => {
+ +    test.setTimeout(300_000)
+ +    const api = await installWikiApiMocks(page)
+ +    page.setDefaultTimeout(15_000)
+ +    const geometry: Array<{
+ +      theme: string
+ +      width: number
+ +      controls: Array<{ label: string | null; height: number }>
+ +    }> = []
+ +    let status = 200
+ +    const errors: string[] = []
+ +    page.on('pageerror', (error) => errors.push(error.message))
+ +    await page.route('**/api/v1/templates', async (route) => {
+ +      if (route.request().method() !== 'GET' || status === 200) return route.fallback()
+ +      if (status === 0) return route.abort('failed')
+ +      return routeJson(
+ +        route,
+ +        {
+ +          code: status === 403 ? 'FORBIDDEN' : 'SERVICE_UNAVAILABLE',
+ +          message: 'Catalog unavailable',
+ +        },
+ +        status,
+ +      )
+ +    })
+ +    await gotoWiki(page, '/templates?space=BASE&keep=1#catalog')
+ +    for (const theme of ['light', 'gray', 'dark']) {
+ +      await page.evaluate((value) => localStorage.setItem('theme', value), theme)
+ +      await page.reload()
+ +      await page.getByRole('button', { name: 'Новый шаблон', exact: true }).click()
+ +      for (const width of [375, 767, 768, 1023, 1024, 1279, 1280, 1440, 1920, 2560]) {
+ +        await page.setViewportSize({ width, height: width < 768 ? 812 : 1080 })
+ +        await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+ +        await expect(page.locator('[data-page-layout]')).toHaveAttribute('data-page-layout', 'wide')
+ +        await expect(page.locator('.base-page-title')).toHaveText('Шаблоны')
+ +        await page
+ +          .getByRole('textbox', { name: 'Название шаблона', exact: true })
+ +          .fill('Безопасный черновик')
+ +        await page
+ +          .getByRole('textbox', { name: 'Markdown шаблона', exact: true })
+ +          .fill('# Черновик\n\n' + 'Длинный текст '.repeat(30))
+ +        const controls = await page
+ +          .locator('main button, main input, main select, main a')
+ +          .evaluateAll((elements) =>
+ +            elements
+ +              .filter((element) => element.getClientRects().length > 0)
+ +              .map((element) => ({
+ +                label: element.getAttribute('aria-label') ?? element.textContent,
+ +                height: element.getBoundingClientRect().height,
+ +              })),
+ +          )
+ +        expect(controls.length).toBeGreaterThan(5)
+ +        for (const control of controls)
+ +          expect(control.height, String(control.label)).toBeGreaterThanOrEqual(
+ +            width < 768 ? 44 : 40,
+ +          )
+ +        geometry.push({ theme, width, controls })
+ +        expect(
+ +          await page.evaluate(
+ +            () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+ +          ),
+ +        ).toBe(true)
+ +        if (width === 375 || width === 1920)
+ +          expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
+ +        await page.screenshot({
+ +          path: testInfo.outputPath(`templates-${theme}-${width}.png`),
+ +          fullPage: true,
+ +        })
+ +      }
+ +      await page.getByRole('textbox', { name: 'Название шаблона', exact: true }).fill('')
+ +      await page.getByRole('textbox', { name: 'Markdown шаблона', exact: true }).fill('')
+ +      await expect
+ +        .poll(() =>
+ +          page.evaluate(() => {
+ +            const event = new Event('beforeunload', { cancelable: true })
+ +            window.dispatchEvent(event)
+ +            return event.defaultPrevented
+ +          }),
+ +        )
+ +        .toBe(false)
+ +    }
+ +    await page
+ +      .getByRole('textbox', { name: 'Название шаблона', exact: true })
+ +      .fill('Безопасный черновик')
+ +    await page.getByRole('textbox', { name: 'Markdown шаблона', exact: true }).fill('# Черновик')
+ +    await page.getByRole('button', { name: 'Свернуть', exact: true }).click()
+ +    await page.getByRole('searchbox', { name: 'Найти шаблон' }).fill('Требования')
+ +    await expect(page).toHaveURL(/keep=1.*q=.*#catalog$/)
+ +    await page.getByRole('button', { name: 'Новый шаблон', exact: true }).click()
+ +    await expect(page.getByRole('textbox', { name: 'Название шаблона', exact: true })).toHaveValue(
+ +      'Безопасный черновик',
+ +    )
+ +    await page.getByRole('link', { name: 'Создать документ', exact: true }).click()
+ +    const guard = page.getByRole('alertdialog')
+ +    await expect(guard).toBeVisible()
+ +    await guard.getByRole('button', { name: 'Отмена', exact: true }).click()
+ +    await expect(guard).toBeHidden()
+ +    await expect(page.getByRole('link', { name: 'Создать документ', exact: true })).toBeFocused()
+ +    expect(api.templateCreateRequests).toEqual([])
+ +    await page.getByRole('textbox', { name: 'Название шаблона', exact: true }).fill('')
+ +    await page.getByRole('textbox', { name: 'Markdown шаблона', exact: true }).fill('')
+ +    for (const failure of [0, 503, 403, 404, 422]) {
+ +      status = 200
+ +      await gotoWiki(page, '/templates?space=BASE')
+ +      await expect(page.getByRole('link', { name: /^Использовать шаблон/ })).toBeVisible()
+ +      status = failure
+ +      await page.getByRole('link', { name: 'Пространства', exact: true }).click()
+++      await expect(page.getByRole('heading', { name: 'Пространства', exact: true })).toBeVisible()
+ +      await page.getByRole('link', { name: 'Шаблоны', exact: true }).click()
+ +      const repeatable = failure === 0 || failure === 503
+ +      const state = repeatable
+ +        ? 'partial-error'
+ +        : failure === 403
+ +          ? 'permission-denied'
+ +          : failure === 404
+ +            ? 'not-found'
+ +            : 'error'
+ +      await expect(
+ +        state === 'error' ? page.getByRole('alert') : page.locator(`[data-page-state="${state}"]`),
+ +      ).toBeVisible({ timeout: 15_000 })
+ +      await expect(page.getByRole('button', { name: 'Повторить', exact: true })).toHaveCount(
+ +        repeatable ? 1 : 0,
+ +      )
+ +      await expect(page.getByRole('link', { name: /^Использовать шаблон/ })).toHaveCount(
+ +        repeatable ? 1 : 0,
+ +      )
+ +      if (repeatable)
+ +        await expect(page.getByRole('button', { name: 'Новый шаблон', exact: true })).toBeDisabled()
+ +      for (const width of [375, 1920]) {
+ +        await page.setViewportSize({ width, height: width < 768 ? 812 : 1080 })
+ +        expect(
+ +          await page.evaluate(
+ +            () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+ +          ),
+ +        ).toBe(true)
+ +        expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
+ +        await page.screenshot({
+ +          path: testInfo.outputPath(`templates-cached-${failure}-${width}.png`),
+ +          fullPage: true,
+ +        })
+ +      }
+ +    }
+ +    expect(errors).toEqual([])
+ +    await testInfo.attach('templates-geometry', {
+ +      body: JSON.stringify(geometry),
+ +      contentType: 'application/json',
+ +    })
+ +  })
+ +
+ +  test('uses Base compose fields, URL tabs and detail geometry across themes and widths', async ({
+ +    page,
+ +  }, testInfo) => {
+ +    test.setTimeout(180_000)
+ +    await installWikiApiMocks(page)
+ +    const failures: string[] = []
+ +    page.on('pageerror', (error) => failures.push(error.message))
+ +    page.on('console', (message) => {
+ +      if (message.type() === 'error') failures.push(message.text())
+ +    })
+ +    for (const theme of ['dark', 'gray', 'light']) {
+ +      await gotoWiki(page, '/documents/new?space=BASE&source=search#editor')
+ +      await page.evaluate((value) => localStorage.setItem('theme', value), theme)
+ +      await page.reload()
+ +      await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+ +      await page.getByRole('textbox', { name: 'Название', exact: true }).fill(longUnbrokenValue)
+ +      await page
+ +        .getByRole('textbox', { name: 'Markdown документа', exact: true })
+ +        .fill(longUnbrokenValue)
+ +      for (const width of [375, 767, 768, 1023, 1024, 1279, 1280, 1440, 1920, 2560]) {
+ +        await page.setViewportSize({ width, height: 1080 })
+ +        const main = page.locator('[data-page-layout]')
+ +        await expect(main).toHaveAttribute('data-page-layout', 'detail-with-aside')
+ +        await expect
+ +          .poll(() =>
+ +            main.evaluate((element) =>
+ +              Array.from(element.querySelectorAll('input, select, button, [role="tab"]'))
+ +                .filter(
+ +                  (control) => control.getClientRects().length && !control.closest('[hidden]'),
+ +                )
+ +                .every(
+ +                  (control) =>
+ +                    control.getBoundingClientRect().height >= (innerWidth < 768 ? 44 : 40),
+ +                ),
+ +            ),
+ +          )
+ +          .toBe(true)
+ +        const measurements = await main.evaluate((element) => {
+ +          const split = element.querySelector('.page-split')!
+ +          const aside = split.querySelector('aside')!
+ +          const content = split.firstElementChild!
+ +          const controls = Array.from(
+ +            element.querySelectorAll('input, select, button, [role="tab"]'),
+ +          ).filter((control) => control.getClientRects().length && !control.closest('[hidden]'))
+ +          return {
+ +            fits: document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+ +            aside: aside.getBoundingClientRect().width,
+ +            stacked: aside.getBoundingClientRect().top >= content.getBoundingClientRect().bottom,
+ +            targets: controls.map((control) => ({
+ +              label: control.getAttribute('aria-label') ?? control.textContent ?? control.id,
+ +              height: control.getBoundingClientRect().height,
+ +              minHeight: getComputedStyle(control).minHeight,
+ +            })),
+ +          }
+ +        })
+ +        expect(measurements.fits).toBe(true)
+ +        await expect
+ +          .poll(() =>
+ +            page
+ +              .getByRole('textbox', { name: 'Markdown документа', exact: true })
+ +              .evaluate((element) => element.getBoundingClientRect().height),
+ +          )
+ +          .toBeGreaterThanOrEqual(384)
+ +        for (const target of measurements.targets)
+ +          expect(
+ +            target.height,
+ +            `${theme}/${width}: ${JSON.stringify(target)}`,
+ +          ).toBeGreaterThanOrEqual(width < 768 ? 44 : 40)
+ +        if (width >= 1024) expect(Math.abs(measurements.aside - 320)).toBeLessThanOrEqual(1)
+ +        else expect(measurements.stacked).toBe(true)
+ +        if ([375, 1920, 2560].includes(width)) {
+ +          expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
+ +          await page.evaluate(() => {
+ +            ;(document.activeElement as HTMLElement)?.blur()
+ +            window.scrollTo(0, 0)
+ +          })
+ +          await page.screenshot({
+ +            path: testInfo.outputPath(`compose-${theme}-${width}.png`),
+ +            fullPage: true,
+ +          })
+ +        }
+ +      }
+ +      await page.getByRole('button', { name: 'Предпросмотр' }).click()
+ +      await expect(page).toHaveURL(
+ +        `${baseURL}/documents/new?space=BASE&source=search&tab=preview#editor`,
+ +      )
+ +      await expect(page.getByRole('alertdialog')).toHaveCount(0)
+ +      await page.goBack()
+ +      await expect(
+ +        page.getByRole('textbox', { name: 'Markdown документа', exact: true }),
+ +      ).toHaveValue(longUnbrokenValue)
+ +      await page.getByRole('link', { name: 'Пространства', exact: true }).click()
+ +      await page.getByRole('alertdialog').getByRole('button', { name: 'Подтвердить' }).click()
+ +      await expect(page).toHaveURL(/\/spaces/)
+ +    }
+ +    expect(failures).toEqual([])
+ +  })
+ +
+ +  test('retains the compose draft across a failed background refresh and explicit retry', async ({
+ +    page,
+ +  }) => {
+ +    await installWikiApiMocks(page)
+ +    let status = 200
+ +    let refreshRequests = 0
+ +    await page.route('**/api/v1/spaces', (route) => {
+ +      if (status !== 200) refreshRequests++
+ +      return status === 200
+ +        ? route.fallback()
+ +        : routeJson(route, { code: 'SERVICE_UNAVAILABLE', message: 'Unavailable' }, status)
+ +    })
+ +    await gotoWiki(page, '/documents/new?space=BASE')
+ +    const title = page.getByRole('textbox', { name: 'Название', exact: true })
+ +    await title.fill('Сохранённый в памяти черновик')
+ +    await page.getByRole('textbox', { name: 'Markdown документа', exact: true }).fill('# Own draft')
+ +    status = 503
+ +    await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
+ +    await expect.poll(() => refreshRequests, { timeout: 15_000 }).toBeGreaterThan(0)
+ +    await expect(page.locator('[data-page-state="partial-error"]')).toBeVisible({ timeout: 15_000 })
+ +    await expect(title).toHaveValue('Сохранённый в памяти черновик')
+ +    await expect(title).toBeDisabled()
+ +    await expect(page.getByRole('button', { name: 'Сохранить черновик' })).toBeDisabled()
+ +    status = 200
+ +    await page.getByRole('button', { name: 'Повторить', exact: true }).click()
+ +    await expect(title).toBeEnabled()
+ +    await expect(
+ +      page.getByRole('textbox', { name: 'Markdown документа', exact: true }),
+ +    ).toHaveValue('# Own draft')
+ +  })
+ +
+ +  for (const status of [403, 404]) {
+ +    test(`does not offer compose controls for a space source HTTP ${status}`, async ({ page }) => {
+ +      await installWikiApiMocks(page)
+ +      await page.route('**/api/v1/spaces', (route) =>
+ +        routeJson(
+ +          route,
+ +          { code: status === 403 ? 'FORBIDDEN' : 'NOT_FOUND', message: 'Unavailable' },
+ +          status,
+ +        ),
+ +      )
+ +      await gotoWiki(page, '/documents/new?space=BASE')
+ +      await expect(
+ +        page.locator(`[data-page-state="${status === 403 ? 'permission-denied' : 'not-found'}"]`),
+ +      ).toBeVisible({ timeout: 15_000 })
+ +      await expect(page.getByRole('button', { name: 'Сохранить черновик' })).toHaveCount(0)
+ +      await expect(page.getByRole('textbox', { name: 'Название', exact: true })).toHaveCount(0)
+ +      await expect(page.getByRole('button', { name: 'Повторить', exact: true })).toHaveCount(0)
+ +    })
+ +  }
+ +
+    test('previews a new document and protects its unsaved draft during navigation', async ({
+      page,
+    }) => {
+@@@ -1840,113 -710,6 +1853,114 @@@
+      await page.screenshot({ path: 'test-results/wiki-space-archive.png', fullPage: true })
+    })
+  
+ +  test('retains space URL context and drafts through collapse, reload and history', async ({
+ +    page,
+ +  }, testInfo) => {
+ +    await installWikiApiMocks(page)
+ +    await gotoWiki(page, '/spaces?status=active&sort=name&owner=mine&expanded=BASE&keep=yes')
+ +    const row = page.getByRole('button', { name: /База знаний Base/ })
+ +    await expect(row).toHaveAttribute('aria-expanded', 'true')
+ +    await expect(page.getByRole('combobox', { name: 'Статус пространства' })).toHaveValue('active')
+ +    await expect(page.getByRole('combobox', { name: 'Сортировка пространств' })).toHaveValue('name')
+ +    await expect(page.getByRole('checkbox', { name: 'Только мои' })).toBeChecked()
+ +    await page.reload()
+ +    await expect(row).toHaveAttribute('aria-expanded', 'true')
+ +    await expect(
+ +      page.getByRole('link', { name: 'Требования к Wiki MVP требования' }),
+ +    ).toHaveAttribute('href', '/documents/product-requirements?space=BASE')
+ +    await page
+ +      .getByRole('textbox', { name: 'Название пространства' })
+ +      .fill('Несохранённое название')
+ +    await row.click()
+ +    await expect(page).not.toHaveURL(/expanded=/)
+ +    await page.goBack()
+ +    await expect(row).toHaveAttribute('aria-expanded', 'true')
+ +    await expect(page.getByRole('textbox', { name: 'Название пространства' })).toHaveValue(
+ +      'Несохранённое название',
+ +    )
+ +    for (const width of [375, 1920, 2560]) {
+ +      await page.setViewportSize({ width, height: 1080 })
+ +      await expect
+ +        .poll(() =>
+ +          page.evaluate(
+ +            () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+ +          ),
+ +        )
+ +        .toBe(true)
+ +      const controls = await page
+ +        .locator('main')
+ +        .locator(
+ +          'button:visible,input:visible:not([type="checkbox"]),select:visible,textarea:visible',
+ +        )
+ +        .evaluateAll((elements) =>
+ +          elements.map((element) => ({
+ +            label: element.getAttribute('aria-label') ?? element.textContent,
+ +            height: element.getBoundingClientRect().height,
+ +          })),
+ +        )
+ +      expect(controls.filter((control) => control.height < (width < 768 ? 44 : 40) - 0.5)).toEqual(
+ +        [],
+ +      )
+ +      await page.screenshot({
+ +        path: testInfo.outputPath(`spaces-expanded-draft-${width}.png`),
+ +        fullPage: true,
+ +      })
+ +    }
+ +    await page.getByRole('link', { name: 'Поиск', exact: true }).click()
+ +    const dialog = page.getByRole('alertdialog')
+ +    await expect(dialog).toContainText('Несохранённые изменения')
+ +    await dialog.getByRole('button', { name: 'Отмена' }).click()
+ +    await expect(page.getByRole('textbox', { name: 'Название пространства' })).toHaveValue(
+ +      'Несохранённое название',
+ +    )
+ +  })
+ +
+ +  test('keeps a pending space write locked across collapse and retains the draft after failure', async ({
+ +    page,
+ +  }) => {
+ +    await installWikiApiMocks(page)
+ +    let requests = 0
+ +    let release!: () => void
+ +    const gate = new Promise<void>((resolve) => {
+ +      release = resolve
+ +    })
+ +    await page.route('**/api/v1/spaces/BASE', async (route) => {
+ +      if (route.request().method() !== 'PUT') return route.fallback()
+ +      requests += 1
+ +      await gate
+ +      await routeJson(
+ +        route,
+ +        { code: 'SERVICE_UNAVAILABLE', message: 'Сохранение временно недоступно' },
+ +        503,
+ +      )
+ +    })
+ +    try {
+ +      await gotoWiki(page, '/spaces?expanded=BASE')
+ +      await page
+ +        .getByRole('textbox', { name: 'Название пространства' })
+ +        .fill('Черновик после ошибки')
+ +      await page.getByRole('button', { name: 'Сохранить', exact: true }).click()
+ +      await expect.poll(() => requests).toBe(1)
+ +      const row = page.getByRole('button', { name: /База знаний Base/ })
+ +      await row.click()
+ +      await row.click()
+ +      const form = page.getByRole('form', { name: 'Изменение пространства BASE' })
+ +      await expect(form.getByRole('textbox', { name: 'Название пространства' })).toBeDisabled()
+ +      await expect(form.getByRole('button', { name: 'Сохраняем...' })).toBeDisabled()
+ +      await form.dispatchEvent('submit')
+ +      expect(requests).toBe(1)
+ +      release()
+-       await expect(form.getByRole('alert')).toContainText('Сохранение временно недоступно')
+++      await expect(form.getByRole('alert')).toContainText('Не удалось обновить пространство')
+++      await expect(form.getByRole('alert')).not.toContainText('Сохранение временно недоступно')
+ +      await expect(form.getByRole('textbox', { name: 'Название пространства' })).toHaveValue(
+ +        'Черновик после ошибки',
+ +      )
+ +      await expect(form.getByRole('textbox', { name: 'Название пространства' })).toBeEnabled()
+ +    } finally {
+ +      release()
+ +    }
+ +  })
+ +
+    test('keeps long published Markdown inside the viewport with keyboard-scrollable regions', async ({
+      page,
+    }) => {
+@@@ -2044,7 -807,7 +2058,9 @@@
+      )
+    })
+  
+--  test('signs in through OIDC and navigates through wiki shell pages', async ({ page }) => {
+++  test('signs in through OIDC and reads overview, spaces and document creation', async ({
+++    page,
+++  }) => {
+      const apiMocks = await installWikiApiMocks(page)
+      await gotoWiki(page)
+  
+@@@ -2057,7 -820,7 +2073,13 @@@
+  
+      await gotoWiki(page, '/documents/new')
+      await expect(page.getByRole('heading', { name: 'Новый документ' })).toBeVisible()
+++    expect(apiMocks.documentDraftRequests).toEqual([])
+++  })
+  
+++  test('signs in through OIDC and saves, publishes and reads a document revision', async ({
+++    page,
+++  }) => {
+++    const apiMocks = await installWikiApiMocks(page)
+      await gotoWiki(page, '/documents/product-requirements')
+      await expect(
+        page.locator('article > section').first().getByRole('heading', {
+@@@ -2091,7 -854,7 +2113,10 @@@
+      await revisionDialog.getByRole('button', { name: 'Закрыть' }).click()
+      await expect(revisionDialog).toBeHidden()
+      await expect(openRevision).toBeFocused()
+++  })
+  
+++  test('signs in through OIDC and links documents to task and phase dossiers', async ({ page }) => {
+++    const apiMocks = await installWikiApiMocks(page)
+      await gotoWiki(page, '/tasks/BASE-42')
+      await expect(page.getByRole('heading', { name: 'BASE-42' })).toBeVisible()
+      await page.getByLabel('Документ для задачи').fill('product-requirements')
+@@@ -2117,7 -880,7 +2142,10 @@@
+        )
+        .toBe(true)
+      await expect(page.getByText('Документ привязан к фазе')).toBeVisible()
+++  })
+  
+++  test('signs in through OIDC and restores contextual evidence from search', async ({ page }) => {
+++    const apiMocks = await installWikiApiMocks(page)
+      await gotoWiki(page, '/evidence')
+      await expect(page.getByRole('heading', { name: 'Материалы' })).toBeVisible()
+      await page.getByRole('button', { name: 'Открыть материал Лог сборки' }).click()
+@@@ -2167,7 -930,7 +2195,10 @@@
+      ).toBeVisible()
+      await expect(selectedMaterial.getByRole('link', { name: 'задача BASE-42' })).toBeVisible()
+      await expect(selectedMaterial.getByRole('link', { name: 'фаза implementation' })).toBeVisible()
+++  })
+  
+++  test('signs in through OIDC and creates a document template', async ({ page }) => {
+++    const apiMocks = await installWikiApiMocks(page)
+      await gotoWiki(page, '/templates')
+      await expect(page.getByRole('heading', { name: 'Шаблоны' })).toBeVisible()
+      await page.getByRole('button', { name: 'Новый шаблон' }).click()
+@@@ -2183,7 -946,7 +2214,12 @@@
+      await expect(
+        page.getByRole('button', { name: 'Показать содержимое шаблона Шаблон релиза' }),
+      ).toBeVisible()
+++  })
+  
+++  test('signs in through OIDC and reads profiles, settings and instance status', async ({
+++    page,
+++  }) => {
+++    await installWikiApiMocks(page)
+      await gotoWiki(page, '/users')
+      await expect(page.getByRole('heading', { name: 'Профили Wiki', exact: true })).toBeVisible()
+      await expect(page.getByRole('cell', { name: 'editor@example.com' })).toBeVisible()

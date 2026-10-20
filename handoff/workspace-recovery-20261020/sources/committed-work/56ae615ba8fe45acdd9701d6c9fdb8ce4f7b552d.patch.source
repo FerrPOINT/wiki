@@ -1,0 +1,287 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 1d3be0d..914847f 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -6,6 +6,12 @@
+ 
+ ## [Unreleased]
+ 
++- Неизвестный адрес использует Base DetailPage/not-found с одним заголовком
++  и безопасным возвратом; header и drawer не предлагают создание документа.
++
++- Выбор пространства в dossier задач и фаз использует Base Select вместо
++  локального control: общие responsive targets и focus без изменения URL-state.
++
+ - Режимы просмотра/правки документа используют Base Button вместо локальных
+   кнопок: общий focus и responsive target 40/44 px без изменения черновика.
+ 
+diff --git a/docs/UI_UX_MAP.md b/docs/UI_UX_MAP.md
+index 90681ad..a9c10ad 100644
+--- a/docs/UI_UX_MAP.md
++++ b/docs/UI_UX_MAP.md
+@@ -269,3 +269,22 @@ read/edit. Новый тест проверяет оба Base controls и пер
+ Source:260 tests/23 files, ESLint/semantic, TypeScript, Vite build, touched-file
+ Prettier и diff check прошли. Повторный actual-image all-route/SSO/geometry gate
+ требуется отдельно; source tests не закрывают runtime regression или UX-04.
++
++## Actual SSO Route Regressions
++
++2026-10-03: paced normal-route QA production image `fc6fd77` с настоящим
++Central Auth выявил wildcard страницу без основного h1 и локальные selectors
++пространства в task/phase catalog/detail высотой40 px при mobile target44.
++В данном checkpoint исправление document buttons уже присутствует в image;
++новые route исправления ниже пока подтверждены только исходниками.
++
++Wildcard использует Base DetailPage/ResourceStateView с единственным h1,
++адресом и Base Button для возврата к обзору. Header/drawer не показывают
++создание документа на неизвестном адресе. Task/phase SpaceSelector используют
++общий Base Select без дублирования CSS; options, disabled и URL-state сохранены.
++Добавлены regression tests для not-found, обоих мест shell и обоих selectors.
++
++Source:264 tests/24 files, TypeScript, ESLint/semantic, Vite build и installed
++19-pattern contract прошли. All-route/role/state image acceptance, current
++README release gallery, default integration и mirror остаются обязательными.
++Старый paced checkpoint сохраняется как диагностика, а не green acceptance.
+diff --git a/frontend/src/app/router.tsx b/frontend/src/app/router.tsx
+index c324e27..73e3268 100644
+--- a/frontend/src/app/router.tsx
++++ b/frontend/src/app/router.tsx
+@@ -1,8 +1,9 @@
+ import { lazy, Suspense, type ReactElement } from 'react'
+-import { createBrowserRouter, Link, Navigate } from 'react-router'
+-import { LoadingState, ResourceStateView } from '@sdlc/ui/ui'
++import { createBrowserRouter, Navigate } from 'react-router'
++import { LoadingState } from '@sdlc/ui/ui'
+ import { RequireAuth } from '@/shared/auth/require-auth'
+ import { AppShell } from '@/widgets/app-shell'
++import { NotFoundPage } from '@/pages/not-found'
+ 
+ const DashboardPage = lazy(() =>
+   import('@/pages/dashboard').then((m) => ({ default: m.DashboardPage })),
+@@ -80,11 +81,7 @@ export const router = createBrowserRouter([
+           { path: '/admin', element: withSuspense(<AdminPage />) },
+           {
+             path: '*',
+-            element: (
+-              <ResourceStateView
+-                state={{ kind: 'not-found', back: <Link to="/">К обзору</Link> }}
+-              />
+-            ),
++            element: <NotFoundPage />,
+           },
+         ],
+       },
+diff --git a/frontend/src/pages/not-found/index.tsx b/frontend/src/pages/not-found/index.tsx
+new file mode 100644
+index 0000000..9505e80
+--- /dev/null
++++ b/frontend/src/pages/not-found/index.tsx
+@@ -0,0 +1,25 @@
++import { Link, useLocation } from 'react-router'
++import { ArrowLeft } from 'lucide-react'
++import { Button, DetailPage } from '@sdlc/ui/ui'
++
++export function NotFoundPage() {
++  const { pathname } = useLocation()
++  return (
++    <DetailPage
++      title="Недоступный адрес"
++      context={pathname}
++      state={{
++        kind: 'not-found',
++        back: (
++          <Button asChild variant="outline" className="mt-4">
++            <Link to="/">
++              <ArrowLeft className="h-4 w-4" aria-hidden />К обзору
++            </Link>
++          </Button>
++        ),
++      }}
++    >
++      {null}
++    </DetailPage>
++  )
++}
+diff --git a/frontend/src/pages/not-found/not-found.test.tsx b/frontend/src/pages/not-found/not-found.test.tsx
+new file mode 100644
+index 0000000..eb1987f
+--- /dev/null
++++ b/frontend/src/pages/not-found/not-found.test.tsx
+@@ -0,0 +1,23 @@
++import { render, screen } from '@testing-library/react'
++import { MemoryRouter } from 'react-router'
++import { describe, expect, it } from 'vitest'
++import { NotFoundPage } from './'
++
++describe('NotFoundPage', () => {
++  it('keeps one Base page heading, the unavailable address and a safe return action', () => {
++    const { container } = render(
++      <MemoryRouter initialEntries={['/unknown-page?space=TEAM']}>
++        <NotFoundPage />
++      </MemoryRouter>,
++    )
++    expect(screen.getByRole('heading', { level: 1, name: 'Недоступный адрес' })).toHaveClass(
++      'base-page-title',
++    )
++    expect(container.querySelectorAll('h1')).toHaveLength(1)
++    expect(screen.getByText('/unknown-page')).toBeInTheDocument()
++    expect(container.querySelector('[data-page-state="not-found"]')).toBeInTheDocument()
++    expect(screen.getByRole('link', { name: 'К обзору' })).toHaveAttribute('href', '/')
++    expect(screen.getByRole('link', { name: 'К обзору' })).toHaveClass('base-control')
++    expect(screen.queryByRole('button', { name: /повторить|создать/i })).not.toBeInTheDocument()
++  })
++})
+diff --git a/frontend/src/pages/phase-dossier/index.tsx b/frontend/src/pages/phase-dossier/index.tsx
+index 2bdb75d..ee827f0 100644
+--- a/frontend/src/pages/phase-dossier/index.tsx
++++ b/frontend/src/pages/phase-dossier/index.tsx
+@@ -7,6 +7,7 @@ import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
+ import { Button } from '@sdlc/ui/ui'
+ import { Input } from '@sdlc/ui/ui'
+ import { Label } from '@sdlc/ui/ui'
++import { Select } from '@sdlc/ui/ui'
+ import { formatApiErrorForUser } from '@/shared/lib/api-error'
+ import {
+   clearDossierCatalogParams,
+@@ -23,9 +24,6 @@ import {
+ 
+ const pageSize = 12
+ 
+-const selectClassName =
+-  'flex min-h-10 w-full rounded-md border border-border-strong bg-surface px-3 py-1 text-sm text-text-primary shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50'
+-
+ type SpaceOption = {
+   key: string
+   name: string
+@@ -75,9 +73,8 @@ function SpaceSelector({
+   return (
+     <div className="w-full space-y-1.5 sm:w-64">
+       <Label htmlFor="phase-space-selector">Пространство</Label>
+-      <select
++      <Select
+         id="phase-space-selector"
+-        className={selectClassName}
+         value={value}
+         onChange={(event) => onChange(event.target.value)}
+         disabled={disabled || spacesQuery.isLoading || spacesQuery.isError || options.length === 0}
+@@ -88,7 +85,7 @@ function SpaceSelector({
+             {space.name ? `${space.key} · ${space.name}` : space.key}
+           </option>
+         ))}
+-      </select>
++      </Select>
+     </div>
+   )
+ }
+diff --git a/frontend/src/pages/phase-dossier/phase-dossier.test.tsx b/frontend/src/pages/phase-dossier/phase-dossier.test.tsx
+index f0a848c..681bf2d 100644
+--- a/frontend/src/pages/phase-dossier/phase-dossier.test.tsx
++++ b/frontend/src/pages/phase-dossier/phase-dossier.test.tsx
+@@ -165,6 +165,12 @@ function renderPhaseList(
+ }
+ 
+ describe('PhaseDossierPage', () => {
++  it('uses the Base space control without changing its selected value', () => {
++    renderPhasePage()
++    expect(screen.getByRole('combobox', { name: 'Пространство' })).toHaveClass('base-control')
++    expect(screen.getByRole('combobox', { name: 'Пространство' })).toHaveValue('BASE')
++  })
++
+   it('keeps documents and evidence as parallel primary content rather than an aside', () => {
+     renderPhasePage()
+     const documents = screen.getByRole('region', { name: 'Документы фазы' })
+diff --git a/frontend/src/pages/task-dossier/index.tsx b/frontend/src/pages/task-dossier/index.tsx
+index 3ae674a..a9cc1c9 100644
+--- a/frontend/src/pages/task-dossier/index.tsx
++++ b/frontend/src/pages/task-dossier/index.tsx
+@@ -13,6 +13,7 @@ import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
+ import { Button } from '@sdlc/ui/ui'
+ import { Input } from '@sdlc/ui/ui'
+ import { Label } from '@sdlc/ui/ui'
++import { Select } from '@sdlc/ui/ui'
+ import { formatApiErrorForUser } from '@/shared/lib/api-error'
+ import {
+   clearDossierCatalogParams,
+@@ -29,9 +30,6 @@ import {
+ 
+ const pageSize = 12
+ 
+-const selectClassName =
+-  'flex min-h-10 w-full rounded-md border border-border-strong bg-surface px-3 py-1 text-sm text-text-primary shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50'
+-
+ type SpaceOption = {
+   key: string
+   name: string
+@@ -85,9 +83,8 @@ function SpaceSelector({
+   return (
+     <div className="w-full space-y-1.5 sm:w-64">
+       <Label htmlFor="task-space-selector">Пространство</Label>
+-      <select
++      <Select
+         id="task-space-selector"
+-        className={selectClassName}
+         value={value}
+         onChange={(event) => onChange(event.target.value)}
+         disabled={disabled || spacesQuery.isLoading || spacesQuery.isError || options.length === 0}
+@@ -98,7 +95,7 @@ function SpaceSelector({
+             {space.name ? `${space.key} · ${space.name}` : space.key}
+           </option>
+         ))}
+-      </select>
++      </Select>
+     </div>
+   )
+ }
+diff --git a/frontend/src/pages/task-dossier/task-dossier.test.tsx b/frontend/src/pages/task-dossier/task-dossier.test.tsx
+index 427138d..935529b 100644
+--- a/frontend/src/pages/task-dossier/task-dossier.test.tsx
++++ b/frontend/src/pages/task-dossier/task-dossier.test.tsx
+@@ -160,6 +160,12 @@ function renderTaskList(
+ }
+ 
+ describe('TaskDossierPage', () => {
++  it('uses the Base space control without changing its selected value', () => {
++    renderTaskPage()
++    expect(screen.getByRole('combobox', { name: 'Пространство' })).toHaveClass('base-control')
++    expect(screen.getByRole('combobox', { name: 'Пространство' })).toHaveValue('BASE')
++  })
++
+   it('uses a shared secondary rail for phases after the document primary', () => {
+     renderTaskPage()
+     const rail = screen.getByRole('complementary', { name: 'Фазы материалов' })
+diff --git a/frontend/src/widgets/app-shell.test.tsx b/frontend/src/widgets/app-shell.test.tsx
+index 09e946f..11cdad9 100644
+--- a/frontend/src/widgets/app-shell.test.tsx
++++ b/frontend/src/widgets/app-shell.test.tsx
+@@ -55,6 +55,15 @@ function renderShell(initialPath = '/') {
+ }
+ 
+ describe('AppShell', () => {
++  it('does not offer document creation for an unknown address', async () => {
++    mockHooks()
++    renderShell('/unknown-page?space=TEAM')
++    expect(screen.queryByRole('link', { name: 'Новый документ' })).not.toBeInTheDocument()
++    fireEvent.click(screen.getByRole('button', { name: 'Открыть навигацию' }))
++    const drawer = await screen.findByRole('dialog', { name: 'Wiki' })
++    expect(within(drawer).queryByRole('link', { name: 'Новый документ' })).not.toBeInTheDocument()
++  })
++
+   it('shows only MVP navigation routes for a system admin', () => {
+     mockHooks({ isSystemAdmin: true })
+ 
+diff --git a/frontend/src/widgets/app-shell.tsx b/frontend/src/widgets/app-shell.tsx
+index 41c6d3d..67e4874 100644
+--- a/frontend/src/widgets/app-shell.tsx
++++ b/frontend/src/widgets/app-shell.tsx
+@@ -39,7 +39,11 @@ export function AppShell() {
+   const logout = useLogout()
+   const space = new URLSearchParams(location.search).get('space')
+   const createHref = `/documents/new${space ? `?${new URLSearchParams({ space })}` : ''}`
++  const knownRoute =
++    [...baseNavItems, ...adminNavItems].some((item) => item.to === location.pathname) ||
++    /^\/(documents|tasks|phases)\/[^/]+$/.test(location.pathname)
+   const pageOwnsCreate =
++    !knownRoute ||
+     ['/', '/spaces', '/templates'].includes(location.pathname) ||
+     location.pathname.startsWith('/documents/')
+   const layout =

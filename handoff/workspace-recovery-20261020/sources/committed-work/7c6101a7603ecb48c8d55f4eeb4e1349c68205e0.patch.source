@@ -1,0 +1,10 @@
+diff --git a/.gitattributes b/.gitattributes
+index aef0efd..b463194 100644
+--- a/.gitattributes
++++ b/.gitattributes
+@@ -8,3 +8,5 @@ frontend/** text=auto eol=lf
+ *.rs text eol=lf
+ Cargo.toml text eol=lf
+ Cargo.lock text eol=lf
++# Generated OpenAPI must compare identically on Windows and Linux.
++openapi/openapi.json text eol=lf

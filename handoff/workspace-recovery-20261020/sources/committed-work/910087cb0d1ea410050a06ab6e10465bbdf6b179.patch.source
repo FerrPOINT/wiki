@@ -1,0 +1,97 @@
+diff --cc .base-revision
+index 7c1246d,ce5a2ed..bdec66c
+--- a/.base-revision
++++ b/.base-revision
+@@@ -1,1 -1,1 +1,1 @@@
+- 5e527274f1176f309e7b83623cf2f1a7b50f66ad
+ -c083783a37791e277db796361203884b87828a7d
+++6f63595a891f78b96b665889f80e6eb5cf34381a
+diff --cc frontend/package.json
+index 12df0c9,ce8cae3..80f7bdd
+--- a/frontend/package.json
++++ b/frontend/package.json
+@@@ -4,13 -4,10 +4,13 @@@
+    "license": "UNLICENSED",
+    "version": "0.2.0",
+    "type": "module",
+ +  "packageManager": "pnpm@10.28.1",
+    "scripts": {
+ +    "base:check": "python ../../services-base/scripts/verify_base_revision.py --base ../../services-base --revision ../.base-revision",
+      "dev": "vite",
+      "build": "node scripts/generate-exports.mjs && tsc --noEmit && vite build",
+-     "typecheck": "tsc --noEmit",
++     "typecheck": "node scripts/generate-exports.mjs && tsc --noEmit",
+ +    "ui:check": "pnpm base:check && node ../../services-base/frontend/scripts/check-ui-contract.mjs --repo .. --require-installed",
+      "test": "vitest run",
+      "test:watch": "vitest",
+      "test:e2e": "playwright test",
+diff --cc frontend/src/pages/login/login.test.tsx
+index 27e0e1d,961839b..d9bcfc4
+--- a/frontend/src/pages/login/login.test.tsx
++++ b/frontend/src/pages/login/login.test.tsx
+@@@ -5,11 -5,15 +5,15 @@@ import { MemoryRouter } from 'react-rou
+  import { ThemeProvider } from '@sdlc/ui/lib'
+  import { LoginPage } from './'
+  import { useAuthStore } from '@/shared/auth/store'
++ import { SsoLogoutPendingError } from '@sdlc/ui/sso'
+  
+  const beginSso = vi.hoisted(() => vi.fn(async () => {}))
+- vi.mock('@sdlc/ui/sso', () => ({ beginSso }))
++ vi.mock('@sdlc/ui/sso', async (importOriginal) => ({
++   ...(await importOriginal<typeof import('@sdlc/ui/sso')>()),
++   beginSso,
++ }))
+  
+ -function renderLogin(path = '/login') {
+ +function renderLogin(path: string | { pathname: string; state: unknown } = '/login') {
+    return render(
+      <ThemeProvider>
+        <MemoryRouter initialEntries={[path]}>
+@@@ -39,18 -43,34 +43,47 @@@ describe('Wiki login', () => 
+      expect(beginSso).not.toHaveBeenCalled()
+      await userEvent.click(screen.getByRole('button', { name: 'Войти через SDLC' }))
+      expect(beginSso).toHaveBeenCalledTimes(1)
++     expect(beginSso).toHaveBeenCalledWith(expect.objectContaining({ clientId: 'wiki' }), '/', {
++       interactive: true,
++     })
++   })
++ 
++   it.each([new SsoLogoutPendingError(), new DOMException('Cancelled', 'AbortError')])(
++     'does not report interrupted automatic navigation as an auth failure: %s',
++     async (error) => {
++       beginSso.mockRejectedValueOnce(error)
++       renderLogin()
++       await waitFor(() => expect(beginSso).toHaveBeenCalledOnce())
++       await userEvent.click(screen.getByRole('button', { name: 'Войти через SDLC' }))
++       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
++       expect(beginSso).toHaveBeenLastCalledWith(
++         expect.objectContaining({ clientId: 'wiki' }),
++         '/',
++         { interactive: true },
++       )
++     },
++   )
++ 
++   it('shows real auth failures and clears them on an explicit retry', async () => {
++     beginSso.mockRejectedValueOnce(new Error('private auth details'))
++     renderLogin('/login?logged_out=1')
++     await userEvent.click(screen.getByRole('button', { name: 'Войти через SDLC' }))
++     expect(await screen.findByRole('alert')).toHaveTextContent('Central Auth временно недоступен.')
++     expect(screen.queryByText(/private auth details/)).not.toBeInTheDocument()
++     await userEvent.click(screen.getByRole('button', { name: 'Войти через SDLC' }))
++     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
+    })
+ +
+ +  it('passes the protected pathname, query and fragment to central SSO', async () => {
+ +    renderLogin({
+ +      pathname: '/login',
+ +      state: { from: { pathname: '/search', search: '?space=TEAM&cursor=next', hash: '#results' } },
+ +    })
+ +    await waitFor(() =>
+ +      expect(beginSso).toHaveBeenCalledWith(
+ +        expect.objectContaining({ clientId: 'wiki' }),
+ +        '/search?space=TEAM&cursor=next#results',
+ +      ),
+ +    )
+ +  })
+  })

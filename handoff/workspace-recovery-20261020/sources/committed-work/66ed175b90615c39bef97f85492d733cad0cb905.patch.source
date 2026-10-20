@@ -1,0 +1,52 @@
+diff --git a/docs/UI_UX_MAP.md b/docs/UI_UX_MAP.md
+index aeb70ea..6ac9fdf 100644
+--- a/docs/UI_UX_MAP.md
++++ b/docs/UI_UX_MAP.md
+@@ -189,3 +189,47 @@ API не предоставляет title по набору ID. Публичны
+ compositions, все routes/roles/states, backend/release gates, immutable images,
+ live SSO, real README, default integration и final mirror остаются обязательными.
+ Source/mock QA не закрывает исходные release findings автоматически.
++
++## Shared Shell Default Reconciliation
++
++Runtime source: `afe2102c0bae34b7cabb4e8ffaf030811bb96ec1`.
++Saved default `00625edf7c6b8aca1d3fb19278def05cb61bf9de` интегрирован в
++owned candidate без возврата локального shell. Base pin:
++`5e527274f1176f309e7b83623cf2f1a7b50f66ad`.
++Source/installed Base fingerprint:
++`e702a598cfd8f54776aa5777d8e12e0d7e672004b918019535f7502b932477c9`.
++Product fingerprint:
++`40b7511c6c5e65935b5f395459027bb4eb3e309bddb49de32f3a0ad12175d39a`.
++After-commit runtime source attestation чистая; installed snapshot совпадает.
++
++Используется общий Base branded sidebar, не прежний navigation-only sidebar
++Wiki. Base нормализует account identity и владеет contextual drawer slot.
++Overview/spaces/document/templates владеют созданием на всех ширинах без
++дублей в Header/drawer. Остальные страницы используют desktop Header и
++mobile drawer; переход закрывает drawer и возвращает фокус. Document create
++сохраняет space_key источника. Обычное создание из templates, использование
++существующего и только что созданного шаблона сохраняют URL space context.
++
++Прошли 248 units / 24 files, lint/semantic, typecheck/build, touched-file
++Prettier, installed 19-pattern gate, README validator и пять script tests,
++OpenAPI check/compat saved origin/main, diff check. Full serial Chromium:
++20 passed, 282 fresh PNG. Добавлены mobile/desktop creation ownership и
++contextual drawer tests; прежние mode/theme/breakpoint, cached-error, URL,
++SSO-fixture, focus и draft scenarios сохранены. Первый run: 19 passed,
++один ambiguous heading selector; после scope к page heading focused run
++и полный повтор прошли. Исходная диагностика сохранена, не засчитана зелёной.
++
++Evidence в workspace:
++`audit-artifacts/base-standard-2026-10-01/wiki-shell-default-reconcile-browser-final/metadata.json`.
++Metadata содержит actual dimensions/digests, viewport/theme/file mtime,
++source SHA и fingerprints. Mobile templates и ConfirmDialog снимки просмотрены.
++README сохраняет три исторических desktop-примера; отдельный Header capture
++оставлен ссылкой на historical evidence, не четвёртым wide-примером.
++
++Это controlled HTTP/OIDC source QA, не live SSO, фактические images или новая
++README release gallery. Live Header/detail tests адаптированы к Base shell,
++но против текущего immutable candidate ещё не выполнялись. Cold audit titles
++без N+1/API extension остаются открытыми. Templates ещё требует Base ListPage/
++FormPage/Select и общего resource state policy; document/compose и остальные
++compositions требуют завершения. Полные routes/roles/states/backend gates,
++runtime acceptance, default release integration и mirror sync остаются обязательными.

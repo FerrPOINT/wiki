@@ -1,0 +1,1041 @@
+diff --cc .base-revision
+index 98978a5,0000000..7c1246d
+mode 100644,000000..100644
+--- a/.base-revision
++++ b/.base-revision
+@@@ -1,1 -1,0 +1,1 @@@
+- eb5b832ac6dace06ed9777d70ee9c6d5d186b24f
+++5e527274f1176f309e7b83623cf2f1a7b50f66ad
+diff --cc CHANGELOG.md
+index b95f0c3,448f333..2b28836
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@@ -14,6 -14,15 +14,15 @@@
+  
+  ### Fixed
+  
+ -- Wiki использует общий полноширинный `PlatformHeader`: переключатель сервисов,
+ -  тема и аккаунт находятся над sidebar без повторного бренда. На телефоне
+ -  создание документа доступно в drawer, на desktop - в Header. Email не
+ -  повторяется при отсутствии имени; длинная identity переносится внутри меню.
+ -- На desktop обзор, пространства, документ и шаблоны не повторяют общее создание
+ -  документа; mobile и контекстные команды с space/template сохранены.
+++- Wiki использует Base `AppShell`: полноширинный Header, общий branded sidebar,
+++  переключатель сервисов, тема и аккаунт. Email не повторяется при отсутствии
+++  имени; длинная identity переносится внутри общего меню.
+++- Обзор, пространства, документ и шаблоны владеют командой создания на всех
+++  ширинах без дублей в Header/drawer. На остальных страницах глобальное создание
+++  доступно в desktop Header и mobile drawer. Контекст space/template сохранён.
++ - Drawer закрывается после перехода и при изменении ширины на desktop;
++   мобильные действия и закрытие имеют цель 44 px, desktop - не менее 40 px.
++ 
+  - Документ и досье задачи используют общий contextual rail 320 px от 1024 px;
+    у фазы две основные рабочие области явно остаются `wide`. Ширина текста
+    документа ограничена внутри primary, а не ширина всей страницы.
+diff --cc README.md
+index dd5546c,da95000..4d4f5d7
+--- a/README.md
++++ b/README.md
+@@@ -132,11 -132,21 +132,18 @@@ pwsh -File scripts/backup-restore-smoke
+  реестр маршрутов и параметры responsive QA, включая `375px`, хранятся в
+  [manifest](docs/assets/screens/manifest.md).
+  
+ -Общий Header принят отдельным live-прогоном 2026-10-01. Текущий пример при
+ -1920 px и default dark theme:
+ -
+ -![Общий Header Wiki](docs/assets/screens/2026-10-01-platform-header/spaces-dark-1920.png)
+ -
+ -Параметры образа, проверки и mobile/wide evidence находятся в
+++Исторический live-прогон Header от 2026-10-01 сохранён в
++ [Header evidence](docs/assets/screens/2026-10-01-platform-header/README.md).
+ -Три примера ниже - предыдущий snapshot страниц до интеграции общего Header;
+ -они не являются доказательством его текущей геометрии.
+++Он проверял отдельный кандидат, а не текущую миграцию на общий Base `AppShell`.
+++Три desktop-примера ниже также относятся к предыдущему snapshot страниц;
+++они не доказывают текущую геометрию. Их замена требует no-mock проверки
+++согласованных immutable images, а не снимков mock API.
++ 
+  ### Дашборд (`wide`)
+  
+  ![Дашборд](docs/screenshots/03-dashboard.png)
+  
+--### Создание документа (`reading/form`)
+++### Историческое создание документа (`reading/form`)
+  
+  ![Создание документа](docs/screenshots/05-document-compose.png)
+  
+diff --cc docs/ARCHITECTURE.md
+index f82d7ad,14bd952..618c35e
+--- a/docs/ARCHITECTURE.md
++++ b/docs/ARCHITECTURE.md
+@@@ -238,6 -238,8 +238,10 @@@ CLI returns JSON by default, exits non-
+  
+  ## References
+  
+ -- Общий Header: [решение и приёмка 2026-10-01](plan/2026-10-01-platform-header.md).
+++- Текущая интеграция Base: [UI/UX map](UI_UX_MAP.md); нормативные правила
+++  принадлежат Base, продукт определяет navigation, layout modes и actions.
+++- Исторический Header: [решение и приёмка кандидата 2026-10-01](plan/2026-10-01-platform-header.md).
++ 
+  - `docs/PRODUCT_REQUIREMENTS.md`
+  - `docs/API.md`
+  - `docs/CLI.md`
+diff --cc docs/CURRENT_STATE.md
+index ef67240,ac9a111..b069cda
+--- a/docs/CURRENT_STATE.md
++++ b/docs/CURRENT_STATE.md
+@@@ -1,5 -1,11 +1,21 @@@
+  # Current State - Wiki
+  
+ -> **Header update 2026-10-01:** общий `PlatformHeader` и navigation-only sidebar;
+++> **Current UI standardization candidate:** source uses the shared Base
+++> `AppShell`, including its branded sidebar, page-owned creation actions,
+++> contextual mobile drawer actions and normalized account identity. Document
+++> compose/view use `detail-with-aside`; settings use `reading`. This is not a
+++> completed runtime release. Current source checks and remaining acceptance
+++> requirements are recorded in [UI/UX map](UI_UX_MAP.md).
+++>
+++> The checkpoints below are historical evidence, not acceptance of the current
+++> Base snapshot, images, README gallery or Docker availability.
+++
+++> **Historical Header update 2026-10-01:** общий `PlatformHeader` и navigation-only sidebar;
++ > команда создания сохранена в desktop Header и mobile drawer. Account identity
++ > не дублирует email. API/SSO hook не меняются. Локальный frontend gate: 182/182;
++ > актуальная live-приёмка и её границы фиксируются в
++ > [плане Header](plan/2026-10-01-platform-header.md).
++ 
+  > **Snapshot 2026-09-22:** source is `main` after the merged search/dossier, template and platform-shell work. Authority is repository code, generated OpenAPI and executed checks; update this file whenever capability state changes.
+  
+  > **Verification status:** the old draft-PR, low-disk and unmerged-index notices are obsolete. Paged evidence/search and bounded task/phase catalogs are merged. Repository documentation, frontend and backend gates define the current release evidence; environment-specific smoke limitations are recorded only in **Known Local Environment Limits**.
+diff --cc docs/TESTING.md
+index b1a9277,d27076c..42e4302
+--- a/docs/TESTING.md
++++ b/docs/TESTING.md
+@@@ -159,6 -159,14 +159,16 @@@ Baseline test fixtures
+  
+  ## 7. References
+  
+ -- Header acceptance: [2026-10-01](plan/2026-10-01-platform-header.md).
+++- Историческая Header acceptance: [2026-10-01](plan/2026-10-01-platform-header.md).
++   `SDLC_LIVE_QA=1 SDLC_QA_SESSION_FILE=<private-json> E2E_BASE_URL=<wiki-url>`
++   включает `frontend/e2e/platform-header-live.spec.ts` против живых сервисов.
++   Секретный JSON содержит `email`/`password`, хранится вне Git; trace/video
++   выключены. `SDLC_HEADER_EVIDENCE_DIR` задаёт каталог PNG и `results.json`.
++   Запускать Chromium с retries=0, установленным Base package и актуальным
+ -  production image; mock smoke не заменяет этот gate.
+++  production image; mock smoke не заменяет этот gate. Текущий тест проверяет
+++  Base sidebar и page-owned creation, поэтому старый results.json не является
+++  доказательством прохождения нового source/image snapshot.
++ 
+  - `docs/ARCHITECTURE.md`
+  - `docs/API.md`
+  - `docs/DEPLOYMENT.md`
+diff --cc frontend/e2e/platform-header-live.spec.ts
+index 0000000,3c846cb..f16c28a
+mode 000000,100644..100644
+--- a/frontend/e2e/platform-header-live.spec.ts
++++ b/frontend/e2e/platform-header-live.spec.ts
+@@@ -1,0 -1,265 +1,292 @@@
++ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
++ import { fileURLToPath } from 'node:url'
++ import AxeBuilder from '@axe-core/playwright'
++ import { expect, test } from '@playwright/test'
++ 
++ test.skip(process.env.SDLC_LIVE_QA !== '1', 'Requires real Wiki and Central Auth')
++ test.skip(({ browserName }) => browserName !== 'chromium', 'Single browser acceptance')
++ test.use({ trace: 'off', video: 'off', screenshot: 'off', hasTouch: true })
++ 
++ const account =
++   process.env.SDLC_LIVE_QA === '1'
++     ? (JSON.parse(
++         readFileSync(
++           process.env.SDLC_QA_SESSION_FILE ??
++             fileURLToPath(
++               new URL('../../../services-base/deploy/.local/qa-session.json', import.meta.url),
++             ),
++           'utf8',
++         ),
++       ) as { email: string; password: string })
++     : { email: '', password: '' }
++ const base = process.env.E2E_BASE_URL ?? 'http://localhost:7732'
++ const evidence =
++   process.env.SDLC_HEADER_EVIDENCE_DIR ??
++   fileURLToPath(new URL('../../../.local/screenshots/wiki-header/', import.meta.url))
++ 
++ test('Wiki global header preserves navigation, runtime services, focus and central logout', async ({
++   page,
++ }) => {
++   test.setTimeout(600_000)
++   mkdirSync(evidence, { recursive: true })
++   await page.goto(`${base}/spaces`)
++   await page.getByLabel('Email').fill(account.email)
++   await page.getByLabel('Пароль').fill(account.password)
++   await page.getByRole('button', { name: 'Войти', exact: true }).click()
++   const switcher = page.getByRole('button', {
++     name: 'Открыть список сервисов: Wiki',
++     exact: true,
++   })
++   await expect(switcher).toBeVisible()
++   const errors: string[] = []
++   const writes: string[] = []
++   const cases: { route: string; theme: string; width: number }[] = []
++   page.on('pageerror', (error) => errors.push(error.message))
++   page.on('console', (message) => {
++     if (message.type() === 'error') errors.push(message.text())
++   })
++   page.on('requestfailed', (request) => {
++     if (!request.failure()?.errorText.includes('ERR_ABORTED'))
++       errors.push(`${request.method()} ${new URL(request.url()).pathname}`)
++   })
++   page.on('response', (response) => {
++     if (response.status() >= 400 && response.url().includes('/api/v1/'))
++       errors.push(`${response.status()} ${new URL(response.url()).pathname}`)
++   })
++   page.on('request', (request) => {
++     if (request.url().includes('/api/v1/') && request.method() !== 'GET')
++       writes.push(`${request.method()} ${new URL(request.url()).pathname}`)
++   })
++   for (const theme of ['light', 'gray', 'dark']) {
++     await page.evaluate((value) => localStorage.setItem('theme', value), theme)
++     for (const route of ['/spaces', '/documents/new', '/settings']) {
++       await page.goto(`${base}${route}`)
++       await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
++       await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible()
++       for (const width of [320, 375, 767, 768, 1023, 1024, 1279, 1280, 1440, 1920, 2560]) {
++         await page.setViewportSize({
++           width,
++           height: width >= 1920 ? 1080 : 812,
++         })
++         const header = page.locator('[data-platform-header]')
++         await expect(header).toHaveCount(1)
++         const geometry = await header.evaluate((element) => {
++           const box = element.getBoundingClientRect()
++           return {
++             x: box.x,
++             right: box.right,
++             height: box.height,
++             overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
++             slots: [...element.querySelectorAll('[data-platform-header-slot]')].map((slot) =>
++               slot.getAttribute('data-platform-header-slot'),
++             ),
++             controls: [...element.querySelectorAll<HTMLElement>('button,a')]
++               .filter(
++                 (control) =>
++                   control.getClientRects().length &&
++                   getComputedStyle(control).visibility !== 'hidden',
++               )
++               .map((control) => {
++                 const rect = control.getBoundingClientRect()
++                 return {
++                   x: rect.x,
++                   right: rect.right,
++                   width: rect.width,
++                   height: rect.height,
++                 }
++               }),
++           }
++         })
++         expect(geometry.x).toBe(0)
++         expect(geometry.right).toBe(width)
++         expect(geometry.height).toBe(60)
++         expect(geometry.slots).toEqual(['leading', 'services', 'actions'])
++         expect(geometry.overflow, `${route} ${theme} ${width}px`).toBeLessThanOrEqual(1)
++         for (const [index, control] of geometry.controls.entries()) {
++           expect(control.width).toBeGreaterThanOrEqual(width < 768 ? 44 : 40)
++           expect(control.height).toBeGreaterThanOrEqual(width < 768 ? 44 : 40)
++           expect(control.x).toBeGreaterThanOrEqual(0)
++           expect(control.right).toBeLessThanOrEqual(width)
++           if (index) expect(control.x).toBeGreaterThanOrEqual(geometry.controls[index - 1].right)
++         }
+ -        const sidebar = page.locator('aside').first()
+++        const sidebar = page.locator('aside.base-shell-sidebar')
++         if (width >= 768) {
++           if (route === '/spaces')
++             await expect(
++               page.getByRole('link', { name: 'Новый документ', exact: true }),
++             ).toHaveCount(1)
++           await expect(sidebar).toBeVisible()
++           const box = await sidebar.boundingBox()
++           expect(box?.y).toBe(60)
++           expect(box?.width).toBe(width < 1280 ? 72 : 264)
++         } else await expect(sidebar).toBeHidden()
+ -        await expect(sidebar).not.toContainText('Wiki')
+++        await expect(page.locator('[data-base-shell]')).toHaveCount(1)
+++        await expect(
+++          sidebar.getByRole('navigation', { name: 'Основная навигация', hidden: true }),
+++        ).toHaveCount(1)
++         const axe = await new AxeBuilder({ page }).include('[data-platform-header]').analyze()
++         expect(
++           axe.violations.filter((item) => item.impact === 'serious' || item.impact === 'critical'),
++         ).toEqual([])
++         if (route === '/spaces' && [375, 1920, 2560].includes(width))
++           await page.screenshot({
++             path: `${evidence}/spaces-${theme}-${width}.png`,
++             fullPage: true,
++             animations: 'disabled',
++           })
++         cases.push({ route, theme, width })
++       }
++     }
++   }
++   for (const width of [375, 2560]) {
++     await page.setViewportSize({ width, height: 812 })
++     await switcher.focus()
++     await page.keyboard.press('Enter')
++     const menu = page.getByRole('menu')
++     await expect(menu.getByRole('menuitem')).toHaveCount(6)
++     await expect(menu.getByRole('img', { name: 'Работает', exact: true })).toHaveCount(6)
++     for (const [index, label] of [
++       'Admin Panel',
++       'CI/CD',
++       'Task Tracker',
++       'Wiki',
++       'Fleet Control',
++       'Project Workflow',
++     ].entries())
++       await expect(menu.getByRole('menuitem').nth(index)).toContainText(label)
++     await expect(menu.getByRole('menuitem', { name: /^Wiki/ })).toHaveAttribute(
++       'aria-disabled',
++       'true',
++     )
++     await expect(menu.getByRole('menuitem', { name: /Central Auth|Java Agent|Pulse/ })).toHaveCount(
++       0,
++     )
++     await page.keyboard.press('ArrowDown')
++     await page.keyboard.press('Escape')
++     await expect(switcher).toBeFocused()
++     expect(await page.locator('#root').evaluate((root) => root.inert)).toBe(false)
++     await switcher.tap()
++     await expect(menu).toBeVisible()
++     await page.evaluate(
++       () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
++     )
++     expect(await menu.evaluate((element) => getComputedStyle(element).backgroundColor)).toMatch(
++       /^rgb\(|^color\(/,
++     )
++     const axe = await new AxeBuilder({ page }).analyze()
++     expect(
++       axe.violations.filter((item) => item.impact === 'serious' || item.impact === 'critical'),
++     ).toEqual([])
++     await page.screenshot({
++       path: `${evidence}/services-menu-dark-${width}.png`,
++       fullPage: true,
++       animations: 'disabled',
++     })
++     await page.touchscreen.tap(width - 8, 300)
++     await expect(menu).toBeHidden()
++     await expect(switcher).toBeFocused()
++   }
++   await page.setViewportSize({ width: 375, height: 812 })
++   const opener = page.getByRole('button', { name: 'Открыть навигацию' })
++   await opener.tap()
++   const drawer = page.getByRole('dialog')
++   await expect(
++     drawer.getByRole('navigation', { name: 'Основная навигация' }).getByRole('link'),
++   ).toHaveCount(11)
++   const drawerAxe = await new AxeBuilder({ page }).analyze()
++   expect(
++     drawerAxe.violations.filter((item) => item.impact === 'serious' || item.impact === 'critical'),
++   ).toEqual([])
++   await page.keyboard.press('Escape')
++   await expect(opener).toBeFocused()
++   await opener.tap()
++   await drawer.getByRole('link', { name: 'Пространства', exact: true }).tap()
++   await expect(page).toHaveURL(`${base}/spaces`)
++   await expect(drawer).toBeHidden()
++   await expect(opener).toBeFocused()
+++  await expect(
+++    page
+++      .locator('[data-platform-header]')
+++      .getByRole('link', { name: 'Новый документ', exact: true }),
+++  ).toHaveCount(0)
++   await opener.tap()
+++  await expect(drawer.getByRole('link', { name: 'Новый документ', exact: true })).toHaveCount(0)
+++  await page.keyboard.press('Escape')
+++  await expect(opener).toBeFocused()
+++  await page.goto(`${base}/search?space=BASE`)
+++  await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible()
+++  await opener.tap()
+++  await expect(drawer.getByRole('link', { name: 'Новый документ', exact: true })).toHaveAttribute(
+++    'href',
+++    '/documents/new?space=BASE',
+++  )
++   await drawer.getByRole('link', { name: 'Новый документ', exact: true }).tap()
+ -  await expect(page).toHaveURL(`${base}/documents/new`)
+++  await expect(page).toHaveURL(`${base}/documents/new?space=BASE`)
++   await expect(drawer).toBeHidden()
+ -  await expect(page.locator('[data-page-layout]')).toHaveAttribute('data-page-layout', 'reading')
+++  await expect(page.locator('[data-page-layout]')).toHaveAttribute(
+++    'data-page-layout',
+++    'detail-with-aside',
+++  )
++   await opener.tap()
++   await page.setViewportSize({ width: 1280, height: 800 })
++   await expect(drawer).toBeHidden()
++   await expect(page.locator('body')).not.toHaveCSS('pointer-events', 'none')
+++  await expect(
+++    page
+++      .locator('[data-platform-header]')
+++      .getByRole('link', { name: 'Новый документ', exact: true }),
+++  ).toHaveCount(0)
+++  await page.goto(`${base}/search?space=BASE`)
++   await expect(
++     page
++       .locator('[data-platform-header]')
++       .getByRole('link', { name: 'Новый документ', exact: true }),
++   ).toBeVisible()
++   const profile = page.getByRole('button', { name: 'Аккаунт', exact: true })
++   await profile.focus()
++   await page.keyboard.press('Enter')
++   const menu = page.getByRole('menu')
+ -  const identity = menu.locator('div.break-words').first()
+++  const identity = menu.locator('p.break-words').first()
++   await expect(identity).toHaveText(/\S+/)
++   const username = (await identity.innerText()).trim()
++   await expect(menu.getByText(username, { exact: true })).toHaveCount(1)
+ -  await expect(page.locator('aside')).not.toContainText(username)
+++  await expect(page.locator('aside.base-shell-sidebar')).not.toContainText(username)
++   await expect(menu.getByRole('menuitem', { name: 'Выйти', exact: true })).toBeVisible()
++   const axe = await new AxeBuilder({ page }).analyze()
++   expect(
++     axe.violations.filter((item) => item.impact === 'serious' || item.impact === 'critical'),
++   ).toEqual([])
++   await page.keyboard.press('Escape')
++   await expect(profile).toBeFocused()
++   expect(await page.locator('#root').evaluate((root) => root.inert)).toBe(false)
++   expect(errors).toEqual([])
++   expect(writes).toEqual([])
++   await profile.click()
++   await menu.getByRole('menuitem', { name: 'Выйти', exact: true }).click()
++   await expect(page).toHaveURL(/localhost:7701\/oidc\/logout\?client_id=wiki/)
++   await page.getByRole('button', { name: 'Выйти из всех приложений', exact: true }).click()
++   await expect(page).toHaveURL(/localhost:7732\/login\?logged_out/)
++   await page.goto(`${base}/spaces`, { waitUntil: 'commit' })
++   await expect(page).toHaveURL(/localhost:7701\/oidc\/authorize/)
++   await expect(page.getByLabel('Пароль')).toBeVisible()
++   writeFileSync(
++     `${evidence}/results.json`,
++     JSON.stringify(
++       {
++         mock_api: false,
++         retries: test.info().retry,
++         cases,
++         runtime_errors: errors,
++         api_writes: writes,
++         interactions: [
++           'service keyboard/touch/outside/focus',
++           'drawer navigation/create/Escape/desktop resize',
++           'profile keyboard/focus',
++           'central logout/re-entry',
++         ],
++       },
++       null,
++       2,
++     ),
++   )
++ })
+diff --cc frontend/e2e/smoke.spec.ts
+index bdcbdd7,7477b27..ea21d2e
+--- a/frontend/e2e/smoke.spec.ts
++++ b/frontend/e2e/smoke.spec.ts
+@@@ -1102,6 -648,6 +1102,69 @@@ test.describe('wiki smoke', () => 
+      await expect(trigger).toBeFocused()
+    })
+  
+++  test('keeps contextual creation reachable once per surface through Base drawer and page actions', async ({
+++    page,
+++  }) => {
+++    await page.setViewportSize({ width: 375, height: 812 })
+++    await installWikiApiMocks(page)
+++    await gotoWiki(page, '/search?space=BASE')
+++    const header = page.locator('[data-platform-header]')
+++    const trigger = page.getByRole('button', { name: 'Открыть навигацию' })
+++    await expect(header.getByRole('link', { name: 'Новый документ', exact: true })).toBeHidden()
+++    await trigger.click()
+++    const drawer = page.getByRole('dialog', { name: 'Wiki', exact: true })
+++    const create = drawer.getByRole('link', { name: 'Новый документ', exact: true })
+++    await expect(create).toHaveAttribute('href', '/documents/new?space=BASE')
+++    const target = await create.boundingBox()
+++    expect(target?.height).toBeGreaterThanOrEqual(44)
+++    await create.click()
+++    await expect(page).toHaveURL(`${baseURL}/documents/new?space=BASE`)
+++    await expect(drawer).toBeHidden()
+++    await expect(trigger).toBeFocused()
+++    await expect(page.locator('[data-page-layout]')).toHaveAttribute(
+++      'data-page-layout',
+++      'detail-with-aside',
+++    )
+++    await expect(header.getByRole('link', { name: 'Новый документ', exact: true })).toHaveCount(0)
+++
+++    for (const width of [375, 1920]) {
+++      await page.setViewportSize({ width, height: width === 1920 ? 1080 : 812 })
+++      await gotoWiki(page, '/documents/product-requirements')
+++      await expect(
+++        page
+++          .locator('article > section')
+++          .first()
+++          .getByRole('heading', { name: document.title, exact: true }),
+++      ).toBeVisible()
+++      const documentCreate = page.getByRole('link', { name: 'Новый документ', exact: true })
+++      await expect(documentCreate).toHaveCount(1)
+++      await expect(documentCreate).toBeVisible()
+++      await expect(documentCreate).toHaveAttribute('href', '/documents/new?space=BASE')
+++      await expect(header.getByRole('link', { name: 'Новый документ', exact: true })).toHaveCount(0)
+++      await gotoWiki(page, '/templates?space=BASE')
+++      await expect(page.getByRole('heading', { name: 'Шаблоны', exact: true })).toBeVisible()
+++      await expect(
+++        page.getByRole('link', { name: 'Создать документ', exact: true }),
+++      ).toHaveAttribute('href', '/documents/new?space=BASE')
+++      const useTemplate = page.getByRole('link', { name: /^Использовать шаблон/ }).first()
+++      const href = await useTemplate.getAttribute('href')
+++      expect(new URL(href!, baseURL).searchParams.get('space')).toBe('BASE')
+++      await expect(header.getByRole('link', { name: 'Новый документ', exact: true })).toHaveCount(0)
+++      if (width < 768) {
+++        await trigger.click()
+++        await expect(drawer.getByRole('link', { name: 'Новый документ', exact: true })).toHaveCount(
+++          0,
+++        )
+++        await page.keyboard.press('Escape')
+++        await expect(trigger).toBeFocused()
+++      }
+++      await page.screenshot({
+++        path: test.info().outputPath(`contextual-create-${width}.png`),
+++        fullPage: true,
+++      })
+++    }
+++  })
+++
+    test('previews a new document and protects its unsaved draft during navigation', async ({
+      page,
+    }) => {
+diff --cc frontend/src/pages/dashboard/dashboard.test.tsx
+index 1a5a2bc,7eb6701..d00cfe5
+--- a/frontend/src/pages/dashboard/dashboard.test.tsx
++++ b/frontend/src/pages/dashboard/dashboard.test.tsx
+@@@ -130,10 -96,14 +130,12 @@@ describe('DashboardPage', () => 
+      render(wrapper(<DashboardPage />))
+  
+      expect(screen.getByRole('heading', { name: 'Wiki' })).toBeInTheDocument()
+ -    expect(screen.getByRole('link', { name: /новый документ/i })).toHaveAttribute(
+ +    expect(await screen.findByRole('link', { name: /новый документ/i })).toHaveAttribute(
+        'href',
+ -      '/documents/new',
+ -    )
+ -    expect(screen.getByRole('link', { name: /новый документ/i })).toHaveClass(
+ -      'md:hidden',
+ -      'min-h-11',
+ +      '/documents/new?space=BASE',
+      )
+++    expect(screen.getByRole('link', { name: /новый документ/i })).toHaveClass('base-control')
+++    expect(screen.getByRole('link', { name: /новый документ/i })).not.toHaveClass('md:hidden')
+      expect(await screen.findAllByText('Требования к Wiki')).toHaveLength(2)
+      expect(screen.getByRole('link', { name: /BASE-42/ })).toHaveAttribute(
+        'href',
+diff --cc frontend/src/pages/document/document.test.tsx
+index 146a494,8bc002c..5a1aa0e
+--- a/frontend/src/pages/document/document.test.tsx
++++ b/frontend/src/pages/document/document.test.tsx
+@@@ -145,6 -145,6 +145,10 @@@ function setupDocument(document: Docume
+  describe('DocumentPage', () => {
+    it('keeps a non-default space in task and phase context links', () => {
+      setupDocument({ ...baseDocument, space_key: 'DOCS' })
+++    expect(screen.getByRole('link', { name: 'Новый документ' })).toHaveAttribute(
+++      'href',
+++      '/documents/new?space=DOCS',
+++    )
+      expect(screen.getByRole('link', { name: 'BASE-42' })).toHaveAttribute(
+        'href',
+        '/tasks/BASE-42?space=DOCS',
+@@@ -176,6 -176,10 +180,12 @@@
+      setupDocument()
+  
+      expect(screen.getByRole('heading', { name: 'Требования Wiki' })).toBeInTheDocument()
+ -    expect(screen.getByRole('link', { name: 'Новый документ' })).toHaveClass(
+ -      'md:hidden',
+ -      'min-h-11',
+++    expect(screen.getByRole('link', { name: 'Новый документ' })).toHaveClass('base-control')
+++    expect(screen.getByRole('link', { name: 'Новый документ' })).not.toHaveClass('md:hidden')
+++    expect(screen.getByRole('link', { name: 'Новый документ' })).toHaveAttribute(
+++      'href',
+++      '/documents/new?space=BASE',
++     )
+      expect(screen.getByRole('button', { name: 'Просмотр' })).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getByRole('button', { name: 'Правка' })).toHaveAttribute('aria-pressed', 'false')
+      expect(screen.queryByLabelText('Markdown черновика')).not.toBeInTheDocument()
+diff --cc frontend/src/pages/document/index.tsx
+index 51921a7,3b8bf2e..346541b
+--- a/frontend/src/pages/document/index.tsx
++++ b/frontend/src/pages/document/index.tsx
+@@@ -273,8 -273,8 +273,8 @@@ export function DocumentPage() 
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+-           <Button asChild size="sm" variant="secondary" className="h-10">
+ -          <Button asChild size="sm" variant="secondary" className="min-h-11 md:hidden">
+--            <Link to="/documents/new">
+++          <Button asChild size="sm" variant="secondary">
+++            <Link to={`/documents/new?${new URLSearchParams({ space: document.space_key })}`}>
+                <FilePenLine className="h-4 w-4" />
+                Новый документ
+              </Link>
+diff --cc frontend/src/pages/spaces/spaces.test.tsx
+index ea152bd,3b9896c..da46a64
+--- a/frontend/src/pages/spaces/spaces.test.tsx
++++ b/frontend/src/pages/spaces/spaces.test.tsx
+@@@ -200,6 -167,10 +200,8 @@@ describe('SpacesPage', () => 
+      setupSpaces()
+  
+      expect(screen.getByRole('heading', { name: 'Пространства' })).toBeInTheDocument()
+ -    expect(screen.getByRole('link', { name: 'Новый документ' })).toHaveClass(
+ -      'md:hidden',
+ -      'min-h-11',
+ -    )
+++    expect(screen.getByRole('link', { name: 'Новый документ' })).toHaveClass('base-control')
+++    expect(screen.getByRole('link', { name: 'Новый документ' })).not.toHaveClass('md:hidden')
+      expect(screen.getByText('База знаний Base')).toBeInTheDocument()
+      expect(useSpaceTree).not.toHaveBeenCalled()
+      expect(useSpaceMembers).not.toHaveBeenCalled()
+diff --cc frontend/src/pages/templates/index.tsx
+index d5a5a32,e673146..56ecd95
+--- a/frontend/src/pages/templates/index.tsx
++++ b/frontend/src/pages/templates/index.tsx
+@@@ -127,6 -126,6 +127,7 @@@ function useTemplateCatalogUrl() 
+  
+    return {
+      requestedPage,
+++    space: normalized(searchParams.get('space')),
+      search,
+      setCatalogPage,
+      setSearch,
+@@@ -147,7 -146,7 +148,7 @@@ export function TemplatesPage() 
+    const [name, setName] = useState('')
+    const [documentType, setDocumentType] = useState('requirements')
+    const [body, setBody] = useState('')
+--  const { requestedPage, search, setCatalogPage, setSearch, setTypeFilter, typeFilter } =
+++  const { requestedPage, space, search, setCatalogPage, setSearch, setTypeFilter, typeFilter } =
+      useTemplateCatalogUrl()
+    const [expandedId, setExpandedId] = useState<string | null>(null)
+    const nameRef = useRef<HTMLInputElement>(null)
+@@@ -208,6 -207,6 +209,13 @@@
+      )
+    }
+  
+++  function documentCreateHref(templateId?: string) {
+++    const params = new URLSearchParams()
+++    if (space) params.set('space', space)
+++    if (templateId) params.set('template', templateId)
+++    return `/documents/new${params.size ? `?${params}` : ''}`
+++  }
+++
+    return (
+      <div className="space-y-5">
+        <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+@@@ -236,8 -235,8 +244,8 @@@
+                {showCreate ? 'Свернуть форму' : 'Новый шаблон'}
+              </Button>
+            )}
+-           <Button asChild size="sm" variant="secondary" className="min-h-10 sm:min-h-10">
+ -          <Button asChild size="sm" variant="secondary" className="min-h-11 md:hidden">
+--            <Link to="/documents/new">
+++          <Button asChild size="sm" variant="secondary">
+++            <Link to={documentCreateHref()}>
+                <FileText className="h-4 w-4" aria-hidden />
+                Создать документ
+              </Link>
+@@@ -262,9 -261,9 +270,7 @@@
+              Шаблон «{createdTemplate.name}» создан
+            </span>
+            <Button asChild size="sm" variant="outline" className="min-h-10 sm:min-h-10">
+--            <Link to={`/documents/new?template=${encodeURIComponent(createdTemplate.id)}`}>
+--              Использовать
+--            </Link>
+++            <Link to={documentCreateHref(createdTemplate.id)}>Использовать</Link>
+            </Button>
+            <Button
+              type="button"
+@@@ -457,7 -456,7 +463,7 @@@
+                          />
+                        </button>
+                        <Link
+--                        to={`/documents/new?template=${encodeURIComponent(template.id)}`}
+++                        to={documentCreateHref(template.id)}
+                          aria-label={`Использовать шаблон ${template.name}`}
+                          className="inline-flex min-h-10 shrink-0 items-center px-2 text-sm text-accent hover:underline"
+                        >
+diff --cc frontend/src/pages/templates/templates.test.tsx
+index c42c815,b507846..dc2a000
+--- a/frontend/src/pages/templates/templates.test.tsx
++++ b/frontend/src/pages/templates/templates.test.tsx
+@@@ -96,6 -96,10 +96,8 @@@ describe('TemplatesPage', () => 
+      setupTemplates()
+  
+      expect(screen.getByRole('heading', { name: 'Шаблоны' })).toBeInTheDocument()
+ -    expect(screen.getByRole('link', { name: 'Создать документ' })).toHaveClass(
+ -      'md:hidden',
+ -      'min-h-11',
+ -    )
+++    expect(screen.getByRole('link', { name: 'Создать документ' })).toHaveClass('base-control')
+++    expect(screen.getByRole('link', { name: 'Создать документ' })).not.toHaveClass('md:hidden')
+      expect(screen.getByRole('link', { name: 'Использовать шаблон Требования' })).toHaveAttribute(
+        'href',
+        '/documents/new?template=requirements',
+@@@ -153,6 -157,6 +155,36 @@@
+      )
+    })
+  
+++  it('preserves space context for ordinary, existing and newly created template links', () => {
+++    const created = {
+++      id: 'release-plan',
+++      name: 'План релиза',
+++      document_type: 'release_note',
+++      body_markdown: '# Релиз',
+++    }
+++    createTemplateMutate.mockImplementation((_payload, options) => options.onSuccess(created))
+++    setupTemplates({ initialEntry: '/templates?space=TEAM&q=Требования' })
+++
+++    expect(screen.getByRole('link', { name: 'Создать документ' })).toHaveAttribute(
+++      'href',
+++      '/documents/new?space=TEAM',
+++    )
+++    expect(screen.getByRole('link', { name: 'Использовать шаблон Требования' })).toHaveAttribute(
+++      'href',
+++      '/documents/new?space=TEAM&template=requirements',
+++    )
+++    fireEvent.click(screen.getByRole('button', { name: 'Новый шаблон' }))
+++    fireEvent.change(screen.getByLabelText('Название шаблона'), { target: { value: created.name } })
+++    fireEvent.change(screen.getByLabelText('Markdown шаблона'), {
+++      target: { value: created.body_markdown },
+++    })
+++    fireEvent.submit(screen.getByRole('form', { name: 'Создание шаблона' }))
+++    expect(screen.getByRole('link', { name: 'Использовать' })).toHaveAttribute(
+++      'href',
+++      '/documents/new?space=TEAM&template=release-plan',
+++    )
+++  })
+++
+    it('rejects whitespace-only required fields before calling the API', () => {
+      setupTemplates()
+      fireEvent.click(screen.getByRole('button', { name: 'Новый шаблон' }))
+diff --cc frontend/src/widgets/app-shell.test.tsx
+index 4248a33,c5fd4ea..09e946f
+--- a/frontend/src/widgets/app-shell.test.tsx
++++ b/frontend/src/widgets/app-shell.test.tsx
+@@@ -88,6 -102,103 +102,104 @@@ describe('AppShell', () => 
+      expect(logoutMutate).toHaveBeenCalledTimes(1)
+    })
+  
+ -  it('owns one global header above the offset page and navigation-only sidebar', () => {
+++  it('uses the common Base shell with one global header above the working area', () => {
++     mockHooks()
+ -    const { container } = renderShell()
+++    const { container } = renderShell('/search?space=TEAM')
++     const header = screen.getByRole('banner')
++     expect(container.querySelectorAll('[data-platform-header]')).toHaveLength(1)
++     expect(header.parentElement).toBe(container.firstElementChild)
++     expect(
++       [...header.querySelectorAll('[data-platform-header-slot]')].map((slot) =>
++         slot.getAttribute('data-platform-header-slot'),
++       ),
++     ).toEqual(['leading', 'services', 'actions'])
++     expect(
++       within(header).getByRole('button', { name: 'Открыть список сервисов: Wiki' }),
++     ).toBeInTheDocument()
++     expect(within(header).getByRole('link', { name: 'Новый документ' })).toHaveAttribute(
++       'href',
+ -      '/documents/new',
+++      '/documents/new?space=TEAM',
++     )
+ -    expect(container.querySelector('aside')).not.toHaveTextContent('Wiki')
+ -    expect(screen.queryByText('База знаний')).not.toBeInTheDocument()
+++    expect(container.querySelectorAll('[data-base-shell]')).toHaveLength(1)
+++    expect(container.querySelector('aside')).toHaveClass('base-shell-sidebar')
+++    expect(within(container.querySelector('aside')!).getAllByRole('navigation')).toHaveLength(1)
++   })
++ 
++   it.each([undefined, '', '   ', 'user@example.test'])(
++     'does not duplicate email for identity %s',
++     (name) => {
++       mockHooks()
++       useCurrentUser.mockReturnValue({ data: { email: 'user@example.test', display_name: name } })
++       renderShell()
++       fireEvent.keyDown(screen.getByRole('button', { name: 'Аккаунт' }), { key: 'ArrowDown' })
++       expect(
++         within(screen.getByRole('menu', { hidden: true })).getAllByText('user@example.test'),
++       ).toHaveLength(1)
++     },
++   )
++ 
++   it('keeps long identity in a bounded account menu and supports missing user data', () => {
++     mockHooks()
++     const name = 'long-account-name-that-must-not-expand-the-platform-header@example.test'
++     useCurrentUser.mockReturnValue({ data: { display_name: name } })
++     const { rerender } = renderShell()
++     expect(screen.getByRole('banner')).not.toHaveTextContent(name)
++     fireEvent.keyDown(screen.getByRole('button', { name: 'Аккаунт' }), { key: 'ArrowDown' })
++     const menu = screen.getByRole('menu', { hidden: true })
++     expect(within(menu).getByText(name)).toHaveClass('break-words')
++     expect(menu).toHaveClass('max-w-[calc(100vw-2rem)]')
++     fireEvent.keyDown(document, { key: 'Escape' })
++     useCurrentUser.mockReturnValue({ data: undefined })
++     rerender(
++       <ThemeProvider>
++         <MemoryRouter>
++           <AppShell />
++         </MemoryRouter>
++       </ThemeProvider>,
++     )
++     fireEvent.keyDown(screen.getByRole('button', { name: 'Аккаунт' }), { key: 'ArrowDown' })
++     expect(
++       within(screen.getByRole('menu', { hidden: true })).getByText('Пользователь'),
++     ).toBeInTheDocument()
++   })
++ 
++   it('preserves mobile creation and closes the drawer after following its link', async () => {
++     mockHooks()
+ -    renderShell()
+++    renderShell('/search?space=TEAM')
++     const trigger = screen.getByRole('button', { name: 'Открыть навигацию' })
++     fireEvent.click(trigger)
+ -    const dialog = await screen.findByRole('dialog', { name: 'Навигация Wiki' })
+++    const dialog = await screen.findByRole('dialog', { name: 'Wiki' })
++     const create = within(dialog).getByRole('link', { name: 'Новый документ' })
+ -    expect(create).toHaveAttribute('href', '/documents/new')
+++    expect(create).toHaveAttribute('href', '/documents/new?space=TEAM')
++     fireEvent.click(create)
++     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
++     expect(document.querySelector('[data-page-layout]')).toHaveAttribute(
++       'data-page-layout',
+ -      'reading',
+++      'detail-with-aside',
++     )
++     expect(trigger).toHaveFocus()
++   })
++ 
++   it('closes the drawer on desktop resize and removes its listener on unmount', async () => {
++     mockHooks()
++     const media = { matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }
++     vi.stubGlobal(
++       'matchMedia',
++       vi.fn(() => media),
++     )
++     const { unmount } = renderShell()
++     fireEvent.click(screen.getByRole('button', { name: 'Открыть навигацию' }))
++     await screen.findByRole('dialog')
++     const listener = media.addEventListener.mock.calls[0]?.[1] as () => void
++     expect(listener).toBeTypeOf('function')
++     media.matches = true
++     act(() => listener())
++     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
++     expect(document.body).not.toHaveStyle({ pointerEvents: 'none' })
++     unmount()
++     expect(media.removeEventListener).toHaveBeenCalledWith('change', listener)
++   })
++ 
+    it('marks a parent section active on a direct nested route', () => {
+      mockHooks()
+  
+@@@ -143,25 -242,4 +255,25 @@@
+      )
+      expect(trigger).toHaveFocus()
+    })
+ +
+ +  it('keeps the selected space in global create and avoids a duplicate create on its form', () => {
+ +    mockHooks()
+ +    const shell = renderShell('/search?space=TEAM')
+ +    expect(screen.getByRole('link', { name: 'Новый документ' })).toHaveAttribute(
+ +      'href',
+ +      '/documents/new?space=TEAM',
+ +    )
+ +    shell.unmount()
+ +    renderShell('/documents/new?space=TEAM')
+ +    expect(screen.queryByRole('link', { name: 'Новый документ' })).not.toBeInTheDocument()
+ +  })
+ +
+-   it.each(['/', '/spaces'])(
+++  it.each(['/', '/spaces', '/templates', '/documents/document-1'])(
+ +    'leaves creation ownership to the %s page so empty catalogs cannot offer a parentless write',
+ +    (path) => {
+ +      mockHooks()
+ +      renderShell(path)
+ +      expect(screen.queryByRole('link', { name: 'Новый документ' })).not.toBeInTheDocument()
+ +    },
+ +  )
+  })
+diff --cc frontend/src/widgets/app-shell.tsx
+index 21559da,13a02d3..41c6d3d
+--- a/frontend/src/widgets/app-shell.tsx
++++ b/frontend/src/widgets/app-shell.tsx
+@@@ -37,40 -122,128 +37,55 @@@ export function AppShell() 
+    const location = useLocation()
+    const { data: user } = useCurrentUser()
+    const logout = useLogout()
+ -  const identity = user?.display_name?.trim() || user?.email || 'Пользователь'
+ -
+ -  useEffect(() => {
+ -    const desktop = window.matchMedia('(min-width: 768px)')
+ -    const closeOnDesktop = () => {
+ -      if (desktop.matches) setMobileMenuOpen(false)
+ -    }
+ -    desktop.addEventListener('change', closeOnDesktop)
+ -    return () => desktop.removeEventListener('change', closeOnDesktop)
+ -  }, [])
+ -
+ -  const navItems = [...baseNavItems, ...(user?.is_system_admin ? adminNavItems : [])]
+ -  const pageLayout =
+ -    location.pathname === '/settings' || location.pathname === '/documents/new'
+ +  const space = new URLSearchParams(location.search).get('space')
+ +  const createHref = `/documents/new${space ? `?${new URLSearchParams({ space })}` : ''}`
+++  const pageOwnsCreate =
+++    ['/', '/spaces', '/templates'].includes(location.pathname) ||
+++    location.pathname.startsWith('/documents/')
+ +  const layout =
+ +    location.pathname === '/settings'
+        ? 'reading'
+        : /^\/(documents|tasks)\/[^/]+$/.test(location.pathname)
+          ? 'detail-with-aside'
+          : 'wide'
+  
+    return (
+ -    <div className="min-h-screen bg-background text-text-primary">
+ -      <PlatformHeader
+ -        currentServiceKey="wiki"
+ -        leading={
+ -          <>
+ -            <Dialog open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+ -              <DialogTrigger asChild>
+ -                <Button
+ -                  variant="ghost"
+ -                  size="icon"
+ -                  className="h-11 w-11 md:hidden"
+ -                  aria-label="Открыть навигацию"
+ -                >
+ -                  <Menu className="h-5 w-5" aria-hidden />
+ -                </Button>
+ -              </DialogTrigger>
+ -              <DialogContent
+ -                aria-describedby={undefined}
+ -                className="!left-0 !top-0 !flex !h-dvh !max-h-dvh !w-[min(320px,calc(100%-2rem))] !max-w-none !translate-x-0 !translate-y-0 !flex-col !gap-0 !rounded-none !border-y-0 !border-l-0 !p-0 [&>button]:h-11 [&>button]:w-11"
+ -              >
+ -                <DialogHeader className="flex h-[var(--shell-header-height)] shrink-0 justify-center border-b border-border px-4 pr-14 text-left">
+ -                  <DialogTitle className="text-base">
+ -                    <span className="sr-only">Навигация Wiki</span>
+ -                    <span className="flex items-center gap-3" aria-hidden>
+ -                      <PlatformMark size="sm" withName={false} />
+ -                      <span>Wiki</span>
+ -                    </span>
+ -                  </DialogTitle>
+ -                </DialogHeader>
+ -                <div className="min-h-0 flex-1 overflow-y-auto p-3">
+ -                  <Button asChild className="mb-3 min-h-11 w-full gap-2">
+ -                    <Link to="/documents/new" onClick={() => setMobileMenuOpen(false)}>
+ -                      <FilePlus2 className="h-4 w-4" aria-hidden />
+ -                      Новый документ
+ -                    </Link>
+ -                  </Button>
+ -                  <NavigationList items={navItems} onNavigate={() => setMobileMenuOpen(false)} />
+ -                </div>
+ -              </DialogContent>
+ -            </Dialog>
+ -
+ -            <Link
+ -              to="/"
+ -              className="hidden h-11 min-w-11 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus min-[360px]:flex md:h-10 md:min-w-10"
+ -              aria-label="Wiki"
+ -            >
+ -              <PlatformMark size="sm" withName={false} />
+ +    <BaseAppShell
+ +      currentServiceKey="wiki"
+ +      title="Wiki"
+ +      description="База знаний"
+ +      navigation={[...baseNavItems, ...(user?.is_system_admin ? adminNavItems : [])]}
+ +      layout={layout}
+ +      actions={
+-         !['/', '/documents/new', '/spaces'].includes(location.pathname) && (
+-           <Button asChild>
+++        !pageOwnsCreate && (
+++          <Button asChild className="hidden md:inline-flex">
+ +            <Link to={createHref} aria-label="Новый документ" title="Новый документ">
+ +              <FilePlus2 className="h-4 w-4" aria-hidden />
+-               <span className="hidden sm:inline">Новый документ</span>
+++              <span>Новый документ</span>
+              </Link>
+ -          </>
+ -        }
+ -        actions={
+ -          <>
+ -            <Button asChild size="sm" className="hidden h-10 min-w-10 gap-2 px-3 md:inline-flex">
+ -              <Link to="/documents/new" aria-label="Новый документ">
+ -                <FilePlus2 className="h-4 w-4" aria-hidden />
+ -                <span>Новый документ</span>
+ -              </Link>
+ -            </Button>
+ -            <ThemeToggle />
+ -            <DropdownMenu>
+ -              <DropdownMenuTrigger asChild>
+ -                <Button
+ -                  variant="ghost"
+ -                  size="icon"
+ -                  className="h-11 w-11 md:h-10 md:w-10"
+ -                  aria-label="Аккаунт"
+ -                >
+ -                  <User className="h-5 w-5" aria-hidden />
+ -                </Button>
+ -              </DropdownMenuTrigger>
+ -              <DropdownMenuContent align="end" className="w-64 max-w-[calc(100vw-2rem)]">
+ -                <div className="break-words px-2 py-1.5 text-sm font-medium text-text-primary">
+ -                  {identity}
+ -                </div>
+ -                {user?.email && user.email !== identity && (
+ -                  <div className="break-words px-2 pb-2 text-xs text-text-muted">{user.email}</div>
+ -                )}
+ -                <DropdownMenuItem
+ -                  onSelect={() => logout.mutate()}
+ -                  className="min-h-11 gap-2 text-text-secondary md:min-h-10"
+ -                >
+ -                  <LogOut className="h-4 w-4" aria-hidden />
+ -                  <span>Выйти</span>
+ -                </DropdownMenuItem>
+ -              </DropdownMenuContent>
+ -            </DropdownMenu>
+ -          </>
+ -        }
+ -      />
+ -      <aside className="fixed bottom-0 left-0 top-[var(--shell-header-height)] z-20 hidden w-[var(--shell-sidebar-compact)] flex-col border-r border-border bg-surface md:flex xl:w-[var(--shell-sidebar-expanded)]">
+ -        <div className="min-h-0 flex-1 overflow-y-auto p-2 xl:p-3">
+ -          <NavigationList items={navItems} responsiveLabels />
+ -        </div>
+ -      </aside>
+ -      <div className="md:pl-[var(--shell-sidebar-compact)] xl:pl-[var(--shell-sidebar-expanded)]">
+ -        <main className="shell-main min-h-[calc(100dvh-var(--shell-header-height))]">
+ -          <PageFrame mode={pageLayout}>
+ -            <Outlet />
+ -          </PageFrame>
+ -        </main>
+ -      </div>
+ -    </div>
+ +          </Button>
+ +        )
+ +      }
+++      drawerActions={
+++        !pageOwnsCreate
+++          ? (onNavigate) => (
+++              <Button asChild className="w-full">
+++                <Link to={createHref} onClick={onNavigate}>
+++                  <FilePlus2 className="h-4 w-4" aria-hidden />
+++                  Новый документ
+++                </Link>
+++              </Button>
+++            )
+++          : undefined
+++      }
+ +      account={{
+ +        label: user?.display_name || user?.email || 'Пользователь',
+ +        secondary: user?.email,
+ +        onLogout: () => logout.mutate(),
+ +        pending: logout.isPending,
+ +      }}
+ +    >
+ +      <Outlet />
+ +    </BaseAppShell>
+    )
+  }

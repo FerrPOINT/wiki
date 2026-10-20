@@ -1,0 +1,94 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 69e8302..1d3be0d 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -6,6 +6,9 @@
+ 
+ ## [Unreleased]
+ 
++- Режимы просмотра/правки документа используют Base Button вместо локальных
++  кнопок: общий focus и responsive target 40/44 px без изменения черновика.
++
+ - Swagger UI assets come from the locked vendored Cargo package instead of a
+   separate build-time GitHub ZIP download. Existing OpenAPI endpoints, domain
+   API, database schema and application UI are unchanged.
+diff --git a/docs/UI_UX_MAP.md b/docs/UI_UX_MAP.md
+index 6fd091e..90681ad 100644
+--- a/docs/UI_UX_MAP.md
++++ b/docs/UI_UX_MAP.md
+@@ -253,3 +253,19 @@ Focused source Chromium проверил 3 темы/10 widths, 40 PNG, guards/fo
+ Это mocked HTTP/OIDC source evidence, не current image/live SSO/README acceptance.
+ Document/compose/phase/evidence/admin compositions, cold audit titles без N+1,
+ all-route/role/state image matrix, local default integration и mirror ещё pending.
++
++## Actual SSO Document Control Regression
++
++2026-10-03: isolated production image `b1d04fd` прошёл реальный вход через
++Base Central Auth `ce43bc6` с возвратом pathname/query/hash. Первый normal-route
++проход выявил на документе две локальные кнопки режима высотой40 px на375 px
++при обязательном mobile target44. Другие controls страницы используют Base.
++Evidence: `wiki-operational-b1d04fd-fixture-corrected/failure.{json,png}`
++в workspace audit artifacts. Этот overall checkpoint не прошёл приёмку.
++
++Кнопки заменены на общий Base Button с прежним `aria-pressed` и поведением
++read/edit. Новый тест проверяет оба Base controls и переключение pressed state;
++прежние тесты сохранения draft при переключении остаются действующими.
++Source:260 tests/23 files, ESLint/semantic, TypeScript, Vite build, touched-file
++Prettier и diff check прошли. Повторный actual-image all-route/SSO/geometry gate
++требуется отдельно; source tests не закрывают runtime regression или UX-04.
+diff --git a/frontend/src/pages/document/document.test.tsx b/frontend/src/pages/document/document.test.tsx
+index 5a1aa0e..4c37c89 100644
+--- a/frontend/src/pages/document/document.test.tsx
++++ b/frontend/src/pages/document/document.test.tsx
+@@ -143,6 +143,18 @@ function setupDocument(document: Document = baseDocument, revisionHistory?: Docu
+ }
+ 
+ describe('DocumentPage', () => {
++  it('uses Base controls for both document modes without losing pressed state', () => {
++    setupDocument()
++    const read = screen.getByRole('button', { name: 'Просмотр' })
++    const edit = screen.getByRole('button', { name: 'Правка' })
++    expect(read).toHaveClass('base-control', 'min-h-10')
++    expect(edit).toHaveClass('base-control', 'min-h-10')
++    expect(read).toHaveAttribute('aria-pressed', 'true')
++    fireEvent.click(edit)
++    expect(read).toHaveAttribute('aria-pressed', 'false')
++    expect(edit).toHaveAttribute('aria-pressed', 'true')
++  })
++
+   it('keeps a non-default space in task and phase context links', () => {
+     setupDocument({ ...baseDocument, space_key: 'DOCS' })
+     expect(screen.getByRole('link', { name: 'Новый документ' })).toHaveAttribute(
+diff --git a/frontend/src/pages/document/index.tsx b/frontend/src/pages/document/index.tsx
+index 346541b..a1b4513 100644
+--- a/frontend/src/pages/document/index.tsx
++++ b/frontend/src/pages/document/index.tsx
+@@ -311,22 +311,22 @@ export function DocumentPage() {
+             aria-label="Режим документа"
+             className="inline-grid grid-cols-2 rounded-md border border-border bg-surface p-1"
+           >
+-            <button
++            <Button
+               type="button"
+               aria-pressed={!isEditing}
+-              className={`inline-flex min-h-10 items-center justify-center gap-2 rounded px-3 text-sm ${!isEditing ? 'bg-surface-raised font-medium text-text-primary' : 'text-text-muted'}`}
++              variant={!isEditing ? 'secondary' : 'ghost'}
+               onClick={() => setSelectedMode('read')}
+             >
+               <Eye className="h-4 w-4" /> Просмотр
+-            </button>
+-            <button
++            </Button>
++            <Button
+               type="button"
+               aria-pressed={isEditing}
+-              className={`inline-flex min-h-10 items-center justify-center gap-2 rounded px-3 text-sm ${isEditing ? 'bg-surface-raised font-medium text-text-primary' : 'text-text-muted'}`}
++              variant={isEditing ? 'secondary' : 'ghost'}
+               onClick={() => setSelectedMode('edit')}
+             >
+               <FilePenLine className="h-4 w-4" /> Правка
+-            </button>
++            </Button>
+           </div>
+           {draftChanged && (
+             <span role="status" className="text-xs text-warning">

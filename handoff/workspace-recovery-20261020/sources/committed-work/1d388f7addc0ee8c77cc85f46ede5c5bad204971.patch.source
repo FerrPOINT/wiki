@@ -1,0 +1,952 @@
+diff --git a/docs/UI_UX_MAP.md b/docs/UI_UX_MAP.md
+new file mode 100644
+index 0000000..1c8cc16
+--- /dev/null
++++ b/docs/UI_UX_MAP.md
+@@ -0,0 +1,35 @@
++# UI/UX-карта Wiki
++
++Нормативный источник: [Base UI/UX Standard](../../services-base/docs/platform/UI_UX_STANDARD.md).
++Маршрутный контракт: [ui-routes.json](ui-routes.json).
++
++Shell, sidebar, account, theme и modal drawer принадлежат Base AppShell.
++Продукт сохраняет navigation permissions, logout и document context.
++Глобальное создание сохраняет `space` из URL и не дублируется на форме создания.
++Compose и document view с contextual aside используют `detail-with-aside`;
++settings использует `reading`, списки и независимые dossier sections — `wide`.
++Task dossier имеет contextual aside и использует `detail-with-aside`.
++Неизвестный operational URL показывает not-found вместо скрытого redirect.
++
++Этот checkout создан от сохранённого default `c83ff8c`; исходный dirty checkout
++не переносился. Base dependency устанавливается frozen/offline из выбранного
++snapshot `5a78740`. `ui:check` проверяет route coverage, shell и installed bytes.
++
++`qa.status: not-run` означает обязательный, но ещё не принятый сценарий.
++Полная миграция page compositions, audit readability/cold-cache поведение,
++draft/state/role matrix, actual-image SSO и README provenance пока не завершены.
++Геометрических исключений нет. Исторические скриншоты не доказывают новый выпуск.
++
++## Source Regression Evidence
++
++На Base `5a78740` прошли frozen offline install/installed fingerprint,
++общий gate (19 patterns), lint/semantic, build и README validator.
++Компонентные проверки покрывают admin navigation, logout, active routes,
++drawer focus/Escape и space context после create. Logout остаётся доступен
++даже при сбое загрузки профиля, без предоставления admin navigation.
++
++Browser regression на изолированном preview с mocked API/OIDC: 120 captures
++для overview/settings/create/task detail в 3 темах на 10 ширинах,
++keyboard drawer и сохранение draft при отказе от навигации.
++QA origin — `localhost`, как требует существующая Base SSO canonicalization.
++Это не live SSO, не actual-image evidence и не новая README gallery.
+diff --git a/docs/ui-routes.json b/docs/ui-routes.json
+new file mode 100644
+index 0000000..13615ee
+--- /dev/null
++++ b/docs/ui-routes.json
+@@ -0,0 +1,306 @@
++{
++  "schemaVersion": 1,
++  "product": "wiki",
++  "routeSource": "frontend/src/app/router.tsx",
++  "shellSource": "frontend/src/widgets/app-shell.tsx",
++  "runtimeSources": ["frontend/src", "frontend/nginx.conf", "backend"],
++  "acceptanceStatus": "pending",
++  "routes": [
++    {
++      "pattern": "/",
++      "kind": "operational",
++      "layout": "wide",
++      "roles": ["authenticated_user", "system_admin"],
++      "fixture": "isolated:/",
++      "states": [
++        "normal",
++        "loading",
++        "empty",
++        "permission-denied",
++        "error",
++        "partial-error"
++      ],
++      "qa": {
++        "status": "not-run"
++      }
++    },
++    {
++      "pattern": "/spaces",
++      "kind": "operational",
++      "layout": "wide",
++      "roles": ["authenticated_user", "system_admin"],
++      "fixture": "isolated:/spaces",
++      "states": [
++        "normal",
++        "loading",
++        "empty",
++        "permission-denied",
++        "error",
++        "partial-error"
++      ],
++      "qa": {
++        "status": "not-run"
++      }
++    },
++    {
++      "pattern": "/documents/new",
++      "kind": "operational",
++      "layout": "detail-with-aside",
++      "roles": ["authenticated_user", "system_admin"],
++      "fixture": "isolated:/documents/new",
++      "states": [
++        "normal",
++        "loading",
++        "empty",
++        "permission-denied",
++        "error",
++        "partial-error"
++      ],
++      "qa": {
++        "status": "not-run"
++      }
++    },
++    {
++      "pattern": "/documents/:documentId",
++      "kind": "operational",
++      "layout": "detail-with-aside",
++      "roles": ["authenticated_user", "system_admin"],
++      "fixture": "isolated:/documents/:documentId",
++      "states": [
++        "normal",
++        "loading",
++        "empty",
++        "permission-denied",
++        "not-found",
++        "error",
++        "partial-error"
++      ],
++      "qa": {
++        "status": "not-run"
++      }
++    },
++    {
++      "pattern": "/tasks",
++      "kind": "operational",
++      "layout": "wide",
++      "roles": ["authenticated_user", "system_admin"],
++      "fixture": "isolated:/tasks",
++      "states": [
++        "normal",
++        "loading",
++        "empty",
++        "permission-denied",
++        "error",
++        "partial-error"
++      ],
++      "qa": {
++        "status": "not-run"
++      }
++    },
++    {
++      "pattern": "/tasks/:taskKey",
++      "kind": "operational",
++      "layout": "detail-with-aside",
++      "roles": ["authenticated_user", "system_admin"],
++      "fixture": "isolated:/tasks/:taskKey",
++      "states": [
++        "normal",
++        "loading",
++        "empty",
++        "permission-denied",
++        "not-found",
++        "error",
++        "partial-error"
++      ],
++      "qa": {
++        "status": "not-run"
++      }
++    },
++    {
++      "pattern": "/phases",
++      "kind": "operational",
++      "layout": "wide",
++      "roles": ["authenticated_user", "system_admin"],
++      "fixture": "isolated:/phases",
++      "states": [
++        "normal",
++        "loading",
++        "empty",
++        "permission-denied",
++        "error",
++        "partial-error"
++      ],
++      "qa": {
++        "status": "not-run"
++      }
++    },
++    {
++      "pattern": "/phases/:phaseId",
++      "kind": "operational",
++      "layout": "wide",
++      "roles": ["authenticated_user", "system_admin"],
++      "fixture": "isolated:/phases/:phaseId",
++      "states": [
++        "normal",
++        "loading",
++        "empty",
++        "permission-denied",
++        "not-found",
++        "error",
++        "partial-error"
++      ],
++      "qa": {
++        "status": "not-run"
++      }
++    },
++    {
++      "pattern": "/evidence",
++      "kind": "operational",
++      "layout": "wide",
++      "roles": ["authenticated_user", "system_admin"],
++      "fixture": "isolated:/evidence",
++      "states": [
++        "normal",
++        "loading",
++        "empty",
++        "permission-denied",
++        "error",
++        "partial-error"
++      ],
++      "qa": {
++        "status": "not-run"
++      }
++    },
++    {
++      "pattern": "/templates",
++      "kind": "operational",
++      "layout": "wide",
++      "roles": ["authenticated_user", "system_admin"],
++      "fixture": "isolated:/templates",
++      "states": [
++        "normal",
++        "loading",
++        "empty",
++        "permission-denied",
++        "error",
++        "partial-error"
++      ],
++      "qa": {
++        "status": "not-run"
++      }
++    },
++    {
++      "pattern": "/audit-log",
++      "kind": "operational",
++      "layout": "wide",
++      "roles": ["system_admin"],
++      "fixture": "isolated:/audit-log",
++      "states": [
++        "normal",
++        "loading",
++        "empty",
++        "permission-denied",
++        "error",
++        "partial-error"
++      ],
++      "qa": {
++        "status": "not-run"
++      }
++    },
++    {
++      "pattern": "/users",
++      "kind": "operational",
++      "layout": "wide",
++      "roles": ["system_admin"],
++      "fixture": "isolated:/users",
++      "states": [
++        "normal",
++        "loading",
++        "empty",
++        "permission-denied",
++        "error",
++        "partial-error"
++      ],
++      "qa": {
++        "status": "not-run"
++      }
++    },
++    {
++      "pattern": "/settings",
++      "kind": "operational",
++      "layout": "reading",
++      "roles": ["system_admin"],
++      "fixture": "isolated:/settings",
++      "states": [
++        "normal",
++        "loading",
++        "empty",
++        "permission-denied",
++        "error",
++        "partial-error"
++      ],
++      "qa": {
++        "status": "not-run"
++      }
++    },
++    {
++      "pattern": "/search",
++      "kind": "operational",
++      "layout": "wide",
++      "roles": ["authenticated_user", "system_admin"],
++      "fixture": "isolated:/search",
++      "states": [
++        "normal",
++        "loading",
++        "empty",
++        "permission-denied",
++        "error",
++        "partial-error"
++      ],
++      "qa": {
++        "status": "not-run"
++      }
++    },
++    {
++      "pattern": "/admin",
++      "kind": "operational",
++      "layout": "wide",
++      "roles": ["system_admin"],
++      "fixture": "isolated:/admin",
++      "states": [
++        "normal",
++        "loading",
++        "empty",
++        "permission-denied",
++        "error",
++        "partial-error"
++      ],
++      "qa": {
++        "status": "not-run"
++      }
++    },
++    {
++      "pattern": "/*",
++      "kind": "operational",
++      "layout": "wide",
++      "roles": ["authenticated_user", "system_admin"],
++      "fixture": "isolated:/unknown-page",
++      "states": ["not-found"],
++      "qa": {
++        "status": "not-run"
++      }
++    },
++    {
++      "pattern": "/login",
++      "kind": "public"
++    },
++    {
++      "pattern": "/sso/callback",
++      "kind": "public"
++    },
++    {
++      "pattern": "/register",
++      "kind": "redirect"
++    }
++  ]
++}
+diff --git a/frontend/e2e/smoke.spec.ts b/frontend/e2e/smoke.spec.ts
+index 7477b27..b8a81a0 100644
+--- a/frontend/e2e/smoke.spec.ts
++++ b/frontend/e2e/smoke.spec.ts
+@@ -575,47 +575,53 @@ test.describe('wiki smoke', () => {
+   }, testInfo) => {
+     await installWikiApiMocks(page)
+ 
+-    for (const viewport of [
+-      { width: 375, height: 812 },
+-      { width: 1440, height: 900 },
+-      { width: 2560, height: 1440 },
+-    ]) {
+-      await page.setViewportSize(viewport)
+-
+-      for (const [path, mode, heading] of [
+-        ['/', 'wide', 'Wiki'],
+-        ['/documents/new', 'reading', 'Новый документ'],
+-        ['/tasks/BASE-42', 'detail-with-aside', 'BASE-42'],
+-      ] as const) {
+-        await gotoWiki(page, path)
+-        await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible()
+-        const layout = page.locator('[data-page-layout]')
+-        await expect(layout).toHaveAttribute('data-page-layout', mode)
+-
+-        const geometry = await layout.evaluate((element) => {
+-          const frame = element.parentElement
+-          const frameStyle = frame ? getComputedStyle(frame) : null
+-          return {
+-            documentFits:
+-              document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+-            layoutWidth: element.getBoundingClientRect().width,
+-            availableWidth:
+-              (frame?.getBoundingClientRect().width ?? 0) -
+-              Number.parseFloat(frameStyle?.paddingLeft ?? '0') -
+-              Number.parseFloat(frameStyle?.paddingRight ?? '0'),
+-          }
+-        })
++    test.setTimeout(300_000)
++    for (const theme of ['dark', 'gray', 'light']) {
++      await gotoWiki(page)
++      await page.evaluate((value) => localStorage.setItem('theme', value), theme)
++      for (const width of [375, 767, 768, 1023, 1024, 1279, 1280, 1440, 1920, 2560]) {
++        const viewport = { width, height: width < 768 ? 812 : 1080 }
++        await page.setViewportSize(viewport)
++
++        for (const [path, mode, heading] of [
++          ['/', 'wide', 'Wiki'],
++          ['/settings', 'reading', 'Настройки'],
++          ['/documents/new', 'detail-with-aside', 'Новый документ'],
++          ['/tasks/BASE-42', 'detail-with-aside', 'BASE-42'],
++        ] as const) {
++          await gotoWiki(page, path)
++          await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible()
++          await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
++          const layout = page.locator('[data-page-layout]')
++          await expect(layout).toHaveAttribute('data-page-layout', mode)
++
++          const geometry = await layout.evaluate((element) => {
++            const frame = element.parentElement
++            const frameStyle = frame ? getComputedStyle(frame) : null
++            return {
++              documentFits:
++                document.documentElement.scrollWidth <= document.documentElement.clientWidth,
++              layoutWidth: element.getBoundingClientRect().width,
++              availableWidth:
++                (frame?.getBoundingClientRect().width ?? 0) -
++                Number.parseFloat(frameStyle?.paddingLeft ?? '0') -
++                Number.parseFloat(frameStyle?.paddingRight ?? '0'),
++            }
++          })
+ 
+-        expect(geometry.documentFits).toBe(true)
+-        if (mode === 'reading') {
+-          expect(geometry.layoutWidth).toBeLessThanOrEqual(761)
+-        } else {
+-          expect(Math.abs(geometry.layoutWidth - geometry.availableWidth)).toBeLessThanOrEqual(1)
++          expect(geometry.documentFits).toBe(true)
++          if (mode === 'reading') {
++            expect(geometry.layoutWidth).toBeLessThanOrEqual(761)
++          } else {
++            expect(Math.abs(geometry.layoutWidth - geometry.availableWidth)).toBeLessThanOrEqual(1)
++          }
++          await page.screenshot({
++            path: testInfo.outputPath(
++              `shell-${theme}-${viewport.width}-${mode}-${path === '/documents/new' ? 'create' : 'page'}.png`,
++            ),
++            fullPage: true,
++          })
+         }
+-        await page.screenshot({
+-          path: testInfo.outputPath(`shell-${viewport.width}-${mode}.png`),
+-          fullPage: true,
+-        })
+       }
+     }
+   })
+@@ -629,7 +635,7 @@ test.describe('wiki smoke', () => {
+ 
+     const trigger = page.getByRole('button', { name: 'Открыть навигацию' })
+     await trigger.click()
+-    const dialog = page.getByRole('dialog', { name: 'Навигация Wiki' })
++    const dialog = page.getByRole('dialog', { name: 'Wiki', exact: true })
+ 
+     await expect(dialog).toBeVisible()
+     await expect(dialog.getByRole('link', { name: 'Задачи' })).toHaveAttribute(
+diff --git a/frontend/package.json b/frontend/package.json
+index d5aa572..088801f 100644
+--- a/frontend/package.json
++++ b/frontend/package.json
+@@ -8,6 +8,7 @@
+     "dev": "vite",
+     "build": "node scripts/generate-exports.mjs && tsc --noEmit && vite build",
+     "typecheck": "tsc --noEmit",
++    "ui:check": "node ../../services-base/frontend/scripts/check-ui-contract.mjs --repo .. --require-installed",
+     "test": "vitest run",
+     "test:watch": "vitest",
+     "test:e2e": "playwright test",
+diff --git a/frontend/src/app/router.tsx b/frontend/src/app/router.tsx
+index 51ea4dd..c324e27 100644
+--- a/frontend/src/app/router.tsx
++++ b/frontend/src/app/router.tsx
+@@ -1,5 +1,6 @@
+ import { lazy, Suspense, type ReactElement } from 'react'
+-import { createBrowserRouter, Navigate } from 'react-router'
++import { createBrowserRouter, Link, Navigate } from 'react-router'
++import { LoadingState, ResourceStateView } from '@sdlc/ui/ui'
+ import { RequireAuth } from '@/shared/auth/require-auth'
+ import { AppShell } from '@/widgets/app-shell'
+ 
+@@ -48,11 +49,7 @@ const SsoCallbackPage = lazy(() =>
+ const AdminPage = lazy(() => import('@/pages/admin').then((m) => ({ default: m.AdminPage })))
+ 
+ function PageLoader() {
+-  return (
+-    <div className="flex items-center justify-center py-16 text-sm text-text-muted">
+-      Загрузка...
+-    </div>
+-  )
++  return <LoadingState />
+ }
+ 
+ const withSuspense = (element: ReactElement) => (
+@@ -81,6 +78,14 @@ export const router = createBrowserRouter([
+           { path: '/settings', element: withSuspense(<SettingsPage />) },
+           { path: '/search', element: withSuspense(<WikiSearchPage />) },
+           { path: '/admin', element: withSuspense(<AdminPage />) },
++          {
++            path: '*',
++            element: (
++              <ResourceStateView
++                state={{ kind: 'not-found', back: <Link to="/">К обзору</Link> }}
++              />
++            ),
++          },
+         ],
+       },
+     ],
+@@ -88,5 +93,4 @@ export const router = createBrowserRouter([
+   { path: '/login', element: withSuspense(<LoginPage />) },
+   { path: '/sso/callback', element: withSuspense(<SsoCallbackPage />) },
+   { path: '/register', element: <Navigate to="/login" replace /> },
+-  { path: '*', element: <Navigate to="/" replace /> },
+ ])
+diff --git a/frontend/src/pages/document-compose/document-compose.test.tsx b/frontend/src/pages/document-compose/document-compose.test.tsx
+index efb79b7..9f59a20 100644
+--- a/frontend/src/pages/document-compose/document-compose.test.tsx
++++ b/frontend/src/pages/document-compose/document-compose.test.tsx
+@@ -111,6 +111,17 @@ describe('DocumentComposePage', () => {
+ 
+     act(() => createDocumentMutate.mock.calls[0]?.[1]?.onSuccess({ slug: 'new-policy' }))
+     await waitFor(() => expect(router.state.location.pathname).toBe('/documents/new-policy'))
++    expect(router.state.location.search).toBe('?space=ENG')
++  })
++
++  it('locks inputs and suppresses repeated submission while creation is pending', () => {
++    setupCompose({ isPending: true })
++    expect(screen.getByLabelText('Название')).toBeDisabled()
++    expect(screen.getByLabelText('Markdown документа')).toBeDisabled()
++    const form = screen.getByLabelText('Название').closest('form')
++    expect(form).toHaveAttribute('aria-busy', 'true')
++    fireEvent.submit(form!)
++    expect(createDocumentMutate).not.toHaveBeenCalled()
+   })
+ 
+   it('opens the preview from the page action', () => {
+diff --git a/frontend/src/pages/document-compose/index.tsx b/frontend/src/pages/document-compose/index.tsx
+index bfd5812..fa387a9 100644
+--- a/frontend/src/pages/document-compose/index.tsx
++++ b/frontend/src/pages/document-compose/index.tsx
+@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from 'react'
+ import { Link, useNavigate, useSearchParams } from 'react-router'
+ import { FileText, GitBranch, Save, Tag } from 'lucide-react'
+ import { defaultSpaceKey, useCreateDocument, useSpaces, useTemplates } from '@/shared/api/hooks'
+-import { ErrorState, LoadingState } from '@sdlc/ui/ui'
++import { ErrorState, LoadingState, PendingForm } from '@sdlc/ui/ui'
+ import { Button } from '@sdlc/ui/ui'
+ import { Card, CardContent, CardHeader, CardTitle } from '@sdlc/ui/ui'
+ import { Input } from '@sdlc/ui/ui'
+@@ -79,9 +79,11 @@ export function DocumentComposePage() {
+ 
+   function handleSubmit(event: FormEvent<HTMLFormElement>) {
+     event.preventDefault()
++    if (createDocument.isPending) return
++    const submittedSpace = spaceKey.trim().toUpperCase() || defaultSpaceKey
+     createDocument.mutate(
+       {
+-        spaceKey: spaceKey.trim().toUpperCase() || defaultSpaceKey,
++        spaceKey: submittedSpace,
+         body: {
+           title: title.trim(),
+           slug: normalizeOptional(slug),
+@@ -93,13 +95,16 @@ export function DocumentComposePage() {
+         },
+       },
+       {
+-        onSuccess: (document) => setCreatedDocumentPath(`/documents/${document.slug}`),
++        onSuccess: (document) =>
++          setCreatedDocumentPath(
++            `/documents/${encodeURIComponent(document.slug)}?${new URLSearchParams({ space: document.space_key || submittedSpace })}`,
++          ),
+       },
+     )
+   }
+ 
+   return (
+-    <form onSubmit={handleSubmit} className="space-y-5">
++    <PendingForm onSubmit={handleSubmit} pending={createDocument.isPending}>
+       <UnsavedChangesGuard when={hasUnsavedChanges} />
+       <section className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+         <div>
+@@ -131,7 +136,7 @@ export function DocumentComposePage() {
+         />
+       )}
+ 
+-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
++      <section className="page-split items-start">
+         <Card>
+           <CardHeader>
+             <CardTitle className="text-base">Редактор</CardTitle>
+@@ -211,7 +216,7 @@ export function DocumentComposePage() {
+           </CardContent>
+         </Card>
+ 
+-        <div className="space-y-4">
++        <aside className="min-w-0 space-y-4" aria-label="Контекст документа">
+           <Card>
+             <CardHeader>
+               <CardTitle className="text-base">Связи</CardTitle>
+@@ -292,8 +297,8 @@ export function DocumentComposePage() {
+               </div>
+             </CardContent>
+           </Card>
+-        </div>
++        </aside>
+       </section>
+-    </form>
++    </PendingForm>
+   )
+ }
+diff --git a/frontend/src/widgets/app-shell.test.tsx b/frontend/src/widgets/app-shell.test.tsx
+index 976abae..f08741d 100644
+--- a/frontend/src/widgets/app-shell.test.tsx
++++ b/frontend/src/widgets/app-shell.test.tsx
+@@ -47,7 +47,7 @@ describe('AppShell', () => {
+ 
+     renderShell()
+ 
+-    expect(screen.getByRole('img', { name: 'Wiki' })).toBeInTheDocument()
++    expect(screen.getByRole('link', { name: 'Wiki' })).toBeInTheDocument()
+     expect(screen.getByRole('link', { name: /обзор/i })).toHaveAttribute('href', '/')
+     expect(screen.getByRole('link', { name: /пространства/i })).toHaveAttribute('href', '/spaces')
+     expect(screen.getByRole('link', { name: /задачи/i })).toHaveAttribute('href', '/tasks')
+@@ -97,9 +97,21 @@ describe('AppShell', () => {
+     expect(screen.getByRole('link', { name: 'Обзор' })).not.toHaveAttribute('aria-current')
+   })
+ 
++  it('keeps logout available when the profile request fails without granting admin navigation', async () => {
++    const user = userEvent.setup()
++    const logoutMutate = vi.fn()
++    mockHooks({ logoutMutate })
++    useCurrentUser.mockReturnValue({ isError: true, error: new Error('Profile unavailable') })
++    renderShell()
++    expect(screen.queryByRole('link', { name: 'Аудит' })).not.toBeInTheDocument()
++    await user.click(screen.getByRole('button', { name: 'Аккаунт' }))
++    await user.click(screen.getByRole('menuitem', { name: 'Выйти' }))
++    expect(logoutMutate).toHaveBeenCalledOnce()
++  })
++
+   it.each([
+     ['/documents/document-1', 'detail-with-aside'],
+-    ['/documents/new', 'reading'],
++    ['/documents/new', 'detail-with-aside'],
+     ['/settings', 'reading'],
+     ['/tasks/BASE-42', 'detail-with-aside'],
+     ['/phases/implementation', 'wide'],
+@@ -120,15 +132,27 @@ describe('AppShell', () => {
+ 
+     await user.click(trigger)
+ 
+-    const dialog = await screen.findByRole('dialog', { name: 'Навигация Wiki' })
++    const dialog = await screen.findByRole('dialog', { name: 'Wiki' })
+     expect(within(dialog).getByRole('navigation', { name: 'Основная навигация' })).toBeVisible()
+     expect(dialog.contains(document.activeElement)).toBe(true)
+ 
+     await user.keyboard('{Escape}')
+ 
+     await waitFor(() =>
+-      expect(screen.queryByRole('dialog', { name: 'Навигация Wiki' })).not.toBeInTheDocument(),
++      expect(screen.queryByRole('dialog', { name: 'Wiki' })).not.toBeInTheDocument(),
+     )
+     expect(trigger).toHaveFocus()
+   })
++
++  it('keeps the selected space in global create and avoids a duplicate create on its form', () => {
++    mockHooks()
++    const shell = renderShell('/spaces?space=TEAM')
++    expect(screen.getByRole('link', { name: 'Новый документ' })).toHaveAttribute(
++      'href',
++      '/documents/new?space=TEAM',
++    )
++    shell.unmount()
++    renderShell('/documents/new?space=TEAM')
++    expect(screen.queryByRole('link', { name: 'Новый документ' })).not.toBeInTheDocument()
++  })
+ })
+diff --git a/frontend/src/widgets/app-shell.tsx b/frontend/src/widgets/app-shell.tsx
+index 07f7f4e..ce59784 100644
+--- a/frontend/src/widgets/app-shell.tsx
++++ b/frontend/src/widgets/app-shell.tsx
+@@ -1,5 +1,4 @@
+-import { useState, type ElementType } from 'react'
+-import { Link, NavLink, Outlet, useLocation } from 'react-router'
++import { Link, Outlet, useLocation } from 'react-router'
+ import {
+   ClipboardList,
+   FileCheck2,
+@@ -9,39 +8,15 @@ import {
+   History,
+   Home,
+   Library,
+-  LogOut,
+-  Menu,
+   Search,
+   Settings,
+   ShieldCheck,
+-  User,
+   Users,
+ } from 'lucide-react'
+-import {
+-  Button,
+-  Dialog,
+-  DialogContent,
+-  DialogHeader,
+-  DialogTitle,
+-  DialogTrigger,
+-  DropdownMenu,
+-  DropdownMenuContent,
+-  DropdownMenuItem,
+-  DropdownMenuTrigger,
+-  PageFrame,
+-  PlatformMark,
+-  ServiceSwitcher,
+-  ThemeToggle,
+-} from '@sdlc/ui/ui'
++import { AppShell as BaseAppShell, Button, type ShellNavItem } from '@sdlc/ui/ui'
+ import { useCurrentUser, useLogout } from '@/shared/api/hooks'
+ 
+-type NavItem = {
+-  to: string
+-  icon: ElementType
+-  label: string
+-}
+-
+-const baseNavItems: NavItem[] = [
++const baseNavItems: ShellNavItem[] = [
+   { to: '/', icon: Home, label: 'Обзор' },
+   { to: '/spaces', icon: Library, label: 'Пространства' },
+   { to: '/tasks', icon: ClipboardList, label: 'Задачи' },
+@@ -51,190 +26,51 @@ const baseNavItems: NavItem[] = [
+   { to: '/search', icon: Search, label: 'Поиск' },
+ ]
+ 
+-const adminNavItems: NavItem[] = [
++const adminNavItems: ShellNavItem[] = [
+   { to: '/audit-log', icon: History, label: 'Аудит' },
+   { to: '/users', icon: Users, label: 'Пользователи' },
+   { to: '/settings', icon: Settings, label: 'Настройки' },
+   { to: '/admin', icon: ShieldCheck, label: 'Администрирование' },
+ ]
+ 
+-function SidebarLink({
+-  to,
+-  icon: Icon,
+-  label,
+-  onClick,
+-  responsiveLabel = false,
+-}: {
+-  to: string
+-  icon: ElementType
+-  label: string
+-  onClick?: () => void
+-  responsiveLabel?: boolean
+-}) {
+-  return (
+-    <NavLink
+-      to={to}
+-      end={to === '/'}
+-      onClick={onClick}
+-      title={responsiveLabel ? label : undefined}
+-      className={({ isActive }) =>
+-        `flex min-h-11 items-center gap-3 rounded-md px-3 text-sm transition-colors ${
+-          responsiveLabel ? 'md:justify-center md:px-2 xl:justify-start xl:px-3' : ''
+-        } ${
+-          isActive
+-            ? 'bg-surface-raised text-text-primary'
+-            : 'text-text-secondary hover:bg-surface-raised hover:text-text-primary'
+-        }`
+-      }
+-    >
+-      <Icon className="h-5 w-5 shrink-0" aria-hidden />
+-      <span className={responsiveLabel ? 'md:sr-only xl:not-sr-only xl:truncate' : 'truncate'}>
+-        {label}
+-      </span>
+-    </NavLink>
+-  )
+-}
+-
+-function NavigationList({
+-  items,
+-  onNavigate,
+-  responsiveLabels = false,
+-}: {
+-  items: NavItem[]
+-  onNavigate?: () => void
+-  responsiveLabels?: boolean
+-}) {
+-  return (
+-    <nav className="flex flex-col gap-1" aria-label="Основная навигация">
+-      {items.map((item) => (
+-        <SidebarLink
+-          key={item.to}
+-          {...item}
+-          onClick={onNavigate}
+-          responsiveLabel={responsiveLabels}
+-        />
+-      ))}
+-    </nav>
+-  )
+-}
+-
+ export function AppShell() {
+-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+   const location = useLocation()
+   const { data: user } = useCurrentUser()
+   const logout = useLogout()
+-
+-  const navItems = [...baseNavItems, ...(user?.is_system_admin ? adminNavItems : [])]
+-  const pageLayout =
+-    location.pathname === '/settings' || location.pathname === '/documents/new'
++  const space = new URLSearchParams(location.search).get('space')
++  const createHref = `/documents/new${space ? `?${new URLSearchParams({ space })}` : ''}`
++  const layout =
++    location.pathname === '/settings'
+       ? 'reading'
+       : /^\/(documents|tasks)\/[^/]+$/.test(location.pathname)
+         ? 'detail-with-aside'
+         : 'wide'
+ 
+   return (
+-    <div className="min-h-screen bg-background text-text-primary">
+-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[var(--shell-sidebar-compact)] flex-col border-r border-border bg-surface md:flex xl:w-[var(--shell-sidebar-expanded)]">
+-        <div className="flex h-[var(--shell-header-height)] shrink-0 items-center justify-center border-b border-border px-3 xl:justify-start xl:px-5">
+-          <div className="flex min-w-0 items-center gap-3" role="img" aria-label="Wiki">
+-            <PlatformMark size="sm" withName={false} />
+-            <div className="hidden min-w-0 xl:block">
+-              <div className="truncate text-sm font-semibold">Wiki</div>
+-              <div className="truncate text-xs text-text-muted">База знаний</div>
+-            </div>
+-          </div>
+-        </div>
+-        <div className="min-h-0 flex-1 overflow-y-auto p-2 xl:p-3">
+-          <NavigationList items={navItems} responsiveLabels />
+-        </div>
+-      </aside>
+-
+-      <div className="min-h-screen md:pl-[var(--shell-sidebar-compact)] xl:pl-[var(--shell-sidebar-expanded)]">
+-        <header className="sticky top-0 z-30 flex h-[var(--shell-header-height)] items-center justify-between border-b border-border bg-surface px-3 md:px-4">
+-          <div className="flex min-w-0 items-center gap-2">
+-            <Dialog open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+-              <DialogTrigger asChild>
+-                <Button
+-                  variant="ghost"
+-                  size="icon"
+-                  className="h-11 w-11 md:hidden"
+-                  aria-label="Открыть навигацию"
+-                >
+-                  <Menu className="h-5 w-5" aria-hidden />
+-                </Button>
+-              </DialogTrigger>
+-              <DialogContent
+-                aria-describedby={undefined}
+-                className="!left-0 !top-0 !flex !h-dvh !max-h-dvh !w-[min(320px,calc(100%-2rem))] !max-w-none !translate-x-0 !translate-y-0 !flex-col !gap-0 !rounded-none !border-y-0 !border-l-0 !p-0 [&>button]:h-10 [&>button]:w-10"
+-              >
+-                <DialogHeader className="flex h-[var(--shell-header-height)] shrink-0 justify-center border-b border-border px-4 pr-14 text-left">
+-                  <DialogTitle className="text-base">
+-                    <span className="sr-only">Навигация Wiki</span>
+-                    <span className="flex items-center gap-3" aria-hidden>
+-                      <PlatformMark size="sm" withName={false} />
+-                      <span>Wiki</span>
+-                    </span>
+-                  </DialogTitle>
+-                </DialogHeader>
+-                <div className="min-h-0 flex-1 overflow-y-auto p-3">
+-                  <NavigationList items={navItems} onNavigate={() => setMobileMenuOpen(false)} />
+-                </div>
+-              </DialogContent>
+-            </Dialog>
+-
+-            <Link
+-              to="/"
+-              className="flex h-10 min-w-10 items-center justify-center gap-2 px-2 md:hidden"
+-              aria-label="Wiki"
+-            >
+-              <PlatformMark size="sm" withName={false} />
+-              <span className="hidden truncate text-sm font-semibold min-[420px]:inline">Wiki</span>
++    <BaseAppShell
++      currentServiceKey="wiki"
++      title="Wiki"
++      description="База знаний"
++      navigation={[...baseNavItems, ...(user?.is_system_admin ? adminNavItems : [])]}
++      layout={layout}
++      actions={
++        location.pathname !== '/documents/new' && (
++          <Button asChild>
++            <Link to={createHref} aria-label="Новый документ" title="Новый документ">
++              <FilePlus2 className="h-4 w-4" aria-hidden />
++              <span className="hidden sm:inline">Новый документ</span>
+             </Link>
+-            <span className="hidden truncate text-sm font-medium text-text-secondary md:inline">
+-              База знаний
+-            </span>
+-          </div>
+-
+-          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+-            <Button asChild size="sm" className="h-10 min-w-10 gap-1 px-2 sm:px-3">
+-              <Link to="/documents/new" aria-label="Новый документ">
+-                <FilePlus2 className="h-4 w-4" aria-hidden />
+-                <span className="hidden sm:inline">Новый документ</span>
+-              </Link>
+-            </Button>
+-            <ServiceSwitcher currentKey="wiki" />
+-            <div className="[&_button]:h-10 [&_button]:w-10">
+-              <ThemeToggle />
+-            </div>
+-            <DropdownMenu>
+-              <DropdownMenuTrigger asChild>
+-                <Button variant="ghost" size="icon" className="h-10 w-10" aria-label="Аккаунт">
+-                  <User className="h-5 w-5" aria-hidden />
+-                </Button>
+-              </DropdownMenuTrigger>
+-              <DropdownMenuContent align="end" className="w-56">
+-                <div className="px-2 py-1.5 text-sm font-medium text-text-primary">
+-                  {user?.display_name ?? user?.email ?? 'Пользователь'}
+-                </div>
+-                <div className="px-2 pb-2 text-xs text-text-muted">{user?.email}</div>
+-                <DropdownMenuItem
+-                  onClick={() => logout.mutate()}
+-                  className="gap-2 text-text-secondary"
+-                >
+-                  <LogOut className="h-4 w-4" aria-hidden />
+-                  <span>Выйти</span>
+-                </DropdownMenuItem>
+-              </DropdownMenuContent>
+-            </DropdownMenu>
+-          </div>
+-        </header>
+-
+-        <main className="shell-main min-h-[calc(100dvh-var(--shell-header-height))]">
+-          <PageFrame mode={pageLayout}>
+-            <Outlet />
+-          </PageFrame>
+-        </main>
+-      </div>
+-    </div>
++          </Button>
++        )
++      }
++      account={{
++        label: user?.display_name || user?.email || 'Пользователь',
++        secondary: user?.email,
++        onLogout: () => logout.mutate(),
++        pending: logout.isPending,
++      }}
++    >
++      <Outlet />
++    </BaseAppShell>
+   )
+ }

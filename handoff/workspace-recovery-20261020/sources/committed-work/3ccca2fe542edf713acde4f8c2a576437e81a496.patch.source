@@ -1,0 +1,96 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 741d34a..8a36be2 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -6,6 +6,10 @@
+ 
+ ## [Unreleased]
+ 
++- Umbrella frontend recipe синхронизирован с обычным Dockerfile: общий Base
++  recorder, revision labels и digest pins действуют также для workspace-сборки.
++  Проверка candidate не заменяет authenticated runtime/SSO/README приёмку.
++
+ - Frontend image закрепляет Node/nginx по digest и использует frozen install
+   Base; общий build record фиксирует revisions, fingerprints и SHA256 assets.
+   Сборка кандидата не означает завершение выпускной UI/SSO-приёмки.
+diff --git a/docs/BASE_INTEGRATION.md b/docs/BASE_INTEGRATION.md
+index 74a0ff4..cc4079e 100644
+--- a/docs/BASE_INTEGRATION.md
++++ b/docs/BASE_INTEGRATION.md
+@@ -28,6 +28,11 @@ OCI labels повторяют revisions. `unknown` не является вып
+ Проверка actual image ID, packaged/HTTP assets и публичного login не заменяет
+ authenticated route/role/state/SSO acceptance или актуальные README captures.
+ 
++Обычный Dockerfile и `Dockerfile.umbrella` имеют идентичный recipe. Standalone
++Compose выбирает обычный файл, workspace — umbrella; для workspace candidate
++явно проверить umbrella вход. Проверка другого build entry point не доказывает
++launcher, даже когда исходники UI совпадают.
++
+ Base содержит технические механизмы; продукт сохраняет авторизацию, PAT scopes,
+ данные, ORM, миграции, HTTP статусы/коды/поля, env/defaults и навигацию.
+ Новых миграций БД в этой задаче нет. Откат — предыдущий проверенный набор SHA/images.
+@@ -37,7 +42,7 @@ Base содержит технические механизмы; продукт
+ 
+ Кнопка входа вызывает `beginSso(..., { interactive: true })`; автоматический
+ guard сохраняет неинтерактивный вызов. `isSsoNavigationInterruption` из Base
+-различает pending logout/отмену навигации и настоящий отказ Auth. Task Tracker
+-снимает блокировку кнопки при завершении или отмене promise. Identity, PKCE,
++различает pending logout/отмену навигации и настоящий отказ Auth. Wiki
++сохраняет явный повторный вход и не отображает отмену как отказ Auth. Identity, PKCE,
+ state, nonce, API и машинная авторизация не меняются. Source-регрессии покрыты
+ login-тестами; локальные fixture-проверки не заменяют живую SSO-приёмку.
+diff --git a/frontend/Dockerfile.umbrella b/frontend/Dockerfile.umbrella
+index 737c4ea..aeb1d01 100644
+--- a/frontend/Dockerfile.umbrella
++++ b/frontend/Dockerfile.umbrella
+@@ -1,22 +1,24 @@
+-# Umbrella build for the SDLC fleet root compose (context = /opt/dev/sdlc).
+-# The repo's own frontend/Dockerfile builds with context=repo-root only; this
+-# variant additionally stages the sibling services-base frontend so the
+-# `@sdlc/ui` file dependency (../../services-base/frontend) resolves.
+-FROM node:22.20.0-bookworm-slim AS builder
++# Workspace build preserving the sibling Base file dependency layout.
++FROM node:22.20.0-bookworm-slim@sha256:b21fe589dfbe5cc39365d0544b9be3f1f33f55f3c86c87a76ff65a02f8f5848e AS builder
+ 
+ RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
+ 
+ # Preserve the workspace sibling layout so both pnpm's file dependency and
+ # Tailwind's shared UI source path resolve the same way as a local checkout.
++COPY services-base/frontend /workspace/services-base/frontend
++WORKDIR /workspace/services-base/frontend
++RUN pnpm install --frozen-lockfile
+ WORKDIR /workspace/wiki/frontend
+ COPY wiki/frontend/package.json wiki/frontend/pnpm-lock.yaml wiki/frontend/pnpm-workspace.yaml ./
+-COPY services-base/frontend /workspace/services-base/frontend
+ COPY wiki/openapi/openapi.json /workspace/wiki/openapi/openapi.json
+ COPY wiki/frontend/scripts/generate-exports.mjs ./scripts/generate-exports.mjs
+ # pnpm resolves file: dependencies from the importer package root.
+ RUN ln -s /workspace/services-base /workspace/wiki/services-base && pnpm install --frozen-lockfile
+ 
+ COPY wiki/frontend/ ./
++COPY wiki/.base-revision /workspace/wiki/.base-revision
++COPY wiki/docs/ui-routes.json /workspace/wiki/docs/ui-routes.json
++COPY wiki/backend /workspace/wiki/backend
+ ARG VITE_PLATFORM_BRANDING_URL=""
+ ENV VITE_PLATFORM_BRANDING_URL=${VITE_PLATFORM_BRANDING_URL}
+ ARG VITE_PLATFORM_SERVICES_URL=""
+@@ -24,9 +26,18 @@ ENV VITE_PLATFORM_SERVICES_URL=${VITE_PLATFORM_SERVICES_URL}
+ ARG VITE_AUTH_ISSUER="http://localhost:7701"
+ ENV VITE_AUTH_ISSUER=${VITE_AUTH_ISSUER}
+ RUN pnpm generate:api && pnpm build
++ARG VCS_REF=unknown
++ARG BASE_VCS_REF=unknown
++RUN node ../../services-base/frontend/scripts/write-ui-build.mjs --repo .. \
++    --out /workspace/ui-build.json --product-sha "$VCS_REF" --base-sha "$BASE_VCS_REF"
+ 
+-FROM nginx:alpine
++FROM nginx:alpine@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2
++ARG VCS_REF=unknown
++ARG BASE_VCS_REF=unknown
++LABEL org.opencontainers.image.revision=$VCS_REF \
++      org.sdlc.ui.base.revision=$BASE_VCS_REF
+ COPY --from=builder /workspace/wiki/frontend/dist /usr/share/nginx/html
++COPY --from=builder /workspace/ui-build.json /usr/share/nginx/html/ui-build.json
+ COPY wiki/frontend/nginx.conf /etc/nginx/conf.d/default.conf
+ EXPOSE 80
+ CMD ["nginx", "-g", "daemon off;"]
