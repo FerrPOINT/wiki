@@ -255,13 +255,12 @@ export function WikiSearchPage() {
           id="search-scope"
           className="w-full"
           value={searchScope.scope}
-          onChange={(event) => changeScope(event.target.value)}
-        >
-          <option value="project" disabled={!namespace.ref}>
-            Текущий проект
-          </option>
-          <option value="all">Все доступные пространства</option>
-        </Select>
+          onValueChange={(nextValue) => changeScope(nextValue)}
+          options={[
+            { value: 'project', label: 'Текущий проект', disabled: !namespace.ref },
+            { value: 'all', label: 'Все доступные пространства' },
+          ]}
+        />
       </div>
 
       <section aria-label="Параметры поиска" className="space-y-3">
@@ -345,16 +344,16 @@ export function WikiSearchPage() {
                 id="search-document-type"
                 className="w-full"
                 value={documentTypeDraft}
-                onChange={(event) => {
-                  setDocumentTypeDraft(event.target.value as DocumentTypeFilter)
+                onValueChange={(nextValue) => {
+                  setDocumentTypeDraft(nextValue as DocumentTypeFilter)
                 }}
-              >
-                {documentTypes.map((type) => (
-                  <option key={type} value={type}>
-                    {type === 'all' ? 'Любой тип' : formatDocumentType(type)}
-                  </option>
-                ))}
-              </Select>
+                options={[
+                  ...(documentTypes.map((type) => ({
+                    value: String(type),
+                    label: String(type === 'all' ? 'Любой тип' : formatDocumentType(type)),
+                  })) ?? []),
+                ]}
+              />
             </div>
             <div className="flex flex-wrap justify-end gap-2 sm:col-span-2 xl:col-span-4">
               {(activeFilterCount > 0 ||

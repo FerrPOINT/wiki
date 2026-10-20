@@ -173,16 +173,16 @@ export function DashboardPage() {
                 id="overview-space"
                 className="w-auto max-w-64 min-w-0"
                 value={activeSpaceKey}
-                onChange={(event) => setRequestedSpaceKey(event.target.value)}
+                onValueChange={(nextValue) => setRequestedSpaceKey(nextValue)}
                 disabled={spacesQuery.isLoading || spaces.length === 0}
-              >
-                {spaces.length === 0 && <option value="">Нет пространств</option>}
-                {spaces.map((space) => (
-                  <option key={space.key} value={space.key}>
-                    {space.name}
-                  </option>
-                ))}
-              </Select>
+                options={[
+                  ...(spaces.length === 0 ? [{ value: '', label: 'Нет пространств' }] : []),
+                  ...(spaces.map((space) => ({
+                    value: String(space.key),
+                    label: String(space.name),
+                  })) ?? []),
+                ]}
+              />
             </div>
             <Link
               to="/spaces"

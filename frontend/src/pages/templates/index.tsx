@@ -318,15 +318,15 @@ export function TemplatesPage() {
                 id="template-type"
                 className="w-full"
                 value={documentType}
-                onChange={(event) => setDocumentType(event.target.value)}
+                onValueChange={(nextValue) => setDocumentType(nextValue)}
                 disabled={createTemplate.isPending}
-              >
-                {typeOptions.map((type) => (
-                  <option key={type} value={type}>
-                    {formatDocumentType(type)}
-                  </option>
-                ))}
-              </Select>
+                options={[
+                  ...(typeOptions.map((type) => ({
+                    value: String(type),
+                    label: String(formatDocumentType(type)),
+                  })) ?? []),
+                ]}
+              />
             </div>
           </div>
           <div className="space-y-1.5">
@@ -410,18 +410,18 @@ export function TemplatesPage() {
               aria-label="Тип шаблона"
               className="w-full"
               value={typeFilter}
-              onChange={(event) => {
-                setTypeFilter(event.target.value)
+              onValueChange={(nextValue) => {
+                setTypeFilter(nextValue)
                 setExpandedId(null)
               }}
-            >
-              <option value="all">Все типы</option>
-              {typeOptions.map((type) => (
-                <option key={type} value={type}>
-                  {formatDocumentType(type)}
-                </option>
-              ))}
-            </Select>
+              options={[
+                { value: 'all', label: 'Все типы' },
+                ...(typeOptions.map((type) => ({
+                  value: String(type),
+                  label: String(formatDocumentType(type)),
+                })) ?? []),
+              ]}
+            />
           </div>
           <p className="text-xs text-text-muted">
             Показано {visibleTemplates.length} из {filteredTemplates.length} шаблонов

@@ -446,27 +446,29 @@ export function SpacesPage() {
               aria-label="Статус пространства"
               className="w-full"
               value={status}
-              onChange={(event) => {
-                setStatus(event.target.value)
+              onValueChange={(nextValue) => {
+                setStatus(nextValue)
                 resetListPosition()
               }}
-            >
-              <option value="all">Все статусы</option>
-              <option value="active">Активные</option>
-              <option value="archived">Архивные</option>
-            </Select>
+              options={[
+                { value: 'all', label: 'Все статусы' },
+                { value: 'active', label: 'Активные' },
+                { value: 'archived', label: 'Архивные' },
+              ]}
+            />
             <Select
               aria-label="Сортировка пространств"
               className="w-full"
               value={sort}
-              onChange={(event) => {
-                setSort(event.target.value)
+              onValueChange={(nextValue) => {
+                setSort(nextValue)
                 resetListPosition()
               }}
-            >
-              <option value="updated">Сначала обновлённые</option>
-              <option value="name">По названию</option>
-            </Select>
+              options={[
+                { value: 'updated', label: 'Сначала обновлённые' },
+                { value: 'name', label: 'По названию' },
+              ]}
+            />
             {currentUserQuery.data && (
               <label className="flex min-h-10 cursor-pointer items-center gap-2 whitespace-nowrap text-sm text-text-secondary">
                 <input

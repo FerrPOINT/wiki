@@ -299,18 +299,18 @@ export function AuditLogPage() {
                   id="audit-action"
                   className="w-full"
                   value={draftFilters.action}
-                  onChange={(event) => updateDraft('action', event.target.value)}
-                >
-                  <option value="">Все действия</option>
-                  {draftFilters.action && !actionLabels[draftFilters.action] && (
-                    <option value={draftFilters.action}>{draftFilters.action}</option>
-                  )}
-                  {Object.entries(actionLabels).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </Select>
+                  onValueChange={(nextValue) => updateDraft('action', nextValue)}
+                  options={[
+                    { value: '', label: 'Все действия' },
+                    ...(draftFilters.action && !actionLabels[draftFilters.action]
+                      ? [{ value: String(draftFilters.action), label: String(draftFilters.action) }]
+                      : []),
+                    ...(Object.entries(actionLabels).map(([value, label]) => ({
+                      value: String(value),
+                      label: String(label),
+                    })) ?? []),
+                  ]}
+                />
               </div>
               <div className="space-y-1">
                 <label htmlFor="audit-entity-type" className="text-sm font-medium">
@@ -320,19 +320,24 @@ export function AuditLogPage() {
                   id="audit-entity-type"
                   className="w-full"
                   value={draftFilters.entity_type}
-                  onChange={(event) => updateDraft('entity_type', event.target.value)}
-                >
-                  <option value="">Все типы</option>
-                  {draftFilters.entity_type &&
-                    !entityTypes.some(([value]) => value === draftFilters.entity_type) && (
-                      <option value={draftFilters.entity_type}>{draftFilters.entity_type}</option>
-                    )}
-                  {entityTypes.map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </Select>
+                  onValueChange={(nextValue) => updateDraft('entity_type', nextValue)}
+                  options={[
+                    { value: '', label: 'Все типы' },
+                    ...(draftFilters.entity_type &&
+                    !entityTypes.some(([value]) => value === draftFilters.entity_type)
+                      ? [
+                          {
+                            value: String(draftFilters.entity_type),
+                            label: String(draftFilters.entity_type),
+                          },
+                        ]
+                      : []),
+                    ...(entityTypes.map(([value, label]) => ({
+                      value: String(value),
+                      label: String(label),
+                    })) ?? []),
+                  ]}
+                />
               </div>
               <div className="space-y-1">
                 <label htmlFor="audit-actor" className="text-sm font-medium">
@@ -388,21 +393,33 @@ export function AuditLogPage() {
                       className="w-full"
                       value={draftFilters.actor_id}
                       disabled={usersQuery.isLoading}
-                      onChange={(event) => updateDraft('actor_id', event.target.value)}
-                    >
-                      <option value="">
-                        {usersQuery.isLoading ? 'Загружаем пользователей' : 'Все участники'}
-                      </option>
-                      {draftFilters.actor_id &&
-                        !users.some((user) => user.id === draftFilters.actor_id) && (
-                          <option value={draftFilters.actor_id}>{draftFilters.actor_id}</option>
-                        )}
-                      {users.map((user) => (
-                        <option key={user.id} value={user.id}>
-                          {user.display_name ?? user.username ?? user.email} · {user.email}
-                        </option>
-                      ))}
-                    </Select>
+                      onValueChange={(nextValue) => updateDraft('actor_id', nextValue)}
+                      options={[
+                        {
+                          value: '',
+                          label: String(
+                            usersQuery.isLoading ? 'Загружаем пользователей' : 'Все участники',
+                          ),
+                        },
+                        ...(draftFilters.actor_id &&
+                        !users.some((user) => user.id === draftFilters.actor_id)
+                          ? [
+                              {
+                                value: String(draftFilters.actor_id),
+                                label: String(draftFilters.actor_id),
+                              },
+                            ]
+                          : []),
+                        ...(users.map((user) => ({
+                          value: String(user.id),
+                          label: [
+                            user.display_name ?? user.username ?? user.email,
+                            ' · ',
+                            user.email,
+                          ].join(''),
+                        })) ?? []),
+                      ]}
+                    />
                     <Button
                       type="button"
                       size="sm"

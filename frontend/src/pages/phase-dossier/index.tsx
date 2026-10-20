@@ -78,7 +78,7 @@ function SpaceSelector({
         id="phase-space-selector"
         className="w-full"
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onValueChange={(nextValue) => onChange(nextValue)}
         disabled={
           disabled ||
           Boolean(namespace.ref) ||
@@ -86,14 +86,14 @@ function SpaceSelector({
           spacesQuery.isError ||
           options.length === 0
         }
-      >
-        {options.length === 0 && <option value="">Нет пространств</option>}
-        {options.map((space) => (
-          <option key={space.key} value={space.key}>
-            {space.name ? `${space.key} · ${space.name}` : space.key}
-          </option>
-        ))}
-      </Select>
+        options={[
+          ...(options.length === 0 ? [{ value: '', label: 'Нет пространств' }] : []),
+          ...(options.map((space) => ({
+            value: String(space.key),
+            label: String(space.name ? `${space.key} · ${space.name}` : space.key),
+          })) ?? []),
+        ]}
+      />
     </div>
   )
 }

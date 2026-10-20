@@ -1,3 +1,4 @@
+import { chooseValue } from '../../test/choice'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { useNamespaceNavigate as useNavigate } from '@pdlc/ui/ui'
 import { MemoryRouter, useLocation } from 'react-router'
@@ -288,7 +289,7 @@ describe('TemplatesPage', () => {
     expect(screen.getByRole('alert')).toBeInTheDocument()
   })
 
-  it('filters templates by text and type without rendering every Markdown body', () => {
+  it('filters templates by text and type without rendering every Markdown body', async () => {
     setupTemplates({
       templatesOverrides: {
         data: {
@@ -327,9 +328,7 @@ describe('TemplatesPage', () => {
       screen.queryByRole('link', { name: 'Использовать шаблон Требования' }),
     ).not.toBeInTheDocument()
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Тип шаблона' }), {
-      target: { value: 'requirements' },
-    })
+    await chooseValue(screen.getByRole('combobox', { name: 'Тип шаблона' }), 'requirements')
     expect(screen.getByRole('status')).toHaveTextContent('шаблоны не найдены')
   })
 
@@ -360,7 +359,7 @@ describe('TemplatesPage', () => {
     expect(screen.getAllByRole('link', { name: /Использовать шаблон/ })).toHaveLength(1)
   })
 
-  it('restores filters and pagination from the URL and browser history', () => {
+  it('restores filters and pagination from the URL and browser history', async () => {
     vi.useFakeTimers()
     setupTemplates({
       initialEntry: '/templates?keep=1&q=Template&type=page&page=2',
@@ -389,9 +388,7 @@ describe('TemplatesPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'История вперёд' }))
     expect(screen.getByText('3 / 3')).toBeInTheDocument()
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Тип шаблона' }), {
-      target: { value: 'requirements' },
-    })
+    await chooseValue(screen.getByRole('combobox', { name: 'Тип шаблона' }), 'requirements')
     expect(screen.getByTestId('router-location')).toHaveTextContent(
       '/templates?keep=1&q=Template&type=requirements',
     )
