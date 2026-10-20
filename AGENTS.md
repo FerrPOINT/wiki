@@ -24,7 +24,7 @@
 - Rust-хендлеры и DTO — единственный источник правды для схемы; frontend DTO types генерируются из `openapi/openapi.json`, а thin endpoint wrappers остаются временным слоем до полного generated operation client.
 - Новую Wiki persistence-логику писать на SQLx по ADR-0001. Не возвращать task-tracker domain/app/infra services, routes, DTO или ORM-модули в MVP.
 - Все endpoint тестируются интеграционно; PostgreSQL smoke запускается через Docker Postgres или изолированную WSL PostgreSQL database.
-- Frontend: компоненты на `shadcn/ui` + Tailwind.
+- Frontend: публичные компоненты `@pdlc/ui` + Tailwind; предметные композиции остаются в продукте.
 - Состояние: серверное — `@tanstack/react-query`, клиентское — `zustand`.
 - Формы — native React forms/local validators для MVP; новые form/schema библиотеки добавлять только при явной необходимости.
 
@@ -91,3 +91,17 @@ Rust build toolchain 1.88.0, Node 22.20.0, pnpm 10.28.1; MSRV отдельно.
 Перед изменением платформенных имён прочитайте [интеграцию с Base](docs/PDLC_BASE_INTEGRATION.md) и канонические TERMS/BRANDING.
 Для UI: `pnpm --dir frontend exec pdlc-ui search "задача"` → `show ExportName` → один нужный `example`. В Workflow SSR используйте штатный exporter Base.
 Не переносите продуктовые запросы, DTO и права в общий UI. SDK/UI/skills pins независимы; новое имя платформы не меняет SDLC IDs/scopes или Hermes upstream.
+
+## Общие поля выбора Base
+
+Сначала искать общий UI в Base: search → show → example. Общие исправления
+вносить в Base; продукт передаёт данные, права, преобразования и сохранение.
+Для одного известного значения использовать Select, для нескольких — MultiSelect,
+для каталога с поиском/пагинацией — SearchableSelect из публичного @pdlc/ui.
+Контракт Select/MultiSelect: options, value/defaultValue, onValueChange;
+HTML children/option/onChange/multiple/size больше не являются их API.
+Видимые raw select и локальные копии оформления не добавлять. Технический form
+bridge принадлежит только Base; SSR использует штатный macro и choice-runtime,
+явный refresh после программных value/options и native fallback до успешного init.
+Правила выбора и подключения: Base docs/platform/CHOICE_CONTROLS.md.
+UI/SDK/skills pins независимы; установка и production — отдельные операции.
