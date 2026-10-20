@@ -288,13 +288,6 @@ export function DocumentPage() {
   return (
     <article className="space-y-5">
       <UnsavedChangesGuard when={draftChanged} />
-      {import.meta.env.VITE_NAMESPACE_ENABLED === 'true' && document.current_revision && (
-        <TaskRevisionLink
-          documentId={document.id}
-          revisionId={document.current_revision.id}
-          spaceKey={document.space_key}
-        />
-      )}
       <section className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="break-words text-sm text-text-muted">
@@ -575,6 +568,14 @@ export function DocumentPage() {
         </div>
 
         <aside className="min-w-0 space-y-4" aria-label="Контекст документа">
+          {import.meta.env.VITE_NAMESPACE_ENABLED === 'true' && document.current_revision && (
+            <TaskRevisionLink
+              documentId={document.id}
+              revisionId={document.current_revision.id}
+              spaceKey={document.space_key}
+            />
+          )}
+
           {!canEdit && (
             <Card>
               <CardHeader>
