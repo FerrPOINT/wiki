@@ -1,0 +1,34 @@
+import { Link, Outlet, useLocation } from 'react-router'
+import { ClipboardList, FileCheck2, FilePlus2, FileText, GitBranch, History, Home, Library, Search, Settings, ShieldCheck, Users } from 'lucide-react'
+import { AppShell as BaseAppShell, Button, type ShellNavItem } from '@sdlc/ui/ui'
+import { useCurrentUser, useLogout } from '@/shared/api/hooks'
+
+const baseNavigation: ShellNavItem[] = [
+  { to: '/', icon: Home, label: 'Обзор' },
+  { to: '/spaces', icon: Library, label: 'Пространства' },
+  { to: '/tasks', icon: ClipboardList, label: 'Задачи' },
+  { to: '/phases', icon: GitBranch, label: 'Фазы' },
+  { to: '/evidence', icon: FileCheck2, label: 'Материалы' },
+  { to: '/templates', icon: FileText, label: 'Шаблоны' },
+  { to: '/search', icon: Search, label: 'Поиск' },
+]
+const adminNavigation: ShellNavItem[] = [
+  { to: '/audit-log', icon: History, label: 'Аудит' },
+  { to: '/users', icon: Users, label: 'Пользователи' },
+  { to: '/settings', icon: Settings, label: 'Настройки' },
+  { to: '/admin', icon: ShieldCheck, label: 'Администрирование' },
+]
+export function AppShell() {
+  const location = useLocation()
+  const { data: user } = useCurrentUser()
+  const logout = useLogout()
+  const navigation = [...baseNavigation, ...(user?.is_system_admin ? adminNavigation : [])]
+  const layout = location.pathname === '/settings' ? 'reading' : /^\/(documents|tasks|phases)\/[^/]+$/.test(location.pathname) ? 'detail-with-aside' : 'wide'
+  const space = new URLSearchParams(location.search).get('space')
+  const createHref = '/documents/new' + (space ? '?space=' + encodeURIComponent(space) : '')
+  const dossier = /^\/(tasks|phases)(\/|$)/.test(location.pathname)
+  return <BaseAppShell currentServiceKey="wiki" title="Wiki" description="База знаний" navigation={navigation} layout={layout} account={{ label: user?.display_name ?? user?.email ?? 'Пользователь', secondary: user?.email, onLogout: () => logout.mutate(), pending: logout.isPending }}>
+    {dossier && <div className="base-page-actions mb-3"><Button asChild><Link to={createHref}><FilePlus2 className="h-4 w-4" aria-hidden />Новый документ</Link></Button></div>}
+    <Outlet />
+  </BaseAppShell>
+}
