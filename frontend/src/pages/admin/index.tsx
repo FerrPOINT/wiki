@@ -1,4 +1,4 @@
-import {LoadingState, Loader, NamespaceLink as Link, Button} from '@pdlc/ui/ui'
+import { LoadingState, Loader, NamespaceLink as Link, Button } from '@pdlc/ui/ui'
 
 import {
   ArrowRight,

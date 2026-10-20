@@ -1,6 +1,26 @@
 import { useProjectRouteRef } from '@/widgets/namespace-context'
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
-import {NamespaceLink as Link, ResourceList, ResourceListRow, Button, Card, CardContent, CardHeader, CardTitle, EmptyState, ErrorState, Input, Label, LoadingState, Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@pdlc/ui/ui'
+import {
+  NamespaceLink as Link,
+  ResourceList,
+  ResourceListRow,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  EmptyState,
+  ErrorState,
+  Input,
+  Label,
+  LoadingState,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@pdlc/ui/ui'
 import { useSearchParams } from 'react-router'
 import {
   CheckCircle2,

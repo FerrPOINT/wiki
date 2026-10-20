@@ -242,6 +242,8 @@ wiki/
 
 ## 📚 Документы
 
+[Общий UI и управляемый брендинг Base](docs/shared-design-system.md).
+
 - [docs/USER_GUIDE.md](docs/USER_GUIDE.md) — пользовательские сценарии.
 - [docs/MVP_READINESS.md](docs/MVP_READINESS.md) — 100% readiness gate перед main development.
 - [docs/DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md) — разработка.

@@ -2,22 +2,35 @@ import { useNamespaceContext } from '@/widgets/namespace-context'
 import { documentPath } from '@/api/workspaces'
 import { FormEvent, useEffect, useState } from 'react'
 import Markdown from 'react-markdown'
-import {NamespaceLink as Link, Button, useNamespaceNavigate as useNavigate, ErrorState, FormField, LoadingState, SearchableSelect, Card, CardContent, CardHeader, CardTitle, Input, Label, Tabs, TabsContent, TabsList, TabsTrigger, Textarea, UnsavedChangesGuard} from '@pdlc/ui/ui'
+import {
+  NamespaceLink as Link,
+  Button,
+  useNamespaceNavigate as useNavigate,
+  ErrorState,
+  FormField,
+  LoadingState,
+  SearchableSelect,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Input,
+  Label,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  Textarea,
+  UnsavedChangesGuard,
+} from '@pdlc/ui/ui'
 
 import { useSearchParams } from 'react-router'
 import { FileText, GitBranch, Save, Tag } from 'lucide-react'
 import { useCreateDocument, useSpaces, useTemplates } from '@/shared/api/hooks'
 
-
-
-
-
-
-
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDocumentType } from '@/shared/lib/wiki-format'
 import { resolveSpaceKey } from '@/shared/lib/space-selection'
-
 
 const typeOptions = [
   'page',

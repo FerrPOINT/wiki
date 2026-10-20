@@ -1,5 +1,15 @@
 import { useState } from 'react'
-import {Select, Loader, NamespaceLink as Link, ResourceList, ResourceListRow, Button, EmptyState, ErrorState, LoadingState} from '@pdlc/ui/ui'
+import {
+  Select,
+  Loader,
+  NamespaceLink as Link,
+  ResourceList,
+  ResourceListRow,
+  Button,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from '@pdlc/ui/ui'
 
 import {
   ArrowRight,

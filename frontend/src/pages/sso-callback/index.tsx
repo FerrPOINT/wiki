@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import {useNamespaceNavigate as useNavigate, SsoCallbackView} from '@pdlc/ui/ui'
+import { useNamespaceNavigate as useNavigate, SsoCallbackView } from '@pdlc/ui/ui'
 
 import { completeSso } from '@pdlc/ui/sso'
 

@@ -1,7 +1,26 @@
 import { useNamespaceContext } from '@/widgets/namespace-context'
 import { TaskRevisionLink } from '@/features/managed-links/TaskRevisionLink'
 import { FormEvent, useEffect, useRef, useState } from 'react'
-import {NamespaceLink as Link, Button, ConfirmDialog, EmptyState, ErrorState, LoadingState, Card, CardContent, CardHeader, CardTitle, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label, Textarea, UnsavedChangesGuard} from '@pdlc/ui/ui'
+import {
+  NamespaceLink as Link,
+  Button,
+  ConfirmDialog,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  Label,
+  Textarea,
+  UnsavedChangesGuard,
+} from '@pdlc/ui/ui'
 import { useParams } from 'react-router'
 import {
   Archive,
@@ -27,12 +46,6 @@ import {
   usePublishDocument,
   useUpdateDocumentDraft,
 } from '@/shared/api/hooks'
-
-
-
-
-
-
 
 import {
   formatApiErrorForUser,

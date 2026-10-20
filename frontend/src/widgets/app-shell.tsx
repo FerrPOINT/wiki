@@ -1,5 +1,19 @@
-import {AppShell as BaseAppShell, SidebarNavigationGroup, useSidebarDisclosure, SidebarItem, NamespaceLink as Link, NamespaceNavLink as NavLink, Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, PlatformHeader, PlatformMark, ThemeMenuItems} from '@pdlc/ui/ui'
-
+import {
+  AppShell as BaseAppShell,
+  SidebarNavigationGroup,
+  useSidebarDisclosure,
+  SidebarItem,
+  NamespaceLink as Link,
+  NamespaceNavLink as NavLink,
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  PlatformHeader,
+  PlatformMark,
+  ThemeMenuItems,
+} from '@pdlc/ui/ui'
 
 import { NamespaceShellContext } from './namespace-context'
 import { type ElementType } from 'react'

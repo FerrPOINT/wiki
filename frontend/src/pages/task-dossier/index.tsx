@@ -1,6 +1,17 @@
 import { useProjectRouteRef } from '@/widgets/namespace-context'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
-import {Select, NamespaceLink as Link, ResourceList, ResourceListRow, EmptyState, ErrorState, LoadingState, Button, Input, Label} from '@pdlc/ui/ui'
+import {
+  Select,
+  NamespaceLink as Link,
+  ResourceList,
+  ResourceListRow,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  Button,
+  Input,
+  Label,
+} from '@pdlc/ui/ui'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { FileCheck2, FileText, GitBranch, Link2, Search } from 'lucide-react'
 import {
@@ -10,9 +21,6 @@ import {
   useTask,
   useTaskSummaries,
 } from '@/shared/api/hooks'
-
-
-
 
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import {

@@ -1,10 +1,8 @@
 import { useState } from 'react'
-import {useNamespaceNavigate as useNavigate, Button, ErrorState, Input} from '@pdlc/ui/ui'
+import { useNamespaceNavigate as useNavigate, Button, ErrorState, Input } from '@pdlc/ui/ui'
 
 import { Layers } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-
-
 
 import { useRegister } from '@/shared/api/hooks'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
