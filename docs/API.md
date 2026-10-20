@@ -32,6 +32,7 @@ REST API Wiki предоставляет базовые операции про�
 - UI и CLI используют один и тот же публичный API.
 - Все ответы JSON, кроме download endpoints.
 - Ошибки MVP возвращаются единым JSON envelope `{ "error": { "code": "CODE", "message": "message" } }`; `requestId` и `details` добавляются как опциональные поля, когда доступны.
+- SQLx guards сохраняют403 для42501 и409 для40001/40P01; автоматического повтора записи нет. Диагностические сообщения БД не выдаются клиенту. [Подробности](PROJECT_CONTENT_AUTHORIZATION_V2.md#ошибки-postgresql).
 - Backend возвращает `X-Request-ID` на каждый ответ: echo валидного клиентского заголовка или новый `req_` UUIDv7 для запроса без request id.
 - Большие списки MVP используют bounded `limit` и стабильную сортировку: revisions, evidence, search, audit.
 - Protected domain/admin `POST`/`PUT`/`DELETE` requests may send `Idempotency-Key`; auth/session endpoints are outside this replay scope. The server stores successful responses for 24 hours by `(actor, key, method, path+query, request body hash)` and replays the same response on retry. Reusing the same key for a different request, or retrying while the first request is still processing, returns `409 CONFLICT`.

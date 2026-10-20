@@ -1,3 +1,5 @@
+mod errors;
+use errors::database_error;
 mod admission;
 #[cfg(test)]
 mod admission_tests;
@@ -68,7 +70,7 @@ async fn ensure_document_accepts_writes_tx(
     .bind(document_id)
     .fetch_optional(&mut **tx)
     .await
-    .map_err(shared::AppError::database)?
+    .map_err(database_error)?
     .ok_or_else(|| shared::AppError::not_found("document", document_id))?;
     let projection: Option<serde_json::Value> = sqlx::query_scalar(
         "SELECT command FROM wiki_namespace_bindings WHERE resource_id=$1 FOR SHARE",
@@ -76,7 +78,7 @@ async fn ensure_document_accepts_writes_tx(
     .bind(row.get::<Uuid, _>("space_id"))
     .fetch_optional(&mut **tx)
     .await
-    .map_err(shared::AppError::database)?;
+    .map_err(database_error)?;
     if let Some(value) = projection {
         let command: shared::resource_context::OwnerCommand = serde_json::from_value(value)
             .map_err(|_| shared::AppError::Unavailable("invalid_namespace_projection".into()))?;
@@ -118,7 +120,7 @@ impl PostgresWikiBackend {
             .bind(user_id)
             .fetch_optional(&self.pool)
             .await
-            .map_err(shared::AppError::database)?
+            .map_err(database_error)?
             .ok_or(shared::AppError::Unauthorized)
     }
 
@@ -164,7 +166,7 @@ impl PostgresWikiBackend {
             }
             if required != SpaceAccess::View {
                 let active:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM wiki_space_catalog WHERE local_space_id=$1 AND admin_revision IS NOT NULL AND state='active')")
-                    .bind(space_id).fetch_one(&self.pool).await.map_err(shared::AppError::database)?;
+                    .bind(space_id).fetch_one(&self.pool).await.map_err(database_error)?;
                 if !active {
                     return Err(shared::AppError::Forbidden);
                 }
@@ -182,7 +184,7 @@ impl PostgresWikiBackend {
         .bind(space_id)
         .fetch_optional(&self.pool)
         .await
-        .map_err(shared::AppError::database)?
+        .map_err(database_error)?
         .ok_or(shared::AppError::Unauthorized)?;
 
         let global_role: String = row.get("global_role");
@@ -209,7 +211,7 @@ impl PostgresWikiBackend {
                 .bind(space_id)
                 .fetch_optional(&self.pool)
                 .await
-                .map_err(shared::AppError::database)?
+                .map_err(database_error)?
                 .ok_or_else(|| shared::AppError::not_found("space", space_id))?;
         if accepts_writes {
             Ok(())
@@ -238,7 +240,7 @@ impl PostgresWikiBackend {
             .bind(&key)
             .fetch_optional(&self.pool)
             .await
-            .map_err(shared::AppError::database)?
+            .map_err(database_error)?
             .ok_or_else(|| shared::AppError::not_found("space", space_key))
     }
 }
@@ -399,7 +401,7 @@ impl WikiBackendPort for PostgresWikiBackend {
         let _: i32 = sqlx::query_scalar("SELECT 1")
             .fetch_one(&self.pool)
             .await
-            .map_err(shared::AppError::database)?;
+            .map_err(database_error)?;
         Ok(())
     }
 

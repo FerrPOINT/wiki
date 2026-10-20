@@ -1,4 +1,5 @@
 //! Product mapping and bounded server admission. No UI input is trusted as proof.
+use super::database_error;
 use super::{PostgresWikiBackend, central_auth::BRIDGE};
 use pdlc_auth_core::service_bridge::{
     SpaceAdmissionClient, VerifiedBridgeError, VerifiedCentralToken,
@@ -37,7 +38,7 @@ impl PostgresWikiBackend {
         sqlx::query_scalar("SELECT active FROM wiki_space_admission_state WHERE singleton")
             .fetch_one(&self.pool)
             .await
-            .map_err(AppError::database)
+            .map_err(database_error)
     }
     pub(super) async fn read_admission(
         &self,
@@ -70,7 +71,7 @@ impl PostgresWikiBackend {
         let allowed = scope.draft_readable_ids()?;
         let user = Uuid::parse_str(&claims.user_id).map_err(|_| AppError::Unauthorized)?;
         let ids=sqlx::query_scalar("SELECT s.id FROM spaces s JOIN users u ON u.id=$1 AND u.is_active LEFT JOIN space_members sm ON sm.space_id=s.id AND sm.user_id=u.id WHERE s.id=ANY($2::uuid[]) AND s.archived_at IS NULL AND EXISTS(SELECT 1 FROM wiki_space_catalog c WHERE c.local_space_id=s.id AND c.admin_revision IS NOT NULL AND c.state='active') AND (u.global_role='admin' OR sm.role IN ('admin','editor')) ORDER BY s.id")
-            .bind(user).bind(allowed).fetch_all(&self.pool).await.map_err(AppError::database)?;
+            .bind(user).bind(allowed).fetch_all(&self.pool).await.map_err(database_error)?;
         scope.require_current()?;
         Ok(Some(ids))
     }
@@ -87,7 +88,7 @@ impl PostgresWikiBackend {
         }
         let user = Uuid::parse_str(&claims.user_id).map_err(|_| AppError::Unauthorized)?;
         let allowed:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users u LEFT JOIN space_members sm ON sm.user_id=u.id AND sm.space_id=$2 WHERE u.id=$1 AND u.is_active AND (u.global_role='admin' OR sm.role IN ('admin','editor')))")
-            .bind(user).bind(space_id).fetch_one(&self.pool).await.map_err(AppError::database)?;
+            .bind(user).bind(space_id).fetch_one(&self.pool).await.map_err(database_error)?;
         if let Some(scope) = admission.as_ref() {
             scope.require_current()?;
         }
@@ -100,7 +101,7 @@ impl PostgresWikiBackend {
         global_role: String,
     ) -> Result<Arc<WikiSpaceAdmission>, AppError> {
         let rows:Vec<(Uuid,Uuid,Uuid,Option<String>)>=sqlx::query_as("SELECT c.local_space_id,c.registry_instance_id,c.space_id,sm.role FROM wiki_space_catalog c LEFT JOIN space_members sm ON sm.space_id=c.local_space_id AND sm.user_id=$1 ORDER BY c.registry_instance_id,c.space_id LIMIT 10001")
-            .bind(user_id).fetch_all(&self.pool).await.map_err(AppError::database)?;
+            .bind(user_id).fetch_all(&self.pool).await.map_err(database_error)?;
         if rows.len() > 10000 {
             return Err(AppError::Unavailable(
                 "space_admission_catalog_too_large".into(),

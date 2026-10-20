@@ -1161,3 +1161,43 @@ async fn unified_admission_filters_before_paging_and_preserves_roles_revisions_a
     root.close().await;
     tokio::fs::remove_dir(&storage_root).await.unwrap();
 }
+
+#[tokio::test]
+#[ignore = "requires owned wiki_space_test PostgreSQL database"]
+async fn database_guards_keep_public_status_and_hide_private_diagnostics() {
+    let url = std::env::var("WIKI_TEST_DATABASE_URL").expect("owned PostgreSQL URL");
+    let pool = PgPool::connect(&url).await.unwrap();
+    let database: String = sqlx::query_scalar("SELECT current_database()")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(database, "wiki_space_test", "refuse working database");
+    for (code, status) in [
+        ("42501", 403),
+        ("40001", 409),
+        ("40P01", 409),
+        ("23505", 409),
+        ("XX000", 500),
+    ] {
+        // PostgreSQL constructs the real driver error, including code and private detail.
+        let sql = format!(
+            "DO $$ BEGIN RAISE EXCEPTION 'private fixture diagnostic' USING ERRCODE='{code}', DETAIL='private fixture detail'; END $$"
+        );
+        let error = sqlx::query(&sql).execute(&pool).await.unwrap_err();
+        assert_eq!(
+            error.as_database_error().unwrap().code().as_deref(),
+            Some(code)
+        );
+        let mapped = database_error(error);
+        match status {
+            403 => assert!(matches!(mapped, shared::AppError::Forbidden)),
+            409 => assert!(matches!(mapped, shared::AppError::Conflict(_))),
+            500 => assert!(matches!(mapped, shared::AppError::Database(_))),
+            _ => unreachable!(),
+        }
+        if status < 500 {
+            assert!(!mapped.to_string().contains("private fixture"));
+        }
+    }
+    pool.close().await;
+}

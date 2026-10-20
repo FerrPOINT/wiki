@@ -1,5 +1,6 @@
 //! Request proof and current role locks belong to the same SQLx write transaction.
 //! Owner lifecycle/projection and personal/global maintenance use their own ports.
+use super::database_error;
 use super::{PostgresWikiBackend, SpaceAccess, space_role_allows};
 use shared::{AppError, wiki_space_access::WikiSpaceAdmission};
 use sqlx::{Postgres, Row, Transaction};
@@ -22,13 +23,13 @@ impl PostgresWikiBackend {
                 return Err(AppError::Forbidden);
             }
         }
-        let mut tx = self.pool.begin().await.map_err(AppError::database)?;
+        let mut tx = self.pool.begin().await.map_err(database_error)?;
         let active: bool = sqlx::query_scalar(
             "SELECT active FROM wiki_space_admission_state WHERE singleton FOR SHARE",
         )
         .fetch_one(&mut *tx)
         .await
-        .map_err(AppError::database)?;
+        .map_err(database_error)?;
         if active && admission.is_none() {
             return Err(AppError::Forbidden);
         }
@@ -42,7 +43,7 @@ impl PostgresWikiBackend {
         // an archive/row wait must not freeze an already obsolete role decision.
         for space in &spaces {
             let catalog:Option<(String,Option<i64>)>=sqlx::query_as("SELECT state,admin_revision FROM wiki_space_catalog WHERE local_space_id=$1 FOR SHARE")
-                .bind(space).fetch_optional(&mut *tx).await.map_err(AppError::database)?;
+                .bind(space).fetch_optional(&mut *tx).await.map_err(database_error)?;
             if let Some(scope) = admission {
                 if !scope.allows(*space, true)
                     || (required == SpaceAccess::Admin && !scope.allows_admin(*space))
@@ -63,7 +64,7 @@ impl PostgresWikiBackend {
                 .bind(space)
                 .fetch_optional(&mut *tx)
                 .await
-                .map_err(AppError::database)?;
+                .map_err(database_error)?;
             if available != Some(true) {
                 return Err(AppError::Forbidden);
             }
@@ -74,7 +75,7 @@ impl PostgresWikiBackend {
         .bind(actor)
         .fetch_optional(&mut *tx)
         .await
-        .map_err(AppError::database)?
+        .map_err(database_error)?
         .ok_or(AppError::Unauthorized)?;
         if let Some(scope) = admission {
             let identity = scope.subject_identity()?;
@@ -96,7 +97,7 @@ impl PostgresWikiBackend {
             .bind(actor)
             .fetch_optional(&mut *tx)
             .await
-            .map_err(AppError::database)?;
+            .map_err(database_error)?;
             if global != "admin" && !space_role_allows(role.as_deref(), required) {
                 return Err(AppError::Forbidden);
             }
@@ -117,5 +118,5 @@ pub(super) async fn commit(
     if let Some(scope) = admission {
         scope.require_current()?;
     }
-    tx.commit().await.map_err(AppError::database)
+    tx.commit().await.map_err(database_error)
 }

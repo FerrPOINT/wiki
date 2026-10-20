@@ -49,3 +49,13 @@ document row wait откатывает draft/title; свежая разрешё�
 Отдельно проверены read-only PAT редактора, обычный читатель и hidden Space.
 Все машины, потоки/download, owner completion и полный serving cohort требуют
 самостоятельной квалификации; наличие этого helper не доказывает их покрытие.
+
+## Ошибки PostgreSQL
+
+Внутренний SQLx adapter сохраняет SQLSTATE до формирования общего AppError.
+42501 даёт403 без private diagnostics,40001/40P01 дают409 concurrent_change,
+23505 сохраняет409 duplicate entry. Роль и допуск не расширяются, автоматического
+повтора записи нет: caller перечитывает состояние и использует исходный operation
+key. Прочие ошибки сохраняют прежнее общее преобразование; внутренние сообщения БД
+не выдаются в HTTP. Bootstrap/migration handling и общий
+SDK error envelope не изменяются.

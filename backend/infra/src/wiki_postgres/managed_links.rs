@@ -1,4 +1,5 @@
 //! Wiki is the canonical link owner. Reads never call Tracker back.
+use super::database_error;
 use super::{PostgresWikiBackend, ensure_document_accepts_writes_tx};
 use shared::{
     AppError, managed_links::*, resource_context::NamespaceRef, wiki_contract::WikiClaims,
@@ -313,7 +314,7 @@ impl PostgresWikiBackend {
         selected: Option<&NamespaceRef>,
     ) -> Result<NamespaceRef, AppError> {
         let rows = sqlx::query("SELECT registry_instance_id,namespace_id FROM wiki_space_projects WHERE space_id=$1 ORDER BY registry_instance_id,namespace_id")
-            .bind(space).fetch_all(&self.pool).await.map_err(AppError::database)?;
+            .bind(space).fetch_all(&self.pool).await.map_err(database_error)?;
         let projects: Vec<NamespaceRef> = rows
             .into_iter()
             .map(|row| NamespaceRef {
@@ -361,12 +362,12 @@ impl PostgresWikiBackend {
         }
         let mismatched: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM managed_task_document_links l JOIN task_dossiers t ON t.id=l.dossier_id WHERE t.tracker_instance_id=$1 AND t.task_id=$2 AND (l.registry_instance_id<>$3 OR l.namespace_id<>$4))")
             .bind(task.tracker_instance_id).bind(task.task_id).bind(namespace.registry_instance_id).bind(namespace.namespace_id)
-            .fetch_one(&self.pool).await.map_err(AppError::database)?;
+            .fetch_one(&self.pool).await.map_err(database_error)?;
         if mismatched {
             return Err(AppError::Forbidden);
         }
         sqlx::query_scalar("SELECT jsonb_build_object('document_id',d.id,'revision_id',r.id,'title',r.title,'version',r.version,'space_key',s.key,'task_key',t.task_key,'namespace',jsonb_build_object('registry_instance_id',l.registry_instance_id,'namespace_id',l.namespace_id)) FROM managed_task_document_links l JOIN task_dossiers t ON t.id=l.dossier_id JOIN documents d ON d.id=l.document_id JOIN document_revisions r ON r.id=l.revision_id JOIN spaces s ON s.id=l.space_id WHERE t.tracker_instance_id=$1 AND t.task_id=$2 AND l.registry_instance_id=$3 AND l.namespace_id=$4 ORDER BY l.created_at DESC,l.id LIMIT 100")
-            .bind(task.tracker_instance_id).bind(task.task_id).bind(namespace.registry_instance_id).bind(namespace.namespace_id).fetch_all(&self.pool).await.map_err(AppError::database)
+            .bind(task.tracker_instance_id).bind(task.task_id).bind(namespace.registry_instance_id).bind(namespace.namespace_id).fetch_all(&self.pool).await.map_err(database_error)
     }
     pub(super) async fn link_task_revision(
         &self,
@@ -378,7 +379,7 @@ impl PostgresWikiBackend {
         self.ensure_space_id_access(claims, space, app::wiki::WikiSpaceAccess::Edit)
             .await?;
         self.namespace_binding(space).await?;
-        if let Some(old)=sqlx::query("SELECT l.id,l.dossier_id,l.registry_instance_id,l.namespace_id FROM managed_task_document_links l JOIN task_dossiers t ON t.id=l.dossier_id WHERE l.space_id=$1 AND t.tracker_instance_id=$2 AND t.task_id=$3 AND l.document_id=$4 AND l.revision_id=$5").bind(space).bind(input.task.tracker_instance_id).bind(input.task.task_id).bind(input.document_id).bind(input.revision_id).fetch_optional(&self.pool).await.map_err(AppError::database)? {
+        if let Some(old)=sqlx::query("SELECT l.id,l.dossier_id,l.registry_instance_id,l.namespace_id FROM managed_task_document_links l JOIN task_dossiers t ON t.id=l.dossier_id WHERE l.space_id=$1 AND t.tracker_instance_id=$2 AND t.task_id=$3 AND l.document_id=$4 AND l.revision_id=$5").bind(space).bind(input.task.tracker_instance_id).bind(input.task.task_id).bind(input.document_id).bind(input.revision_id).fetch_optional(&self.pool).await.map_err(database_error)? {
             let namespace = NamespaceRef { registry_instance_id: old.get("registry_instance_id"), namespace_id: old.get("namespace_id") };
             if input.namespace.as_ref().is_some_and(|selected| selected != &namespace) { return Err(AppError::conflict("task_ref_namespace_mismatch")); }
             return Ok(serde_json::json!({"id":old.get::<Uuid,_>("id"),"dossier_id":old.get::<Uuid,_>("dossier_id"),"task":input.task,"document_id":input.document_id,"revision_id":input.revision_id}));
@@ -402,18 +403,18 @@ impl PostgresWikiBackend {
         ensure_document_accepts_writes_tx(&mut tx, input.document_id).await?;
         let linked: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM wiki_space_projects WHERE space_id=$1 AND registry_instance_id=$2 AND namespace_id=$3)")
             .bind(space).bind(namespace.registry_instance_id).bind(namespace.namespace_id)
-            .fetch_one(&mut *tx).await.map_err(AppError::database)?;
+            .fetch_one(&mut *tx).await.map_err(database_error)?;
         if !linked {
             return Err(AppError::conflict("project_not_linked_to_space"));
         }
-        let valid: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM document_revisions r JOIN documents d ON d.id=r.document_id WHERE r.id=$1 AND d.id=$2 AND d.space_id=$3)").bind(input.revision_id).bind(input.document_id).bind(space).fetch_one(&mut *tx).await.map_err(AppError::database)?;
+        let valid: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM document_revisions r JOIN documents d ON d.id=r.document_id WHERE r.id=$1 AND d.id=$2 AND d.space_id=$3)").bind(input.revision_id).bind(input.document_id).bind(space).fetch_one(&mut *tx).await.map_err(database_error)?;
         if !valid {
             return Err(AppError::invalid_input("revision_not_in_namespace_space"));
         }
         let dossier: Uuid = sqlx::query_scalar("INSERT INTO task_dossiers(id,space_id,task_key,tracker_instance_id,task_id) VALUES($1,$2,$3,$4,$5) ON CONFLICT(space_id,tracker_instance_id,task_id) WHERE task_id IS NOT NULL DO UPDATE SET task_key=EXCLUDED.task_key,updated_at=now() RETURNING id")
-            .bind(Uuid::now_v7()).bind(space).bind(task_key).bind(input.task.tracker_instance_id).bind(input.task.task_id).fetch_one(&mut *tx).await.map_err(AppError::database)?;
+            .bind(Uuid::now_v7()).bind(space).bind(task_key).bind(input.task.tracker_instance_id).bind(input.task.task_id).fetch_one(&mut *tx).await.map_err(database_error)?;
         let link: Uuid = sqlx::query_scalar("INSERT INTO managed_task_document_links(id,space_id,dossier_id,document_id,revision_id,created_by,registry_instance_id,namespace_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(dossier_id,document_id,revision_id) DO UPDATE SET dossier_id=EXCLUDED.dossier_id RETURNING id")
-            .bind(Uuid::now_v7()).bind(space).bind(dossier).bind(input.document_id).bind(input.revision_id).bind(actor).bind(namespace.registry_instance_id).bind(namespace.namespace_id).fetch_one(&mut *tx).await.map_err(AppError::database)?;
+            .bind(Uuid::now_v7()).bind(space).bind(dossier).bind(input.document_id).bind(input.revision_id).bind(actor).bind(namespace.registry_instance_id).bind(namespace.namespace_id).fetch_one(&mut *tx).await.map_err(database_error)?;
         super::write_authorization::commit(tx, claims.admission.as_ref()).await?;
         Ok(
             serde_json::json!({"id":link,"dossier_id":dossier,"task":input.task,"document_id":input.document_id,"revision_id":input.revision_id}),
@@ -433,7 +434,7 @@ impl PostgresWikiBackend {
         // Filter before LIMIT: a private neighboring space must neither leak nor
         // hide documents the caller can read in this shared project.
         let rows = sqlx::query("SELECT l.space_id,jsonb_build_object('id',l.id,'document_id',d.id,'revision_id',r.id,'title',r.title,'version',r.version,'space_key',s.key,'task_key',t.task_key,'namespace',jsonb_build_object('registry_instance_id',l.registry_instance_id,'namespace_id',l.namespace_id)) AS document FROM managed_task_document_links l JOIN task_dossiers t ON t.id=l.dossier_id JOIN documents d ON d.id=l.document_id JOIN document_revisions r ON r.id=l.revision_id JOIN spaces s ON s.id=l.space_id WHERE t.tracker_instance_id=$1 AND t.task_id=$2 AND (($4::uuid[] IS NOT NULL AND s.id=ANY($4)) OR ($4::uuid[] IS NULL AND ($3::uuid IS NULL OR EXISTS(SELECT 1 FROM space_members sm WHERE sm.space_id=s.id AND sm.user_id=$3 AND sm.role IN ('admin','editor','viewer'))))) ORDER BY l.created_at DESC,l.id LIMIT 100")
-            .bind(task.tracker_instance_id).bind(task.task_id).bind(user).bind(visible).fetch_all(&self.pool).await.map_err(AppError::database)?;
+            .bind(task.tracker_instance_id).bind(task.task_id).bind(user).bind(visible).fetch_all(&self.pool).await.map_err(database_error)?;
         let mut result = Vec::new();
         let mut checked = std::collections::BTreeSet::new();
         for row in rows {

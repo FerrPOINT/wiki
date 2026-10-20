@@ -1,5 +1,6 @@
 //! Fresh owner context reads; the local M:N projection is never the collection source.
 use super::PostgresWikiBackend;
+use super::database_error;
 use app::wiki::WikiSpaceAccess;
 use pdlc_shared::{project_spaces::*, space_access::*};
 use shared::{AppError, wiki_contract::*};
@@ -36,14 +37,14 @@ impl PostgresWikiBackend {
                 offset,
             },
         };
-        let row=sqlx::query("SELECT s.key,s.name,c.registry_instance_id,c.space_id,c.admin_revision,c.state FROM spaces s JOIN wiki_space_catalog c ON c.local_space_id=s.id WHERE s.id=$1").bind(local).fetch_optional(&self.pool).await.map_err(AppError::database)?.ok_or_else(||AppError::Unavailable("shared_space_mapping_unconfirmed".into()))?;
+        let row=sqlx::query("SELECT s.key,s.name,c.registry_instance_id,c.space_id,c.admin_revision,c.state FROM spaces s JOIN wiki_space_catalog c ON c.local_space_id=s.id WHERE s.id=$1").bind(local).fetch_optional(&self.pool).await.map_err(database_error)?.ok_or_else(||AppError::Unavailable("shared_space_mapping_unconfirmed".into()))?;
         let mapped = SpaceRef {
             registry_instance_id: row
                 .try_get("registry_instance_id")
-                .map_err(AppError::database)?,
-            space_id: row.try_get("space_id").map_err(AppError::database)?,
+                .map_err(database_error)?,
+            space_id: row.try_get("space_id").map_err(database_error)?,
         };
-        let revision: Option<i64> = row.try_get("admin_revision").map_err(AppError::database)?;
+        let revision: Option<i64> = row.try_get("admin_revision").map_err(database_error)?;
         if mapped != public || revision.is_none_or(|r| r < 1) {
             return Err(AppError::Unavailable(
                 "shared_space_mapping_unconfirmed".into(),
@@ -59,9 +60,9 @@ impl PostgresWikiBackend {
             space: public,
             wiki: WorkspaceSpace {
                 id: local,
-                key: row.try_get("key").map_err(AppError::database)?,
-                name: row.try_get("name").map_err(AppError::database)?,
-                status: row.try_get("state").map_err(AppError::database)?,
+                key: row.try_get("key").map_err(database_error)?,
+                name: row.try_get("name").map_err(database_error)?,
+                status: row.try_get("state").map_err(database_error)?,
                 resource_status: ProjectResourceStatus::Connected,
             },
             revision: revision.unwrap(),

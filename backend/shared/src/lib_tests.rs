@@ -56,3 +56,27 @@ fn now_returns_timestamp() {
     let t: Timestamp = now();
     assert!(t.timestamp() > 1_700_000_000);
 }
+
+#[tokio::test]
+async fn app_error_response_keeps_guard_status_without_private_diagnostics() {
+    for (error, expected, code) in [
+        (AppError::Forbidden, StatusCode::FORBIDDEN, "FORBIDDEN"),
+        (
+            AppError::conflict("concurrent_change"),
+            StatusCode::CONFLICT,
+            "CONFLICT",
+        ),
+        (
+            AppError::Database("private fixture detail".into()),
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "INTERNAL_ERROR",
+        ),
+    ] {
+        let response = error.into_response();
+        assert_eq!(response.status(), expected);
+        let body = to_bytes(response.into_body(), 4096).await.unwrap();
+        let envelope: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(envelope["error"]["code"], code);
+        assert!(!String::from_utf8_lossy(&body).contains("private fixture"));
+    }
+}

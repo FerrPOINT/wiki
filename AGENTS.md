@@ -106,3 +106,7 @@ write_authorization::commit с immutable исходным proof. Предвар�
 [PROJECT_CONTENT_AUTHORIZATION_V2](docs/PROJECT_CONTENT_AUTHORIZATION_V2.md).
 Owner lifecycle/Tracker projection/maintenance имеют отдельные узкие ports;
 не переносить их полномочия в обычный human запрос.
+
+SQLx errors внутри wiki_postgres передавать через typed database_error: SQLSTATE
+должен сохраняться до выбора публичного AppError. Не добавлять авто-повтор
+записи при conflict. Правила кодов и private diagnostics — в документе выше.

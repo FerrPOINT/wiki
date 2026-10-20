@@ -1,3 +1,4 @@
+use super::database_error;
 use super::{
     PostgresWikiBackend,
     mapping::{build_db_tree, parse_uuid, space_member_response_from_row, space_response_from_row},
@@ -26,7 +27,7 @@ async fn fetch_space_by_key(
         .bind(key)
         .fetch_optional(&backend.pool)
         .await
-        .map_err(shared::AppError::database)?
+        .map_err(database_error)?
         .ok_or_else(|| shared::AppError::not_found("space", key))?;
     Ok(space_response_from_row(&row))
 }
@@ -44,7 +45,7 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
                 )
                 .fetch_all(&self.backend.pool)
                 .await
-                .map_err(shared::AppError::database)?;
+                .map_err(database_error)?;
             if let Some(scope) = self.admission.as_ref() {
                 scope.require_current()?;
             }
@@ -76,7 +77,7 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
             .bind(command.owner_id)
             .execute(&mut *tx)
             .await
-            .map_err(shared::AppError::database)?;
+            .map_err(database_error)?;
 
             sqlx::query(
                 r#"
@@ -88,7 +89,7 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
             .bind(command.owner_id)
             .execute(&mut *tx)
             .await
-            .map_err(shared::AppError::database)?;
+            .map_err(database_error)?;
 
             self.backend
                 .insert_audit(
@@ -142,7 +143,7 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
             .bind(command.description.as_deref())
             .fetch_optional(&mut *tx)
             .await
-            .map_err(shared::AppError::database)?
+            .map_err(database_error)?
             .ok_or_else(|| shared::AppError::not_found("space", &command.key))?;
             let updated_space_id: Uuid = row.get("id");
             debug_assert_eq!(updated_space_id, command.space_id);
@@ -191,7 +192,7 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
             .bind(&command.key)
             .fetch_optional(&mut *tx)
             .await
-            .map_err(shared::AppError::database)?
+            .map_err(database_error)?
             .ok_or_else(|| shared::AppError::not_found("space", &command.key))?;
             let archived_space_id: Uuid = row.get("id");
             debug_assert_eq!(archived_space_id, command.space_id);
@@ -229,7 +230,7 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
             .bind(space_id)
             .fetch_all(&self.backend.pool)
             .await
-            .map_err(shared::AppError::database)?;
+            .map_err(database_error)?;
             Ok(rows.iter().map(space_member_response_from_row).collect())
         })
     }
@@ -280,7 +281,7 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
             .bind(&command.role)
             .fetch_optional(&mut *tx)
             .await
-            .map_err(shared::AppError::database)?
+            .map_err(database_error)?
             .ok_or_else(|| shared::AppError::not_found("user", command.user_id))?;
 
             self.backend
@@ -321,7 +322,7 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
                     .bind(command.user_id)
                     .execute(&mut *tx)
                     .await
-                    .map_err(shared::AppError::database)?;
+                    .map_err(database_error)?;
             if result.rows_affected() == 0 {
                 return Err(shared::AppError::not_found("space member", command.user_id));
             }
@@ -357,7 +358,7 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
             .bind(space_id)
             .fetch_all(&self.backend.pool)
             .await
-            .map_err(shared::AppError::database)?;
+            .map_err(database_error)?;
             Ok(build_db_tree(&rows, None))
         })
     }

@@ -1,3 +1,4 @@
+use super::database_error;
 use super::{
     PostgresWikiBackend,
     mapping::search_result_from_row,
@@ -54,7 +55,7 @@ impl WikiSearchRepository for PostgresWikiSearchRepository<'_> {
                 .bind(&self.editable_spaces)
                 .fetch_all(self.pool)
                 .await
-                .map_err(shared::AppError::database)?;
+                .map_err(database_error)?;
             if let Some(scope) = self.admission.as_ref() {
                 scope.require_current()?;
             }
@@ -96,7 +97,7 @@ impl WikiSearchRepository for PostgresWikiSearchRepository<'_> {
                 )
                 .fetch_all(self.pool)
                 .await
-                .map_err(shared::AppError::database)?;
+                .map_err(database_error)?;
             if let Some(scope) = self.admission.as_ref() {
                 scope.require_current()?;
             }

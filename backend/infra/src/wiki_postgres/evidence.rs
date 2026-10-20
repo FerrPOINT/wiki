@@ -1,3 +1,4 @@
+use super::database_error;
 use super::{
     PostgresWikiBackend, ensure_document_accepts_writes_tx,
     mapping::{attachment_response_from_row, evidence_response_from_row, parse_uuid},
@@ -27,7 +28,7 @@ impl PostgresWikiEvidenceRepository<'_> {
             .bind(evidence_id)
             .fetch_optional(&self.backend.pool)
             .await
-            .map_err(shared::AppError::database)?
+            .map_err(database_error)?
             .ok_or_else(|| shared::AppError::not_found("evidence", evidence_id))?;
         Ok(evidence_response_from_row(&row))
     }
@@ -90,7 +91,7 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
                 .bind(actor_id)
                 .fetch_optional(&mut *tx)
                 .await
-                .map_err(shared::AppError::database)?
+                .map_err(database_error)?
                 .ok_or_else(|| shared::AppError::not_found("attachment", attachment_id))?;
                 stored_checksum = Some(attachment_row.get::<String, _>("checksum"));
             }
@@ -119,7 +120,7 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
             .bind(actor_id)
             .fetch_one(&mut *tx)
             .await
-            .map_err(shared::AppError::database)?;
+            .map_err(database_error)?;
             let evidence_id: Uuid = row.get("id");
             self.backend
                 .insert_audit(
@@ -159,7 +160,7 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
                 )
                 .fetch_all(&self.backend.pool)
                 .await
-                .map_err(shared::AppError::database)?;
+                .map_err(database_error)?;
             if let Some(scope) = self.admission.as_ref() {
                 scope.require_current()?;
             }
@@ -206,7 +207,7 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
                 .bind(actor_id)
                 .fetch_one(&mut *tx)
                 .await
-                .map_err(shared::AppError::database)?;
+                .map_err(database_error)?;
                 self.backend
                     .insert_audit(
                         &mut tx,
@@ -243,7 +244,7 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
                 .bind(attachment_id)
                 .fetch_optional(&self.backend.pool)
                 .await
-                .map_err(shared::AppError::database)?
+                .map_err(database_error)?
                 .ok_or_else(|| shared::AppError::not_found("attachment", attachment_id))?;
             Ok(attachment_response_from_row(&row))
         })
@@ -264,7 +265,7 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
             .bind(attachment_id)
             .fetch_optional(&self.backend.pool)
             .await
-            .map_err(shared::AppError::database)?
+            .map_err(database_error)?
             .ok_or_else(|| shared::AppError::not_found("attachment", attachment_id))?;
             let file_name: String = row.get("file_name");
             let content_type: String = row.get("content_type");
@@ -482,7 +483,7 @@ impl PostgresWikiBackend {
         .bind(document_id)
         .fetch_optional(&self.pool)
         .await
-        .map_err(shared::AppError::database)?
+        .map_err(database_error)?
         .ok_or_else(|| shared::AppError::not_found("document", document_id))?;
         Ok((row.get("space_id"), row.get("space_key")))
     }
@@ -498,7 +499,7 @@ impl PostgresWikiBackend {
                 .bind(evidence_id)
                 .fetch_optional(&self.pool)
                 .await
-                .map_err(shared::AppError::database)?
+                .map_err(database_error)?
                 .ok_or_else(|| shared::AppError::not_found("evidence", evidence_id))?;
         self.ensure_space_id_access(claims, space_id, required)
             .await?;
@@ -521,7 +522,7 @@ impl PostgresWikiBackend {
         .bind(attachment_id)
         .fetch_optional(&self.pool)
         .await
-        .map_err(shared::AppError::database)?
+        .map_err(database_error)?
         .ok_or_else(|| shared::AppError::not_found("attachment", attachment_id))?;
         let uploaded_by: Uuid = row.get("uploaded_by");
         let space_id: Option<Uuid> = row.get("space_id");

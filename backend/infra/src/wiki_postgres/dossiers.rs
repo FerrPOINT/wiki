@@ -1,3 +1,4 @@
+use super::database_error;
 use super::{
     PostgresWikiBackend, ensure_document_accepts_writes_tx,
     mapping::{document_summary_from_row, evidence_response_from_row, parse_uuid},
@@ -33,7 +34,7 @@ impl PostgresWikiDossierRepository<'_> {
         .bind(task_key)
         .fetch_all(&self.backend.pool)
         .await
-        .map_err(shared::AppError::database)?;
+        .map_err(database_error)?;
         if task_rows.len() > 1 {
             return Err(shared::AppError::conflict(
                 "ambiguous_legacy_task_key_use_task_ref",
@@ -70,7 +71,7 @@ impl PostgresWikiDossierRepository<'_> {
         .bind(self.include_document_drafts)
         .fetch_all(&self.backend.pool)
         .await
-        .map_err(shared::AppError::database)?;
+        .map_err(database_error)?;
         let documents: Vec<_> = document_rows
             .iter()
             .map(document_summary_from_row)
@@ -113,7 +114,7 @@ impl PostgresWikiDossierRepository<'_> {
         .bind(phase_key)
         .fetch_optional(&self.backend.pool)
         .await
-        .map_err(shared::AppError::database)?;
+        .map_err(database_error)?;
         let Some(phase_row) = phase_row else {
             return Ok(PhasePageResponse {
                 space_key: space_key.to_string(),
@@ -143,7 +144,7 @@ impl PostgresWikiDossierRepository<'_> {
         .bind(self.include_document_drafts)
         .fetch_all(&self.backend.pool)
         .await
-        .map_err(shared::AppError::database)?;
+        .map_err(database_error)?;
         let documents: Vec<_> = document_rows
             .iter()
             .map(document_summary_from_row)
@@ -172,7 +173,7 @@ impl PostgresWikiDossierRepository<'_> {
             .bind(phase_dossier_id)
             .fetch_all(&self.backend.pool)
             .await
-            .map_err(shared::AppError::database)?;
+            .map_err(database_error)?;
         Ok(rows.iter().map(evidence_response_from_row).collect())
     }
 }
@@ -195,7 +196,7 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
             .bind(space_id)
             .fetch_all(&self.backend.pool)
             .await
-            .map_err(shared::AppError::database)?;
+            .map_err(database_error)?;
 
             let mut tasks = Vec::with_capacity(rows.len());
             for row in rows {
@@ -281,7 +282,7 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
             .bind(self.include_document_drafts)
             .fetch_all(&self.backend.pool)
             .await
-            .map_err(shared::AppError::database)?;
+            .map_err(database_error)?;
 
             let total = usize::try_from(rows[0].get::<i64, _>("total"))
                 .map_err(|_| shared::AppError::internal("invalid task summary total"))?;
@@ -347,7 +348,7 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
             .bind(actor_id)
             .execute(&mut *tx)
             .await
-            .map_err(shared::AppError::database)?;
+            .map_err(database_error)?;
             self.backend
                 .insert_audit(
                     &mut tx,
@@ -419,7 +420,7 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
             .bind(space_id)
             .fetch_all(&self.backend.pool)
             .await
-            .map_err(shared::AppError::database)?;
+            .map_err(database_error)?;
 
             let mut phases = Vec::with_capacity(rows.len());
             for row in rows {
@@ -497,7 +498,7 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
             .bind(self.include_document_drafts)
             .fetch_all(&self.backend.pool)
             .await
-            .map_err(shared::AppError::database)?;
+            .map_err(database_error)?;
 
             let total = usize::try_from(rows[0].get::<i64, _>("total"))
                 .map_err(|_| shared::AppError::internal("invalid phase summary total"))?;
@@ -563,7 +564,7 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
             .bind(actor_id)
             .execute(&mut *tx)
             .await
-            .map_err(shared::AppError::database)?;
+            .map_err(database_error)?;
             self.backend
                 .insert_audit(
                     &mut tx,
@@ -924,7 +925,7 @@ impl PostgresWikiBackend {
         .bind(task_key)
         .fetch_one(&mut **tx)
         .await
-        .map_err(shared::AppError::database)?;
+        .map_err(database_error)?;
         Ok(row.get("id"))
     }
 
@@ -948,7 +949,7 @@ impl PostgresWikiBackend {
         .bind(phase_key)
         .fetch_one(&mut **tx)
         .await
-        .map_err(shared::AppError::database)?;
+        .map_err(database_error)?;
         Ok(row.get("id"))
     }
 }
