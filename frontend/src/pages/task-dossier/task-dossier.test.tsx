@@ -1,3 +1,4 @@
+import { chooseValue } from '../../test/choice'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { useNamespaceNavigate as useNavigate } from '@pdlc/ui/ui'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
@@ -428,7 +429,7 @@ describe('TaskDossiersPage', () => {
     expect(screen.getByRole('button', { name: 'Назад' })).toBeEnabled()
   })
 
-  it('resets the catalog query when the selected space changes', () => {
+  it('resets the catalog query when the selected space changes', async () => {
     vi.useFakeTimers()
     renderTaskList([{ task_key: 'DOCS-01', title: 'Задача', document_count: 0, evidence_count: 0 }])
     fireEvent.change(screen.getByRole('searchbox', { name: 'Найти задачу' }), {
@@ -436,7 +437,7 @@ describe('TaskDossiersPage', () => {
     })
     act(() => vi.advanceTimersByTime(300))
 
-    fireEvent.change(screen.getByLabelText('Пространство'), { target: { value: 'BASE' } })
+    await chooseValue(screen.getByLabelText('Пространство'), 'BASE')
 
     expect(screen.getByRole('searchbox', { name: 'Найти задачу' })).toHaveValue('')
     expect(useTaskSummaries).toHaveBeenLastCalledWith('BASE', {

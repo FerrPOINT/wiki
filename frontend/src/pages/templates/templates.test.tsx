@@ -94,7 +94,7 @@ describe('TemplatesPage', () => {
     vi.resetAllMocks()
   })
 
-  it('renders templates and creates a new one through the shared API hook', () => {
+  it('renders templates and creates a new one through the shared API hook', async () => {
     setupTemplates()
 
     expect(screen.getByRole('heading', { name: 'Шаблоны' })).toBeInTheDocument()
@@ -117,9 +117,7 @@ describe('TemplatesPage', () => {
     fireEvent.change(screen.getByLabelText('Название шаблона'), {
       target: { value: '  План релиза  ' },
     })
-    fireEvent.change(screen.getByLabelText('Тип документа'), {
-      target: { value: 'release_note' },
-    })
+    await chooseValue(screen.getByLabelText('Тип документа'), 'release_note')
     fireEvent.change(screen.getByLabelText('Markdown шаблона'), {
       target: { value: '# Релиз\n\n## Проверки\n' },
     })
@@ -376,7 +374,10 @@ describe('TemplatesPage', () => {
     })
 
     expect(screen.getByRole('searchbox', { name: 'Найти шаблон' })).toHaveValue('Template')
-    expect(screen.getByRole('combobox', { name: 'Тип шаблона' })).toHaveValue('page')
+    expect(screen.getByRole('combobox', { name: 'Тип шаблона' })).toHaveAttribute(
+      'data-value',
+      'page',
+    )
     expect(screen.getByText('2 / 3')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
@@ -393,7 +394,10 @@ describe('TemplatesPage', () => {
       '/templates?keep=1&q=Template&type=requirements',
     )
     fireEvent.click(screen.getByRole('button', { name: 'История назад' }))
-    expect(screen.getByRole('combobox', { name: 'Тип шаблона' })).toHaveValue('page')
+    expect(screen.getByRole('combobox', { name: 'Тип шаблона' })).toHaveAttribute(
+      'data-value',
+      'page',
+    )
     expect(screen.getByText('3 / 3')).toBeInTheDocument()
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'Найти шаблон' }), {
@@ -411,7 +415,10 @@ describe('TemplatesPage', () => {
 
     expect(screen.getByTestId('router-location')).toHaveTextContent('/templates?keep=1')
     expect(screen.getByRole('searchbox', { name: 'Найти шаблон' })).toHaveValue('')
-    expect(screen.getByRole('combobox', { name: 'Тип шаблона' })).toHaveValue('all')
+    expect(screen.getByRole('combobox', { name: 'Тип шаблона' })).toHaveAttribute(
+      'data-value',
+      'all',
+    )
   })
 
   it('renders template query errors with retry', () => {
