@@ -389,6 +389,8 @@ describe('TemplatesPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'История вперёд' }))
     expect(screen.getByText('3 / 3')).toBeInTheDocument()
 
+    act(() => vi.runOnlyPendingTimers())
+    vi.useRealTimers()
     await chooseValue(screen.getByRole('combobox', { name: 'Тип шаблона' }), 'requirements')
     expect(screen.getByTestId('router-location')).toHaveTextContent(
       '/templates?keep=1&q=Template&type=requirements',
@@ -400,6 +402,7 @@ describe('TemplatesPage', () => {
     )
     expect(screen.getByText('3 / 3')).toBeInTheDocument()
 
+    vi.useFakeTimers()
     fireEvent.change(screen.getByRole('searchbox', { name: 'Найти шаблон' }), {
       target: { value: 'Template 25' },
     })

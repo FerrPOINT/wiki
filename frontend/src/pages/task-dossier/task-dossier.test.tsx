@@ -437,6 +437,7 @@ describe('TaskDossiersPage', () => {
     })
     act(() => vi.advanceTimersByTime(300))
 
+    vi.useRealTimers()
     await chooseValue(screen.getByLabelText('Пространство'), 'BASE')
 
     expect(screen.getByRole('searchbox', { name: 'Найти задачу' })).toHaveValue('')
