@@ -83,6 +83,10 @@ impl WikiSpaceAdmission {
             deadline,
         })
     }
+    pub fn restrict_deadline(mut self, deadline: Instant) -> Self {
+        self.deadline = self.deadline.min(deadline);
+        self
+    }
     pub fn is_current(&self) -> bool {
         Instant::now() < self.deadline
             && self
@@ -327,6 +331,19 @@ mod tests {
                 },
             ],
         )
+    }
+    #[test]
+    fn source_token_deadline_cannot_be_renewed_by_a_new_product_window() {
+        let (subject, admission, mappings) = fixture();
+        let scope = WikiSpaceAdmission::confirmed(subject, admission, mappings).unwrap();
+        let expired = scope.clone().restrict_deadline(Instant::now());
+        assert!(!expired.clone().is_current());
+        assert!(
+            !expired
+                .restrict_deadline(Instant::now() + std::time::Duration::from_secs(600))
+                .is_current()
+        );
+        assert!(scope.is_current());
     }
     #[test]
     fn response_window_only_narrows_the_original_monotonic_deadline() {

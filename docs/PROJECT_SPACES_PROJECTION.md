@@ -115,3 +115,14 @@ in-process response extension. Входящие response headers не являю
 межсервисного await не запускает новый отсчёт. No-store применяется к защищённому
 ответу. Тело/download прекращается по original deadline даже при idle upstream,
 не ожидая следующего chunk. Это не новый grant и не расширение строгого DTO.
+
+## Identity kind владельцев
+
+Owner-v2 и Tracker projection принимают только зарегистрированный PAT с
+authoritative subject_role=service_account из свежего SDK подтверждения,
+без browser session и с exact wiki:write. role hint admin и human PAT в allowlist
+не являются машинным полномочием. Старые owner-v1 contracts этим не расширяются.
+
+Owner/admission proofs дополнительно ограничиваются исходным monotonic deadline
+VerifiedCentralToken. Clone, поздняя обработка и новый product clock не
+продлевают token ceiling; более поздний deadline может только сохранить прежний.

@@ -151,8 +151,9 @@ impl PostgresWikiBackend {
             may_read: actor.context.allows_service("wiki", "GET"),
             may_write: actor.context.allows_service("wiki", "PUT"),
         };
-        Ok(Arc::new(WikiSpaceAdmission::confirmed(
-            subject, admission, mappings,
-        )?))
+        Ok(Arc::new(
+            WikiSpaceAdmission::confirmed(subject, admission, mappings)?
+                .restrict_deadline(actor.lifetime.monotonic_deadline()),
+        ))
     }
 }

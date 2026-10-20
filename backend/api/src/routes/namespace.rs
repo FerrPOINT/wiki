@@ -326,8 +326,16 @@ fn typed_links(
         .collect()
 }
 
-fn may_apply_owner_v2(ctx: &pdlc_auth_core::AuthContext, registered: bool) -> bool {
-    ctx.session_id.is_none() && registered && ctx.has_scope("wiki:write")
+fn may_apply_owner_v2(
+    ctx: &pdlc_auth_core::AuthContext,
+    registered: bool,
+    subject_role: Option<&str>,
+) -> bool {
+    subject_role == Some("service_account")
+        && pdlc_auth_core::is_personal_token(&ctx.token)
+        && ctx.session_id.is_none()
+        && registered
+        && ctx.has_scope("wiki:write")
 }
 pub async fn owner_v2_auth(mut req: Request, next: Next) -> Result<Response, AppError> {
     let token = req
@@ -351,7 +359,11 @@ pub async fn owner_v2_auth(mut req: Request, next: Next) -> Result<Response, App
         .unwrap_or_default()
         .split(',')
         .any(|s| !s.trim().is_empty() && s.trim() == verified.context.user_id);
-    if !may_apply_owner_v2(&verified.context, registered) {
+    if !may_apply_owner_v2(
+        &verified.context,
+        registered,
+        verified.subject_role.as_deref(),
+    ) {
         return Err(AppError::Forbidden);
     }
     let validity = pdlc_shared::space_access::AdmissionValidity::confirmed(
@@ -367,7 +379,8 @@ pub async fn owner_v2_auth(mut req: Request, next: Next) -> Result<Response, App
         },
         token,
         validity,
-    )?;
+    )?
+    .restrict_deadline(verified.lifetime.monotonic_deadline());
     req.extensions_mut().insert(authority);
     Ok(next.run(req).await)
 }
@@ -398,25 +411,58 @@ mod owner_v2_tests {
             role: Some("admin".into()),
             scopes: std::collections::HashSet::from([scope.to_owned()]),
             session_id: session.then(|| "browser".into()),
-            token: "synthetic".into(),
+            token: "sdlc_pat_fixture_owner".into(),
         }
     }
     #[test]
     fn owner_v2_needs_registered_machine_and_exact_scope_not_browser_admin() {
-        assert!(may_apply_owner_v2(&context(false, "wiki:write"), true));
-        assert!(!may_apply_owner_v2(&context(true, "wiki:write"), true));
-        assert!(!may_apply_owner_v2(&context(false, "wiki:write"), false));
-        assert!(!may_apply_owner_v2(&context(false, "wiki:read"), true));
+        assert!(may_apply_owner_v2(
+            &context(false, "wiki:write"),
+            true,
+            Some("service_account")
+        ));
+        assert!(!may_apply_owner_v2(
+            &context(false, "wiki:write"),
+            true,
+            Some("member")
+        ));
+        assert!(!may_apply_owner_v2(
+            &context(false, "wiki:write"),
+            true,
+            Some("admin")
+        ));
+        assert!(!may_apply_owner_v2(
+            &context(false, "wiki:write"),
+            true,
+            None
+        ));
+        let mut legacy = context(false, "wiki:write");
+        legacy.token = "unregistered-legacy-bearer".into();
+        assert!(!may_apply_owner_v2(&legacy, true, Some("service_account")));
+
+        assert!(!may_apply_owner_v2(
+            &context(true, "wiki:write"),
+            true,
+            Some("service_account")
+        ));
+        assert!(!may_apply_owner_v2(
+            &context(false, "wiki:write"),
+            false,
+            Some("service_account")
+        ));
+        assert!(!may_apply_owner_v2(
+            &context(false, "wiki:read"),
+            true,
+            Some("service_account")
+        ));
         assert!(!may_apply_owner_v2(
             &context(false, "task-tracker:write"),
-            true
+            true,
+            Some("service_account")
         ));
     }
 }
 
-fn may_apply_project_projection(ctx: &pdlc_auth_core::AuthContext, registered: bool) -> bool {
-    ctx.session_id.is_none() && registered && ctx.has_scope("wiki:write")
-}
 pub async fn project_projection_auth(mut req: Request, next: Next) -> Result<Response, AppError> {
     let token = req
         .headers()
@@ -432,7 +478,11 @@ pub async fn project_projection_auth(mut req: Request, next: Next) -> Result<Res
         .unwrap_or_default()
         .split(',')
         .any(|s| !s.trim().is_empty() && s.trim() == verified.context.user_id);
-    if !may_apply_project_projection(&verified.context, registered) {
+    if !may_apply_owner_v2(
+        &verified.context,
+        registered,
+        verified.subject_role.as_deref(),
+    ) {
         return Err(AppError::Forbidden);
     }
     let validity = pdlc_shared::space_access::AdmissionValidity::confirmed(
@@ -448,7 +498,8 @@ pub async fn project_projection_auth(mut req: Request, next: Next) -> Result<Res
         },
         validity,
     )
-    .ok_or(AppError::Unauthorized)?;
+    .ok_or(AppError::Unauthorized)?
+    .restrict_deadline(verified.lifetime.monotonic_deadline());
     req.extensions_mut().insert(proof);
     Ok(next.run(req).await)
 }
@@ -482,14 +533,17 @@ mod projection_auth_tests {
             email: None,
             scopes: std::collections::HashSet::from(["wiki:write".into()]),
             session_id: None,
-            token: String::new(),
+            token: "sdlc_pat_fixture_projection".into(),
         };
-        assert!(may_apply_project_projection(&ctx, true));
-        assert!(!may_apply_project_projection(&ctx, false));
+        assert!(may_apply_owner_v2(&ctx, true, Some("service_account")));
+        assert!(!may_apply_owner_v2(&ctx, true, Some("member")));
+        assert!(!may_apply_owner_v2(&ctx, true, None));
+
+        assert!(!may_apply_owner_v2(&ctx, false, Some("service_account")));
         ctx.session_id = Some("admin-browser".into());
-        assert!(!may_apply_project_projection(&ctx, true));
+        assert!(!may_apply_owner_v2(&ctx, true, Some("service_account")));
         ctx.session_id = None;
         ctx.scopes = std::collections::HashSet::from(["wiki:read".into()]);
-        assert!(!may_apply_project_projection(&ctx, true));
+        assert!(!may_apply_owner_v2(&ctx, true, Some("service_account")));
     }
 }

@@ -40,6 +40,11 @@ impl WikiSpaceOwnerAuthority {
             token: token.into(),
         })
     }
+    /// Narrow to the verified source token; never create a new owner window.
+    pub fn restrict_deadline(mut self, deadline: std::time::Instant) -> Self {
+        self.proof = self.proof.restrict_deadline(deadline);
+        self
+    }
     pub fn require_current(&self) -> Result<(), AppError> {
         if self.proof.is_current() {
             Ok(())
@@ -77,5 +82,12 @@ mod tests {
         assert!(!format!("{original:?}").contains("synthetic-private-owner-credential"));
         assert!(cloned.require_current().is_ok());
         assert!(original.require_current().is_ok());
+        let expired = original
+            .clone()
+            .restrict_deadline(std::time::Instant::now());
+        assert!(expired.clone().require_current().is_err());
+        let cannot_renew = expired
+            .restrict_deadline(std::time::Instant::now() + std::time::Duration::from_secs(600));
+        assert!(cannot_renew.require_current().is_err());
     }
 }
