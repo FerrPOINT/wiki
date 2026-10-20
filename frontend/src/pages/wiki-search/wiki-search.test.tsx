@@ -98,6 +98,13 @@ describe('WikiSearchPage', () => {
     fireEvent.change(screen.getByRole('searchbox', { name: 'Поисковый запрос' }), {
       target: { value: 'релиз' },
     })
+    // Query debounce is independent of the explicitly applied expanded filters.
+    await waitFor(() =>
+      expect(useWikiSearch).toHaveBeenLastCalledWith(
+        expect.objectContaining({ q: 'релиз', result_type: 'document' }),
+        true,
+      ),
+    )
     fireEvent.change(screen.getByLabelText('Пространство'), { target: { value: 'eng' } })
     fireEvent.change(screen.getByLabelText('Задача'), { target: { value: 'BASE-42' } })
     fireEvent.change(screen.getByLabelText('Фаза'), { target: { value: 'testing' } })
@@ -109,7 +116,7 @@ describe('WikiSearchPage', () => {
         cursor: undefined,
         limit: 20,
         phase_key: undefined,
-        q: '',
+        q: 'релиз',
         space: undefined,
         task_key: undefined,
       },
