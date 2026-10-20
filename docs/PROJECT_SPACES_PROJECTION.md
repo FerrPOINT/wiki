@@ -1,5 +1,7 @@
 # Проекция связей проектов и пространств
 
+Human admission использует общий confirm_many_read и сохраняет SDK source/token/owner clock в локальном WikiSpaceAdmission. Cache hit не создаёт новое окно. Read-only delegation к Tracker сокращает wire validity по оставшемуся фиксированному сроку; последняя неполная секунда закрывается. Product scopes, роли и проверка immutable identity сохраняются отдельно. Source qualification и installed/serving cohort остаются разными этапами.
+
 Статус: source-кандидат, не установлен. Tracker владеет связями; Wiki сохраняет
 подтверждённое представление без управления жизненным циклом проекта.
 

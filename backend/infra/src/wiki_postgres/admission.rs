@@ -125,11 +125,12 @@ impl PostgresWikiBackend {
             .iter()
             .map(|mapping| mapping.space.clone())
             .collect();
-        let admission = client()
+        let proof = client()
             .await?
-            .confirm_many(&BRIDGE, actor, &spaces)
+            .confirm_many_read(&BRIDGE, actor, &spaces)
             .await
             .map_err(|_| AppError::Unavailable("space_admission_unavailable".into()))?;
+        let admission = proof.admission().map_err(|_| AppError::Forbidden)?.clone();
         if !actor.lifetime.is_current() {
             return Err(AppError::Unauthorized);
         }
@@ -153,7 +154,8 @@ impl PostgresWikiBackend {
         };
         Ok(Arc::new(
             WikiSpaceAdmission::confirmed(subject, admission, mappings)?
-                .restrict_deadline(actor.lifetime.monotonic_deadline()),
+                .restrict_deadline(actor.lifetime.monotonic_deadline())
+                .restrict_deadline(proof.monotonic_deadline()),
         ))
     }
 }

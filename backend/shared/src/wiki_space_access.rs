@@ -225,10 +225,16 @@ impl WikiSpaceAdmission {
         if !self.allows_method("GET") {
             return Err(AppError::Forbidden);
         }
+        let clock = pdlc_shared::space_lifecycle::SpaceOwnerAuthority::confirmed(
+            self.subject.identity.clone(),
+            self.admission.validity,
+        )
+        .ok_or(AppError::Forbidden)?
+        .restrict_deadline(self.deadline);
         Ok(pdlc_shared::space_access::SpaceReadDelegation {
             schema_version: 1,
             identity: self.subject.identity.clone(),
-            validity: self.admission.validity,
+            validity: clock.bounded_validity().ok_or(AppError::Forbidden)?,
         })
     }
     pub fn policy_revision(&self) -> Result<i64, AppError> {
@@ -462,7 +468,27 @@ mod tests {
                 .unwrap();
         let wire = scope.read_delegation().unwrap();
         assert_eq!(wire.identity, subject.identity);
-        assert_eq!(wire.validity, admission.validity);
+        assert_eq!(wire.validity.observed_at, admission.validity.observed_at);
+        assert!(wire.validity.valid_until <= admission.validity.valid_until);
+        assert!(
+            wire.validity
+                .valid_at(chrono::Utc::now().timestamp(), i64::MAX)
+        );
+        let shorter = scope
+            .clone()
+            .restrict_deadline(Instant::now() + std::time::Duration::from_secs(3));
+        let narrowed = shorter.read_delegation().unwrap();
+        assert_eq!(narrowed.identity, wire.identity);
+        assert_eq!(narrowed.validity.observed_at, wire.validity.observed_at);
+        assert!(narrowed.validity.valid_until < wire.validity.valid_until);
+        assert!(narrowed.validity.valid_until <= chrono::Utc::now().timestamp() + 3);
+        assert!(
+            scope
+                .clone()
+                .restrict_deadline(Instant::now())
+                .read_delegation()
+                .is_err()
+        );
         assert_eq!(scope.policy_revision().unwrap(), admission.policy_revision);
         subject.may_read = false;
         let denied = WikiSpaceAdmission::confirmed(subject, admission, mappings).unwrap();
