@@ -99,3 +99,10 @@ Rust build toolchain 1.88.0, Node 22.20.0, pnpm 10.28.1; MSRV отдельно.
 applied migrations сохранять; ProjectRef/SpaceRef/V3 отдельны. Полный gate на
 интегрированной вехе, в ходе реализации scoped checks. Runtime не активировать
 по готовности одного продукта; не выбирать первый Project/Space неявно.
+
+Записи Wiki content/member используют existing SQLx begin_content_write и
+write_authorization::commit с immutable исходным proof. Предварительная роль
+до row wait не достаточна. Порядок locks и личный staged upload:
+[PROJECT_CONTENT_AUTHORIZATION_V2](docs/PROJECT_CONTENT_AUTHORIZATION_V2.md).
+Owner lifecycle/Tracker projection/maintenance имеют отдельные узкие ports;
+не переносить их полномочия в обычный human запрос.

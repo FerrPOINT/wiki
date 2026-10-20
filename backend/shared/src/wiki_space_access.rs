@@ -135,6 +135,22 @@ impl WikiSpaceAdmission {
             .filter(|id| self.allows_draft_read(*id))
             .collect())
     }
+    /// Bound identity, independent of whether this request grants read or write.
+    pub fn subject_identity(&self) -> Result<&CentralIdentity, AppError> {
+        self.require_current()?;
+        Ok(&self.subject.identity)
+    }
+    /// Catalog revision of this request's confirmed local mapping; not a new grant.
+    pub fn catalog_revision(&self, local: Uuid) -> Result<i64, AppError> {
+        self.require_current()?;
+        let mapping = self.local_spaces.get(&local).ok_or(AppError::Forbidden)?;
+        self.admission
+            .spaces
+            .iter()
+            .find(|entry| entry.space == mapping.space)
+            .map(|entry| entry.revision)
+            .ok_or(AppError::Forbidden)
+    }
     pub fn writable_ids(&self) -> Result<Vec<Uuid>, AppError> {
         self.require_current()?;
         Ok(self
@@ -286,6 +302,21 @@ mod tests {
                 },
             ],
         )
+    }
+    #[test]
+    fn write_only_scope_keeps_identity_binding_without_creating_a_read_grant() {
+        let (mut subject, mut admission, mappings) = fixture();
+        subject.may_read = false;
+        admission.spaces[0].state = SpaceState::Active;
+        let local = mappings[0].local_space_id;
+        let expected = subject.identity.clone();
+        let scope = WikiSpaceAdmission::confirmed(subject, admission, mappings).unwrap();
+        assert_eq!(scope.subject_identity().unwrap(), &expected);
+        assert!(scope.allows(local, true));
+        assert!(!scope.allows(local, false));
+        assert!(scope.read_delegation().is_err());
+        assert_eq!(scope.catalog_revision(local).unwrap(), 1);
+        assert!(scope.catalog_revision(Uuid::new_v4()).is_err());
     }
     #[test]
     fn local_admin_does_not_open_hidden_space_or_borrow_its_active_write_state() {

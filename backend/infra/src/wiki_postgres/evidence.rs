@@ -42,10 +42,13 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
         Box::pin(async move {
             let mut tx = self
                 .backend
-                .pool
-                .begin()
-                .await
-                .map_err(shared::AppError::database)?;
+                .begin_content_write(
+                    actor_id,
+                    self.admission.as_ref(),
+                    &[command.space_id],
+                    SpaceAccess::Edit,
+                )
+                .await?;
             if let Some(document_id) = command.document_id {
                 ensure_document_accepts_writes_tx(&mut tx, document_id).await?;
             }
@@ -128,7 +131,7 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
                     self.request_id,
                 )
                 .await?;
-            tx.commit().await.map_err(shared::AppError::database)?;
+            super::write_authorization::commit(tx, self.admission.as_ref()).await?;
             self.get_evidence_by_id(evidence_id).await
         })
     }
@@ -183,12 +186,7 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
                 .await?;
 
             let insert_result = async {
-                let mut tx = self
-                    .backend
-                    .pool
-                    .begin()
-                    .await
-                    .map_err(shared::AppError::database)?;
+                let mut tx = self.backend.begin_content_write(actor_id, self.admission.as_ref(), &[], SpaceAccess::Edit).await?;
                 let row = sqlx::query(
                     r#"
                     INSERT INTO attachments (
@@ -219,7 +217,7 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
                         self.request_id,
                     )
                     .await?;
-                tx.commit().await.map_err(shared::AppError::database)?;
+                super::write_authorization::commit(tx, self.admission.as_ref()).await?;
                 Ok::<_, shared::AppError>(row)
             }
             .await;

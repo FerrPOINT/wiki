@@ -27,6 +27,9 @@ mod templates;
 mod workspace_catalog;
 #[cfg(test)]
 mod workspace_catalog_tests;
+mod write_authorization;
+#[cfg(test)]
+mod write_tests;
 pub use connection::connect_postgres_wiki_backend;
 
 use app::wiki::{WikiSpaceAccess as SpaceAccess, normalize_space_key, space_role_allows};
@@ -59,7 +62,7 @@ async fn ensure_document_accepts_writes_tx(
         FROM documents d
         JOIN spaces s ON s.id = d.space_id
         WHERE d.id = $1
-        FOR UPDATE OF d, s
+        FOR UPDATE OF d FOR SHARE OF s
         "#,
     )
     .bind(document_id)

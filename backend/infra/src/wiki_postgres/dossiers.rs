@@ -16,6 +16,7 @@ struct PostgresWikiDossierRepository<'a> {
     backend: &'a PostgresWikiBackend,
     request_id: Option<&'a str>,
     include_document_drafts: bool,
+    claims: &'a WikiClaims,
 }
 
 impl PostgresWikiDossierRepository<'_> {
@@ -320,10 +321,13 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
         Box::pin(async move {
             let mut tx = self
                 .backend
-                .pool
-                .begin()
-                .await
-                .map_err(shared::AppError::database)?;
+                .begin_content_write(
+                    actor_id,
+                    self.claims.admission.as_ref(),
+                    &[command.space_id],
+                    SpaceAccess::Edit,
+                )
+                .await?;
             ensure_document_accepts_writes_tx(&mut tx, command.document_id).await?;
             let task_id = self
                 .backend
@@ -354,7 +358,7 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
                     self.request_id,
                 )
                 .await?;
-            tx.commit().await.map_err(shared::AppError::database)?;
+            super::write_authorization::commit(tx, self.claims.admission.as_ref()).await?;
 
             self.task_page(command.space_id, &command.space_key, &command.task_key)
                 .await
@@ -533,10 +537,13 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
         Box::pin(async move {
             let mut tx = self
                 .backend
-                .pool
-                .begin()
-                .await
-                .map_err(shared::AppError::database)?;
+                .begin_content_write(
+                    actor_id,
+                    self.claims.admission.as_ref(),
+                    &[command.space_id],
+                    SpaceAccess::Edit,
+                )
+                .await?;
             ensure_document_accepts_writes_tx(&mut tx, command.document_id).await?;
             let phase_id = self
                 .backend
@@ -567,7 +574,7 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
                     self.request_id,
                 )
                 .await?;
-            tx.commit().await.map_err(shared::AppError::database)?;
+            super::write_authorization::commit(tx, self.claims.admission.as_ref()).await?;
 
             self.phase_page(command.space_id, &command.space_key, &command.phase_key)
                 .await
@@ -624,6 +631,7 @@ impl PostgresWikiBackend {
             .await?;
         let repository = PostgresWikiDossierRepository {
             backend: self,
+            claims,
             request_id: None,
             include_document_drafts: self.may_read_document_drafts(claims, space_id).await?,
         };
@@ -644,6 +652,7 @@ impl PostgresWikiBackend {
             .await?;
         let repository = PostgresWikiDossierRepository {
             backend: self,
+            claims,
             request_id: None,
             include_document_drafts: self.may_read_document_drafts(claims, space_id).await?,
         };
@@ -664,6 +673,7 @@ impl PostgresWikiBackend {
             .await?;
         let repository = PostgresWikiDossierRepository {
             backend: self,
+            claims,
             request_id: None,
             include_document_drafts: self.may_read_document_drafts(claims, space_id).await?,
         };
@@ -693,6 +703,7 @@ impl PostgresWikiBackend {
 
         let repository = PostgresWikiDossierRepository {
             backend: self,
+            claims,
             request_id: claims.request_id.as_deref(),
             include_document_drafts: true,
         };
@@ -713,6 +724,7 @@ impl PostgresWikiBackend {
             .await?;
         let repository = PostgresWikiDossierRepository {
             backend: self,
+            claims,
             request_id: None,
             include_document_drafts: self.may_read_document_drafts(claims, space_id).await?,
         };
@@ -741,6 +753,7 @@ impl PostgresWikiBackend {
             .await?;
         let repository = PostgresWikiDossierRepository {
             backend: self,
+            claims,
             request_id: None,
             include_document_drafts: self.may_read_document_drafts(claims, space_id).await?,
         };
@@ -760,6 +773,7 @@ impl PostgresWikiBackend {
             .await?;
         let repository = PostgresWikiDossierRepository {
             backend: self,
+            claims,
             request_id: None,
             include_document_drafts: self.may_read_document_drafts(claims, space_id).await?,
         };
@@ -780,6 +794,7 @@ impl PostgresWikiBackend {
             .await?;
         let repository = PostgresWikiDossierRepository {
             backend: self,
+            claims,
             request_id: None,
             include_document_drafts: self.may_read_document_drafts(claims, space_id).await?,
         };
@@ -800,6 +815,7 @@ impl PostgresWikiBackend {
             .await?;
         let repository = PostgresWikiDossierRepository {
             backend: self,
+            claims,
             request_id: None,
             include_document_drafts: self.may_read_document_drafts(claims, space_id).await?,
         };
@@ -829,6 +845,7 @@ impl PostgresWikiBackend {
 
         let repository = PostgresWikiDossierRepository {
             backend: self,
+            claims,
             request_id: claims.request_id.as_deref(),
             include_document_drafts: true,
         };
@@ -849,6 +866,7 @@ impl PostgresWikiBackend {
             .await?;
         let repository = PostgresWikiDossierRepository {
             backend: self,
+            claims,
             request_id: None,
             include_document_drafts: self.may_read_document_drafts(claims, space_id).await?,
         };
@@ -877,6 +895,7 @@ impl PostgresWikiBackend {
             .await?;
         let repository = PostgresWikiDossierRepository {
             backend: self,
+            claims,
             request_id: None,
             include_document_drafts: self.may_read_document_drafts(claims, space_id).await?,
         };

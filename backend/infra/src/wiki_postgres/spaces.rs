@@ -60,10 +60,8 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
         Box::pin(async move {
             let mut tx = self
                 .backend
-                .pool
-                .begin()
-                .await
-                .map_err(shared::AppError::database)?;
+                .begin_content_write(actor_id, self.admission.as_ref(), &[], SpaceAccess::Admin)
+                .await?;
 
             sqlx::query(
                 r#"
@@ -102,7 +100,7 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
                     self.request_id,
                 )
                 .await?;
-            tx.commit().await.map_err(shared::AppError::database)?;
+            super::write_authorization::commit(tx, self.admission.as_ref()).await?;
 
             fetch_space_by_key(self.backend, &command.key).await
         })
@@ -120,10 +118,13 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
         Box::pin(async move {
             let mut tx = self
                 .backend
-                .pool
-                .begin()
-                .await
-                .map_err(shared::AppError::database)?;
+                .begin_content_write(
+                    actor_id,
+                    self.admission.as_ref(),
+                    &[command.space_id],
+                    SpaceAccess::Admin,
+                )
+                .await?;
 
             let row = sqlx::query(
                 r#"
@@ -156,7 +157,7 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
                     self.request_id,
                 )
                 .await?;
-            tx.commit().await.map_err(shared::AppError::database)?;
+            super::write_authorization::commit(tx, self.admission.as_ref()).await?;
 
             fetch_space_by_key(self.backend, &command.key).await
         })
@@ -170,10 +171,13 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
         Box::pin(async move {
             let mut tx = self
                 .backend
-                .pool
-                .begin()
-                .await
-                .map_err(shared::AppError::database)?;
+                .begin_content_write(
+                    actor_id,
+                    self.admission.as_ref(),
+                    &[command.space_id],
+                    SpaceAccess::Admin,
+                )
+                .await?;
 
             let row = sqlx::query(
                 r#"
@@ -202,7 +206,7 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
                     self.request_id,
                 )
                 .await?;
-            tx.commit().await.map_err(shared::AppError::database)?;
+            super::write_authorization::commit(tx, self.admission.as_ref()).await?;
 
             fetch_space_by_key(self.backend, &command.key).await
         })
@@ -238,10 +242,13 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
         Box::pin(async move {
             let mut tx = self
                 .backend
-                .pool
-                .begin()
-                .await
-                .map_err(shared::AppError::database)?;
+                .begin_content_write(
+                    actor_id,
+                    self.admission.as_ref(),
+                    &[command.space_id],
+                    SpaceAccess::Admin,
+                )
+                .await?;
 
             let row = sqlx::query(
                 r#"
@@ -286,7 +293,7 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
                     self.request_id,
                 )
                 .await?;
-            tx.commit().await.map_err(shared::AppError::database)?;
+            super::write_authorization::commit(tx, self.admission.as_ref()).await?;
 
             Ok(space_member_response_from_row(&row))
         })
@@ -300,10 +307,13 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
         Box::pin(async move {
             let mut tx = self
                 .backend
-                .pool
-                .begin()
-                .await
-                .map_err(shared::AppError::database)?;
+                .begin_content_write(
+                    actor_id,
+                    self.admission.as_ref(),
+                    &[command.space_id],
+                    SpaceAccess::Admin,
+                )
+                .await?;
 
             let result =
                 sqlx::query("DELETE FROM space_members WHERE space_id = $1 AND user_id = $2")
@@ -326,7 +336,7 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
                     self.request_id,
                 )
                 .await?;
-            tx.commit().await.map_err(shared::AppError::database)?;
+            super::write_authorization::commit(tx, self.admission.as_ref()).await?;
             Ok(())
         })
     }

@@ -390,7 +390,15 @@ impl PostgresWikiBackend {
             .as_ref()
             .ok_or_else(|| AppError::Unavailable("tracker_reader_not_configured".into()))?;
         let task_key = reader.verify(&namespace, &input.task).await?;
-        let mut tx = self.pool.begin().await.map_err(AppError::database)?;
+        let actor: Uuid = claims.user_id.parse().map_err(|_| AppError::Unauthorized)?;
+        let mut tx = self
+            .begin_content_write(
+                actor,
+                claims.admission.as_ref(),
+                &[space],
+                app::wiki::WikiSpaceAccess::Edit,
+            )
+            .await?;
         ensure_document_accepts_writes_tx(&mut tx, input.document_id).await?;
         let linked: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM wiki_space_projects WHERE space_id=$1 AND registry_instance_id=$2 AND namespace_id=$3)")
             .bind(space).bind(namespace.registry_instance_id).bind(namespace.namespace_id)
@@ -404,10 +412,9 @@ impl PostgresWikiBackend {
         }
         let dossier: Uuid = sqlx::query_scalar("INSERT INTO task_dossiers(id,space_id,task_key,tracker_instance_id,task_id) VALUES($1,$2,$3,$4,$5) ON CONFLICT(space_id,tracker_instance_id,task_id) WHERE task_id IS NOT NULL DO UPDATE SET task_key=EXCLUDED.task_key,updated_at=now() RETURNING id")
             .bind(Uuid::now_v7()).bind(space).bind(task_key).bind(input.task.tracker_instance_id).bind(input.task.task_id).fetch_one(&mut *tx).await.map_err(AppError::database)?;
-        let actor: Uuid = claims.user_id.parse().map_err(|_| AppError::Unauthorized)?;
         let link: Uuid = sqlx::query_scalar("INSERT INTO managed_task_document_links(id,space_id,dossier_id,document_id,revision_id,created_by,registry_instance_id,namespace_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(dossier_id,document_id,revision_id) DO UPDATE SET dossier_id=EXCLUDED.dossier_id RETURNING id")
             .bind(Uuid::now_v7()).bind(space).bind(dossier).bind(input.document_id).bind(input.revision_id).bind(actor).bind(namespace.registry_instance_id).bind(namespace.namespace_id).fetch_one(&mut *tx).await.map_err(AppError::database)?;
-        tx.commit().await.map_err(AppError::database)?;
+        super::write_authorization::commit(tx, claims.admission.as_ref()).await?;
         Ok(
             serde_json::json!({"id":link,"dossier_id":dossier,"task":input.task,"document_id":input.document_id,"revision_id":input.revision_id}),
         )

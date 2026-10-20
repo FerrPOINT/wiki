@@ -91,7 +91,7 @@ fn claims_at_revision(
     )
 }
 
-fn claims(
+pub(super) fn claims(
     user: Uuid,
     central: Uuid,
     role: &str,
@@ -1083,6 +1083,7 @@ async fn unified_admission_filters_before_paging_and_preserves_roles_revisions_a
         &public,
     )
     .await;
+    super::write_tests::verify(&backend, user, central, &mappings, documents[0]).await;
     // Real SQL writer waits behind the owner barrier and cannot use its stale proof.
     let mut owner = pool.begin().await.unwrap();
     sqlx::query("SELECT singleton FROM wiki_space_admission_state WHERE singleton FOR SHARE")

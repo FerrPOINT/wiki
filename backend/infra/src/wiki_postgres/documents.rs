@@ -29,10 +29,13 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
         Box::pin(async move {
             let mut tx = self
                 .backend
-                .pool
-                .begin()
-                .await
-                .map_err(shared::AppError::database)?;
+                .begin_content_write(
+                    actor_id,
+                    self.claims.admission.as_ref(),
+                    &[command.space_id],
+                    SpaceAccess::Edit,
+                )
+                .await?;
             let position: i64 = sqlx::query_scalar(
                 r#"
                 SELECT COUNT(*)::bigint
@@ -135,7 +138,7 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
             if let Some(scope) = self.claims.admission.as_ref() {
                 scope.require_current()?;
             }
-            tx.commit().await.map_err(shared::AppError::database)?;
+            super::write_authorization::commit(tx, self.claims.admission.as_ref()).await?;
             self.backend
                 .document_response(command.document_id, self.include_draft)
                 .await
@@ -159,12 +162,16 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
         command: WikiUpdateDocumentDraftCommand,
     ) -> WikiDocumentRepositoryFuture<'_, DocumentResponse> {
         Box::pin(async move {
+            let space = self.backend.document_space_id(command.document_id).await?;
             let mut tx = self
                 .backend
-                .pool
-                .begin()
-                .await
-                .map_err(shared::AppError::database)?;
+                .begin_content_write(
+                    actor_id,
+                    self.claims.admission.as_ref(),
+                    &[space],
+                    SpaceAccess::Edit,
+                )
+                .await?;
             ensure_document_accepts_writes_tx(&mut tx, command.document_id).await?;
             sqlx::query(
                 r#"
@@ -209,7 +216,7 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
             if let Some(scope) = self.claims.admission.as_ref() {
                 scope.require_current()?;
             }
-            tx.commit().await.map_err(shared::AppError::database)?;
+            super::write_authorization::commit(tx, self.claims.admission.as_ref()).await?;
             self.backend
                 .document_response(command.document_id, self.include_draft)
                 .await
@@ -222,12 +229,16 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
         command: WikiPublishDocumentCommand,
     ) -> WikiDocumentRepositoryFuture<'_, DocumentRevisionResponse> {
         Box::pin(async move {
+            let space = self.backend.document_space_id(command.document_id).await?;
             let mut tx = self
                 .backend
-                .pool
-                .begin()
-                .await
-                .map_err(shared::AppError::database)?;
+                .begin_content_write(
+                    actor_id,
+                    self.claims.admission.as_ref(),
+                    &[space],
+                    SpaceAccess::Edit,
+                )
+                .await?;
             ensure_document_accepts_writes_tx(&mut tx, command.document_id).await?;
             let row = sqlx::query(
                 r#"
@@ -333,7 +344,7 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
             if let Some(scope) = self.claims.admission.as_ref() {
                 scope.require_current()?;
             }
-            tx.commit().await.map_err(shared::AppError::database)?;
+            super::write_authorization::commit(tx, self.claims.admission.as_ref()).await?;
             Ok(revision_response_from_row(&revision_row))
         })
     }
@@ -344,12 +355,16 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
         command: WikiArchiveDocumentCommand,
     ) -> WikiDocumentRepositoryFuture<'_, DocumentResponse> {
         Box::pin(async move {
+            let space = self.backend.document_space_id(command.document_id).await?;
             let mut tx = self
                 .backend
-                .pool
-                .begin()
-                .await
-                .map_err(shared::AppError::database)?;
+                .begin_content_write(
+                    actor_id,
+                    self.claims.admission.as_ref(),
+                    &[space],
+                    SpaceAccess::Edit,
+                )
+                .await?;
             ensure_document_accepts_writes_tx(&mut tx, command.document_id).await?;
             let row = sqlx::query(
                 r#"
@@ -378,7 +393,7 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
             if let Some(scope) = self.claims.admission.as_ref() {
                 scope.require_current()?;
             }
-            tx.commit().await.map_err(shared::AppError::database)?;
+            super::write_authorization::commit(tx, self.claims.admission.as_ref()).await?;
             self.backend
                 .document_response(document_id, self.include_draft)
                 .await
@@ -391,12 +406,16 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
         command: WikiMoveDocumentCommand,
     ) -> WikiDocumentRepositoryFuture<'_, DocumentResponse> {
         Box::pin(async move {
+            let space = self.backend.document_space_id(command.document_id).await?;
             let mut tx = self
                 .backend
-                .pool
-                .begin()
-                .await
-                .map_err(shared::AppError::database)?;
+                .begin_content_write(
+                    actor_id,
+                    self.claims.admission.as_ref(),
+                    &[space],
+                    SpaceAccess::Edit,
+                )
+                .await?;
             ensure_document_accepts_writes_tx(&mut tx, command.document_id).await?;
             let row = sqlx::query(
                 r#"
@@ -426,7 +445,7 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
             if let Some(scope) = self.claims.admission.as_ref() {
                 scope.require_current()?;
             }
-            tx.commit().await.map_err(shared::AppError::database)?;
+            super::write_authorization::commit(tx, self.claims.admission.as_ref()).await?;
             self.backend
                 .document_response(document_id, self.include_draft)
                 .await

@@ -347,3 +347,10 @@ Directory status sync остаётся проекцией центральног
 draft-only документы до поиска/count/page и берёт опубликованное название из
 immutable revision. Snapshot title задачи и phase name остаются собственными
 metadata досье. [Правило и роль read PAT](PROJECT_SPACES_PROJECTION.md#публикация-в-досье-задач-и-фаз).
+
+## Транзакционная запись при общем допуске
+
+[Identity, scopes, locks и срок](PROJECT_CONTENT_AUTHORIZATION_V2.md) проверяются
+в existing SQLx begin/commit границе. Предварительный HTTP guard не заменяет
+проверку актуальной роли после ожидания блокировок. Owner и maintenance ports
+сохраняют отдельные полномочия.
