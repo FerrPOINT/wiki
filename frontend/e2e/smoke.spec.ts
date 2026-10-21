@@ -935,7 +935,7 @@ test.describe('wiki smoke', () => {
 
     const trigger = page.getByRole('button', { name: 'Открыть навигацию' })
     await trigger.click()
-    const dialog = page.getByRole('dialog', { name: 'Навигация Wiki' })
+    const dialog = page.getByRole('dialog', { name: 'Wiki', exact: true })
 
     await expect(dialog).toBeVisible()
     await expect(dialog.getByRole('link', { name: 'Пространства' })).toHaveAttribute(

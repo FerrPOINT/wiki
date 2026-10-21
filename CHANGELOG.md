@@ -15,6 +15,11 @@
 
 ## [Unreleased]
 
+- UI закреплён на merged Base #297: единый брендинг, независимые scroll panes
+  предпросмотра и сохранённые contracts оболочки. SDK/skills pins не меняются.
+- Browser fixture мобильного меню использует доступное имя общего DialogTitle
+  `Wiki`; проверки focus trap, Escape и active route сохранены.
+
 - UI pin принимает исправление embedded Router Base: basename учитывается в iframe, а служебные auth-маршруты не публикуются как экраны host. SDK и skills не меняются.
 
 - Совместимый модуль темы переэкспортирует ThemeProvider/useTheme Base вместо отдельной реализации. UI закреплён на общем кандидате; SDK pin независим.
