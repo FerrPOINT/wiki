@@ -86,6 +86,23 @@ async fn ensure_document_accepts_writes_tx(
     Ok(())
 }
 
+fn central_mode() -> bool {
+    std::env::var_os("WIKI_AUTH__CENTRAL_JWKS_URI").is_some()
+}
+
+fn central_role(
+    user: Uuid,
+) -> Result<pdlc_auth_core::application_access::HumanRole, shared::AppError> {
+    pdlc_auth_core::human_request::role_for(user)
+        .map_err(|error| match error {
+            pdlc_auth_core::human_request::HumanRequestError::Expired => {
+                shared::AppError::Unavailable("Current human authority expired".into())
+            }
+            _ => shared::AppError::Forbidden,
+        })?
+        .ok_or(shared::AppError::Forbidden)
+}
+
 impl PostgresWikiBackend {
     async fn ensure_admin(&self, claims: &WikiClaims) -> Result<Uuid, shared::AppError> {
         let user_id = parse_uuid(&claims.user_id, "user")?;
@@ -98,6 +115,12 @@ impl PostgresWikiBackend {
     }
 
     async fn active_global_role(&self, user_id: Uuid) -> Result<String, shared::AppError> {
+        if central_mode() {
+            return central_role(user_id).map(|role| match role {
+                pdlc_auth_core::application_access::HumanRole::Admin => "admin".into(),
+                pdlc_auth_core::application_access::HumanRole::User => "user".into(),
+            });
+        }
         sqlx::query_scalar("SELECT global_role FROM users WHERE id = $1 AND is_active = true")
             .bind(user_id)
             .fetch_optional(&self.pool)
@@ -153,8 +176,15 @@ impl PostgresWikiBackend {
         .map_err(shared::AppError::database)?
         .ok_or(shared::AppError::Unauthorized)?;
 
-        let global_role: String = row.get("global_role");
+        let global_role = if central_mode() {
+            self.active_global_role(user_id).await?
+        } else {
+            row.get::<String, _>("global_role")
+        };
         let space_role: Option<String> = row.get("space_role");
+        if central_mode() && matches!(required, SpaceAccess::Admin) && global_role != "admin" {
+            return Err(shared::AppError::Forbidden);
+        }
         if global_role == "admin" || space_role_allows(space_role.as_deref(), required) {
             Ok(user_id)
         } else {
@@ -343,6 +373,13 @@ impl WikiBackendPort for PostgresWikiBackend {
 
     async fn run_maintenance(&self) -> Result<WikiMaintenanceReport, shared::AppError> {
         PostgresWikiBackend::run_maintenance(self).await
+    }
+
+    async fn resolve_central_profile(
+        &self,
+        profile: WikiCentralProfile,
+    ) -> Result<WikiClaims, shared::AppError> {
+        PostgresWikiBackend::resolve_central_profile(self, profile).await
     }
 
     async fn authenticate_access_token(&self, token: &str) -> Result<WikiClaims, shared::AppError> {
@@ -769,5 +806,35 @@ impl WikiBackendPort for PostgresWikiBackend {
         query: SearchQuery,
     ) -> Result<SearchResponse, shared::AppError> {
         PostgresWikiBackend::search(self, claims, query).await
+    }
+}
+
+#[cfg(test)]
+mod central_authority_tests {
+    use super::*;
+    #[tokio::test]
+    async fn current_role_is_bound_to_the_verified_local_profile() {
+        let local = Uuid::now_v7();
+        assert!(central_role(local).is_err());
+        for (role, expected) in [("user", false), ("admin", true), ("operator", false)] {
+            let context = pdlc_auth_core::AuthContext {
+                user_id: "central-verified-subject".into(),
+                role: Some(role.into()),
+                scopes: Default::default(),
+                session_id: Some("fixture-session".into()),
+                email: None,
+                token: String::new(),
+            };
+            pdlc_auth_core::human_request::with_human_request(local, &context, None, async {
+                assert_eq!(
+                    central_role(local).unwrap()
+                        == pdlc_auth_core::application_access::HumanRole::Admin,
+                    expected
+                );
+                assert!(central_role(Uuid::now_v7()).is_err());
+            })
+            .await
+            .unwrap();
+        }
     }
 }

@@ -45,7 +45,7 @@ impl PostgresWikiBackend {
                 .map_err(AppError::database)?
                 .ok_or(AppError::Unauthorized)?;
         // Project metadata visibility is separate from permission to view a Wiki space.
-        if actor.get::<String, _>("global_role") != "admin"
+        if self.active_global_role(id).await? != "admin"
             && actor
                 .get::<Option<String>, _>("central_sub")
                 .filter(|sub| !sub.trim().is_empty())
@@ -126,8 +126,8 @@ impl PostgresWikiBackend {
             .ok()
             .and_then(|v| v.parse().ok())
             .ok_or_else(|| AppError::Unavailable("tracker_reader_not_configured".into()))?;
-        let rows = sqlx::query("SELECT w.presentation,w.observed_at::text AS observed_at,(w.observed_at<now()-interval '5 minutes' OR NOT coalesce((SELECT available FROM wiki_workspace_catalog_sync),false)) AS stale,b.command AS wiki_command,s.id AS space_id,s.key AS space_key,(u.global_role='admin' OR sm.role IN ('admin','editor','viewer')) AS allowed FROM wiki_workspace_projects w JOIN users u ON u.id=$1 AND u.is_active LEFT JOIN wiki_namespace_bindings b ON b.registry_instance_id=w.registry_instance_id AND b.namespace_id=w.namespace_id LEFT JOIN spaces s ON s.id=b.resource_id LEFT JOIN space_members sm ON sm.space_id=s.id AND sm.user_id=u.id WHERE w.present AND ($2::uuid IS NULL OR (w.registry_instance_id=$2 AND w.namespace_id=$3)) AND position($4 in lower(w.name||' '||w.project_key))>0 ORDER BY w.name,w.registry_instance_id,w.namespace_id LIMIT $5 OFFSET $6")
-            .bind(super::mapping::parse_uuid(&claims.user_id,"user")?).bind(namespace.map(|n|n.registry_instance_id)).bind(namespace.map(|n|n.namespace_id)).bind(search.trim().to_lowercase()).bind(limit).bind(offset).fetch_all(&self.pool).await.map_err(AppError::database)?;
+        let rows = sqlx::query("SELECT w.presentation,w.observed_at::text AS observed_at,(w.observed_at<now()-interval '5 minutes' OR NOT coalesce((SELECT available FROM wiki_workspace_catalog_sync),false)) AS stale,b.command AS wiki_command,s.id AS space_id,s.key AS space_key,($7::boolean OR sm.role IN ('admin','editor','viewer')) AS allowed FROM wiki_workspace_projects w JOIN users u ON u.id=$1 AND u.is_active LEFT JOIN wiki_namespace_bindings b ON b.registry_instance_id=w.registry_instance_id AND b.namespace_id=w.namespace_id LEFT JOIN spaces s ON s.id=b.resource_id LEFT JOIN space_members sm ON sm.space_id=s.id AND sm.user_id=u.id WHERE w.present AND ($2::uuid IS NULL OR (w.registry_instance_id=$2 AND w.namespace_id=$3)) AND position($4 in lower(w.name||' '||w.project_key))>0 ORDER BY w.name,w.registry_instance_id,w.namespace_id LIMIT $5 OFFSET $6")
+            .bind(super::mapping::parse_uuid(&claims.user_id,"user")?).bind(namespace.map(|n|n.registry_instance_id)).bind(namespace.map(|n|n.namespace_id)).bind(search.trim().to_lowercase()).bind(limit).bind(offset).bind(self.active_global_role(super::mapping::parse_uuid(&claims.user_id, "user")?).await? == "admin").fetch_all(&self.pool).await.map_err(AppError::database)?;
         let total = sqlx::query_scalar("SELECT count(*) FROM wiki_workspace_projects w WHERE w.present AND ($1::uuid IS NULL OR (w.registry_instance_id=$1 AND w.namespace_id=$2)) AND position($3 in lower(w.name||' '||w.project_key))>0")
             .bind(namespace.map(|n|n.registry_instance_id)).bind(namespace.map(|n|n.namespace_id)).bind(search.trim().to_lowercase()).fetch_one(&self.pool).await.map_err(AppError::database)?;
         let mut projections = Vec::with_capacity(rows.len());

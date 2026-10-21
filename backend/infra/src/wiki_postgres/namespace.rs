@@ -66,7 +66,7 @@ impl PostgresWikiBackend {
               AND NOT EXISTS (
                   SELECT 1 FROM wiki_namespace_bindings b WHERE b.resource_id = s.id
               )
-              AND (u.global_role = 'admin' OR sm.role = 'admin')
+              AND ($4::boolean OR ($5::boolean AND sm.role = 'admin'))
             ORDER BY s.key, s.id
             LIMIT $1 OFFSET $2
             "#,
@@ -74,6 +74,8 @@ impl PostgresWikiBackend {
         .bind(limit.clamp(1, 100))
         .bind(offset.max(0))
         .bind(user_id)
+        .bind(self.active_global_role(user_id).await? == "admin")
+        .bind(!super::central_mode())
         .fetch_all(&self.pool)
         .await
         .map_err(AppError::database)?;
@@ -130,7 +132,7 @@ impl PostgresWikiBackend {
             JOIN users u ON u.id = $5 AND u.is_active = true
             LEFT JOIN space_members sm ON sm.space_id = s.id AND sm.user_id = u.id
             WHERE ($1::uuid IS NULL OR (b.registry_instance_id = $1 AND b.namespace_id = $2))
-              AND (u.global_role = 'admin' OR sm.role IN ('admin', 'editor', 'viewer'))
+              AND ($6::boolean OR sm.role IN ('admin', 'editor', 'viewer'))
             ORDER BY s.name, s.id
             LIMIT $3 OFFSET $4
             "#,
@@ -140,6 +142,7 @@ impl PostgresWikiBackend {
         .bind(limit.clamp(1, 100))
         .bind(offset.max(0))
         .bind(user_id)
+        .bind(self.active_global_role(user_id).await? == "admin")
         .fetch_all(&self.pool)
         .await
         .map_err(AppError::database)?;

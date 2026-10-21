@@ -12,6 +12,15 @@ pub struct WikiClaims {
     pub request_id: Option<String>,
 }
 
+/// Verified profile data only; role/app authority stays in the request SDK context.
+#[derive(Clone, Debug)]
+pub struct WikiCentralProfile {
+    pub subject: String,
+    pub email: Option<String>,
+    pub display_name: Option<String>,
+    pub session_id: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WikiSettingsSnapshot {
     pub instance_name: String,
@@ -241,6 +250,14 @@ pub trait WikiBackendPort: Send + Sync {
     async fn readiness_check(&self) -> Result<(), AppError>;
     async fn run_maintenance(&self) -> Result<WikiMaintenanceReport, AppError> {
         Ok(WikiMaintenanceReport::default())
+    }
+    async fn resolve_central_profile(
+        &self,
+        _profile: WikiCentralProfile,
+    ) -> Result<WikiClaims, AppError> {
+        Err(AppError::Unavailable(
+            "central_profile_not_supported".into(),
+        ))
     }
     async fn authenticate_access_token(&self, token: &str) -> Result<WikiClaims, AppError>;
     async fn begin_idempotent_request(

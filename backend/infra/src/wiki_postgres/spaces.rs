@@ -35,6 +35,7 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
         Box::pin(async move {
             let rows = sqlx::query(SPACE_LIST_SQL)
                 .bind(user_id)
+                .bind(self.backend.active_global_role(user_id).await? == "admin")
                 .fetch_all(&self.backend.pool)
                 .await
                 .map_err(shared::AppError::database)?;

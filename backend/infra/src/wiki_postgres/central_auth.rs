@@ -7,7 +7,7 @@ use pdlc_auth_core::service_bridge::{BridgeOutcome, ServiceBridge};
 use shared::{AppError, AuthConfig, WikiClaims};
 
 /// Env prefix: WIKI_AUTH__CENTRAL_{JWKS_URI,ISSUER}.
-pub static BRIDGE: ServiceBridge = ServiceBridge::new("WIKI_AUTH__CENTRAL");
+pub static BRIDGE: ServiceBridge = ServiceBridge::for_application("WIKI_AUTH__CENTRAL", "wiki");
 
 /// Central-first bearer validation. `Ok(None)` = legacy path.
 pub async fn try_central(token: &str) -> Result<Option<pdlc_auth_core::AuthContext>, AppError> {
@@ -19,10 +19,26 @@ pub async fn try_central(token: &str) -> Result<Option<pdlc_auth_core::AuthConte
 pub async fn try_central_with_name(
     token: &str,
 ) -> Result<Option<(pdlc_auth_core::AuthContext, Option<String>)>, AppError> {
-    let (outcome, name) = BRIDGE.try_token_with_name(token).await;
+    Ok(try_central_with_policy(token)
+        .await?
+        .map(|(context, name, _)| (context, name)))
+}
+
+pub async fn try_central_with_policy(
+    token: &str,
+) -> Result<
+    Option<(
+        pdlc_auth_core::AuthContext,
+        Option<String>,
+        Option<pdlc_auth_core::application_access::VerifiedApplicationAccess>,
+    )>,
+    AppError,
+> {
+    let (outcome, name, policy) = BRIDGE.try_token_with_policy(token).await;
     match outcome {
-        BridgeOutcome::Validated(ctx) => Ok(Some((ctx, name))),
+        BridgeOutcome::Validated(ctx) => Ok(Some((ctx, name, policy))),
         BridgeOutcome::NotOurs | BridgeOutcome::NotConfigured => Ok(None),
+        BridgeOutcome::Forbidden => Err(AppError::Forbidden),
         BridgeOutcome::Expired => Err(AppError::Unauthorized),
         BridgeOutcome::Invalid(reason) => {
             tracing::debug!(reason, "central token rejected");

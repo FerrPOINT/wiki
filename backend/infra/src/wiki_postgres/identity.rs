@@ -55,7 +55,7 @@ async fn persist_central_directory_user(
     let id = Uuid::now_v7();
     sqlx::query(
         "INSERT INTO users (id, email, username, display_name, password_hash, central_sub, global_role, is_active, created_at, updated_at) \
-         VALUES ($1, $2, $3, $4, '!', $5, 'admin', true, now(), now()) \
+         VALUES ($1, $2, $3, $4, '!', $5, 'user', true, now(), now()) \
          ON CONFLICT (central_sub) WHERE central_sub IS NOT NULL DO UPDATE \
          SET email = EXCLUDED.email, display_name = EXCLUDED.display_name, is_active = true, updated_at = now() \
          WHERE users.email IS DISTINCT FROM EXCLUDED.email \
@@ -73,7 +73,7 @@ impl PostgresWikiBackend {
             .map_err(|_| shared::AppError::Unavailable("Central Auth is unavailable".into()))?;
         let mut url = reqwest::Url::parse(&jwks)
             .map_err(|_| shared::AppError::Unavailable("Central Auth URL is invalid".into()))?;
-        url.set_path("/auth/users");
+        url.set_path("/auth/directory");
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(5))
             .build()
@@ -273,13 +273,26 @@ impl PostgresWikiAuthRepository<'_> {
         ctx: &pdlc_auth_core::AuthContext,
         display_name: &str,
     ) -> Result<WikiAuthUserRecord, shared::AppError> {
-        let display_name = display_name.trim();
+        self.resolve_central_profile(&WikiCentralProfile {
+            subject: ctx.user_id.clone(),
+            email: ctx.email.clone(),
+            display_name: Some(display_name.into()),
+            session_id: ctx.session_id.clone(),
+        })
+        .await
+    }
+
+    async fn resolve_central_profile(
+        &self,
+        profile: &WikiCentralProfile,
+    ) -> Result<WikiAuthUserRecord, shared::AppError> {
+        let display_name = profile.display_name.as_deref().unwrap_or_default().trim();
         if display_name.is_empty() {
             return Err(shared::AppError::Unavailable(
                 "Central Auth returned no verified display name".into(),
             ));
         }
-        let email = ctx
+        let email = profile
             .email
             .as_deref()
             .unwrap_or_default()
@@ -289,7 +302,7 @@ impl PostgresWikiAuthRepository<'_> {
         if email.is_empty() {
             return Err(shared::AppError::Unauthorized);
         }
-        if ctx.user_id.trim().is_empty() {
+        if profile.subject.trim().is_empty() {
             return Err(shared::AppError::Unauthorized);
         }
         let id = uuid::Uuid::now_v7();
@@ -299,7 +312,7 @@ impl PostgresWikiAuthRepository<'_> {
                 id, email, username, display_name, password_hash, central_sub,
                 global_role, is_active, created_at, updated_at
             )
-            VALUES ($1, $2, $3, $4, '!', $5, 'admin', true, now(), now())
+            VALUES ($1, $2, $3, $4, '!', $5, 'user', true, now(), now())
             ON CONFLICT (central_sub) WHERE central_sub IS NOT NULL DO NOTHING
             "#,
         )
@@ -307,17 +320,17 @@ impl PostgresWikiAuthRepository<'_> {
         .bind(&email)
         .bind(format!("central-{}", id.simple()))
         .bind(display_name)
-        .bind(&ctx.user_id)
+        .bind(&profile.subject)
         .execute(&self.backend.pool)
         .await
         .map_err(shared::AppError::database)?;
-        sqlx::query("UPDATE users SET display_name = $2, global_role = 'admin', is_active = true, updated_at = now() WHERE central_sub = $1 AND (display_name IS DISTINCT FROM $2 OR global_role <> 'admin' OR NOT is_active)")
-            .bind(&ctx.user_id).bind(display_name).execute(&self.backend.pool).await.map_err(shared::AppError::database)?;
+        sqlx::query("UPDATE users SET display_name = $2, is_active = true, updated_at = now() WHERE central_sub = $1 AND (display_name IS DISTINCT FROM $2 OR NOT is_active)")
+            .bind(&profile.subject).bind(display_name).execute(&self.backend.pool).await.map_err(shared::AppError::database)?;
         let row = sqlx::query(
             "SELECT id, email, username, display_name, password_hash, global_role, is_active \
              FROM users WHERE central_sub = $1",
         )
-        .bind(&ctx.user_id)
+        .bind(&profile.subject)
         .fetch_one(&self.backend.pool)
         .await
         .map_err(shared::AppError::database)?;
@@ -620,12 +633,38 @@ impl WikiAuthRepository for PostgresWikiAuthRepository<'_> {
             .map_err(shared::AppError::database)?
             .ok_or_else(|| shared::AppError::not_found("user", user_id))?;
 
-            Ok(auth_user_from_row(&row))
+            let mut user = auth_user_from_row(&row);
+            if super::central_mode() {
+                user.global_role = self.backend.active_global_role(user_id).await?;
+            }
+            Ok(user)
         })
     }
 }
 
 impl PostgresWikiBackend {
+    pub(super) async fn resolve_central_profile(
+        &self,
+        profile: WikiCentralProfile,
+    ) -> Result<WikiClaims, shared::AppError> {
+        if super::namespace::registered_machine(&profile.subject) {
+            return Err(shared::AppError::Forbidden);
+        }
+        let repository = PostgresWikiAuthRepository {
+            backend: self,
+            request_id: None,
+        };
+        let record = match profile.display_name {
+            Some(_) => repository.resolve_central_profile(&profile).await?,
+            None => repository.existing_central_user(&profile.subject).await?,
+        };
+        Ok(WikiClaims {
+            user_id: record.id.to_string(),
+            session_id: profile.session_id,
+            request_id: None,
+        })
+    }
+
     pub(super) async fn authenticate_access_token(
         &self,
         token: &str,
@@ -851,6 +890,7 @@ mod central_directory_tests {
             .find_or_link_central_user(&ctx, "  QA Отображаемое имя  ")
             .await
             .unwrap();
+        assert_eq!(record.global_role, "user");
         assert_ne!(record.id, legacy_id);
         assert_eq!(record.display_name, "QA Отображаемое имя");
         assert_eq!(record.email, email);
@@ -891,6 +931,20 @@ mod central_directory_tests {
             .find_or_link_central_user(&ctx, "After")
             .await
             .unwrap();
+        assert_eq!(renamed.global_role, "user");
+        sqlx::query("UPDATE users SET global_role='admin' WHERE id=$1")
+            .bind(renamed.id)
+            .execute(&backend.pool)
+            .await
+            .unwrap();
+        let historical_admin = repository
+            .find_or_link_central_user(&ctx, "After")
+            .await
+            .unwrap();
+        assert_eq!(
+            historical_admin.global_role, "admin",
+            "profile refresh preserves history; central authority is request-scoped"
+        );
         assert_eq!(original.id, renamed.id);
         assert_eq!(renamed.display_name, "After");
         let timestamp: chrono::DateTime<chrono::Utc> =

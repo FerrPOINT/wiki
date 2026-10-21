@@ -290,13 +290,47 @@ pub async fn require_wiki_auth(
         })
         .ok_or(shared::AppError::Unauthorized)?;
 
-    if pdlc_auth_core::is_personal_token(token) {
-        let central = infra::wiki_postgres::central_auth::try_central(token)
-            .await?
-            .ok_or(shared::AppError::Unauthorized)?;
-        if !central.allows_service("wiki", req.method().as_str()) {
+    if let Some((context, name, proof)) =
+        infra::wiki_postgres::central_auth::try_central_with_policy(token).await?
+    {
+        if context.role.as_deref() == Some("service_account")
+            || !context.allows_service("wiki", req.method().as_str())
+        {
             return Err(shared::AppError::Forbidden);
         }
+        let persistent = backend
+            .persistent_backend()
+            .ok_or_else(|| shared::AppError::Unavailable("central_profile_not_supported".into()))?;
+        let mut claims = persistent
+            .resolve_central_profile(WikiCentralProfile {
+                subject: context.user_id.clone(),
+                email: context.email.clone(),
+                display_name: name,
+                session_id: context.session_id.clone(),
+            })
+            .await?;
+        claims.request_id = request_id_from_headers(req.headers());
+        let actor_id = claims.user_id.clone();
+        let local_id =
+            uuid::Uuid::parse_str(&actor_id).map_err(|_| shared::AppError::Unauthorized)?;
+        req.extensions_mut().insert(claims);
+        return pdlc_auth_core::human_request::with_human_request(
+            local_id,
+            &context,
+            proof,
+            async {
+                let result = run_idempotent_request(backend, actor_id, req, next).await;
+                pdlc_auth_core::human_request::current_role().map_err(|_| {
+                    shared::AppError::Unavailable("Current human authority expired".into())
+                })?;
+                result
+            },
+        )
+        .await
+        .map_err(|_| shared::AppError::Forbidden)?;
+    }
+    if std::env::var_os("WIKI_AUTH__CENTRAL_JWKS_URI").is_some() {
+        return Err(shared::AppError::Unauthorized);
     }
     let mut claims = backend.authenticate_access_token(token).await?;
     claims.request_id = request_id_from_headers(req.headers());
