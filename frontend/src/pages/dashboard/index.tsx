@@ -86,7 +86,7 @@ function DashboardMetric({
 export function DashboardPage() {
   const [requestedSpaceKey, setRequestedSpaceKey] = useState('')
   const spacesQuery = useSpaces()
-  const spaces = spacesQuery.data?.spaces ?? []
+  const spaces = (spacesQuery.data?.spaces ?? []).filter((space) => space.status !== 'archived')
   const activeSpaceKey = spaces.some((space) => space.key === requestedSpaceKey)
     ? requestedSpaceKey
     : resolveSpaceKey(null, spaces)
