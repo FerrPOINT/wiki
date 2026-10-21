@@ -192,6 +192,7 @@ impl PostgresWikiBackend {
             Err(error) => return Err(error),
         };
         let mut tx = self.pool.begin().await.map_err(database_error)?;
+        super::write_authorization::bind_current_clock(&mut tx).await?;
         sqlx::query("SELECT singleton FROM wiki_space_admission_state WHERE singleton FOR SHARE")
             .fetch_one(&mut *tx)
             .await

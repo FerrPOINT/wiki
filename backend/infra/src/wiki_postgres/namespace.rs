@@ -233,6 +233,7 @@ impl PostgresWikiBackend {
             return Err(AppError::invalid_input("invalid_namespace_owner_command"));
         }
         let mut tx = self.pool.begin().await.map_err(database_error)?;
+        super::write_authorization::bind_current_clock(&mut tx).await?;
         sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))")
             .bind(command.resource.resource_id.to_string())
             .execute(&mut *tx)

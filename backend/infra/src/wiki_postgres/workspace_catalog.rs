@@ -76,6 +76,7 @@ impl PostgresWikiBackend {
     ) -> Result<(), AppError> {
         let projects = source?;
         let mut tx = self.pool.begin().await.map_err(database_error)?;
+        super::write_authorization::bind_current_clock(&mut tx).await?;
         sqlx::query("UPDATE wiki_workspace_projects SET present=false")
             .execute(&mut *tx)
             .await

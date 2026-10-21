@@ -24,6 +24,7 @@ impl PostgresWikiBackend {
             }
         }
         let mut tx = self.pool.begin().await.map_err(database_error)?;
+        super::write_authorization::bind_current_clock(&mut tx).await?;
         let active: bool = sqlx::query_scalar(
             "SELECT active FROM wiki_space_admission_state WHERE singleton FOR SHARE",
         )
@@ -133,4 +134,26 @@ pub(super) async fn commit(
             .ok_or(AppError::Forbidden)?;
     }
     tx.commit().await.map_err(database_error)
+}
+
+/// A native owner port keeps its typed authority; an existing human request adds
+/// the same original expiry even when namespace admission is inactive.
+pub(super) async fn bind_current_clock(tx: &mut Transaction<'_, Postgres>) -> Result<(), AppError> {
+    let until =
+        pdlc_auth_core::human_request::current_valid_until().map_err(|_| AppError::Forbidden)?;
+    if let Some(until) = until {
+        let fence = Uuid::now_v7();
+        sqlx::query("INSERT INTO wiki_request_commit_fences(fence_id,valid_until) VALUES($1,$2)")
+            .bind(fence)
+            .bind(until)
+            .execute(&mut **tx)
+            .await
+            .map_err(database_error)?;
+        sqlx::query("DELETE FROM wiki_request_commit_fences WHERE fence_id=$1")
+            .bind(fence)
+            .execute(&mut **tx)
+            .await
+            .map_err(database_error)?;
+    }
+    Ok(())
 }
