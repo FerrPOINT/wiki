@@ -1,3 +1,4 @@
+import { useActiveSpaces } from '@/widgets/active-spaces'
 import { useState } from 'react'
 import { Loader, NamespaceLink as Link, ResourceList, ResourceListRow } from '@pdlc/ui/ui'
 
@@ -11,7 +12,7 @@ import {
   Search,
   type LucideIcon,
 } from 'lucide-react'
-import { usePhaseSummaries, useSpaces, useTaskSummaries, useWikiSearch } from '@/shared/api/hooks'
+import { usePhaseSummaries, useTaskSummaries, useWikiSearch } from '@/shared/api/hooks'
 import { Button, EmptyState, ErrorState, LoadingState } from '@pdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime } from '@/shared/lib/wiki-format'
@@ -85,8 +86,8 @@ function DashboardMetric({
 
 export function DashboardPage() {
   const [requestedSpaceKey, setRequestedSpaceKey] = useState('')
-  const spacesQuery = useSpaces()
-  const spaces = (spacesQuery.data?.spaces ?? []).filter((space) => space.status !== 'archived')
+  const spacesQuery = useActiveSpaces()
+  const spaces = spacesQuery.data?.spaces ?? []
   const activeSpaceKey = spaces.some((space) => space.key === requestedSpaceKey)
     ? requestedSpaceKey
     : resolveSpaceKey(null, spaces)
