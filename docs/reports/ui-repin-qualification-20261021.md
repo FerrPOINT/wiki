@@ -7,9 +7,12 @@ API, lockfiles, права и продуктовые обработчики не
 Проверены настоящий frozen install, 252/252 frontend unit tests, ESLint,
 semantic/shell checks, OpenAPI drift, TypeScript/Vite production build,
 actual packed UI consumer и effective theme contrast — PASS.
+После нормального объединения с актуальными main и веткой PR дополнительно
+прошли 22/22 теста AppShell, полная frontend format check, scoped ESLint и
+OpenAPI compatibility.
 
 Три Chromium fixture сценария прошли без retries/skips: semantic work-area
-geometry на 375/1440/2560 px, active route и клавиатурное мобильное меню,
+geometry на 375/1440/1920/2560 px, active route и клавиатурное мобильное меню,
 preview нового документа и защита несохранённого черновика. Full-page
 screenshots сохранены в qualification evidence. Мобильный диалог выбирается
 по фактическому имени `Wiki`; assertions focus trap, Escape, возврата focus и
