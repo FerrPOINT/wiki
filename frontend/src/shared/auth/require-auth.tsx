@@ -3,9 +3,15 @@
 // performs a single silent refresh (cookie/localStorage refresh token) before
 // redirecting, so full page loads of protected routes stay authenticated.
 import { RequireAuth as Guard } from '@pdlc/ui/auth'
-import { useAuthStore } from '@/shared/auth/store'
+import { ssoConfig, useAuthStore } from '@/shared/auth/store'
 import { restoreWikiSession } from './session'
 
 export function RequireAuth() {
-  return <Guard store={useAuthStore} refresh={restoreWikiSession} />
+  return (
+    <Guard
+      store={useAuthStore}
+      refresh={restoreWikiSession}
+      application={{ issuer: ssoConfig.issuer, key: 'wiki' }}
+    />
+  )
 }

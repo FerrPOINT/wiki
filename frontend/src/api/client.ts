@@ -1,5 +1,5 @@
 import { useAuthStore } from '@/shared/auth/store'
-import { getPlatformProduct } from '@pdlc/ui/platform'
+import { getPlatformProduct, capturePlatformPrivateState } from '@pdlc/ui/platform'
 
 const rawBaseUrl = import.meta.env.VITE_API_BASE_URL ?? import.meta.env.BASE_URL.replace(/\/$/, '')
 export const apiBaseUrl = rawBaseUrl.replace(/\/api\/v1\/?$/, '')
@@ -193,18 +193,31 @@ function defaultCodeForStatus(status: number): string {
   }
 }
 
-type RequestAuthority = Pick<ReturnType<typeof useAuthStore.getState>, 'token' | 'userId' | 'authVersion'>
+type RequestAuthority = Pick<
+  ReturnType<typeof useAuthStore.getState>,
+  'token' | 'userId' | 'authVersion'
+> & { privateState?: () => boolean }
 function currentAuthority(scope: RequestAuthority): boolean {
   const now = useAuthStore.getState()
-  return now.token === scope.token && now.userId === scope.userId && now.authVersion === scope.authVersion
+  return (
+    (!scope.privateState || scope.privateState()) &&
+    now.token === scope.token &&
+    now.userId === scope.userId &&
+    now.authVersion === scope.authVersion
+  )
 }
 function requireAuthority(scope: RequestAuthority, skip = false): void {
-  if (!skip && !currentAuthority(scope)) throw new ApiError({
-    status: 403, statusText: 'Forbidden', code: 'AUTH_CONTEXT_CHANGED',
-    message: 'Контекст доступа изменился; данные нужно получить заново',
-  })
+  if (!skip && !currentAuthority(scope))
+    throw new ApiError({
+      status: 403,
+      statusText: 'Forbidden',
+      code: 'AUTH_CONTEXT_CHANGED',
+      message: 'Контекст доступа изменился; данные нужно получить заново',
+    })
 }
-export async function refreshAccessToken(scope: RequestAuthority = useAuthStore.getState()): Promise<boolean> {
+export async function refreshAccessToken(
+  scope: RequestAuthority = useAuthStore.getState(),
+): Promise<boolean> {
   if (!currentAuthority(scope)) return false
   const product = getPlatformProduct()
   if (product) {
@@ -220,7 +233,11 @@ function shouldRefresh(path: string, response: Response): boolean {
   return response.status === 401 && !path.includes('/api/v1/auth/')
 }
 
-async function send(path: string, options: ApiRequestOptions, scope: RequestAuthority): Promise<Response> {
+async function send(
+  path: string,
+  options: ApiRequestOptions,
+  scope: RequestAuthority,
+): Promise<Response> {
   const { body, headers, skipAuth, ...init } = options
   const requestHeaders = new Headers(headers)
   requireAuthority(scope, skipAuth)
@@ -243,7 +260,7 @@ async function send(path: string, options: ApiRequestOptions, scope: RequestAuth
 }
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
-  const scope = useAuthStore.getState()
+  const scope = { ...useAuthStore.getState(), privateState: capturePlatformPrivateState() }
   const response = await send(path, options, scope)
   requireAuthority(scope, options.skipAuth)
   if (shouldRefresh(path, response)) void refreshAccessToken(scope)
@@ -263,7 +280,7 @@ export async function apiBlobRequest(
   path: string,
   options: ApiRequestOptions = {},
 ): Promise<ApiBlobResponse> {
-  const scope = useAuthStore.getState()
+  const scope = { ...useAuthStore.getState(), privateState: capturePlatformPrivateState() }
   const response = await send(path, options, scope)
   requireAuthority(scope, options.skipAuth)
   if (shouldRefresh(path, response)) void refreshAccessToken(scope)
