@@ -1,10 +1,15 @@
 # Архитектура Wiki
 
-[Проектная навигация](plans/project-navigation.md) использует Base presentation и
-локальный полный снимок Tracker. Reader client и 60-секундное обновление имеют
-server lifecycle; частичный ответ не заменяет подтверждённый снимок.
-ProjectBoundary разрешает Space до монтирования страниц. Доступ и guards остаются
-в Wiki; Base не получает доменные API-клиенты или policy.
+Согласованная цель единого Space отделяет общий SpaceRef от 0…N проектов.
+Admin владеет Space, Tracker — M:N, Wiki — знаниями и подтверждённой проекцией.
+[Контракты и переход](PROJECT_SPACES_PROJECTION.md) требуют compatible cohort
+до активации; source candidate не означает установленную новую навигацию.
+
+[Прежняя проектная навигация](plans/project-navigation.md) с локальным полным
+снимком Tracker — история режима до этого перехода. В новой модели Wiki работает
+без Project, а список связанных Project читается у Tracker по явному SpaceRef,
+не выводится из legacy Namespace или первого элемента. Base предоставляет
+presentation/SDK; продуктовые API и policy остаются у владельцев.
 
 Central Auth владеет human identity, браузерными сессиями и личными токенами.
 Wiki проверяет issuer/audience/signature/session через общий `pdlc-auth-core`,
@@ -332,3 +337,38 @@ SDK, Namespace SDK, skills и Base UI pins не меняются. Оболочк
 Исходная интеграция и открытые gates описаны в
 [контракте ролей и приложений](HUMAN_APPLICATION_ACCESS.md).
 Публикация исходников не означает активацию новой политики.
+## JIT роли и единое пространство: source candidate
+
+JIT и directory projection создают global_role=user. JIT refresh меняет только
+verified display_name, сохраняя explicit role и локальный disabled state.
+Directory status sync остаётся проекцией центрального статуса; global_role не
+переписывается. Исторические admin rows не демотируются автоматически, их
+происхождение проверяется в migration report до общей activation.
+Целевой read admission и projection ownership: [план](plans/unified-spaces-20261019.md).
+
+## Проекция published metadata
+
+Чтение досье не является обходом document read policy. Repository фильтрует
+draft-only документы до поиска/count/page и берёт опубликованное название из
+immutable revision. Snapshot title задачи и phase name остаются собственными
+metadata досье. [Правило и роль read PAT](PROJECT_SPACES_PROJECTION.md#публикация-в-досье-задач-и-фаз).
+
+## Транзакционная запись при общем допуске
+
+[Identity, scopes, locks и срок](PROJECT_CONTENT_AUTHORIZATION_V2.md) проверяются
+в existing SQLx begin/commit границе. Предварительный HTTP guard не заменяет
+проверку актуальной роли после ожидания блокировок. Owner и maintenance ports
+сохраняют отдельные полномочия.
+
+## Архивные проекты в рабочей навигации
+
+Боковое меню, выбор проекта и обычные рабочие списки исключают проекты со
+статусом `archived`. Полные owner-каталоги, записи и адресное чтение сохраняются
+для управления архивом через Admin. Отбор выполняется в UI-проекции после
+полной загрузки страниц каталога, по статусу и immutable resource identity;
+имя проекта не влияет на видимость. Неподключённые и локальные проекты
+не считаются архивными по отсутствию связи.
+
+Обзор Wiki выбирает пространство и рассчитывает рабочие показатели по неархивным пространствам; полный каталог сохраняется для управления и прямого чтения архива.
+
+Рабочие списки пространств учитывают состояние всех связанных проектов из полного каталога: нативное `active` у пространства не отменяет архивирование его единственного проекта. Пространство с действующим проектом или без связей сохраняется. Полный каталог доступен в управлении и по явному выбору всех пространств.

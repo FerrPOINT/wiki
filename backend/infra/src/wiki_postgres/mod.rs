@@ -1,3 +1,8 @@
+mod errors;
+use errors::database_error;
+mod admission;
+#[cfg(test)]
+mod admission_tests;
 mod audit;
 pub mod central_auth;
 pub mod central_login;
@@ -11,14 +16,22 @@ mod maintenance;
 mod managed_links;
 mod mapping;
 pub mod namespace;
+#[cfg(test)]
+mod project_context_tests;
+mod project_contexts;
+mod project_projection;
 mod queries;
 mod search;
+mod space_owner;
 mod space_projects;
 mod spaces;
 mod templates;
 mod workspace_catalog;
 #[cfg(test)]
 mod workspace_catalog_tests;
+mod write_authorization;
+#[cfg(test)]
+mod write_tests;
 pub use connection::connect_postgres_wiki_backend;
 
 use app::wiki::{WikiSpaceAccess as SpaceAccess, normalize_space_key, space_role_allows};
@@ -51,13 +64,13 @@ async fn ensure_document_accepts_writes_tx(
         FROM documents d
         JOIN spaces s ON s.id = d.space_id
         WHERE d.id = $1
-        FOR UPDATE OF d, s
+        FOR UPDATE OF d FOR SHARE OF s
         "#,
     )
     .bind(document_id)
     .fetch_optional(&mut **tx)
     .await
-    .map_err(shared::AppError::database)?
+    .map_err(database_error)?
     .ok_or_else(|| shared::AppError::not_found("document", document_id))?;
     let projection: Option<serde_json::Value> = sqlx::query_scalar(
         "SELECT command FROM wiki_namespace_bindings WHERE resource_id=$1 FOR SHARE",
@@ -65,7 +78,7 @@ async fn ensure_document_accepts_writes_tx(
     .bind(row.get::<Uuid, _>("space_id"))
     .fetch_optional(&mut **tx)
     .await
-    .map_err(shared::AppError::database)?;
+    .map_err(database_error)?;
     if let Some(value) = projection {
         let command: shared::resource_context::OwnerCommand = serde_json::from_value(value)
             .map_err(|_| shared::AppError::Unavailable("invalid_namespace_projection".into()))?;
@@ -88,6 +101,7 @@ async fn ensure_document_accepts_writes_tx(
 
 fn central_mode() -> bool {
     std::env::var_os("WIKI_AUTH__CENTRAL_JWKS_URI").is_some()
+        || !matches!(pdlc_auth_core::human_request::current_role(), Ok(None))
 }
 
 fn central_role(
@@ -107,7 +121,12 @@ impl PostgresWikiBackend {
     async fn ensure_admin(&self, claims: &WikiClaims) -> Result<Uuid, shared::AppError> {
         let user_id = parse_uuid(&claims.user_id, "user")?;
         let role = self.active_global_role(user_id).await?;
-        if role == "admin" {
+        let admission = self.read_admission(Some(claims)).await?;
+        if role == "admin"
+            && admission
+                .as_ref()
+                .is_none_or(|scope| scope.confirmed_global_admin())
+        {
             Ok(user_id)
         } else {
             Err(shared::AppError::Forbidden)
@@ -125,7 +144,7 @@ impl PostgresWikiBackend {
             .bind(user_id)
             .fetch_optional(&self.pool)
             .await
-            .map_err(shared::AppError::database)?
+            .map_err(database_error)?
             .ok_or(shared::AppError::Unauthorized)
     }
 
@@ -135,7 +154,12 @@ impl PostgresWikiBackend {
     ) -> Result<Option<Uuid>, shared::AppError> {
         let user_id = parse_uuid(&claims.user_id, "user")?;
         let role = self.active_global_role(user_id).await?;
-        if role == "admin" {
+        let admission = self.read_admission(Some(claims)).await?;
+        if role == "admin"
+            && admission
+                .as_ref()
+                .is_none_or(|s| s.confirmed_global_admin())
+        {
             Ok(None)
         } else {
             Ok(Some(user_id))
@@ -160,7 +184,23 @@ impl PostgresWikiBackend {
         space_id: Uuid,
         required: SpaceAccess,
     ) -> Result<Uuid, shared::AppError> {
+        let admission = self.read_admission(Some(claims)).await?;
         let user_id = parse_uuid(&claims.user_id, "user")?;
+        if let Some(scope) = admission.as_ref() {
+            if !scope.allows(space_id, required != SpaceAccess::View) {
+                return Err(shared::AppError::Forbidden);
+            }
+            if required == SpaceAccess::Admin && !scope.allows_admin(space_id) {
+                return Err(shared::AppError::Forbidden);
+            }
+            if required != SpaceAccess::View {
+                let active:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM wiki_space_catalog WHERE local_space_id=$1 AND admin_revision IS NOT NULL AND state='active')")
+                    .bind(space_id).fetch_one(&self.pool).await.map_err(database_error)?;
+                if !active {
+                    return Err(shared::AppError::Forbidden);
+                }
+            }
+        }
         let row = sqlx::query(
             r#"
             SELECT u.global_role, sm.role AS space_role
@@ -173,7 +213,7 @@ impl PostgresWikiBackend {
         .bind(space_id)
         .fetch_optional(&self.pool)
         .await
-        .map_err(shared::AppError::database)?
+        .map_err(database_error)?
         .ok_or(shared::AppError::Unauthorized)?;
 
         let global_role = if central_mode() {
@@ -182,10 +222,21 @@ impl PostgresWikiBackend {
             row.get::<String, _>("global_role")
         };
         let space_role: Option<String> = row.get("space_role");
-        if central_mode() && matches!(required, SpaceAccess::Admin) && global_role != "admin" {
+        if central_mode() && required == SpaceAccess::Admin && global_role != "admin" {
             return Err(shared::AppError::Forbidden);
         }
-        if global_role == "admin" || space_role_allows(space_role.as_deref(), required) {
+        if let Some(scope) = admission.as_ref() {
+            scope.require_current()?;
+        }
+        if admission.is_some() && required == SpaceAccess::View {
+            return Ok(user_id);
+        }
+        if (global_role == "admin"
+            && admission
+                .as_ref()
+                .is_none_or(|s| s.confirmed_global_admin()))
+            || space_role_allows(space_role.as_deref(), required)
+        {
             Ok(user_id)
         } else {
             Err(shared::AppError::Forbidden)
@@ -201,7 +252,7 @@ impl PostgresWikiBackend {
                 .bind(space_id)
                 .fetch_optional(&self.pool)
                 .await
-                .map_err(shared::AppError::database)?
+                .map_err(database_error)?
                 .ok_or_else(|| shared::AppError::not_found("space", space_id))?;
         if accepts_writes {
             Ok(())
@@ -230,7 +281,7 @@ impl PostgresWikiBackend {
             .bind(&key)
             .fetch_optional(&self.pool)
             .await
-            .map_err(shared::AppError::database)?
+            .map_err(database_error)?
             .ok_or_else(|| shared::AppError::not_found("space", space_key))
     }
 }
@@ -363,11 +414,35 @@ impl WikiBackendPort for PostgresWikiBackend {
     ) -> Result<shared::resource_context::OwnerReadback, shared::AppError> {
         PostgresWikiBackend::apply_namespace(self, command).await
     }
+    async fn apply_space_owner_v2(
+        &self,
+        command: &shared::space_owner::SpaceOwnerCommandV2,
+        authority: &shared::space_owner::WikiSpaceOwnerAuthority,
+    ) -> Result<shared::space_owner::SpaceOwnerReadbackV2, shared::AppError> {
+        PostgresWikiBackend::apply_space_owner_v2(self, command, authority).await
+    }
+    async fn canonical_space_projects(
+        &self,
+        claims: &WikiClaims,
+        key: &str,
+        limit: u32,
+        offset: u32,
+    ) -> Result<SpaceProjectsV2, shared::AppError> {
+        PostgresWikiBackend::canonical_space_projects(self, claims, key, limit, offset).await
+    }
+    async fn apply_project_spaces_projection(
+        &self,
+        command: &pdlc_shared::project_spaces::ProjectSpacesProjection,
+        authority: &pdlc_shared::space_lifecycle::SpaceOwnerAuthority,
+    ) -> Result<pdlc_shared::project_spaces::ProjectSpacesProjectionReadback, shared::AppError>
+    {
+        PostgresWikiBackend::apply_project_spaces_projection(self, command, authority).await
+    }
     async fn readiness_check(&self) -> Result<(), shared::AppError> {
         let _: i32 = sqlx::query_scalar("SELECT 1")
             .fetch_one(&self.pool)
             .await
-            .map_err(shared::AppError::database)?;
+            .map_err(database_error)?;
         Ok(())
     }
 

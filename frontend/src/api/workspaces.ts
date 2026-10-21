@@ -28,10 +28,12 @@ export function useWorkspace(ref: NamespaceLocation | null, enabled = true) {
       apiRequest<Workspace>(`/api/v1/workspace-projects/${projectIdentity(ref!)}`, { signal }),
   })
 }
-export function useWorkspaceCatalog(enabled = true) {
+export function useWorkspaceCatalog(enabled = true, includeArchived = false) {
   const actor = useAuthStore((state) => state.userId)
   return useQuery({
     queryKey: ['wiki', 'workspace-catalog', actor],
+    select: (items: Workspace[]) =>
+      items.filter((project) => includeArchived || project.state !== 'archived'),
     enabled,
     refetchInterval: 60000,
     queryFn: async ({ signal }) => {

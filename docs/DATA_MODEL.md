@@ -426,3 +426,10 @@ immutable managed revisions проверяются DB triggers; project lifecycl
 Down-миграция разрешена только если все связи и исторические проекты точно
 представимы прежней моделью. При новых/удалённых связях она отказывает вместо потери
 данных; откат приложения не означает удаление новой migration history.
+
+## Проекция центрального профиля
+
+Source candidate создаёт global_role=user в JIT и directory sync. Повторный JIT
+сохраняет role/is_active, обновляя только проверенное имя. Explicit admin rows
+не изменяются. Миграция unknown historical privileges и общий Space admission
+ещё требуют cohort QA; текущие SQL history/checksums не переписываются.

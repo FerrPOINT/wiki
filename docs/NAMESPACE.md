@@ -57,3 +57,10 @@ PAT старого Auth без display metadata использует тольк�
 профиль по exact central subject. Имя, роль и timestamp профиля не меняются;
 неизвестный или отключённый профиль отклоняется. Machine classification
 предшествует этому lookup, scopes и отзыв credentials продолжают действовать.
+
+
+## Единое пространство и канонические проекты
+
+Предыдущие сценарии NamespaceRef описывают legacy API. Целевая M:N-модель
+определена Base ADR 0010; [новая owner-проекция](PROJECT_SPACES_PROJECTION.md)
+сохраняет прежние ID и receipts. Её source-реализация не означает live activation.

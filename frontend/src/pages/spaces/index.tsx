@@ -1,3 +1,4 @@
+import { useActiveSpaces } from '@/widgets/active-spaces'
 import { FormEvent, type RefObject, useRef, useState } from 'react'
 // Spaces own documents independently of their project associations.
 import { Link } from 'react-router'
@@ -18,7 +19,6 @@ import {
   useCurrentUser,
   useSpaceMembers,
   useSpaceTree,
-  useSpaces,
   useUpdateSpace,
   useUsers,
 } from '@/shared/api/hooks'
@@ -306,7 +306,8 @@ function SpaceDetails({
 export function SpacesPage() {
   const expandedSpaceRef = useRef<HTMLButtonElement>(null)
   const currentUserQuery = useCurrentUser()
-  const spacesQuery = useSpaces()
+  const [status, setStatus] = useState('active')
+  const spacesQuery = useActiveSpaces(status !== 'active')
   const isSystemAdmin = currentUserQuery.data?.is_system_admin === true
   const usersQuery = useUsers(isSystemAdmin)
   const users = usersQuery.data?.users ?? []
@@ -316,7 +317,6 @@ export function SpacesPage() {
   )
   const [showCreate, setShowCreate] = useState(false)
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState('all')
   const [sort, setSort] = useState('updated')
   const [mineOnly, setMineOnly] = useState(false)
   const [page, setPage] = useState(1)
@@ -368,7 +368,7 @@ export function SpacesPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {isSystemAdmin && spaces.length > 0 && (
+          {isSystemAdmin && spacesQuery.unfilteredCount > 0 && (
             <Button
               type="button"
               size="sm"
@@ -403,7 +403,7 @@ export function SpacesPage() {
           onRetry={() => spacesQuery.refetch()}
         />
       )}
-      {!spacesQuery.isLoading && !spacesQuery.isError && spaces.length === 0 && (
+      {!spacesQuery.isLoading && !spacesQuery.isError && spacesQuery.unfilteredCount === 0 && (
         <EmptyState
           message="Пространства ещё не созданы"
           action={
@@ -424,7 +424,7 @@ export function SpacesPage() {
           }
         />
       )}
-      {!spacesQuery.isLoading && !spacesQuery.isError && spaces.length > 0 && (
+      {!spacesQuery.isLoading && !spacesQuery.isError && spacesQuery.unfilteredCount > 0 && (
         <section aria-label="Список пространств" className="space-y-3">
           <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_11rem_11rem_auto]">
             <div className="relative min-w-0">

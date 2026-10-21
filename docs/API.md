@@ -32,6 +32,7 @@ REST API Wiki предоставляет базовые операции про�
 - UI и CLI используют один и тот же публичный API.
 - Все ответы JSON, кроме download endpoints.
 - Ошибки MVP возвращаются единым JSON envelope `{ "error": { "code": "CODE", "message": "message" } }`; `requestId` и `details` добавляются как опциональные поля, когда доступны.
+- SQLx guards сохраняют403 для42501 и409 для40001/40P01; автоматического повтора записи нет. Диагностические сообщения БД не выдаются клиенту. [Подробности](PROJECT_CONTENT_AUTHORIZATION_V2.md#ошибки-postgresql).
 - Backend возвращает `X-Request-ID` на каждый ответ: echo валидного клиентского заголовка или новый `req_` UUIDv7 для запроса без request id.
 - Большие списки MVP используют bounded `limit` и стабильную сортировку: revisions, evidence, search, audit.
 - Protected domain/admin `POST`/`PUT`/`DELETE` requests may send `Idempotency-Key`; auth/session endpoints are outside this replay scope. The server stores successful responses for 24 hours by `(actor, key, method, path+query, request body hash)` and replays the same response on retry. Reusing the same key for a different request, or retrying while the first request is still processing, returns `409 CONFLICT`.
@@ -280,3 +281,27 @@ Optional `binding/space_key` и старые `namespace-context` endpoints оп�
 Исходная интеграция и открытые gates описаны в
 [контракте ролей и приложений](HUMAN_APPLICATION_ACCESS.md).
 Публикация исходников не означает активацию новой политики.
+## Общее пространство: source API v2
+
+Строгие прежние schemas не расширяются. Отдельные новые contracts:
+GET /api/v2/spaces/{space_key}/projects — SpaceProjectsV2 с original actor,
+SpaceRef/ProjectRef и canonical Tracker pagination; PUT
+/api/v2/spaces/{registry}/{space}/owner-state — зарегистрированный Admin owner,
+SpaceOwnerCommandV2/readback без обязательного проекта; PUT
+/api/v2/projects/{tracker}/{project}/spaces/projection — зарегистрированный Tracker,
+original operation/revision/ACK. [Сценарии, отказ legacy и границы](PROJECT_SPACES_PROJECTION.md).
+OpenAPI генерируется из Rust; установка требует полного совместимого cohort.
+
+Обычное чтение документов и task/phase dossier не открывает draft-only metadata.
+Без подтверждённой роли редактора title/status берутся из опубликованной версии;
+search/count/page фильтруются до pagination. Прямой draft-only read —404.
+Read PAT редактора сохраняет чтение черновика без can_edit/права записи.
+
+### Freshness of displayed human data
+
+Authenticated GET /api/v1/space-admission returns the shared UI display descriptor
+(schema_version1, enforced, remaining_millis, scope_revision) from the original
+WikiClaims admission. It never grants a subsequent operation. The client anchors
+the remaining clock before I/O, closes retired generations and clears caches and
+forms on source/role changes. An unavailable renewal cannot extend the old clock.
+Activated storage still checks each resource's actual owning namespace.

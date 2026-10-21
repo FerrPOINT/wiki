@@ -1,3 +1,4 @@
+import { useActiveSpaces } from '@/widgets/active-spaces'
 import { useNamespaceContext } from '@/widgets/namespace-context'
 import { documentPath } from '@/api/workspaces'
 import { FormEvent, useEffect, useState } from 'react'
@@ -26,8 +27,7 @@ import {
 
 import { useSearchParams } from 'react-router'
 import { FileText, GitBranch, Save, Tag } from 'lucide-react'
-import { useCreateDocument, useSpaces, useTemplates } from '@/shared/api/hooks'
-
+import { useCreateDocument, useTemplates } from '@/shared/api/hooks'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDocumentType } from '@/shared/lib/wiki-format'
 import { resolveSpaceKey } from '@/shared/lib/space-selection'
@@ -65,7 +65,7 @@ export function DocumentComposePage() {
   const [templateInitialized, setTemplateInitialized] = useState(false)
   const [editorTab, setEditorTab] = useState<'write' | 'preview'>('write')
   const [createdDocumentPath, setCreatedDocumentPath] = useState<string | null>(null)
-  const spacesQuery = useSpaces()
+  const spacesQuery = useActiveSpaces()
   const templatesQuery = useTemplates()
   const createDocument = useCreateDocument()
   const availableSpaces = (spacesQuery.data?.spaces ?? []).filter(

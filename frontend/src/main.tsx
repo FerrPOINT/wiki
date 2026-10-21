@@ -1,22 +1,19 @@
 import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { I18nextProvider } from 'react-i18next'
 import { Toaster } from '@pdlc/ui/ui'
 import i18n from './shared/i18n/config'
 import { RouterProvider } from 'react-router'
 import { router } from './app/router'
+import { AuthBoundary } from './app/auth-boundary'
 import { ThemeProvider, PlatformProvider, PlatformServicesProvider } from '@pdlc/ui/lib'
 import './index.css'
 import { relaySsoCallback, ssoNamespace } from '@pdlc/ui/sso'
 import {
   capturePlatformReturn,
   getPlatformProduct,
-  setPlatformQueryClient,
 } from '@pdlc/ui/platform'
 
-const queryClient = new QueryClient()
-setPlatformQueryClient(queryClient)
 capturePlatformReturn(import.meta.env.VITE_PLATFORM_ORIGIN)
 
 function Boot() {
@@ -35,7 +32,7 @@ function Boot() {
   if (!ready) return null
   return (
     <I18nextProvider i18n={i18n}>
-      <QueryClientProvider client={queryClient}>
+      <AuthBoundary>
         <ThemeProvider>
           <PlatformProvider configUrl={import.meta.env.VITE_PLATFORM_BRANDING_URL ?? null}>
             <PlatformServicesProvider
@@ -46,7 +43,7 @@ function Boot() {
           </PlatformProvider>
           <Toaster />
         </ThemeProvider>
-      </QueryClientProvider>
+      </AuthBoundary>
     </I18nextProvider>
   )
 }

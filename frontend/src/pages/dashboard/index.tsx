@@ -1,3 +1,4 @@
+import { useActiveSpaces } from '@/widgets/active-spaces'
 import { useState } from 'react'
 import {
   Select,
@@ -21,8 +22,7 @@ import {
   Search,
   type LucideIcon,
 } from 'lucide-react'
-import { usePhaseSummaries, useSpaces, useTaskSummaries, useWikiSearch } from '@/shared/api/hooks'
-
+import { usePhaseSummaries, useTaskSummaries, useWikiSearch } from '@/shared/api/hooks'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime } from '@/shared/lib/wiki-format'
 import { resolveSpaceKey } from '@/shared/lib/space-selection'
@@ -92,7 +92,7 @@ function DashboardMetric({
 
 export function DashboardPage() {
   const [requestedSpaceKey, setRequestedSpaceKey] = useState('')
-  const spacesQuery = useSpaces()
+  const spacesQuery = useActiveSpaces()
   const spaces = spacesQuery.data?.spaces ?? []
   const activeSpaceKey = spaces.some((space) => space.key === requestedSpaceKey)
     ? requestedSpaceKey

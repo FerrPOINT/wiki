@@ -51,6 +51,7 @@ async fn workspace_snapshot_preserves_identity_permissions_and_neighbor_projects
         user_id: owner.to_string(),
         session_id: None,
         request_id: None,
+        admission: None,
     };
     let page = backend
         .list_projects(&claims, None, 100, 0, "")
@@ -82,7 +83,8 @@ async fn workspace_snapshot_preserves_identity_permissions_and_neighbor_projects
                 &WikiClaims {
                     user_id: foreign.to_string(),
                     session_id: None,
-                    request_id: None
+                    request_id: None,
+                    admission: None,
                 },
                 None,
                 100,
@@ -104,6 +106,7 @@ async fn workspace_snapshot_preserves_identity_permissions_and_neighbor_projects
                 user_id: foreign.to_string(),
                 session_id: None,
                 request_id: None,
+                admission: None,
             },
             Some(&command.namespace),
             1,
@@ -135,7 +138,8 @@ async fn workspace_snapshot_preserves_identity_permissions_and_neighbor_projects
                 &WikiClaims {
                     user_id: foreign.to_string(),
                     session_id: None,
-                    request_id: None
+                    request_id: None,
+                    admission: None,
                 },
                 document
             )
@@ -167,6 +171,7 @@ async fn snapshot_replacement_is_atomic_and_empty_snapshot_is_real() {
         user_id: owner.to_string(),
         session_id: None,
         request_id: None,
+        admission: None,
     };
     item.binding.generation = 1;
     assert!(backend.test_replace_projects(Ok(vec![item])).await.is_err());
@@ -271,6 +276,7 @@ async fn space_projects_are_many_to_many_without_transferring_acl_or_content() {
         user_id: owner.to_string(),
         session_id: None,
         request_id: Some("qa-space-projects".into()),
+        admission: None,
     };
     let independent = Uuid::now_v7();
     let independent_key =
@@ -347,6 +353,7 @@ async fn space_projects_are_many_to_many_without_transferring_acl_or_content() {
         user_id: foreign.to_string(),
         session_id: None,
         request_id: None,
+        admission: None,
     };
     assert!(matches!(
         backend.linked_projects(&outsider, &key).await,

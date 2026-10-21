@@ -1,0 +1,1 @@
+DROP TABLE wiki_confirmed_global_roles;

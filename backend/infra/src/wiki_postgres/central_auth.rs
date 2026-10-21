@@ -3,7 +3,7 @@
 //! JWKS mechanics live in `pdlc_auth_core::service_bridge`; this file only
 //! maps bridge outcomes to wiki types.
 
-use pdlc_auth_core::service_bridge::{BridgeOutcome, ServiceBridge};
+use pdlc_auth_core::service_bridge::ServiceBridge;
 use shared::{AppError, AuthConfig, WikiClaims};
 
 /// Env prefix: WIKI_AUTH__CENTRAL_{JWKS_URI,ISSUER}.
@@ -34,20 +34,49 @@ pub async fn try_central_with_policy(
     )>,
     AppError,
 > {
-    let (outcome, name, policy) = BRIDGE.try_token_with_policy(token).await;
-    match outcome {
-        BridgeOutcome::Validated(ctx) => Ok(Some((ctx, name, policy))),
-        BridgeOutcome::NotOurs | BridgeOutcome::NotConfigured => Ok(None),
-        BridgeOutcome::Forbidden => Err(AppError::Forbidden),
-        BridgeOutcome::Expired => Err(AppError::Unauthorized),
-        BridgeOutcome::Invalid(reason) => {
-            tracing::debug!(reason, "central token rejected");
-            Err(AppError::Unauthorized)
+    match verified_for_request(token).await {
+        Ok(mut actor) => {
+            if actor.context.role.is_none() {
+                actor.context.role = actor.subject_role.clone();
+            }
+            Ok(Some((
+                actor.context,
+                actor.display_name,
+                actor.application_access,
+            )))
         }
-        BridgeOutcome::Unavailable => Err(AppError::Unavailable(
-            "Central Auth is temporarily unavailable".into(),
-        )),
+        Err(
+            pdlc_auth_core::service_bridge::VerifiedBridgeError::NotOurs
+            | pdlc_auth_core::service_bridge::VerifiedBridgeError::NotConfigured,
+        ) => Ok(None),
+        Err(error) => Err(super::admission::auth_error(error)),
     }
+}
+
+// The HTTP adapter and persistent port share one already verified request. This
+// is process-local, is not deserialized, and is not inherited by spawned jobs.
+tokio::task_local! {
+    static VERIFIED_REQUEST: pdlc_auth_core::service_bridge::VerifiedCentralToken;
+}
+pub async fn with_verified_request<F: std::future::Future>(
+    actor: pdlc_auth_core::service_bridge::VerifiedCentralToken,
+    future: F,
+) -> F::Output {
+    VERIFIED_REQUEST.scope(actor, future).await
+}
+pub async fn verified_for_request(
+    token: &str,
+) -> Result<
+    pdlc_auth_core::service_bridge::VerifiedCentralToken,
+    pdlc_auth_core::service_bridge::VerifiedBridgeError,
+> {
+    if let Ok(actor) = VERIFIED_REQUEST.try_with(Clone::clone) {
+        if actor.context.token != token || !actor.lifetime.is_current() {
+            return Err(pdlc_auth_core::service_bridge::VerifiedBridgeError::Forbidden);
+        }
+        return Ok(actor);
+    }
+    BRIDGE.try_verified_token(token).await
 }
 
 pub fn legacy_config_ok(_config: &AuthConfig) -> bool {
@@ -61,5 +90,6 @@ pub fn claims_for(ctx: &pdlc_auth_core::AuthContext, wiki_user_id: String) -> Wi
         user_id: wiki_user_id,
         session_id: ctx.session_id.clone(),
         request_id: None,
+        admission: None,
     }
 }
