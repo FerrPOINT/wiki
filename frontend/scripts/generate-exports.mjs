@@ -52,5 +52,18 @@ const lines = [
 for (const n of names) {
   lines.push(`export type ${n} = components['schemas']['${n}']`)
 }
-writeFileSync(outPath, `${lines.join('\n')}\n`, 'utf8')
-console.log(`generated-exports.ts: ${names.length} flat types`)
+const output = `${lines.join('\n')}\n`
+let previous
+try {
+  previous = readFileSync(outPath, 'utf8')
+} catch (error) {
+  if (error.code !== 'ENOENT') throw error
+}
+// Compare actual content: repeated preparation must not invalidate watchers or
+// timestamp-based consumers, and an older input mtime cannot hide a schema edit.
+if (previous !== output) {
+  writeFileSync(outPath, output, 'utf8')
+}
+console.log(
+  `generated-exports.ts: ${names.length} flat types (${previous === output ? 'unchanged' : 'updated'})`,
+)

@@ -1,5 +1,11 @@
 # Current State - Wiki
 
+> **Build preparation 2026-10-22:** flat-type generator сохраняет неизменные bytes/mtime;
+> лишний `prebuild` удалён. Scoped Python checks15PASS и Node22/pnpm10.28 controls
+> для missing/corrupt/older-timestamp inputs, повторной подготовки и обоих hook modes
+> пройдены. Измерения относятся к generator/lifecycle fixture; frontend application
+> build, runtime и release/live acceptance остаются отдельными стадиями.
+
 > **Header update 2026-10-01:** общий `PlatformHeader` и navigation-only sidebar;
 > команда создания сохранена в desktop Header и mobile drawer. Account identity
 > не дублирует email. API/SSO hook не меняются. Локальный frontend gate: 182/182;

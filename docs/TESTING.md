@@ -20,6 +20,20 @@ Vitest inventory доступен через `pnpm --dir frontend test:all`; uni
 только явно названные integration/slow/e2e suites, не удаляя их из release.
 Backend fast lane: `cargo test --locked -p domain --lib` из `backend`.
 
+## Повторная frontend generation
+
+`postinstall` и явный `pnpm --dir frontend generate:api` сохраняют OpenAPI generation
+и flat-type bridge. `build` и `typecheck` проверяют актуальное содержимое bridge;
+если результат совпадает, generator не переписывает `generated-exports.ts` и не
+меняет его mtime. Missing/corrupt output восстанавливается; changed schema с более
+старым timestamp всё равно меняет aliases. Ошибочный input не затирает прежний output.
+
+Дублирующий `prebuild` удалён: `build` уже вызывает тот же generator перед tsc/Vite.
+Это работает при включённых и выключенных pnpm pre/post hooks. Команды, версии
+Node22.20.0/pnpm10.28.1, unit-before-build и отдельные manual suites сохранены.
+Политика dependency environment и generation принадлежит стандарту Base; script-only
+изменение проверяется отдельным generation key без повторной установки тех же dependencies.
+
 Автоматический CI использует standalone Base selector, один Rust 1.88.0 job и
 условные application checks/builds. Полный прежний CI запускается вручную через
 `.github/workflows/release.yml` (`workflow_dispatch`): PostgreSQL, full workspace
