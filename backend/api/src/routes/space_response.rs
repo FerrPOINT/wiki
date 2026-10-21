@@ -102,6 +102,7 @@ mod tests {
                     may_write: false,
                 },
                 SpaceAdmission {
+                    inheritance: None,
                     schema_version: 1,
                     identity,
                     identity_active: true,

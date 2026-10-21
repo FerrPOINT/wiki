@@ -3726,3 +3726,27 @@ mod evidence_cursor_tests {
         assert_eq!(remaining[0].id, lower_id);
     }
 }
+
+/// Display freshness only; every resource request still needs its own owner proof.
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct HumanAdmissionWindowV1 {
+    pub schema_version:u32,
+    pub enforced:bool,
+    pub remaining_millis:Option<u64>,
+    pub scope_revision:Option<String>,
+}
+#[utoipa::path(get,path="/api/v1/space-admission",tag="spaces",responses((status=200,body=HumanAdmissionWindowV1),(status=403),(status=503)),security(("bearer"=[])))]
+pub async fn human_admission_window(Extension(claims):Extension<WikiClaims>)->Result<Response,shared::AppError>{
+    let Some(scope)=claims.admission.as_ref() else {
+        return Ok(display_window_response(HumanAdmissionWindowV1{schema_version:1,enforced:false,remaining_millis:None,scope_revision:None}));
+    };
+    let (_,deadline)=scope.response_deadline(i64::MAX)?;
+    let remaining=u64::try_from(deadline.checked_duration_since(Instant::now()).ok_or(shared::AppError::Forbidden)?.as_millis()).map_err(|_|shared::AppError::Forbidden)?;
+    if remaining==0 || remaining>60_000{return Err(shared::AppError::Forbidden);}
+    let revision=checksum(&scope.replay_binding()?).trim_start_matches("sha256:").to_owned();
+    Ok(display_window_response(HumanAdmissionWindowV1{schema_version:1,enforced:true,remaining_millis:Some(remaining),scope_revision:Some(revision)}))
+}
+
+fn display_window_response(window:HumanAdmissionWindowV1)->Response{
+ ([(header::CACHE_CONTROL,"private, no-store")],Json(window)).into_response()
+}

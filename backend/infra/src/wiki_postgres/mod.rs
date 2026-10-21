@@ -130,7 +130,12 @@ impl PostgresWikiBackend {
     ) -> Result<Option<Uuid>, shared::AppError> {
         let user_id = parse_uuid(&claims.user_id, "user")?;
         let role = self.active_global_role(user_id).await?;
-        if role == "admin" {
+        let admission = self.read_admission(Some(claims)).await?;
+        if role == "admin"
+            && admission
+                .as_ref()
+                .is_none_or(|s| s.confirmed_global_admin())
+        {
             Ok(None)
         } else {
             Ok(Some(user_id))
@@ -195,7 +200,12 @@ impl PostgresWikiBackend {
         if admission.is_some() && required == SpaceAccess::View {
             return Ok(user_id);
         }
-        if global_role == "admin" || space_role_allows(space_role.as_deref(), required) {
+        if (global_role == "admin"
+            && admission
+                .as_ref()
+                .is_none_or(|s| s.confirmed_global_admin()))
+            || space_role_allows(space_role.as_deref(), required)
+        {
             Ok(user_id)
         } else {
             Err(shared::AppError::Forbidden)

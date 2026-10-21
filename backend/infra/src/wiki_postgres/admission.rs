@@ -70,8 +70,8 @@ impl PostgresWikiBackend {
         };
         let allowed = scope.draft_readable_ids()?;
         let user = Uuid::parse_str(&claims.user_id).map_err(|_| AppError::Unauthorized)?;
-        let ids=sqlx::query_scalar("SELECT s.id FROM spaces s JOIN users u ON u.id=$1 AND u.is_active LEFT JOIN space_members sm ON sm.space_id=s.id AND sm.user_id=u.id WHERE s.id=ANY($2::uuid[]) AND s.archived_at IS NULL AND EXISTS(SELECT 1 FROM wiki_space_catalog c WHERE c.local_space_id=s.id AND c.admin_revision IS NOT NULL AND c.state='active') AND (u.global_role='admin' OR sm.role IN ('admin','editor')) ORDER BY s.id")
-            .bind(user).bind(allowed).fetch_all(&self.pool).await.map_err(database_error)?;
+        let ids=sqlx::query_scalar("SELECT s.id FROM spaces s JOIN users u ON u.id=$1 AND u.is_active LEFT JOIN space_members sm ON sm.space_id=s.id AND sm.user_id=u.id WHERE s.id=ANY($2::uuid[]) AND s.archived_at IS NULL AND EXISTS(SELECT 1 FROM wiki_space_catalog c WHERE c.local_space_id=s.id AND c.admin_revision IS NOT NULL AND c.state='active') AND ((u.global_role='admin' AND $3) OR sm.role IN ('admin','editor')) ORDER BY s.id")
+            .bind(user).bind(allowed).bind(scope.confirmed_global_admin()).fetch_all(&self.pool).await.map_err(database_error)?;
         scope.require_current()?;
         Ok(Some(ids))
     }
@@ -87,8 +87,8 @@ impl PostgresWikiBackend {
             }
         }
         let user = Uuid::parse_str(&claims.user_id).map_err(|_| AppError::Unauthorized)?;
-        let allowed:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users u LEFT JOIN space_members sm ON sm.user_id=u.id AND sm.space_id=$2 WHERE u.id=$1 AND u.is_active AND (u.global_role='admin' OR sm.role IN ('admin','editor')))")
-            .bind(user).bind(space_id).fetch_one(&self.pool).await.map_err(database_error)?;
+        let allowed:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users u LEFT JOIN space_members sm ON sm.user_id=u.id AND sm.space_id=$2 WHERE u.id=$1 AND u.is_active AND ((u.global_role='admin' AND $3) OR sm.role IN ('admin','editor')))")
+            .bind(user).bind(space_id).bind(admission.as_ref().is_none_or(|s|s.confirmed_global_admin())).fetch_one(&self.pool).await.map_err(database_error)?;
         if let Some(scope) = admission.as_ref() {
             scope.require_current()?;
         }
@@ -100,6 +100,12 @@ impl PostgresWikiBackend {
         user_id: Uuid,
         global_role: String,
     ) -> Result<Arc<WikiSpaceAdmission>, AppError> {
+        // A central shadow role is not evidence of a native administrator grant.
+        let explicit: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM wiki_confirmed_global_roles WHERE user_id=$1 AND role='admin')")
+            .bind(user_id).fetch_one(&self.pool).await.map_err(database_error)?;
+        let global_role =
+            confirmed_global_role(&global_role, actor.subject_role.as_deref(), explicit)
+                .to_string();
         let rows:Vec<(Uuid,Uuid,Uuid,Option<String>)>=sqlx::query_as("SELECT c.local_space_id,c.registry_instance_id,c.space_id,sm.role FROM wiki_space_catalog c LEFT JOIN space_members sm ON sm.space_id=c.local_space_id AND sm.user_id=$1 ORDER BY c.registry_instance_id,c.space_id LIMIT 10001")
             .bind(user_id).fetch_all(&self.pool).await.map_err(database_error)?;
         if rows.len() > 10000 {
@@ -158,5 +164,42 @@ impl PostgresWikiBackend {
                 .restrict_deadline(actor.lifetime.monotonic_deadline())
                 .restrict_deadline(proof.monotonic_deadline()),
         ))
+    }
+}
+
+pub(super) fn confirmed_global_role<'a>(
+    stored: &'a str,
+    central: Option<&str>,
+    explicit: bool,
+) -> &'a str {
+    if stored == "admin" && (explicit || matches!(central, Some("admin" | "platform_admin"))) {
+        "admin"
+    } else {
+        "user"
+    }
+}
+#[cfg(test)]
+mod role_tests {
+    use super::confirmed_global_role;
+    #[test]
+    fn central_shadow_admin_is_not_an_explicit_product_grant() {
+        for role in [
+            None,
+            Some("member"),
+            Some("operator"),
+            Some("unknown"),
+            Some("service_account"),
+        ] {
+            assert_eq!(confirmed_global_role("admin", role, false), "user");
+        }
+        for role in [Some("admin"), Some("platform_admin")] {
+            assert_eq!(confirmed_global_role("admin", role, false), "admin");
+        }
+        assert_eq!(
+            confirmed_global_role("admin", Some("member"), true),
+            "admin"
+        );
+        assert_eq!(confirmed_global_role("user", Some("admin"), true), "user");
+        assert_eq!(confirmed_global_role("user", Some("member"), false), "user");
     }
 }

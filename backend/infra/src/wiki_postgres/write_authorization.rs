@@ -86,7 +86,9 @@ impl PostgresWikiBackend {
             }
         }
         let global: String = user.get("global_role");
-        if spaces.is_empty() && required == SpaceAccess::Admin && global != "admin" {
+        let global_admin =
+            global == "admin" && admission.is_none_or(|scope| scope.confirmed_global_admin());
+        if spaces.is_empty() && required == SpaceAccess::Admin && !global_admin {
             return Err(AppError::Forbidden);
         }
         for space in &spaces {
@@ -98,7 +100,7 @@ impl PostgresWikiBackend {
             .fetch_optional(&mut *tx)
             .await
             .map_err(database_error)?;
-            if global != "admin" && !space_role_allows(role.as_deref(), required) {
+            if !global_admin && !space_role_allows(role.as_deref(), required) {
                 return Err(AppError::Forbidden);
             }
         }

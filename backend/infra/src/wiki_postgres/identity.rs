@@ -17,6 +17,7 @@ use uuid::Uuid;
 struct PostgresWikiUserRepository<'a> {
     backend: &'a PostgresWikiBackend,
     request_id: Option<&'a str>,
+    admission: Option<std::sync::Arc<shared::wiki_space_access::WikiSpaceAdmission>>,
 }
 
 #[derive(serde::Deserialize)]
@@ -135,6 +136,9 @@ impl WikiUserRepository for PostgresWikiUserRepository<'_> {
             .await
             .map_err(database_error)?;
 
+            if let Some(scope) = &self.admission {
+                scope.require_current()?;
+            }
             Ok(rows.iter().map(user_response_from_row).collect())
         })
     }
@@ -145,7 +149,15 @@ impl WikiUserRepository for PostgresWikiUserRepository<'_> {
         command: WikiCreateUserCommand,
     ) -> WikiUserRepositoryFuture<'_, WikiUserResponse> {
         Box::pin(async move {
-            let mut tx = self.backend.pool.begin().await.map_err(database_error)?;
+            let mut tx = self
+                .backend
+                .begin_content_write(
+                    actor_id,
+                    self.admission.as_ref(),
+                    &[],
+                    super::SpaceAccess::Admin,
+                )
+                .await?;
             let user_id = Uuid::now_v7();
 
             let row = sqlx::query(
@@ -167,6 +179,10 @@ impl WikiUserRepository for PostgresWikiUserRepository<'_> {
             .fetch_one(&mut *tx)
             .await
             .map_err(database_error)?;
+            if command.global_role == "admin" {
+                sqlx::query("INSERT INTO wiki_confirmed_global_roles(user_id,role,granted_by) VALUES($1,'admin',$2)")
+                    .bind(user_id).bind(actor_id).execute(&mut *tx).await.map_err(database_error)?;
+            }
 
             self.backend
                 .insert_audit(
@@ -178,7 +194,7 @@ impl WikiUserRepository for PostgresWikiUserRepository<'_> {
                     self.request_id,
                 )
                 .await?;
-            tx.commit().await.map_err(database_error)?;
+            super::write_authorization::commit(tx, self.admission.as_ref()).await?;
 
             Ok(user_response_from_row(&row))
         })
@@ -190,7 +206,15 @@ impl WikiUserRepository for PostgresWikiUserRepository<'_> {
         command: WikiUpdateUserCommand,
     ) -> WikiUserRepositoryFuture<'_, WikiUserResponse> {
         Box::pin(async move {
-            let mut tx = self.backend.pool.begin().await.map_err(database_error)?;
+            let mut tx = self
+                .backend
+                .begin_content_write(
+                    actor_id,
+                    self.admission.as_ref(),
+                    &[],
+                    super::SpaceAccess::Admin,
+                )
+                .await?;
 
             let row = sqlx::query(
                 r#"
@@ -216,6 +240,17 @@ impl WikiUserRepository for PostgresWikiUserRepository<'_> {
             .map_err(database_error)?
             .ok_or_else(|| shared::AppError::not_found("user", command.user_id))?;
 
+            if let Some(role) = command.global_role.as_deref() {
+                sqlx::query("DELETE FROM wiki_confirmed_global_roles WHERE user_id=$1")
+                    .bind(command.user_id)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(database_error)?;
+                if role == "admin" {
+                    sqlx::query("INSERT INTO wiki_confirmed_global_roles(user_id,role,granted_by) VALUES($1,'admin',$2)")
+                        .bind(command.user_id).bind(actor_id).execute(&mut *tx).await.map_err(database_error)?;
+                }
+            }
             if command.active == Some(false) {
                 sqlx::query(
                     "UPDATE auth_sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL",
@@ -236,7 +271,7 @@ impl WikiUserRepository for PostgresWikiUserRepository<'_> {
                     self.request_id,
                 )
                 .await?;
-            tx.commit().await.map_err(database_error)?;
+            super::write_authorization::commit(tx, self.admission.as_ref()).await?;
 
             Ok(user_response_from_row(&row))
         })
@@ -745,9 +780,19 @@ impl PostgresWikiBackend {
             backend: self,
             request_id: None,
         };
-        WikiAuthUseCase::new(&repository, &self.auth)
+        let mut user = WikiAuthUseCase::new(&repository, &self.auth)
             .current_user(claims)
-            .await
+            .await?;
+        if let Some(scope) = self.read_admission(Some(claims)).await? {
+            user.is_system_admin = scope.confirmed_global_admin();
+            user.role = if user.is_system_admin {
+                "admin"
+            } else {
+                "user"
+            }
+            .into();
+        }
+        Ok(user)
     }
 
     pub(super) async fn list_users(
@@ -758,6 +803,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiUserRepository {
             backend: self,
             request_id: None,
+            admission: self.read_admission(Some(claims)).await?,
         };
         WikiUserUseCase::new(&repository).list().await
     }
@@ -780,6 +826,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiUserRepository {
             backend: self,
             request_id: claims.request_id.as_deref(),
+            admission: self.read_admission(Some(claims)).await?,
         };
         WikiUserUseCase::new(&repository)
             .create(actor_id, body)
@@ -797,6 +844,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiUserRepository {
             backend: self,
             request_id: claims.request_id.as_deref(),
+            admission: self.read_admission(Some(claims)).await?,
         };
         WikiUserUseCase::new(&repository)
             .update(actor_id, user_id, body)
