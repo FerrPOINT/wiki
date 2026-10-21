@@ -1,0 +1,417 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 390d4f5..88f5154 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -6,6 +6,13 @@
+ 
+ ## [Unreleased]
+ 
++- Просмотр ревизии сжимает доменные grid-контейнеры на узких экранах;
++  длинные значения не расширяют диалог, таблицы и код прокручиваются локально.
++
++- Опубликованный HTML и снимки ревизий сохраняют единственный главный заголовок
++  страницы: уровни Markdown вложены под заголовком раздела, якоря и содержимое
++  не меняются. Таблицы и code blocks доступны с клавиатуры сразу при рендере.
++
+ - Safe Markdown compose preview is reconciled with Base DetailPage, URL tabs,
+   permission states and draft protection on common Base snapshot 6e6d653.
+ 
+diff --git a/docs/ARCHITECTURE.md b/docs/ARCHITECTURE.md
+index 8bf6806..6597ec3 100644
+--- a/docs/ARCHITECTURE.md
++++ b/docs/ARCHITECTURE.md
+@@ -66,6 +66,15 @@ UI и CLI используют один публичный `/api/v1`. CLI не 
+ Карточка редактора имеет `min-width: 0` как grid-item: длинный code block
+ прокручивается внутри preview, не растягивая страницу на узком viewport.
+ 
++Frontend-адаптер опубликованного sanitized HTML и ревизий разбирает его через
++`DOMParser` до вставки в React: h1-h6 становятся h3-h6 под заголовком раздела.
++Атрибуты, якоря и дочерние узлы сохраняются; `pre` и `table` получают tabindex
++для локальной клавиатурной прокрутки. Это не новый sanitizer: граница очистки
++остаётся backend `ammonia`. Markdown, сохранённый HTML, API и ревизии неизменны.
++Доменные grid-items внутри Base Dialog имеют `min-width: 0`: длинный Markdown
++не увеличивает implicit track за пределы диалога; code/table overflow остаётся
++локальным. Отдельная браузерная проверка измеряет и документ, и modal container.
++
+ ## 4. Структура
+ 
+ ```text
+diff --git a/frontend/e2e/smoke.spec.ts b/frontend/e2e/smoke.spec.ts
+index f12b191..8889b97 100644
+--- a/frontend/e2e/smoke.spec.ts
++++ b/frontend/e2e/smoke.spec.ts
+@@ -2161,6 +2161,172 @@ test.describe('wiki smoke', () => {
+     }
+   })
+ 
++  for (const theme of ['dark', 'gray', 'light'] as const) {
++    test(`nests published and revision headings without losing anchors or local scroll in ${theme}`, async ({
++      page,
++    }, testInfo) => {
++      test.setTimeout(180_000)
++      await installWikiApiMocks(page)
++      await page.addInitScript((value) => localStorage.setItem('theme', value), theme)
++      const errors: string[] = []
++      const writes: string[] = []
++      page.on('pageerror', (error) => errors.push(error.message))
++      page.on('console', (message) => {
++        if (message.type() === 'error') errors.push(message.text())
++      })
++      page.on('request', (request) => {
++        if (new URL(request.url()).pathname.startsWith('/api/v1/') && request.method() !== 'GET') {
++          writes.push(`${request.method()} ${new URL(request.url()).pathname}`)
++        }
++      })
++      const html = [
++        '<h1 id="content-intro"><em>Раздел документа</em></h1>',
++        '<h2 id="content-section"><a href="#content-intro">Подраздел</a></h2>',
++        '<h3>Третий уровень</h3><h4>Четвёртый уровень</h4><h5>Пятый уровень</h5><h6>Шестой уровень</h6>',
++        longContentHtml,
++      ].join('')
++      const revision = { ...document.current_revision, body_html: html }
++      await page.route(
++        /\/api\/v1\/documents\/product-requirements(?:\/revisions(?:\/[^/?]+)?)?$/,
++        async (route) => {
++          if (route.request().method() !== 'GET') return route.fallback()
++          const path = new URL(route.request().url()).pathname
++          return routeJson(
++            route,
++            path.endsWith('/revisions')
++              ? { revisions: [revision] }
++              : path.endsWith('/product-requirements')
++                ? { ...document, body_html: html, current_revision: revision }
++                : revision,
++          )
++        },
++      )
++
++      for (const width of [375, 767, 768, 1023, 1024, 1279, 1280, 1440, 1920, 2560]) {
++        await page.setViewportSize({ width, height: width < 768 ? 812 : 1080 })
++        await gotoWiki(page, '/documents/product-requirements?space=BASE&source=headings')
++        await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
++        for (const mode of ['published', 'revision'] as const) {
++          const trigger = page.getByRole('button', { name: 'Открыть ревизию 1' })
++          if (mode === 'revision') await trigger.click()
++          const dialog = page.getByRole('dialog', { name: 'Снимок ревизии' })
++          const body =
++            mode === 'revision'
++              ? dialog.locator('.wiki-rendered')
++              : page.locator('article .wiki-rendered')
++          await expect(
++            body.getByRole('heading', { name: 'Раздел документа', level: 3 }),
++          ).toBeVisible()
++          expect(
++            await body
++              .locator('h1, h2, h3, h4, h5, h6')
++              .evaluateAll((headings) => headings.map((heading) => heading.tagName)),
++          ).toEqual(['H3', 'H4', 'H5', 'H6', 'H6', 'H6', 'H3'])
++          await expect(page.locator('h1')).toHaveCount(1)
++          await expect(body.locator('#content-intro em')).toHaveText('Раздел документа')
++          await expect(body.locator('#content-section a')).toHaveAttribute('href', '#content-intro')
++          if (mode === 'revision') {
++            if (width === 375)
++              await testInfo.attach(`revision-width-${theme}`, {
++                body: JSON.stringify(
++                  await body.evaluate((element) => {
++                    const nodes: Record<string, unknown>[] = []
++                    for (
++                      let node: HTMLElement | null = element as HTMLElement;
++                      node;
++                      node = node.parentElement
++                    ) {
++                      const style = getComputedStyle(node)
++                      nodes.push({
++                        tag: node.tagName,
++                        className: node.className,
++                        width: node.clientWidth,
++                        scrollWidth: node.scrollWidth,
++                        minWidth: style.minWidth,
++                        cssWidth: style.width,
++                        display: style.display,
++                        columns: style.gridTemplateColumns,
++                        overflowX: style.overflowX,
++                      })
++                      if (node.matches('[role="dialog"]')) break
++                    }
++                    return nodes
++                  }),
++                ),
++                contentType: 'application/json',
++              })
++            const bounds = await dialog.boundingBox()
++            expect(bounds).not.toBeNull()
++            expect(bounds!.x).toBeGreaterThanOrEqual(0)
++            expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width + 1)
++            expect(
++              await dialog.evaluate((element) => element.scrollWidth - element.clientWidth),
++            ).toBeLessThanOrEqual(1)
++          }
++          for (const region of [body.locator('pre'), body.locator('table')]) {
++            await expect(region).toHaveAttribute('tabindex', '0')
++            await region.focus()
++            await expect(region).toBeFocused()
++            if (width === 375) {
++              await testInfo.attach(
++                `scroll-region-${mode}-${theme}-${await region.evaluate((element) => element.tagName)}`,
++                {
++                  body: JSON.stringify(
++                    await region.evaluate((element) => ({
++                      tag: element.tagName,
++                      clientWidth: element.clientWidth,
++                      scrollWidth: element.scrollWidth,
++                      scrollLeft: element.scrollLeft,
++                      overflowX: getComputedStyle(element).overflowX,
++                      whiteSpace: getComputedStyle(element).whiteSpace,
++                      wordBreak: getComputedStyle(element).wordBreak,
++                      overflowWrap: getComputedStyle(element).overflowWrap,
++                      focused: element === document.activeElement,
++                    })),
++                  ),
++                  contentType: 'application/json',
++                },
++              )
++              expect(
++                await region.evaluate((element) => element.scrollWidth - element.clientWidth),
++              ).toBeGreaterThan(0)
++              await expect
++                .poll(async () => {
++                  await region.press('ArrowRight')
++                  return region.evaluate((element) => element.scrollLeft)
++                })
++                .toBeGreaterThan(0)
++            }
++          }
++          expect(
++            await page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
++          ).toBeLessThanOrEqual(1)
++          if (width === 375 || width === 1920) {
++            await page.screenshot({
++              path: testInfo.outputPath(`document-headings-${mode}-${theme}-${width}.png`),
++              fullPage: true,
++            })
++          }
++          if (mode === 'revision') {
++            await page.keyboard.press('Escape')
++            await expect(dialog).toBeHidden()
++            await expect(trigger).toBeFocused()
++          }
++        }
++        await page.reload()
++        await expect(
++          page.getByRole('heading', { name: 'Требования к Wiki MVP', level: 1 }),
++        ).toBeVisible()
++        await expect(page.locator('h1')).toHaveCount(1)
++        await expect(page).toHaveURL(
++          `${baseURL}/documents/product-requirements?space=BASE&source=headings`,
++        )
++      }
++      expect(writes).toEqual([])
++      expect(errors).toEqual([])
++    })
++  }
++
+   test('explains a stale publish conflict without losing the saved draft', async ({ page }) => {
+     await installWikiApiMocks(page)
+     const newerRevision = {
+diff --git a/frontend/src/index.css b/frontend/src/index.css
+index 7677c13..f24ef6c 100644
+--- a/frontend/src/index.css
++++ b/frontend/src/index.css
+@@ -27,23 +27,25 @@ body {
+   margin-top: 0.9rem;
+ }
+ 
+-.wiki-rendered h1,
+-.wiki-rendered h2,
+-.wiki-rendered h3 {
++.wiki-rendered h3,
++.wiki-rendered h4,
++.wiki-rendered h5,
++.wiki-rendered h6 {
+   color: var(--color-text-primary);
+   font-weight: 700;
+   line-height: 1.25;
+ }
+ 
+-.wiki-rendered h1 {
++.wiki-rendered h3 {
+   font-size: 1.5rem;
+ }
+ 
+-.wiki-rendered h2 {
++.wiki-rendered h4 {
+   font-size: 1.25rem;
+ }
+ 
+-.wiki-rendered h3 {
++.wiki-rendered h5,
++.wiki-rendered h6 {
+   font-size: 1.05rem;
+ }
+ 
+@@ -128,11 +130,12 @@ body {
+   line-height: 1.6;
+ }
+ 
+-.wiki-rendered-compact h1 {
++.wiki-rendered-compact h3 {
+   font-size: 1.05rem;
+ }
+ 
+-.wiki-rendered-compact h2,
+-.wiki-rendered-compact h3 {
++.wiki-rendered-compact h4,
++.wiki-rendered-compact h5,
++.wiki-rendered-compact h6 {
+   font-size: 0.95rem;
+ }
+diff --git a/frontend/src/pages/document/document.test.tsx b/frontend/src/pages/document/document.test.tsx
+index 4c37c89..fba258c 100644
+--- a/frontend/src/pages/document/document.test.tsx
++++ b/frontend/src/pages/document/document.test.tsx
+@@ -234,6 +234,56 @@ describe('DocumentPage', () => {
+     })
+   })
+ 
++  it.each(['published', 'revision'] as const)(
++    'keeps one page heading and preserves nested content in the %s body',
++    (mode) => {
++      const html = [
++        '<h1 id="intro"><em>Introduction</em> &amp; scope</h1>',
++        '<h2 id="section"><a href="#intro">Section</a></h2>',
++        '<h3>Subsection</h3><h4>Level four</h4><h5>Level five</h5><h6>Level six</h6>',
++        '<p><a href="https://example.test/reference" title="Reference">Reference</a></p>',
++        '<pre><code>&lt;h1&gt;Literal heading&lt;/h1&gt;</code></pre>',
++        '<table><tbody><tr><td>Cell value</td></tr></tbody></table>',
++      ].join('')
++      const view = setupDocument({ ...baseDocument, body_html: html })
++      if (mode === 'revision') {
++        useDocumentRevision.mockReturnValue({
++          data: { ...baseRevision, body_html: html },
++          isLoading: false,
++          isError: false,
++        })
++        fireEvent.click(screen.getByRole('button', { name: 'Открыть ревизию 2' }))
++      }
++      const body = (
++        mode === 'revision'
++          ? screen.getByRole('dialog', { name: 'Снимок ревизии' })
++          : view.container
++      ).querySelector<HTMLElement>('.wiki-rendered')!
++      expect(document.querySelectorAll('h1')).toHaveLength(1)
++      expect(
++        Array.from(body.querySelectorAll('h1, h2, h3, h4, h5, h6'), (heading) => heading.tagName),
++      ).toEqual(['H3', 'H4', 'H5', 'H6', 'H6', 'H6'])
++      expect(body.querySelector('#intro')).toHaveTextContent('Introduction & scope')
++      expect(body.querySelector('#intro em')).toHaveTextContent('Introduction')
++      expect(body.querySelector('#section a')).toHaveAttribute('href', '#intro')
++      expect(within(body).getByRole('link', { name: 'Reference' })).toHaveAttribute(
++        'href',
++        'https://example.test/reference',
++      )
++      expect(within(body).getByRole('link', { name: 'Reference' })).toHaveAttribute(
++        'title',
++        'Reference',
++      )
++      expect(body.querySelector('pre')).toHaveTextContent('<h1>Literal heading</h1>')
++      expect(body.querySelector('pre')).toHaveAttribute('tabindex', '0')
++      expect(within(body).getByRole('table')).toHaveAttribute('tabindex', '0')
++      expect(useDocument.mock.results.at(-1)!.value.data.body_html).toBe(html)
++      expect(updateDraftMutate).not.toHaveBeenCalled()
++      expect(updateDraftMutateAsync).not.toHaveBeenCalled()
++      expect(publishMutateAsync).not.toHaveBeenCalled()
++    },
++  )
++
+   it('starts an unpublished document in edit mode', () => {
+     setupDocument({
+       ...baseDocument,
+diff --git a/frontend/src/pages/document/index.tsx b/frontend/src/pages/document/index.tsx
+index a1b4513..499efe5 100644
+--- a/frontend/src/pages/document/index.tsx
++++ b/frontend/src/pages/document/index.tsx
+@@ -1,4 +1,4 @@
+-import { FormEvent, useEffect, useRef, useState } from 'react'
++import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+ import { Link, useParams } from 'react-router'
+ import {
+   Archive,
+@@ -59,28 +59,34 @@ function RenderedDocumentBody({
+   emptyMessage: string
+   compact?: boolean
+ }) {
+-  const containerRef = useRef<HTMLDivElement>(null)
+-
+-  useEffect(() => {
+-    const container = containerRef.current
+-    if (!container) return
+-
+-    for (const region of container.querySelectorAll<HTMLElement>('pre, table')) {
++  const renderedHtml = useMemo(() => {
++    const body = new DOMParser().parseFromString(html, 'text/html').body
++    // Content sits below the page title and its section heading, not beside them.
++    for (const heading of body.querySelectorAll('h1, h2, h3, h4, h5, h6')) {
++      const level = Math.min(Number(heading.tagName.slice(1)) + 2, 6)
++      const nestedHeading = body.ownerDocument.createElement(`h${level}`)
++      for (const attribute of heading.attributes) {
++        nestedHeading.setAttribute(attribute.name, attribute.value)
++      }
++      nestedHeading.append(...heading.childNodes)
++      heading.replaceWith(nestedHeading)
++    }
++    for (const region of body.querySelectorAll<HTMLElement>('pre, table')) {
+       region.tabIndex = 0
+     }
+-  })
++    return body.innerHTML
++  }, [html])
+ 
+   if (html.trim().length === 0) return <EmptyState message={emptyMessage} />
+ 
+   return (
+     <div
+-      ref={containerRef}
+       className={
+         compact
+           ? 'wiki-rendered wiki-rendered-compact page-readable'
+           : 'wiki-rendered page-readable'
+       }
+-      dangerouslySetInnerHTML={{ __html: html }}
++      dangerouslySetInnerHTML={{ __html: renderedHtml }}
+     />
+   )
+ }
+@@ -364,13 +370,13 @@ export function DocumentPage() {
+             revisionTriggerRef.current?.focus()
+           }}
+         >
+-          <DialogHeader className="border-b border-border p-4 pr-14 sm:p-6 sm:pr-14">
++          <DialogHeader className="min-w-0 border-b border-border p-4 pr-14 sm:p-6 sm:pr-14">
+             <DialogTitle>Снимок ревизии</DialogTitle>
+             <p id="revision-snapshot-description" className="text-sm text-text-secondary">
+               Неизменяемая опубликованная версия документа.
+             </p>
+           </DialogHeader>
+-          <div className="space-y-4 p-4 sm:p-6">
++          <div className="min-w-0 space-y-4 p-4 sm:p-6">
+             {selectedRevisionQuery.isLoading && <LoadingState message="Загружаем снимок ревизии" />}
+             {selectedRevisionQuery.isError && (
+               <ErrorState
+@@ -383,7 +389,7 @@ export function DocumentPage() {
+             )}
+             {selectedRevision && (
+               <>
+-                <div className="space-y-1 text-sm">
++                <div className="min-w-0 space-y-1 break-words text-sm [overflow-wrap:anywhere]">
+                   <div className="font-medium">
+                     Ревизия {selectedRevision.version}: {selectedRevision.title}
+                   </div>
+@@ -395,7 +401,7 @@ export function DocumentPage() {
+                     {shortText(selectedRevision.summary, 'Без описания изменений')}
+                   </p>
+                 </div>
+-                <div className="rounded-md border border-border bg-surface p-3">
++                <div className="min-w-0 rounded-md border border-border bg-surface p-3">
+                   <RenderedDocumentBody
+                     html={selectedRevision.body_html}
+                     emptyMessage="В ревизии нет опубликованного содержания"

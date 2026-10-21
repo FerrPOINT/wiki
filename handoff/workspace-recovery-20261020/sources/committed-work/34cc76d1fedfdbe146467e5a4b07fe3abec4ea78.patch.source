@@ -1,0 +1,1371 @@
+diff --git a/docs/UI_UX_MAP.md b/docs/UI_UX_MAP.md
+index 1c8cc16..bedfb7e 100644
+--- a/docs/UI_UX_MAP.md
++++ b/docs/UI_UX_MAP.md
+@@ -10,6 +10,18 @@ Compose и document view с contextual aside используют `detail-with-a
+ settings использует `reading`, списки и независимые dossier sections — `wide`.
+ Task dossier имеет contextual aside и использует `detail-with-aside`.
+ Неизвестный operational URL показывает not-found вместо скрытого redirect.
++Audit, profiles и settings используют Base AuditLogView/ListPage/DetailPage.
++Terminal 403/404 не предлагают retry и скрывают недоступное содержание;
++повторяемые ошибки сохраняют retry. Audit сохраняет полученную страницу при
++сбое фонового обновления, помечая её partial-error, и сохраняет cursor history.
++Имена участников и пространств получаются общими catalog queries без
++построчных запросов; диагностические IDs скрыты в доступных disclosure.
++
++UX-08 пока не закрыт полностью: текущий AuditEntryResponse содержит только
++actor/entity IDs, без названия документа. Cold-load названий документов не
++реализован; нельзя считать имена участников и пространств доказательством
++закрытия всего замечания. Новые публичные API или N+1 lookup этим изменением
++не добавлялись.
+ 
+ Этот checkout создан от сохранённого default `c83ff8c`; исходный dirty checkout
+ не переносился. Base dependency устанавливается frozen/offline из выбранного
+@@ -33,3 +45,11 @@ Browser regression на изолированном preview с mocked API/OIDC: 1
+ keyboard drawer и сохранение draft при отказе от навигации.
+ QA origin — `localhost`, как требует существующая Base SSO canonicalization.
+ Это не live SSO, не actual-image evidence и не новая README gallery.
++
++Следующий source regression: 191 component tests и 8 Chromium smoke tests
++прошли, включая 180 mode/theme/width captures для шести representative routes,
++cold actor/space labels, keyboard disclosure, drawer и draft/conflict checks.
++Lint/semantic, typecheck/build и installed UI gate (19 patterns) зелёные.
++Browser API/OIDC замоканы; screenshot evidence находится в workspace
++`audit-artifacts/base-standard-2026-10-01/wiki-page-pattern-browser/`.
++Известный Node/jsdom warning о localstorage-file остаётся в unit runner.
+diff --git a/frontend/e2e/smoke.spec.ts b/frontend/e2e/smoke.spec.ts
+index b8a81a0..604c75b 100644
+--- a/frontend/e2e/smoke.spec.ts
++++ b/frontend/e2e/smoke.spec.ts
+@@ -588,6 +588,8 @@ test.describe('wiki smoke', () => {
+           ['/settings', 'reading', 'Настройки'],
+           ['/documents/new', 'detail-with-aside', 'Новый документ'],
+           ['/tasks/BASE-42', 'detail-with-aside', 'BASE-42'],
++          ['/users', 'wide', 'Профили Wiki'],
++          ['/audit-log', 'wide', 'Аудит'],
+         ] as const) {
+           await gotoWiki(page, path)
+           await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible()
+@@ -617,7 +619,7 @@ test.describe('wiki smoke', () => {
+           }
+           await page.screenshot({
+             path: testInfo.outputPath(
+-              `shell-${theme}-${viewport.width}-${mode}-${path === '/documents/new' ? 'create' : 'page'}.png`,
++              `shell-${theme}-${viewport.width}-${mode}-${path.replaceAll('/', '-').replace(/^-/, '') || 'overview'}.png`,
+             ),
+             fullPage: true,
+           })
+@@ -626,6 +628,38 @@ test.describe('wiki smoke', () => {
+     }
+   })
+ 
++  test('shows cold audit actor and space labels with secondary diagnostic IDs', async ({
++    page,
++  }) => {
++    await installWikiApiMocks(page)
++    const errors: string[] = []
++    const lookupPaths: string[] = []
++    page.on('pageerror', (error) => errors.push(error.message))
++    page.on('request', (request) => {
++      const path = new URL(request.url()).pathname
++      if (request.method() === 'GET' && path.startsWith('/api/v1/')) lookupPaths.push(path)
++    })
++    await gotoWiki(page, '/audit-log')
++    const events = page.getByRole('region', { name: 'События аудита' })
++    await expect(events.getByText('Администратор', { exact: true }).last()).toBeVisible()
++    await expect(events.getByText('База знаний Base', { exact: true }).last()).toBeVisible()
++    await expect(page.getByRole('button', { name: 'Фильтры' })).toHaveAttribute(
++      'aria-expanded',
++      'false',
++    )
++    const diagnostics = events.locator('details:visible')
++    await expect(diagnostics).not.toHaveAttribute('open')
++    await expect(events.getByText('mock-request', { exact: true }).last()).toBeHidden()
++    await diagnostics.locator('summary').focus()
++    await page.keyboard.press('Enter')
++    await expect(diagnostics.getByText(user.id, { exact: true })).toBeVisible()
++    await expect(diagnostics.getByText('mock-request', { exact: true })).toBeVisible()
++    expect(lookupPaths.filter((path) => path === '/api/v1/users')).toHaveLength(1)
++    expect(lookupPaths.filter((path) => path === '/api/v1/spaces')).toHaveLength(1)
++    expect(lookupPaths.some((path) => path.startsWith('/api/v1/documents/'))).toBe(false)
++    expect(errors).toEqual([])
++  })
++
+   test('keeps the platform shell active-route and keyboard drawer contract', async ({ page }) => {
+     await page.setViewportSize({ width: 375, height: 812 })
+     await installWikiApiMocks(page)
+diff --git a/frontend/src/pages/audit-log/audit-log.test.tsx b/frontend/src/pages/audit-log/audit-log.test.tsx
+index 33b8798..903f532 100644
+--- a/frontend/src/pages/audit-log/audit-log.test.tsx
++++ b/frontend/src/pages/audit-log/audit-log.test.tsx
+@@ -8,9 +8,10 @@ import { AuditLogPage } from './'
+ 
+ const useAuditLog = vi.hoisted(() => vi.fn())
+ const useUsers = vi.hoisted(() => vi.fn())
++const useSpaces = vi.hoisted(() => vi.fn())
+ const usersRefetch = vi.hoisted(() => vi.fn())
+ 
+-vi.mock('@/shared/api/hooks', () => ({ useAuditLog, useUsers }))
++vi.mock('@/shared/api/hooks', () => ({ useAuditLog, useSpaces, useUsers }))
+ 
+ function RouterState() {
+   const location = useLocation()
+@@ -82,6 +83,11 @@ function queryResult(data: { entries: AuditEntry[]; next_cursor: string | null }
+ 
+ describe('AuditLogPage', () => {
+   beforeEach(() => {
++    useSpaces.mockReturnValue({
++      data: { spaces: [{ id: 'space-1', key: 'BASE', name: 'Платформа' }] },
++      isLoading: false,
++      isError: false,
++    })
+     useUsers.mockReturnValue({
+       data: { users: [{ id: actorId, display_name: 'Анна', email: 'anna@example.test' }] },
+       isLoading: false,
+@@ -221,7 +227,7 @@ describe('AuditLogPage', () => {
+ 
+     renderAuditLog()
+ 
+-    expect(screen.getAllByText('integration.sync')).toHaveLength(3)
++    expect(screen.getAllByText('integration.sync')).toHaveLength(4)
+   })
+ 
+   it('applies filters before cursor paging and resets to the first page', () => {
+@@ -409,7 +415,9 @@ describe('AuditLogPage', () => {
+     expect(usersRefetch).toHaveBeenCalledOnce()
+     fireEvent.change(screen.getByLabelText('Участник'), { target: { value: 'bad-id' } })
+     fireEvent.click(screen.getByRole('button', { name: 'Применить' }))
+-    expect(screen.getByRole('alert')).toHaveTextContent('Укажите UUID участника')
++    expect(
++      within(screen.getByRole('form', { name: 'Фильтры аудита' })).getByRole('alert'),
++    ).toHaveTextContent('Укажите UUID участника')
+ 
+     fireEvent.change(screen.getByLabelText('Участник'), { target: { value: actorId } })
+     fireEvent.click(screen.getByRole('button', { name: 'Применить' }))
+@@ -449,4 +457,115 @@ describe('AuditLogPage', () => {
+     expect(screen.getByText('Событий по фильтрам не найдено')).toBeInTheDocument()
+     expect(screen.getByRole('button', { name: 'Фильтры (1)' })).toBeInTheDocument()
+   })
++
++  it('uses the Base audit composition and loads readable labels without opening filters', () => {
++    useAuditLog.mockReturnValue(queryResult({ entries, next_cursor: null }))
++    renderAuditLog()
++
++    expect(screen.getByRole('heading', { name: 'Аудит' }).closest('section')).toHaveClass(
++      'base-page-stack',
++    )
++    expect(useUsers).toHaveBeenLastCalledWith(true)
++    expect(useSpaces).toHaveBeenLastCalledWith(true)
++    const events = screen.getByRole('region', { name: 'События аудита' })
++    expect(within(events).getAllByText('Анна')).toHaveLength(2)
++    expect(within(events).getAllByText('Платформа')).toHaveLength(2)
++    for (const id of [actorId, 'document-1', 'request-3']) {
++      for (const element of within(events).getAllByText(id)) {
++        expect(element.closest('details')).not.toHaveAttribute('open')
++      }
++    }
++  })
++
++  it.each([403, 404])(
++    'renders terminal %s without empty state, entries, filters or retry',
++    (status) => {
++      useAuditLog.mockReturnValue({
++        ...queryResult({ entries, next_cursor: null }),
++        isError: true,
++        error: { status },
++      })
++      renderAuditLog()
++
++      const state = status === 403 ? 'permission-denied' : 'not-found'
++      expect(document.querySelector(`[data-page-state="${state}"]`)).toBeInTheDocument()
++      expect(screen.queryByText('Опубликован документ')).not.toBeInTheDocument()
++      expect(screen.queryByText('Событий аудита пока нет')).not.toBeInTheDocument()
++      expect(screen.queryByRole('button', { name: 'Фильтры' })).not.toBeInTheDocument()
++      expect(screen.queryByRole('button', { name: /Повторить/ })).not.toBeInTheDocument()
++      expect(useUsers).toHaveBeenLastCalledWith(false)
++      expect(useSpaces).toHaveBeenLastCalledWith(false)
++    },
++  )
++
++  it('retains loaded entries with a partial-error state when background refresh fails', () => {
++    const refetch = vi.fn()
++    useAuditLog.mockReturnValue({
++      ...queryResult({ entries, next_cursor: null }),
++      isError: true,
++      error: { status: 503 },
++      refetch,
++    })
++    renderAuditLog()
++
++    expect(document.querySelector('[data-page-state="partial-error"]')).toBeInTheDocument()
++    expect(screen.getAllByText('Опубликован документ')).toHaveLength(2)
++    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }))
++    expect(refetch).toHaveBeenCalledOnce()
++  })
++
++  it('does not offer retry for a non-repeatable request error', () => {
++    useAuditLog.mockReturnValue({
++      ...queryResult({ entries: [], next_cursor: null }),
++      data: undefined,
++      isError: true,
++      error: { status: 400 },
++    })
++    renderAuditLog()
++    expect(screen.getByRole('alert')).toBeInTheDocument()
++    expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument()
++    expect(screen.queryByText('Событий аудита пока нет')).not.toBeInTheDocument()
++  })
++
++  it('does not load optional label catalogs for an empty audit', () => {
++    useAuditLog.mockReturnValue(queryResult({ entries: [], next_cursor: null }))
++    renderAuditLog()
++    expect(useUsers).toHaveBeenLastCalledWith(false)
++    expect(useSpaces).toHaveBeenLastCalledWith(false)
++  })
++
++  it('keeps audit and diagnostic IDs available when label catalogs fail', () => {
++    useAuditLog.mockReturnValue(queryResult({ entries, next_cursor: null }))
++    useUsers.mockReturnValue({
++      data: undefined,
++      isLoading: false,
++      isError: true,
++      refetch: usersRefetch,
++    })
++    useSpaces.mockReturnValue({ data: undefined, isLoading: false, isError: true })
++    renderAuditLog()
++    expect(screen.getAllByText('Опубликован документ')).toHaveLength(2)
++    expect(screen.getAllByText('Неизвестный участник')).not.toHaveLength(0)
++    expect(screen.getAllByText(actorId)).toHaveLength(2)
++  })
++
++  it('does not retry a forbidden label directory while keeping the audit readable', () => {
++    useAuditLog.mockReturnValue(queryResult({ entries, next_cursor: null }))
++    useUsers.mockReturnValue({
++      data: undefined,
++      isLoading: false,
++      isError: true,
++      error: { status: 403 },
++      refetch: usersRefetch,
++    })
++    renderAuditLog()
++    fireEvent.click(screen.getByRole('button', { name: 'Фильтры' }))
++    expect(
++      within(screen.getByRole('region', { name: 'События аудита' })).getAllByText(
++        'Опубликован документ',
++      ),
++    ).toHaveLength(2)
++    expect(document.querySelector('[data-page-state="partial-error"]')).toBeInTheDocument()
++    expect(screen.queryByRole('button', { name: /Повторить/ })).not.toBeInTheDocument()
++  })
+ })
+diff --git a/frontend/src/pages/audit-log/index.tsx b/frontend/src/pages/audit-log/index.tsx
+index 78aa409..590dd94 100644
+--- a/frontend/src/pages/audit-log/index.tsx
++++ b/frontend/src/pages/audit-log/index.tsx
+@@ -1,8 +1,15 @@
+ import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+ import { useSearchParams } from 'react-router'
+ import { ChevronLeft, ChevronRight, ListFilter, RefreshCw } from 'lucide-react'
+-import { useAuditLog, useUsers } from '@/shared/api/hooks'
+-import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
++import { useAuditLog, useSpaces, useUsers } from '@/shared/api/hooks'
++import {
++  AuditLogView,
++  EmptyState,
++  ResourceStateView,
++  Select,
++  resourceErrorState,
++} from '@sdlc/ui/ui'
++import type { AuditEntry } from '@/api/wiki'
+ import { Button } from '@sdlc/ui/ui'
+ import { Input } from '@sdlc/ui/ui'
+ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@sdlc/ui/ui'
+@@ -35,8 +42,6 @@ const actionLabels: Record<string, string> = {
+ }
+ 
+ const PAGE_SIZE = 20
+-const selectClassName =
+-  'min-h-10 w-full rounded-md border border-border-strong bg-surface px-3 text-sm text-text-primary focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50'
+ const entityTypes = [
+   ['document', 'Документ'],
+   ['space', 'Пространство'],
+@@ -204,11 +209,68 @@ export function AuditLogPage() {
+   const [filterError, setFilterError] = useState('')
+   const eventsRef = useRef<HTMLElement>(null)
+   const auditQuery = useAuditLog({ limit: PAGE_SIZE, cursor, ...appliedFilters })
+-  const usersQuery = useUsers(showFilters)
+   const entries = auditQuery.data?.entries ?? []
++  const errorState = auditQuery.isError
++    ? resourceErrorState(auditQuery.error, () => auditQuery.refetch())
++    : undefined
++  const terminalError = errorState?.kind === 'not-found' || errorState?.kind === 'permission-denied'
++  const usersQuery = useUsers(!terminalError && (showFilters || entries.length > 0))
++  const spacesQuery = useSpaces(
++    !terminalError && entries.some((entry) => entry.entity_type === 'space'),
++  )
+   const nextCursor = auditQuery.data?.next_cursor
+   const users = usersQuery.data?.users ?? []
++  const spaces = spacesQuery.data?.spaces ?? []
+   const activeFilterCount = Object.values(appliedFilters).filter(Boolean).length
++  const partialError = errorState?.kind === 'error' && Boolean(auditQuery.data)
++  const usersError = usersQuery.isError
++    ? resourceErrorState(usersQuery.error, () => usersQuery.refetch())
++    : undefined
++  const spacesError = spacesQuery.isError
++    ? resourceErrorState(spacesQuery.error, () => spacesQuery.refetch())
++    : undefined
++  const usersRetry = usersError?.kind === 'error' ? usersError.onRetry : undefined
++  const spacesRetry = spacesError?.kind === 'error' ? spacesError.onRetry : undefined
++  const showEntries =
++    !auditQuery.isLoading && (!auditQuery.isError || partialError) && entries.length > 0
++
++  function actorLabel(id: string) {
++    const user = users.find((candidate) => candidate.id === id)
++    return user?.display_name || user?.username || user?.email || 'Неизвестный участник'
++  }
++
++  function entityLabel(entry: AuditEntry) {
++    if (entry.entity_type === 'user') return actorLabel(entry.entity_id)
++    if (entry.entity_type === 'space') {
++      const space = spaces.find(
++        (candidate) => candidate.id === entry.entity_id || candidate.key === entry.entity_id,
++      )
++      if (space) return space.name
++    }
++    return entityTypes.find(([type]) => type === entry.entity_type)?.[1] ?? entry.entity_type
++  }
++
++  function diagnostics(entry: AuditEntry) {
++    return (
++      <details className="text-xs">
++        <summary className="base-control cursor-pointer py-2 text-text-secondary hover:text-text-primary">
++          Технические данные
++        </summary>
++        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 pb-2">
++          <dt className="text-text-muted">Действие</dt>
++          <dd className="min-w-0 break-all font-mono">{entry.action}</dd>
++          <dt className="text-text-muted">Участник</dt>
++          <dd className="min-w-0 break-all font-mono">{entry.actor_id}</dd>
++          <dt className="text-text-muted">Тип объекта</dt>
++          <dd className="min-w-0 break-all font-mono">{entry.entity_type}</dd>
++          <dt className="text-text-muted">Объект</dt>
++          <dd className="min-w-0 break-all font-mono">{entry.entity_id}</dd>
++          <dt className="text-text-muted">Запрос</dt>
++          <dd className="min-w-0 break-all font-mono">{entry.request_id}</dd>
++        </dl>
++      </details>
++    )
++  }
+ 
+   useEffect(() => {
+     setDraftFilters(filtersForForm)
+@@ -263,205 +325,236 @@ export function AuditLogPage() {
+   }
+ 
+   return (
+-    <div className="min-w-0 space-y-5">
+-      <h1 className="text-2xl font-bold">Аудит</h1>
+-
+-      <div className="space-y-3">
+-        <Button
+-          type="button"
+-          size="sm"
+-          variant="outline"
+-          className="h-10"
+-          aria-expanded={showFilters}
+-          onClick={() => setShowFilters((value) => !value)}
+-        >
+-          <ListFilter className="h-4 w-4" />
+-          Фильтры{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+-        </Button>
+-        {showFilters && (
+-          <form
+-            aria-label="Фильтры аудита"
+-            onSubmit={applyFilters}
+-            className="space-y-3 border-y border-border py-3"
+-          >
+-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+-              <div className="space-y-1">
+-                <label htmlFor="audit-action" className="text-sm font-medium">
+-                  Действие
+-                </label>
+-                <select
+-                  id="audit-action"
+-                  className={selectClassName}
+-                  value={draftFilters.action}
+-                  onChange={(event) => updateDraft('action', event.target.value)}
+-                >
+-                  <option value="">Все действия</option>
+-                  {draftFilters.action && !actionLabels[draftFilters.action] && (
+-                    <option value={draftFilters.action}>{draftFilters.action}</option>
+-                  )}
+-                  {Object.entries(actionLabels).map(([value, label]) => (
+-                    <option key={value} value={value}>
+-                      {label}
+-                    </option>
+-                  ))}
+-                </select>
+-              </div>
+-              <div className="space-y-1">
+-                <label htmlFor="audit-entity-type" className="text-sm font-medium">
+-                  Тип объекта
+-                </label>
+-                <select
+-                  id="audit-entity-type"
+-                  className={selectClassName}
+-                  value={draftFilters.entity_type}
+-                  onChange={(event) => updateDraft('entity_type', event.target.value)}
+-                >
+-                  <option value="">Все типы</option>
+-                  {draftFilters.entity_type &&
+-                    !entityTypes.some(([value]) => value === draftFilters.entity_type) && (
+-                      <option value={draftFilters.entity_type}>{draftFilters.entity_type}</option>
+-                    )}
+-                  {entityTypes.map(([value, label]) => (
+-                    <option key={value} value={value}>
+-                      {label}
+-                    </option>
+-                  ))}
+-                </select>
+-              </div>
+-              <div className="space-y-1">
+-                <label htmlFor="audit-actor" className="text-sm font-medium">
+-                  Участник
+-                </label>
+-                {manualActorId ||
+-                usersQuery.isError ||
+-                (!usersQuery.isLoading && users.length === 0) ? (
++    <AuditLogView
++      title="Аудит"
++      filters={
++        !terminalError && (
++          <div className="space-y-3">
++            <Button
++              type="button"
++              size="sm"
++              variant="outline"
++              className="h-10"
++              aria-expanded={showFilters}
++              onClick={() => setShowFilters((value) => !value)}
++            >
++              <ListFilter className="h-4 w-4" />
++              Фильтры{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
++            </Button>
++            {showFilters && (
++              <form
++                aria-label="Фильтры аудита"
++                onSubmit={applyFilters}
++                className="space-y-3 border-y border-border py-3"
++              >
++                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                   <div className="space-y-1">
+-                    <div className="flex gap-2">
+-                      <Input
+-                        id="audit-actor"
+-                        className="min-h-10 min-w-0"
+-                        placeholder="UUID участника"
+-                        value={draftFilters.actor_id}
+-                        onChange={(event) => updateDraft('actor_id', event.target.value)}
+-                      />
+-                      {usersQuery.isError && (
+-                        <Button
+-                          type="button"
+-                          size="icon"
+-                          variant="outline"
+-                          className="h-10 w-10"
+-                          title="Повторить загрузку пользователей"
+-                          aria-label="Повторить загрузку пользователей"
+-                          onClick={() => usersQuery.refetch()}
+-                        >
+-                          <RefreshCw className="h-4 w-4" />
+-                        </Button>
++                    <label htmlFor="audit-action" className="text-sm font-medium">
++                      Действие
++                    </label>
++                    <Select
++                      id="audit-action"
++                      value={draftFilters.action}
++                      onChange={(event) => updateDraft('action', event.target.value)}
++                    >
++                      <option value="">Все действия</option>
++                      {draftFilters.action && !actionLabels[draftFilters.action] && (
++                        <option value={draftFilters.action}>{draftFilters.action}</option>
+                       )}
+-                    </div>
+-                    {usersQuery.isError && (
+-                      <p className="text-xs text-text-muted">
+-                        Каталог пользователей недоступен; укажите UUID
+-                      </p>
+-                    )}
+-                    {!usersQuery.isError && users.length > 0 && (
+-                      <Button
+-                        type="button"
+-                        size="sm"
+-                        variant="ghost"
+-                        className="h-10 px-0"
+-                        onClick={() => setManualActorId(false)}
+-                      >
+-                        Выбрать из списка
+-                      </Button>
+-                    )}
++                      {Object.entries(actionLabels).map(([value, label]) => (
++                        <option key={value} value={value}>
++                          {label}
++                        </option>
++                      ))}
++                    </Select>
+                   </div>
+-                ) : (
+                   <div className="space-y-1">
+-                    <select
+-                      id="audit-actor"
+-                      className={selectClassName}
+-                      value={draftFilters.actor_id}
+-                      disabled={usersQuery.isLoading}
+-                      onChange={(event) => updateDraft('actor_id', event.target.value)}
++                    <label htmlFor="audit-entity-type" className="text-sm font-medium">
++                      Тип объекта
++                    </label>
++                    <Select
++                      id="audit-entity-type"
++                      value={draftFilters.entity_type}
++                      onChange={(event) => updateDraft('entity_type', event.target.value)}
+                     >
+-                      <option value="">
+-                        {usersQuery.isLoading ? 'Загружаем пользователей' : 'Все участники'}
+-                      </option>
+-                      {draftFilters.actor_id &&
+-                        !users.some((user) => user.id === draftFilters.actor_id) && (
+-                          <option value={draftFilters.actor_id}>{draftFilters.actor_id}</option>
++                      <option value="">Все типы</option>
++                      {draftFilters.entity_type &&
++                        !entityTypes.some(([value]) => value === draftFilters.entity_type) && (
++                          <option value={draftFilters.entity_type}>
++                            {draftFilters.entity_type}
++                          </option>
+                         )}
+-                      {users.map((user) => (
+-                        <option key={user.id} value={user.id}>
+-                          {user.display_name ?? user.username ?? user.email} · {user.email}
++                      {entityTypes.map(([value, label]) => (
++                        <option key={value} value={value}>
++                          {label}
+                         </option>
+                       ))}
+-                    </select>
+-                    <Button
+-                      type="button"
+-                      size="sm"
+-                      variant="ghost"
+-                      className="h-10 px-0"
+-                      onClick={() => setManualActorId(true)}
+-                    >
+-                      Ввести UUID
+-                    </Button>
++                    </Select>
++                  </div>
++                  <div className="space-y-1">
++                    <label htmlFor="audit-actor" className="text-sm font-medium">
++                      Участник
++                    </label>
++                    {manualActorId ||
++                    usersQuery.isError ||
++                    (!usersQuery.isLoading && users.length === 0) ? (
++                      <div className="space-y-1">
++                        <div className="flex gap-2">
++                          <Input
++                            id="audit-actor"
++                            className="min-h-10 min-w-0"
++                            placeholder="UUID участника"
++                            value={draftFilters.actor_id}
++                            onChange={(event) => updateDraft('actor_id', event.target.value)}
++                          />
++                          {usersRetry && (
++                            <Button
++                              type="button"
++                              size="icon"
++                              variant="outline"
++                              className="h-10 w-10"
++                              title="Повторить загрузку пользователей"
++                              aria-label="Повторить загрузку пользователей"
++                              onClick={usersRetry}
++                            >
++                              <RefreshCw className="h-4 w-4" />
++                            </Button>
++                          )}
++                        </div>
++                        {usersQuery.isError && (
++                          <p className="text-xs text-text-muted">
++                            Каталог пользователей недоступен; укажите UUID
++                          </p>
++                        )}
++                        {!usersQuery.isError && users.length > 0 && (
++                          <Button
++                            type="button"
++                            size="sm"
++                            variant="ghost"
++                            className="h-10 px-0"
++                            onClick={() => setManualActorId(false)}
++                          >
++                            Выбрать из списка
++                          </Button>
++                        )}
++                      </div>
++                    ) : (
++                      <div className="space-y-1">
++                        <Select
++                          id="audit-actor"
++                          value={draftFilters.actor_id}
++                          disabled={usersQuery.isLoading}
++                          onChange={(event) => updateDraft('actor_id', event.target.value)}
++                        >
++                          <option value="">
++                            {usersQuery.isLoading ? 'Загружаем пользователей' : 'Все участники'}
++                          </option>
++                          {draftFilters.actor_id &&
++                            !users.some((user) => user.id === draftFilters.actor_id) && (
++                              <option value={draftFilters.actor_id}>{draftFilters.actor_id}</option>
++                            )}
++                          {users.map((user) => (
++                            <option key={user.id} value={user.id}>
++                              {user.display_name ?? user.username ?? user.email} · {user.email}
++                            </option>
++                          ))}
++                        </Select>
++                        <Button
++                          type="button"
++                          size="sm"
++                          variant="ghost"
++                          className="h-10 px-0"
++                          onClick={() => setManualActorId(true)}
++                        >
++                          Ввести UUID
++                        </Button>
++                      </div>
++                    )}
++                  </div>
++                  <div className="space-y-1">
++                    <label htmlFor="audit-from" className="text-sm font-medium">
++                      С даты (местное время)
++                    </label>
++                    <Input
++                      id="audit-from"
++                      type="datetime-local"
++                      className="min-h-10"
++                      value={draftFilters.from}
++                      onChange={(event) => updateDraft('from', event.target.value)}
++                    />
++                  </div>
++                  <div className="space-y-1">
++                    <label htmlFor="audit-to" className="text-sm font-medium">
++                      До даты (не включая)
++                    </label>
++                    <Input
++                      id="audit-to"
++                      type="datetime-local"
++                      className="min-h-10"
++                      value={draftFilters.to}
++                      onChange={(event) => updateDraft('to', event.target.value)}
++                    />
+                   </div>
++                </div>
++                {filterError && (
++                  <p role="alert" className="text-sm text-danger">
++                    {filterError}
++                  </p>
+                 )}
+-              </div>
+-              <div className="space-y-1">
+-                <label htmlFor="audit-from" className="text-sm font-medium">
+-                  С даты (местное время)
+-                </label>
+-                <Input
+-                  id="audit-from"
+-                  type="datetime-local"
+-                  className="min-h-10"
+-                  value={draftFilters.from}
+-                  onChange={(event) => updateDraft('from', event.target.value)}
+-                />
+-              </div>
+-              <div className="space-y-1">
+-                <label htmlFor="audit-to" className="text-sm font-medium">
+-                  До даты (не включая)
+-                </label>
+-                <Input
+-                  id="audit-to"
+-                  type="datetime-local"
+-                  className="min-h-10"
+-                  value={draftFilters.to}
+-                  onChange={(event) => updateDraft('to', event.target.value)}
+-                />
+-              </div>
+-            </div>
+-            {filterError && (
+-              <p role="alert" className="text-sm text-danger">
+-                {filterError}
+-              </p>
++                <div className="flex flex-wrap justify-end gap-2">
++                  <Button type="button" variant="outline" className="h-10" onClick={clearFilters}>
++                    Сбросить
++                  </Button>
++                  <Button type="submit" className="h-10">
++                    Применить
++                  </Button>
++                </div>
++              </form>
+             )}
+-            <div className="flex flex-wrap justify-end gap-2">
+-              <Button type="button" variant="outline" className="h-10" onClick={clearFilters}>
+-                Сбросить
+-              </Button>
+-              <Button type="submit" className="h-10">
+-                Применить
+-              </Button>
+-            </div>
+-          </form>
+-        )}
+-      </div>
+-
++          </div>
++        )
++      }
++    >
+       <section ref={eventsRef} aria-label="События аудита" className="min-w-0 scroll-mt-16">
+-        {!auditQuery.isLoading && !auditQuery.isError && entries.length > 0 && (
++        {showEntries && usersQuery.isError && (
++          <ResourceStateView
++            state={{
++              kind: 'partial-error',
++              message:
++                'Названия участников недоступны; идентификаторы сохранены в технических данных',
++              onRetry: usersRetry,
++            }}
++          />
++        )}
++        {showEntries && spacesQuery.isError && (
++          <ResourceStateView
++            state={{
++              kind: 'partial-error',
++              message:
++                'Названия пространств недоступны; идентификаторы сохранены в технических данных',
++              onRetry: spacesRetry,
++            }}
++          />
++        )}
++        {showEntries && (
+           <p role="status" className="mb-3 text-sm text-text-muted">
+             Событий на странице: {entries.length}
+           </p>
+         )}
+-        {auditQuery.isLoading && <LoadingState message="Загружаем аудит" />}
+-        {auditQuery.isError && (
+-          <ErrorState
+-            message={formatApiErrorForUser(auditQuery.error, 'Не удалось загрузить аудит')}
+-            onRetry={() => auditQuery.refetch()}
++        {auditQuery.isLoading && (
++          <ResourceStateView state={{ kind: 'loading', message: 'Загружаем аудит' }} />
++        )}
++        {errorState && (
++          <ResourceStateView
++            state={
++              errorState.kind === 'error'
++                ? {
++                    ...errorState,
++                    kind: partialError ? 'partial-error' : 'error',
++                    message: formatApiErrorForUser(auditQuery.error, 'Не удалось загрузить аудит'),
++                  }
++                : errorState
++            }
+           />
+         )}
+         {!auditQuery.isLoading && !auditQuery.isError && entries.length === 0 && (
+@@ -475,7 +568,7 @@ export function AuditLogPage() {
+             }
+           />
+         )}
+-        {!auditQuery.isLoading && !auditQuery.isError && entries.length > 0 && (
++        {showEntries && (
+           <>
+             <ul className="divide-y divide-border border-y border-border xl:hidden">
+               {entries.map((event) => (
+@@ -490,23 +583,11 @@ export function AuditLogPage() {
+                   </div>
+                   <dl className="mt-1 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
+                     <dt className="text-text-muted">Участник</dt>
+-                    <dd className="min-w-0 break-all">{event.actor_id}</dd>
++                    <dd className="min-w-0 break-words">{actorLabel(event.actor_id)}</dd>
+                     <dt className="text-text-muted">Объект</dt>
+-                    <dd className="min-w-0 break-all">
+-                      {event.entity_type}: {event.entity_id}
+-                    </dd>
++                    <dd className="min-w-0 break-words">{entityLabel(event)}</dd>
+                   </dl>
+-                  <details className="mt-1 text-xs">
+-                    <summary className="min-h-10 cursor-pointer py-2 text-text-secondary hover:text-text-primary">
+-                      Технические данные
+-                    </summary>
+-                    <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 pb-2">
+-                      <dt className="text-text-muted">Действие</dt>
+-                      <dd className="min-w-0 break-all font-mono">{event.action}</dd>
+-                      <dt className="text-text-muted">Запрос</dt>
+-                      <dd className="min-w-0 break-all font-mono">{event.request_id}</dd>
+-                    </dl>
+-                  </details>
++                  {diagnostics(event)}
+                 </li>
+               ))}
+             </ul>
+@@ -517,7 +598,7 @@ export function AuditLogPage() {
+                     <TableHead>Событие</TableHead>
+                     <TableHead>Участник</TableHead>
+                     <TableHead>Объект</TableHead>
+-                    <TableHead>Запрос</TableHead>
++                    <TableHead>Диагностика</TableHead>
+                     <TableHead>Время</TableHead>
+                   </TableRow>
+                 </TableHeader>
+@@ -528,18 +609,10 @@ export function AuditLogPage() {
+                         <span className="block text-sm font-medium">
+                           {actionLabels[event.action] ?? event.action}
+                         </span>
+-                        {actionLabels[event.action] && (
+-                          <code className="break-all text-xs text-text-muted">{event.action}</code>
+-                        )}
+-                      </TableCell>
+-                      <TableCell className="break-all">{event.actor_id}</TableCell>
+-                      <TableCell className="break-all">
+-                        <span className="block text-xs text-text-muted">{event.entity_type}</span>
+-                        {event.entity_id}
+-                      </TableCell>
+-                      <TableCell className="break-all font-mono text-xs">
+-                        {event.request_id}
+                       </TableCell>
++                      <TableCell className="break-words">{actorLabel(event.actor_id)}</TableCell>
++                      <TableCell className="break-words">{entityLabel(event)}</TableCell>
++                      <TableCell>{diagnostics(event)}</TableCell>
+                       <TableCell className="whitespace-nowrap text-xs text-text-muted">
+                         {formatDateTime(event.created_at)}
+                       </TableCell>
+@@ -581,6 +654,6 @@ export function AuditLogPage() {
+           </nav>
+         )}
+       </section>
+-    </div>
++    </AuditLogView>
+   )
+ }
+diff --git a/frontend/src/pages/settings/index.tsx b/frontend/src/pages/settings/index.tsx
+index 4f6a7f8..7734112 100644
+--- a/frontend/src/pages/settings/index.tsx
++++ b/frontend/src/pages/settings/index.tsx
+@@ -1,6 +1,6 @@
+ import { Check, Database, Globe2, KeyRound, Minus, Settings2 } from 'lucide-react'
+ import { useWikiSettings } from '@/shared/api/hooks'
+-import { ErrorState, LoadingState } from '@sdlc/ui/ui'
++import { DetailPage, resourceErrorState, type ResourceState } from '@sdlc/ui/ui'
+ import { formatApiErrorForUser } from '@/shared/lib/api-error'
+ import { formatBytes } from '@/shared/lib/wiki-format'
+ 
+@@ -11,6 +11,25 @@ function enabledLabel(value: boolean): string {
+ export function SettingsPage() {
+   const settingsQuery = useWikiSettings()
+   const settings = settingsQuery.data
++  const errorState = settingsQuery.isError
++    ? resourceErrorState(settingsQuery.error, () => settingsQuery.refetch())
++    : undefined
++  const state: ResourceState = settingsQuery.isLoading
++    ? { kind: 'loading', message: 'Загружаем настройки' }
++    : errorState
++      ? errorState.kind === 'error'
++        ? {
++            ...errorState,
++            message: formatApiErrorForUser(settingsQuery.error, 'Не удалось загрузить настройки'),
++          }
++        : errorState
++      : settings
++        ? { kind: 'ready' }
++        : {
++            kind: 'error',
++            message: 'Не удалось получить настройки',
++            onRetry: () => settingsQuery.refetch(),
++          }
+   const settingsGroups = settings
+     ? [
+         {
+@@ -77,58 +96,43 @@ export function SettingsPage() {
+     : []
+ 
+   return (
+-    <div className="min-w-0 space-y-5">
+-      <h1 className="text-2xl font-bold">Настройки</h1>
+-
+-      {settingsQuery.isLoading && <LoadingState message="Загружаем настройки" />}
+-      {settingsQuery.isError && (
+-        <ErrorState
+-          message={formatApiErrorForUser(settingsQuery.error, 'Не удалось загрузить настройки')}
+-          onRetry={() => settingsQuery.refetch()}
+-        />
+-      )}
+-
+-      {!settingsQuery.isLoading && !settingsQuery.isError && settings && (
+-        <div className="grid gap-x-10 gap-y-7 lg:grid-cols-2">
+-          {settingsGroups.map((group) => {
+-            const Icon = group.icon
+-            return (
+-              <section
+-                key={group.id}
+-                aria-labelledby={group.id}
+-                className="min-w-0 border-t border-border pt-3"
+-              >
+-                <h2 id={group.id} className="flex items-center gap-2 text-base font-semibold">
+-                  <Icon aria-hidden className="h-4 w-4 shrink-0 text-accent" />
+-                  {group.title}
+-                </h2>
+-                <dl className="mt-2 divide-y divide-border">
+-                  {group.fields.map((field) => (
+-                    <div
+-                      key={field.label}
+-                      className="grid grid-cols-1 gap-0.5 py-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] sm:gap-4"
+-                    >
+-                      <dt className="text-sm text-text-muted">{field.label}</dt>
+-                      <dd className="flex min-w-0 items-start gap-1.5 text-sm font-medium">
+-                        {'enabled' in field &&
+-                          (field.enabled ? (
+-                            <Check aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+-                          ) : (
+-                            <Minus
+-                              aria-hidden
+-                              className="mt-0.5 h-4 w-4 shrink-0 text-text-muted"
+-                            />
+-                          ))}
+-                        <span className="min-w-0 break-all">{field.value}</span>
+-                      </dd>
+-                    </div>
+-                  ))}
+-                </dl>
+-              </section>
+-            )
+-          })}
+-        </div>
+-      )}
+-    </div>
++    <DetailPage title="Настройки" state={state}>
++      <div className="grid gap-x-10 gap-y-7 lg:grid-cols-2">
++        {settingsGroups.map((group) => {
++          const Icon = group.icon
++          return (
++            <section
++              key={group.id}
++              aria-labelledby={group.id}
++              className="min-w-0 border-t border-border pt-3"
++            >
++              <h2 id={group.id} className="flex items-center gap-2 text-base font-semibold">
++                <Icon aria-hidden className="h-4 w-4 shrink-0 text-accent" />
++                {group.title}
++              </h2>
++              <dl className="mt-2 divide-y divide-border">
++                {group.fields.map((field) => (
++                  <div
++                    key={field.label}
++                    className="grid grid-cols-1 gap-0.5 py-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] sm:gap-4"
++                  >
++                    <dt className="text-sm text-text-muted">{field.label}</dt>
++                    <dd className="flex min-w-0 items-start gap-1.5 text-sm font-medium">
++                      {'enabled' in field &&
++                        (field.enabled ? (
++                          <Check aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-success" />
++                        ) : (
++                          <Minus aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-text-muted" />
++                        ))}
++                      <span className="min-w-0 break-all">{field.value}</span>
++                    </dd>
++                  </div>
++                ))}
++              </dl>
++            </section>
++          )
++        })}
++      </div>
++    </DetailPage>
+   )
+ }
+diff --git a/frontend/src/pages/settings/settings.test.tsx b/frontend/src/pages/settings/settings.test.tsx
+index ab85260..97eaaeb 100644
+--- a/frontend/src/pages/settings/settings.test.tsx
++++ b/frontend/src/pages/settings/settings.test.tsx
+@@ -78,4 +78,39 @@ describe('SettingsPage', () => {
+     expect(screen.getByText('Загружаем настройки')).toBeInTheDocument()
+     expect(screen.queryByRole('region', { name: 'Инстанс' })).not.toBeInTheDocument()
+   })
++
++  it.each([403, 404])(
++    'uses terminal Base state for %s without stale settings or retry',
++    (status) => {
++      useWikiSettings.mockReturnValue({
++        data: settings,
++        isLoading: false,
++        isError: true,
++        error: { status },
++        refetch: vi.fn(),
++      })
++      render(<SettingsPage />)
++      expect(
++        document.querySelector(
++          `[data-page-state="${status === 403 ? 'permission-denied' : 'not-found'}"]`,
++        ),
++      ).toBeInTheDocument()
++      expect(screen.queryByRole('region', { name: 'Инстанс' })).not.toBeInTheDocument()
++      expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument()
++      expect(screen.getByRole('heading', { name: 'Настройки' })).toHaveClass('base-page-title')
++    },
++  )
++
++  it('does not offer retry for invalid settings requests', () => {
++    useWikiSettings.mockReturnValue({
++      data: undefined,
++      isLoading: false,
++      isError: true,
++      error: { status: 400 },
++      refetch: vi.fn(),
++    })
++    render(<SettingsPage />)
++    expect(screen.getByRole('alert')).toBeInTheDocument()
++    expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument()
++  })
+ })
+diff --git a/frontend/src/pages/users/index.tsx b/frontend/src/pages/users/index.tsx
+index ef2e96a..218f293 100644
+--- a/frontend/src/pages/users/index.tsx
++++ b/frontend/src/pages/users/index.tsx
+@@ -1,12 +1,12 @@
+ import { useEffect, useState } from 'react'
+-import { ExternalLink, Search } from 'lucide-react'
++import { ChevronLeft, ChevronRight, ExternalLink, Search } from 'lucide-react'
+ import { useSearchParams } from 'react-router'
+ import {
+   Button,
+-  EmptyState,
+-  ErrorState,
++  ListPage,
+   Input,
+-  LoadingState,
++  resourceErrorState,
++  type ResourceState,
+   Table,
+   TableBody,
+   TableCell,
+@@ -116,6 +116,25 @@ export function UsersPage() {
+   const visibleUsers = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+   const firstVisible = filtered.length === 0 ? 0 : (currentPage - 1) * pageSize + 1
+   const lastVisible = Math.min(currentPage * pageSize, filtered.length)
++  const errorState = usersQuery.isError
++    ? resourceErrorState(usersQuery.error, () => usersQuery.refetch())
++    : undefined
++  const state: ResourceState = usersQuery.isLoading
++    ? { kind: 'loading', message: 'Загружаем пользователей' }
++    : errorState
++      ? errorState.kind === 'error'
++        ? {
++            ...errorState,
++            message: formatApiErrorForUser(usersQuery.error, 'Не удалось загрузить пользователей'),
++          }
++        : errorState
++      : filtered.length === 0
++        ? {
++            kind: 'empty',
++            message:
++              users.length === 0 ? 'Профилей пока нет' : 'По вашему запросу ничего не найдено',
++          }
++        : { kind: 'ready' }
+ 
+   useEffect(() => {
+     if (usersQuery.isLoading || usersQuery.isError || requestedPage === currentPage) return
+@@ -123,126 +142,117 @@ export function UsersPage() {
+   }, [currentPage, requestedPage, setPage, usersQuery.isError, usersQuery.isLoading])
+ 
+   return (
+-    <div className="min-w-0 space-y-5">
+-      <div className="flex flex-wrap items-center justify-between gap-3">
+-        <div>
+-          <h1 className="text-2xl font-bold">Профили Wiki</h1>
+-          {!usersQuery.isLoading && !usersQuery.isError && (
+-            <p className="text-sm text-text-muted" aria-live="polite">
+-              {query ? `Найдено: ${filtered.length} из ${users.length}` : `Всего: ${users.length}`}
+-            </p>
+-          )}
+-        </div>
+-        {adminUrl && (
++    <ListPage
++      title="Профили Wiki"
++      state={state}
++      context={
++        !usersQuery.isLoading &&
++        !usersQuery.isError && (
++          <p className="text-sm text-text-muted" aria-live="polite">
++            {query ? `Найдено: ${filtered.length} из ${users.length}` : `Всего: ${users.length}`}
++          </p>
++        )
++      }
++      actions={
++        adminUrl && (
+           <Button asChild variant="secondary" className="h-10">
+             <a href={`${adminUrl.replace(/\/$/, '')}/users`}>
+               <ExternalLink className="h-4 w-4" aria-hidden />
+               Учётные записи
+             </a>
+           </Button>
+-        )}
+-      </div>
+-
+-      <div className="relative max-w-xl">
+-        <Search
+-          aria-hidden
+-          className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
+-        />
+-        <Input
+-          aria-label="Поиск пользователей"
+-          placeholder="Имя или email"
+-          value={search}
+-          onChange={(event) => setSearch(event.target.value)}
+-          className="h-10 pl-9"
+-        />
+-      </div>
+-
+-      {usersQuery.isLoading && <LoadingState message="Загружаем пользователей" />}
+-      {usersQuery.isError && (
+-        <ErrorState
+-          message={formatApiErrorForUser(usersQuery.error, 'Не удалось загрузить пользователей')}
+-          onRetry={() => usersQuery.refetch()}
+-        />
+-      )}
+-      {!usersQuery.isLoading && !usersQuery.isError && filtered.length === 0 && (
+-        <EmptyState
+-          message={users.length === 0 ? 'Профилей пока нет' : 'По вашему запросу ничего не найдено'}
+-        />
+-      )}
+-      {!usersQuery.isLoading && !usersQuery.isError && visibleUsers.length > 0 && (
+-        <>
+-          <div className="divide-y divide-border md:hidden">
+-            {visibleUsers.map((user) => (
+-              <div key={user.id} className="min-w-0 space-y-1 py-3">
+-                <div className="flex items-start justify-between gap-3">
+-                  <span className="min-w-0 break-words font-medium">
+-                    {user.display_name ?? user.username ?? user.email}
+-                  </span>
+-                  <span className="shrink-0 text-xs text-text-secondary">
+-                    {user.active === false ? 'Профиль отключён' : 'Профиль доступен'}
+-                  </span>
+-                </div>
+-                <div className="break-all text-sm text-text-muted">{user.email}</div>
++        )
++      }
++      filters={
++        <div className="relative max-w-xl">
++          <Search
++            aria-hidden
++            className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
++          />
++          <Input
++            aria-label="Поиск пользователей"
++            placeholder="Имя или email"
++            value={search}
++            onChange={(event) => setSearch(event.target.value)}
++            className="h-10 pl-9"
++          />
++        </div>
++      }
++    >
++      <>
++        <div className="divide-y divide-border md:hidden">
++          {visibleUsers.map((user) => (
++            <div key={user.id} className="min-w-0 space-y-1 py-3">
++              <div className="flex items-start justify-between gap-3">
++                <span className="min-w-0 break-words font-medium">
++                  {user.display_name ?? user.username ?? user.email}
++                </span>
++                <span className="shrink-0 text-xs text-text-secondary">
++                  {user.active === false ? 'Профиль отключён' : 'Профиль доступен'}
++                </span>
+               </div>
+-            ))}
+-          </div>
+-          <Table className="hidden table-fixed md:table">
+-            <TableHeader>
+-              <TableRow>
+-                <TableHead>Имя</TableHead>
+-                <TableHead>Email</TableHead>
+-                <TableHead className="w-44">Профиль Wiki</TableHead>
++              <div className="break-all text-sm text-text-muted">{user.email}</div>
++            </div>
++          ))}
++        </div>
++        <Table className="hidden table-fixed md:table">
++          <TableHeader>
++            <TableRow>
++              <TableHead>Имя</TableHead>
++              <TableHead>Email</TableHead>
++              <TableHead className="w-44">Профиль Wiki</TableHead>
++            </TableRow>
++          </TableHeader>
++          <TableBody>
++            {visibleUsers.map((user) => (
++              <TableRow key={user.id}>
++                <TableCell className="break-words font-medium">
++                  {user.display_name ?? user.username ?? user.email}
++                </TableCell>
++                <TableCell className="break-all">{user.email}</TableCell>
++                <TableCell>
++                  {user.active === false ? 'Профиль отключён' : 'Профиль доступен'}
++                </TableCell>
+               </TableRow>
+-            </TableHeader>
+-            <TableBody>
+-              {visibleUsers.map((user) => (
+-                <TableRow key={user.id}>
+-                  <TableCell className="break-words font-medium">
+-                    {user.display_name ?? user.username ?? user.email}
+-                  </TableCell>
+-                  <TableCell className="break-all">{user.email}</TableCell>
+-                  <TableCell>
+-                    {user.active === false ? 'Профиль отключён' : 'Профиль доступен'}
+-                  </TableCell>
+-                </TableRow>
+-              ))}
+-            </TableBody>
+-          </Table>
+-          {filtered.length > pageSize && (
+-            <nav
+-              aria-label="Страницы профилей"
+-              className="flex flex-wrap items-center justify-end gap-2"
++            ))}
++          </TableBody>
++        </Table>
++        {filtered.length > pageSize && (
++          <nav
++            aria-label="Страницы профилей"
++            className="flex flex-wrap items-center justify-end gap-2"
++          >
++            <span className="mr-auto text-sm text-text-muted">
++              Показаны {firstVisible}–{lastVisible} из {filtered.length}
++            </span>
++            <Button
++              type="button"
++              size="sm"
++              variant="outline"
++              className="min-h-10 sm:min-h-10"
++              disabled={currentPage === 1}
++              onClick={() => setPage(currentPage - 1)}
++            >
++              <ChevronLeft aria-hidden className="h-4 w-4" />
++              Назад
++            </Button>
++            <span className="text-sm text-text-muted">
++              {currentPage} / {totalPages}
++            </span>
++            <Button
++              type="button"
++              size="sm"
++              variant="outline"
++              className="min-h-10 sm:min-h-10"
++              disabled={currentPage === totalPages}
++              onClick={() => setPage(currentPage + 1)}
+             >
+-              <span className="mr-auto text-sm text-text-muted">
+-                Показаны {firstVisible}–{lastVisible} из {filtered.length}
+-              </span>
+-              <Button
+-                type="button"
+-                size="sm"
+-                variant="outline"
+-                className="min-h-10 sm:min-h-10"
+-                disabled={currentPage === 1}
+-                onClick={() => setPage(currentPage - 1)}
+-              >
+-                Назад
+-              </Button>
+-              <span className="text-sm text-text-muted">
+-                {currentPage} / {totalPages}
+-              </span>
+-              <Button
+-                type="button"
+-                size="sm"
+-                variant="outline"
+-                className="min-h-10 sm:min-h-10"
+-                disabled={currentPage === totalPages}
+-                onClick={() => setPage(currentPage + 1)}
+-              >
+-                Далее
+-              </Button>
+-            </nav>
+-          )}
+-        </>
+-      )}
+-    </div>
++              Далее
++              <ChevronRight aria-hidden className="h-4 w-4" />
++            </Button>
++          </nav>
++        )}
++      </>
++    </ListPage>
+   )
+ }
+diff --git a/frontend/src/pages/users/users.test.tsx b/frontend/src/pages/users/users.test.tsx
+index a682a08..66ffe14 100644
+--- a/frontend/src/pages/users/users.test.tsx
++++ b/frontend/src/pages/users/users.test.tsx
+@@ -97,9 +97,9 @@ describe('UsersPage', () => {
+     setupUsers({
+       data: undefined,
+       isError: true,
+-      error: { code: 'FORBIDDEN', message: 'Forbidden' },
++      error: { status: 503, code: 'UNAVAILABLE', message: 'Не удалось загрузить пользователей' },
+     })
+-    expect(screen.getByRole('alert')).toHaveTextContent('Недостаточно прав для действия')
++    expect(screen.getByRole('alert')).toHaveTextContent('Не удалось загрузить пользователей')
+     fireEvent.click(screen.getByRole('button', { name: 'Повторить' }))
+     expect(usersRefetch).toHaveBeenCalled()
+     expect(screen.getByRole('textbox', { name: 'Поиск пользователей' })).toBeInTheDocument()
+@@ -177,4 +177,25 @@ describe('UsersPage', () => {
+     expect(screen.getByRole('button', { name: 'Назад' })).toHaveClass('min-h-10', 'sm:min-h-10')
+     expect(screen.getByRole('button', { name: 'Далее' })).toHaveClass('min-h-10', 'sm:min-h-10')
+   })
++
++  it.each([403, 404])('uses terminal Base state for %s and keeps URL context', (status) => {
++    setupUsers({ isError: true, error: { status } }, '/users?keep=1&q=anna')
++    expect(
++      document.querySelector(
++        `[data-page-state="${status === 403 ? 'permission-denied' : 'not-found'}"]`,
++      ),
++    ).toBeInTheDocument()
++    expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument()
++    expect(screen.queryByRole('textbox', { name: 'Поиск пользователей' })).not.toBeInTheDocument()
++    expect(screen.queryByRole('link', { name: 'Учётные записи' })).not.toBeInTheDocument()
++    expect(screen.queryByText('Анна')).not.toBeInTheDocument()
++    expect(screen.getByTestId('router-location')).toHaveTextContent('/users?keep=1&q=anna')
++  })
++
++  it('retains search but does not offer retry for invalid requests', () => {
++    setupUsers({ data: undefined, isError: true, error: { status: 400 } })
++    expect(screen.getByRole('alert')).toBeInTheDocument()
++    expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument()
++    expect(screen.getByRole('textbox', { name: 'Поиск пользователей' })).toBeInTheDocument()
++  })
+ })
+diff --git a/frontend/src/shared/api/hooks.ts b/frontend/src/shared/api/hooks.ts
+index 7949b94..2eb4660 100644
+--- a/frontend/src/shared/api/hooks.ts
++++ b/frontend/src/shared/api/hooks.ts
+@@ -153,10 +153,11 @@ export function useLogout() {
+   })
+ }
+ 
+-export function useSpaces() {
++export function useSpaces(enabled = true) {
+   return useQuery({
+     queryKey: wikiKeys.spaces,
+     queryFn: listSpaces,
++    enabled,
+   })
+ }
+ 

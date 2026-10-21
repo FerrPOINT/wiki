@@ -1,0 +1,417 @@
+diff --git a/docs/CURRENT_STATE.md b/docs/CURRENT_STATE.md
+index afd2cdf..4bd2c4d 100644
+--- a/docs/CURRENT_STATE.md
++++ b/docs/CURRENT_STATE.md
+@@ -56,6 +56,7 @@
+ 
+ ## Known Local Environment Limits
+ 
++- На 2026-09-20 в рабочем Windows-разделе осталось около 0,2 ГБ: для UI-подтверждения архивации пространства локальные install/build/Vitest/Playwright не запускаются до освобождения места. Проверка этой ветки выполняется удалённым CI; live UI-приёмка остаётся отдельным gate перед слиянием.
+ - Native Windows Rust linking currently requires MSVC `link.exe`; backend checks are run through WSL on this host.
+ - `pnpm add` is blocked on this host by Corepack/Node `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING`; existing package binaries under `frontend/node_modules/.bin` can still be used for TypeScript/tests/build/lint verification.
+ - Docker PostgreSQL smoke can be run through `scripts/postgres-smoke.ps1` once Docker Desktop is available. In the last setup check, Docker CLI was installed, but the Docker daemon/service was stopped and could not be started from this process; the test Postgres port `3458` was closed.
+diff --git a/docs/PRODUCT_REQUIREMENTS.md b/docs/PRODUCT_REQUIREMENTS.md
+index 7955c8a..a294fb7 100644
+--- a/docs/PRODUCT_REQUIREMENTS.md
++++ b/docs/PRODUCT_REQUIREMENTS.md
+@@ -100,6 +100,8 @@ MVP не включает:
+ 
+ Администратор может пройти всю append-only историю аудита постранично. Счётчики на экране относятся только к текущей странице и не выдаются за общие итоги; лимит страницы показан явно. Новые события не сдвигают границы уже открытых страниц.
+ 
++Архивация пространства в UI требует явного подтверждения с названием и последствиями: документы, материалы и связи остаются доступны для чтения, но их изменение блокируется. Отмена не отправляет запрос; ошибка остаётся в диалоге для повторной попытки. После успеха пространство и его архивный статус остаются видимыми в списке.
++
+ ## 6. Базовые шаблоны
+ 
+ MVP поставляет только пять шаблонов:
+diff --git a/frontend/src/pages/spaces/index.tsx b/frontend/src/pages/spaces/index.tsx
+index 6aae956..641df83 100644
+--- a/frontend/src/pages/spaces/index.tsx
++++ b/frontend/src/pages/spaces/index.tsx
+@@ -26,7 +26,7 @@ import {
+   useUpsertSpaceMember,
+   useUsers,
+ } from '@/shared/api/hooks'
+-import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
++import { ConfirmDialog, EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
+ import { Button } from '@sdlc/ui/ui'
+ import { Input } from '@sdlc/ui/ui'
+ import { Label } from '@sdlc/ui/ui'
+@@ -317,11 +317,13 @@ function SpaceMembers({
+ function SpaceDetails({
+   currentUserId,
+   isSystemAdmin,
++  onArchived,
+   space,
+   users,
+ }: {
+   currentUserId?: string
+   isSystemAdmin: boolean
++  onArchived: (space: Space) => void
+   space: Space
+   users: User[]
+ }) {
+@@ -335,6 +337,7 @@ function SpaceDetails({
+       members.some((member) => member.user_id === currentUserId && member.role === 'admin'))
+   const [name, setName] = useState(space.name)
+   const [description, setDescription] = useState(space.description ?? '')
++  const [archiveOpen, setArchiveOpen] = useState(false)
+   const changed =
+     name.trim() !== space.name || nullableText(description) !== (space.description ?? null)
+ 
+@@ -381,11 +384,14 @@ function SpaceDetails({
+               type="button"
+               size="sm"
+               variant="destructive"
+-              onClick={() => archiveSpace.mutate(space.key)}
++              onClick={() => {
++                archiveSpace.reset()
++                setArchiveOpen(true)
++              }}
+               disabled={archiveSpace.isPending}
+             >
+               <Archive className="h-3.5 w-3.5" />
+-              {archiveSpace.isPending ? 'Архивируем...' : 'Архивировать'}
++              Архивировать
+             </Button>
+           </div>
+           {updateSpace.isError && (
+@@ -393,14 +399,31 @@ function SpaceDetails({
+               {formatApiErrorForUser(updateSpace.error, 'Не удалось обновить пространство')}
+             </p>
+           )}
+-          {archiveSpace.isError && (
+-            <p className="text-sm text-danger">
+-              {formatApiErrorForUser(archiveSpace.error, 'Не удалось архивировать пространство')}
+-            </p>
+-          )}
+         </form>
+       )}
+ 
++      <ConfirmDialog
++        open={archiveOpen}
++        onOpenChange={setArchiveOpen}
++        title="Архивировать пространство?"
++        description={`«${space.name}» (${space.key}) останется доступным для чтения, но изменения документов, материалов и связей будут заблокированы. Восстановление из интерфейса пока недоступно.`}
++        onConfirm={() => {
++          if (!canManage || archiveSpace.isPending) return
++          archiveSpace.mutate(space.key, {
++            onSuccess: (archived) => {
++              setArchiveOpen(false)
++              onArchived(archived)
++            },
++          })
++        }}
++        isPending={archiveSpace.isPending}
++        error={
++          archiveSpace.error
++            ? formatApiErrorForUser(archiveSpace.error, 'Не удалось архивировать пространство')
++            : null
++        }
++      />
++
+       <div className="space-y-2 rounded-md border border-border p-3">
+         <div className="flex items-center gap-2 text-xs font-medium uppercase text-text-muted">
+           <BookOpenText className="h-3.5 w-3.5" />
+@@ -432,7 +455,10 @@ export function SpacesPage() {
+   const isSystemAdmin = currentUserQuery.data?.is_system_admin === true
+   const usersQuery = useUsers(isSystemAdmin)
+   const users = usersQuery.data?.users ?? []
+-  const spaces = spacesQuery.data?.spaces ?? []
++  const [recentlyArchived, setRecentlyArchived] = useState<Space | null>(null)
++  const spaces = (spacesQuery.data?.spaces ?? []).map((space) =>
++    space.key === recentlyArchived?.key ? recentlyArchived : space,
++  )
+   const [showCreate, setShowCreate] = useState(false)
+   const [search, setSearch] = useState('')
+   const [status, setStatus] = useState('all')
+@@ -451,11 +477,15 @@ export function SpacesPage() {
+           value.toLocaleLowerCase().includes(query),
+         ),
+     )
+-    .sort((a, b) =>
+-      sort === 'name'
++    .sort((a, b) => {
++      if (sort === 'updated' && recentlyArchived) {
++        if (a.key === recentlyArchived.key) return -1
++        if (b.key === recentlyArchived.key) return 1
++      }
++      return sort === 'name'
+         ? a.name.localeCompare(b.name, 'ru')
+-        : new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+-    )
++        : new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
++    })
+   const pageCount = Math.max(1, Math.ceil(filteredSpaces.length / 12))
+   const currentPage = Math.min(page, pageCount)
+   const visibleSpaces = filteredSpaces.slice((currentPage - 1) * 12, currentPage * 12)
+@@ -465,6 +495,14 @@ export function SpacesPage() {
+     setExpandedKey(null)
+   }
+ 
++  function handleArchived(space: Space) {
++    setRecentlyArchived(space)
++    setStatus('all')
++    setSort('updated')
++    setPage(1)
++    setExpandedKey(space.key)
++  }
++
+   return (
+     <div className="space-y-5">
+       <section className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+@@ -495,6 +533,12 @@ export function SpacesPage() {
+ 
+       {isSystemAdmin && showCreate && <CreateSpaceForm onCreated={() => setShowCreate(false)} />}
+ 
++      {recentlyArchived && (
++        <p role="status" className="border-l-2 border-success bg-surface-raised px-3 py-2 text-sm">
++          Пространство «{recentlyArchived.name}» архивировано и остаётся доступным для чтения.
++        </p>
++      )}
++
+       {spacesQuery.isLoading && <LoadingState message="Загружаем пространства" />}
+       {spacesQuery.isError && (
+         <ErrorState
+@@ -630,6 +674,7 @@ export function SpacesPage() {
+                         <SpaceDetails
+                           currentUserId={currentUserQuery.data?.id}
+                           isSystemAdmin={isSystemAdmin}
++                          onArchived={handleArchived}
+                           space={space}
+                           users={users}
+                         />
+diff --git a/frontend/src/pages/spaces/spaces.test.tsx b/frontend/src/pages/spaces/spaces.test.tsx
+index d25b382..b232486 100644
+--- a/frontend/src/pages/spaces/spaces.test.tsx
++++ b/frontend/src/pages/spaces/spaces.test.tsx
+@@ -1,4 +1,4 @@
+-import { fireEvent, render, screen } from '@testing-library/react'
++import { act, fireEvent, render, screen, within } from '@testing-library/react'
+ import { MemoryRouter } from 'react-router'
+ import { afterEach, describe, expect, it, vi } from 'vitest'
+ 
+@@ -16,6 +16,7 @@ const useUpsertSpaceMember = vi.hoisted(() => vi.fn())
+ const useUsers = vi.hoisted(() => vi.fn())
+ 
+ const archiveMutate = vi.hoisted(() => vi.fn())
++const archiveReset = vi.hoisted(() => vi.fn())
+ const createMutate = vi.hoisted(() => vi.fn())
+ const deleteMemberMutate = vi.hoisted(() => vi.fn())
+ const updateMutate = vi.hoisted(() => vi.fn())
+@@ -58,6 +59,19 @@ const editorUser = {
+   username: 'editor',
+ }
+ 
++const baseSpace = {
++  id: 'space-sdlc',
++  key: 'BASE',
++  name: 'База знаний Base',
++  description: 'Основные документы продукта',
++  owner_id: 'user-admin',
++  status: 'active',
++  document_count: 2,
++  member_count: 2,
++  created_at: '2026-08-31T10:00:00Z',
++  updated_at: '2026-08-31T11:00:00Z',
++}
++
+ function setupSpaces({
+   membersOverrides = {},
+   userOverrides = {},
+@@ -83,20 +97,7 @@ function setupSpaces({
+   })
+   useSpaces.mockReturnValue({
+     data: {
+-      spaces: spaceList ?? [
+-        {
+-          id: 'space-sdlc',
+-          key: 'BASE',
+-          name: 'База знаний Base',
+-          description: 'Основные документы продукта',
+-          owner_id: 'user-admin',
+-          status: 'active',
+-          document_count: 2,
+-          member_count: 2,
+-          created_at: '2026-08-31T10:00:00Z',
+-          updated_at: '2026-08-31T11:00:00Z',
+-        },
+-      ],
++      spaces: spaceList ?? [baseSpace],
+     },
+     isLoading: false,
+     isError: false,
+@@ -167,6 +168,7 @@ function setupSpaces({
+   })
+   useArchiveSpace.mockReturnValue({
+     mutate: archiveMutate,
++    reset: archiveReset,
+     isPending: false,
+     isError: false,
+     error: null,
+@@ -184,7 +186,7 @@ function setupSpaces({
+     error: null,
+   })
+ 
+-  render(
++  return render(
+     <MemoryRouter>
+       <SpacesPage />
+     </MemoryRouter>,
+@@ -220,7 +222,7 @@ describe('SpacesPage', () => {
+     expect(useSpaceMembers).toHaveBeenCalledWith('BASE')
+   })
+ 
+-  it('submits space create, update, archive and member mutations', () => {
++  it('submits space create, update and member mutations', () => {
+     setupSpaces()
+     fireEvent.click(screen.getByRole('button', { name: 'Создать пространство' }))
+     fireEvent.click(screen.getByRole('button', { name: /База знаний Base/ }))
+@@ -256,9 +258,6 @@ describe('SpacesPage', () => {
+       },
+     })
+ 
+-    fireEvent.click(screen.getByRole('button', { name: 'Архивировать' }))
+-    expect(archiveMutate).toHaveBeenCalledWith('BASE')
+-
+     fireEvent.change(screen.getByLabelText('Пользователь'), {
+       target: { value: 'user-editor' },
+     })
+@@ -284,6 +283,122 @@ describe('SpacesPage', () => {
+     })
+   })
+ 
++  it('confirms archive, allows cancellation, and keeps the archived space visible', () => {
++    const otherSpaces = Array.from({ length: 24 }, (_, index) => ({
++      ...baseSpace,
++      id: `space-${index + 1}`,
++      key: `S${index + 1}`,
++      name: `Space ${index + 1}`,
++      updated_at: '2026-09-01T11:00:00Z',
++    }))
++    const view = setupSpaces({ spaceList: [...otherSpaces, baseSpace] })
++    fireEvent.change(screen.getByRole('combobox', { name: 'Статус пространства' }), {
++      target: { value: 'active' },
++    })
++    fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
++    fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
++    fireEvent.click(screen.getByRole('button', { name: /База знаний Base/ }))
++    fireEvent.click(screen.getByRole('button', { name: 'Архивировать' }))
++
++    let dialog = screen.getByRole('alertdialog')
++    expect(dialog).toHaveTextContent('База знаний Base')
++    expect(dialog).toHaveTextContent('Восстановление из интерфейса пока недоступно')
++    expect(archiveMutate).not.toHaveBeenCalled()
++    fireEvent.click(within(dialog).getByRole('button', { name: 'Отмена' }))
++    expect(archiveMutate).not.toHaveBeenCalled()
++
++    fireEvent.click(screen.getByRole('button', { name: 'Архивировать' }))
++    dialog = screen.getByRole('alertdialog')
++    expect(archiveReset).toHaveBeenCalledTimes(2)
++    fireEvent.click(within(dialog).getByRole('button', { name: 'Подтвердить' }))
++    expect(archiveMutate).toHaveBeenCalledWith('BASE', { onSuccess: expect.any(Function) })
++    expect(dialog).toBeVisible()
++
++    const onSuccess = archiveMutate.mock.calls[0]![1].onSuccess as (space: typeof baseSpace) => void
++    act(() =>
++      onSuccess({ ...baseSpace, status: 'archived', updated_at: '2026-09-20T11:00:00Z' }),
++    )
++    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
++    expect(screen.getByRole('status')).toHaveTextContent(
++      'Пространство «База знаний Base» архивировано',
++    )
++    expect(screen.getByRole('combobox', { name: 'Статус пространства' })).toHaveValue('all')
++    expect(screen.getByRole('button', { name: /База знаний Base/ })).toHaveTextContent(
++      'архивировано',
++    )
++    expect(screen.getByRole('navigation', { name: 'Страницы пространств' })).toHaveTextContent(
++      '1 / 3',
++    )
++    expect(screen.queryByRole('button', { name: 'Архивировать' })).not.toBeInTheDocument()
++
++    useSpaces.mockReturnValue({
++      data: {
++        spaces: [
++          ...otherSpaces,
++          { ...baseSpace, status: 'archived', updated_at: '2026-09-20T11:00:00Z' },
++        ],
++      },
++      isLoading: false,
++      isError: false,
++      refetch: refetchSpaces,
++    })
++    view.rerender(
++      <MemoryRouter>
++        <SpacesPage />
++      </MemoryRouter>,
++    )
++    expect(screen.getByRole('button', { name: /База знаний Base/ })).toHaveTextContent(
++      'архивировано',
++    )
++  })
++
++  it('keeps archive confirmation open during pending and error states', () => {
++    const view = setupSpaces()
++    fireEvent.click(screen.getByRole('button', { name: /База знаний Base/ }))
++    fireEvent.click(screen.getByRole('button', { name: 'Архивировать' }))
++    fireEvent.click(
++      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Подтвердить' }),
++    )
++
++    useArchiveSpace.mockReturnValue({
++      mutate: archiveMutate,
++      reset: archiveReset,
++      isPending: true,
++      isError: false,
++      error: null,
++    })
++    view.rerender(
++      <MemoryRouter>
++        <SpacesPage />
++      </MemoryRouter>,
++    )
++    expect(
++      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Отмена' }),
++    ).toBeDisabled()
++    expect(
++      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Загрузка...' }),
++    ).toBeDisabled()
++
++    useArchiveSpace.mockReturnValue({
++      mutate: archiveMutate,
++      reset: archiveReset,
++      isPending: false,
++      isError: true,
++      error: { code: 'FORBIDDEN' },
++    })
++    view.rerender(
++      <MemoryRouter>
++        <SpacesPage />
++      </MemoryRouter>,
++    )
++    expect(screen.getByRole('alertdialog')).toHaveTextContent('Недостаточно прав для действия')
++    expect(archiveMutate).toHaveBeenCalledOnce()
++    fireEvent.click(
++      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Подтвердить' }),
++    )
++    expect(archiveMutate).toHaveBeenCalledTimes(2)
++  })
++
+   it('keeps member assignment available for space admins without the global user list', () => {
+     setupSpaces({
+       userOverrides: {
+@@ -311,6 +426,15 @@ describe('SpacesPage', () => {
+     )
+   })
+ 
++  it('does not offer archive or member changes to a viewer', () => {
++    setupSpaces({ userOverrides: { data: editorUser } })
++    fireEvent.click(screen.getByRole('button', { name: /База знаний Base/ }))
++
++    expect(screen.queryByRole('button', { name: 'Архивировать' })).not.toBeInTheDocument()
++    expect(screen.queryByRole('button', { name: 'Назначить' })).not.toBeInTheDocument()
++    expect(archiveMutate).not.toHaveBeenCalled()
++  })
++
+   it('shows member permission errors with a retry action', () => {
+     setupSpaces({
+       membersOverrides: {

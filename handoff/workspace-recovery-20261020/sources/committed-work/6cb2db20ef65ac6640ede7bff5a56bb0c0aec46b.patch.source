@@ -1,0 +1,65 @@
+diff --git a/docs/uiux-source-evidence-2026-10-02.md b/docs/uiux-source-evidence-2026-10-02.md
+new file mode 100644
+index 0000000..448c107
+--- /dev/null
++++ b/docs/uiux-source-evidence-2026-10-02.md
+@@ -0,0 +1,59 @@
++# Wiki Source Evidence
++
++Это source/mock checkpoint, не выпускная приёмка Wiki или всей платформы.
++Исходный dirty checkout, default refs, принятые images/data/secrets не менялись.
++GitHub/Actions не использовались. Полный обязательный остаток сохранён в
++[плане](plans/2026-10-02-base-ui-reconciliation-and-templates.md).
++
++## Provenance
++
++| Поле | Значение |
++|---|---|
++| Runtime source | `17f46e920fd43a3de774c1cc1c4c4015750287f3` |
++| Saved-default reconciliation | `910087cb0d1ea410050a06ab6e10465bbdf6b179` |
++| Base pin | `6f63595a891f78b96b665889f80e6eb5cf34381a` |
++| Product fingerprint | `524518ae8702fe1c882a041af7e2dc44c657475526f7c3d6b450c419da53fa39` |
++| Base source/installed fingerprint | `a383932722c73aa8ed540a416b2ec0def375d97c967ab64b23daeb9d9abf3e30` |
++| Runtime image digest | Не заявляется этим checkpoint |
++
++After-commit attestation: product frontend/backend/config, QA scripts/e2e, Base
++frontend/crates/Cargo и installed package без расхождений. Frozen offline force
++install: 451 reused / zero downloaded; generated schema/lock content не изменён.
++
++## Gates
++
++- Frontend: 246 units / 23 files, включая 18 template cases; lint/semantic,
++  typecheck/build, strict installed Base/19-pattern, OpenAPI check/compat,
++  effective theme contrast, README validator и 5 Python script tests passed.
++- Full format gate passed после LF-нормализации 51 файлов; каждый content diff
++  отдельно проверен пустым, лишних staged files нет. Product FP не изменился.
++- Rust 1.88: fmt, strict all-target/all-feature clippy, workspace reports 142
++  passed. Из них 16 env-gated PG cases сначала early-return без URL; отдельно
++  все 16 действительно выполнены на fresh PostgreSQL, включая role/isolation,
++  auth/session/idempotency, persistence, cursor/FTS/index и maintenance.
++- Release workspace passed; OpenAPI release binary совпадает с committed JSON.
++  Final release `--network none`, Swagger ZIP из собственного debug cache:
++  v5.17.14, digest `481244d0812097b11fbaeef79f71d942b171617f9c9f9514e63acbe13e71ccdc`.
++  Initial missing offline asset не считается successful build.
++- Full Chromium smoke: 21 passed / 0 skipped / 0 flaky / retries=0, 9.3 min.
++  210 shared-mode geometry captures, search/template themes/breakpoints,
++  URL/reload/OIDC fixture/history, keyboard drawer, errors, drafts/conflicts и
++  long-content local scroll. Normal matrix не является полной role/state matrix.
++- 322 PNG и 40 Windows dist assets имеют actual dimensions/digests/mtime.
++  Template fixture приложила 30 raw target measurements. Названные normal themes
++  проверены; unnamed/state captures не получают угаданную theme/viewport.
++  Current desktop gray template и mobile partial-error просмотрены без overlap.
++
++## Evidence And Cleanup
++
++Workspace: `audit-artifacts/base-standard-2026-10-01/`
++`wiki-template-pattern-browser-acceptance/metadata.json`, final browser/unit JSON,
++`wiki-template-pattern-*.log` и `wiki-default-reconcile-*.log`.
++HTTP/OIDC synthetic; `noMock=false`, `imageDigest=null`, `releaseAcceptance=false`,
++`readmeGalleryAccepted=false`, `defaultIntegrated=false`, `mirrorSynced=false`.
++Partial/aborted diagnostic browser runs не подменяют final 21/21 evidence.
++
++Temporary PostgreSQL `uiux-wiki-pg-20261002` и network `uiux-wiki-qa-20261002`
++удалены. Preview завершён, listener 18867 отсутствует. Own cache volumes сохранены;
++canonical runtime и foreign processes не менялись. Historical README gallery
++не заменена source/mock кадрами. Все 14 findings остаются открытыми до release QA.

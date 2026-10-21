@@ -1,5 +1,10 @@
 # Current State - Wiki
 
+> **Source recovery 2026-10-20:** unpublished workspace variants and historical
+> commit diffs are preserved under `handoff/workspace-recovery-20261020`.
+> SHA-256/index verification passed; these inert payloads are not a runtime
+> installation or a fresh backend/frontend acceptance result.
+
 > **Каталог UI, исходники 2026-10-17:** Base UI #245 закреплён независимо
 > от Rust SDK. В профиле CI прошли 247 frontend tests, frozen build,
 > lint/typecheck/format/OpenAPI/package и effective theme в трёх темах.

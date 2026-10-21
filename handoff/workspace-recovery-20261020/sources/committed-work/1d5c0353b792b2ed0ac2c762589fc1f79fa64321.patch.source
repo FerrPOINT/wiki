@@ -1,0 +1,333 @@
+diff --git a/docs/plans/2026-10-04-transport-error-copy.md b/docs/plans/2026-10-04-transport-error-copy.md
+new file mode 100644
+index 0000000..921eb94
+--- /dev/null
++++ b/docs/plans/2026-10-04-transport-error-copy.md
+@@ -0,0 +1,36 @@
++# Сообщения Транспортных Ошибок
++
++Scope: `WIKI-ERROR-LOCALE-01`, общий Wiki formatter и source regression tests.
++Нормативная классификация состояний принадлежит
++[Base](../../../services-base/docs/platform/UI_UX_STANDARD.md); API, auth,
++данные и схема не меняются.
++
++## Подтверждённая Проблема
++
++На `/search` native fetch rejection выводился как `Failed to fetch` в русском
++partial-error. Formatter принимал любой объект с message за API envelope.
++Проблема подтверждена source screenshot и регрессионными тестами до исправления.
++
++## Решение
++
++Formatter выводит серверное сообщение/детали только для структурированной ошибки:
++непустой строковый domain code либо целочисленный HTTP error status 400-599.
++Transport sentinel status0, native fetch/JSON/cancellation и прочие неструктурированные
++ошибки используют переданный страницей локализованный fallback. Проверки текста
++`Failed to fetch` или языка сообщения в production-коде нет. Неизвестные domain
++codes сохраняют server message/details; технические request identifiers по-прежнему
++не выводятся. Ошибка не мутируется и не заменяется: status/retry/cached-data policy
++остаётся в Base resourceErrorState, unknown write outcome - у существующего write flow.
++
++## Приёмка
++
++Обязательны полный frontend test/typecheck/lint/format/build, installed Base gate,
++OpenAPI/docs checks и serial Chromium smoke. Нативная transport failure проверяется
++на initial и cached search: fallback, сохранение допустимых cached результатов,
++отсутствие ложного empty, работа keyboard retry и сохранение URL/query/hash.
++Source QA охватывает темы и desktop/responsive widths; full-page кадры 375/1920/2560
++остаются QA evidence, не README.
++
++Source fixture tests не закрывают actual-image/live SSO/role acceptance,
++default integration или mirror. Итоговые локальные receipts записываются отдельно
++в workspace audit artifacts, без замены исторических screenshot provenance.
+diff --git a/frontend/e2e/smoke.spec.ts b/frontend/e2e/smoke.spec.ts
+index 76ecd45..03bc88c 100644
+--- a/frontend/e2e/smoke.spec.ts
++++ b/frontend/e2e/smoke.spec.ts
+@@ -687,6 +687,9 @@ test.describe('wiki smoke', () => {
+         })
+         await expect(page.getByRole('link', { name: /Требования к Wiki MVP/ })).toBeVisible()
+         await expect(page.getByRole('button', { name: 'Повторить', exact: true })).toBeVisible()
++        await expect(page.locator('[data-page-state="partial-error"]')).toContainText(
++          failure === 0 ? 'Не удалось выполнить поиск' : 'Временный сбой тестового поиска',
++        )
+       } else {
+         const error =
+           failure === 422
+@@ -698,7 +701,7 @@ test.describe('wiki smoke', () => {
+         await expect(page.getByRole('link', { name: /Требования к Wiki MVP/ })).toHaveCount(0)
+         await expect(page.getByRole('button', { name: 'Повторить', exact: true })).toHaveCount(0)
+       }
+-      for (const width of [375, 1920]) {
++      for (const width of [375, 1920, 2560]) {
+         await page.setViewportSize({ width, height: width < 768 ? 812 : 1080 })
+         expect(
+           await page.evaluate(
+@@ -711,6 +714,67 @@ test.describe('wiki smoke', () => {
+           fullPage: true,
+         })
+       }
++      if (failure === 0) {
++        status = 200
++        await page.getByRole('button', { name: 'Повторить', exact: true }).click()
++        await expect(page.locator('[data-page-state="partial-error"]')).toHaveCount(0)
++        await expect(page.getByRole('link', { name: /Требования к Wiki MVP/ })).toBeVisible()
++      }
++    }
++    expect(errors).toEqual([])
++  })
++
++  test('localizes an initial transport failure and recovers with URL context intact', async ({
++    page,
++  }, testInfo) => {
++    test.setTimeout(180_000)
++    await installWikiApiMocks(page)
++    let fail = true
++    let searchRequests = 0
++    await page.route('**/api/v1/search?*', (route) => {
++      searchRequests++
++      return fail ? route.abort('failed') : route.fallback()
++    })
++    const errors: string[] = []
++    page.on('pageerror', (error) => errors.push(error.message))
++    const path = '/search?q=Wiki&space=BASE&keep=1#results'
++    await gotoWiki(page, path)
++    for (const theme of ['dark', 'gray', 'light']) {
++      await page.evaluate((value) => localStorage.setItem('theme', value), theme)
++      for (const width of [375, 1440, 1920, 2560]) {
++        fail = true
++        await page.setViewportSize({ width, height: width < 768 ? 812 : 1080 })
++        const attemptsBeforeLoad = searchRequests
++        await page.reload()
++        await expect.poll(() => searchRequests).toBeGreaterThan(attemptsBeforeLoad)
++        const error = page.getByRole('alert')
++        await expect(error).toContainText('Не удалось выполнить поиск', { timeout: 15_000 })
++        await expect(page.locator('main')).not.toContainText('Failed to fetch')
++        await expect(page.locator('[data-page-state="empty"]')).toHaveCount(0)
++        await expect(page.locator('[data-page-state="partial-error"]')).toHaveCount(0)
++        await expect(page.getByRole('link', { name: /Требования к Wiki MVP/ })).toHaveCount(0)
++        await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
++        expect(
++          await page.evaluate(
++            () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
++          ),
++        ).toBe(true)
++        expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
++        await page.screenshot({
++          path: testInfo.outputPath(`search-initial-network-${theme}-${width}.png`),
++          fullPage: true,
++        })
++        const attemptsBeforeRetry = searchRequests
++        fail = false
++        const retry = page.getByRole('button', { name: 'Повторить', exact: true })
++        await retry.focus()
++        await retry.press('Enter')
++        await expect(error).toHaveCount(0)
++        await expect(page.getByRole('link', { name: /Требования к Wiki MVP/ })).toBeVisible()
++        expect(searchRequests).toBeGreaterThan(attemptsBeforeRetry)
++        await expect(page).toHaveURL(`${baseURL}${path}`)
++        await expect(page.getByRole('searchbox', { name: 'Поисковый запрос' })).toHaveValue('Wiki')
++      }
+     }
+     expect(errors).toEqual([])
+   })
+diff --git a/frontend/src/pages/dashboard/dashboard.test.tsx b/frontend/src/pages/dashboard/dashboard.test.tsx
+index d00cfe5..9e49e58 100644
+--- a/frontend/src/pages/dashboard/dashboard.test.tsx
++++ b/frontend/src/pages/dashboard/dashboard.test.tsx
+@@ -183,7 +183,8 @@ describe('DashboardPage', () => {
+     render(wrapper(<DashboardPage />))
+ 
+     expect(await screen.findByText('Проверить релиз')).toBeInTheDocument()
+-    expect(await screen.findByText('Search unavailable')).toBeInTheDocument()
++    expect(await screen.findByText('Не удалось загрузить документы')).toBeInTheDocument()
++    expect(screen.queryByText('Search unavailable')).not.toBeInTheDocument()
+     expect(screen.getByRole('link', { name: /BASE-42/ })).toBeInTheDocument()
+   })
+ 
+@@ -213,9 +214,10 @@ describe('DashboardPage', () => {
+     render(wrapper(<DashboardPage />))
+ 
+     const stats = within(await screen.findByRole('region', { name: 'Показатели Wiki' }))
+-    expect(await stats.findByRole('alert', { name: 'Phases unavailable' })).toHaveTextContent(
+-      'Не загружено',
+-    )
++    expect(
++      await stats.findByRole('alert', { name: 'Не удалось загрузить фазы' }),
++    ).toHaveTextContent('Не загружено')
++    expect(stats.queryByRole('alert', { name: 'Phases unavailable' })).not.toBeInTheDocument()
+     expect(screen.getByText('План релиза')).toBeInTheDocument()
+     expect(screen.getByText('Проверить релиз')).toBeInTheDocument()
+ 
+@@ -249,11 +251,12 @@ describe('DashboardPage', () => {
+ 
+     expect(await screen.findByText('План релиза')).toBeInTheDocument()
+     const stats = within(screen.getByRole('region', { name: 'Показатели Wiki' }))
+-    expect(stats.getByRole('alert', { name: 'Tasks unavailable' })).toHaveTextContent(
++    expect(stats.getByRole('alert', { name: 'Не удалось загрузить задачи' })).toHaveTextContent(
+       'Не загружено',
+     )
+     const tasks = within(screen.getByRole('region', { name: 'Задачи в Wiki' }))
+-    expect(tasks.getByText('Tasks unavailable')).toBeInTheDocument()
++    expect(tasks.getByText('Не удалось загрузить задачи')).toBeInTheDocument()
++    expect(tasks.queryByText('Tasks unavailable')).not.toBeInTheDocument()
+ 
+     fireEvent.click(tasks.getByRole('button', { name: /повторить/i }))
+     await waitFor(() => expect(listTaskSummaries).toHaveBeenCalledTimes(2))
+diff --git a/frontend/src/pages/wiki-search/wiki-search.test.tsx b/frontend/src/pages/wiki-search/wiki-search.test.tsx
+index 4f065b1..3ba14c2 100644
+--- a/frontend/src/pages/wiki-search/wiki-search.test.tsx
++++ b/frontend/src/pages/wiki-search/wiki-search.test.tsx
+@@ -345,13 +345,38 @@ describe('WikiSearchPage', () => {
+         error: { status, message: 'Временный сбой' },
+       })
+       expect(screen.getByRole('link', { name: /Требования Wiki/ })).toBeInTheDocument()
+-      expect(screen.getByText('Временный сбой')).toBeInTheDocument()
++      expect(
++        screen.getByText(status === 0 ? 'Не удалось выполнить поиск' : 'Временный сбой'),
++      ).toBeInTheDocument()
+       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+       fireEvent.click(screen.getByRole('button', { name: 'Повторить' }))
+       expect(searchRefetch).toHaveBeenCalledTimes(1)
+     },
+   )
+ 
++  it('localizes a native fetch rejection without discarding cached results or losing retry', () => {
++    setupSearch(undefined, { isError: true, error: new TypeError('Failed to fetch') })
++
++    expect(screen.getByText('Не удалось выполнить поиск')).toBeInTheDocument()
++    expect(screen.queryByText('Failed to fetch')).not.toBeInTheDocument()
++    expect(screen.getByRole('link', { name: /Требования Wiki/ })).toBeInTheDocument()
++    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
++    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }))
++    expect(searchRefetch).toHaveBeenCalledTimes(1)
++  })
++
++  it('shows the localized error without a misleading empty state when the initial fetch fails', () => {
++    setupSearch([], {
++      data: undefined,
++      isError: true,
++      error: new TypeError('NetworkError when attempting to fetch resource.'),
++    })
++
++    expect(screen.getByRole('alert')).toHaveTextContent('Не удалось выполнить поиск')
++    expect(screen.queryByText('Ничего не найдено')).not.toBeInTheDocument()
++    expect(screen.getByRole('button', { name: 'Повторить' })).toBeEnabled()
++  })
++
+   it.each([404, 422])('hides cached results and retry for non-retryable status %s', (status) => {
+     setupSearch(undefined, { isError: true, error: { status, message: 'Ошибка запроса' } })
+     expect(screen.queryByRole('link', { name: /Требования Wiki/ })).not.toBeInTheDocument()
+diff --git a/frontend/src/shared/lib/api-error.test.ts b/frontend/src/shared/lib/api-error.test.ts
+index 82ab4b9..98929e0 100644
+--- a/frontend/src/shared/lib/api-error.test.ts
++++ b/frontend/src/shared/lib/api-error.test.ts
+@@ -1,5 +1,7 @@
+ import { describe, expect, it } from 'vitest'
+ 
++import { ApiError } from '@/api/client'
++
+ import { formatApiErrorForUser, formatFirstApiErrorForUser, hasApiErrorCode } from './api-error'
+ 
+ describe('formatApiErrorForUser', () => {
+@@ -27,12 +29,53 @@ describe('formatApiErrorForUser', () => {
+     expect(message).not.toContain('details=')
+   })
+ 
+-  it('falls back to a readable plain error message for unknown errors', () => {
++  it('uses the page fallback for an unstructured error rather than guessing its language', () => {
+     expect(formatApiErrorForUser(new Error('Сервис временно недоступен'), 'fallback')).toBe(
+-      'Сервис временно недоступен',
++      'fallback',
++    )
++  })
++
++  it.each([
++    new TypeError('Failed to fetch'),
++    new TypeError('NetworkError when attempting to fetch resource.'),
++    new Error('Load failed'),
++    new SyntaxError('Unexpected token < in JSON'),
++    new DOMException('The operation was aborted.', 'AbortError'),
++    new DOMException('A network error occurred.', 'NetworkError'),
++    { message: 'Failed to fetch' },
++    { status: 0, code: 'UNKNOWN', message: 'Failed to fetch' },
++    { status: '503', message: 'Failed to fetch' },
++    { status: 200, message: 'Unexpected response' },
++    null,
++    'Failed to fetch',
++  ])('does not expose native or unstructured diagnostics (%s)', (error) => {
++    expect(formatApiErrorForUser(error, 'Не удалось выполнить поиск')).toBe(
++      'Не удалось выполнить поиск',
++    )
++  })
++
++  it.each([408, 429, 503])('preserves a structured HTTP message for status %s', (status) => {
++    expect(formatApiErrorForUser({ status, message: 'Временный сбой' }, 'fallback')).toBe(
++      'Временный сбой',
+     )
+   })
+ 
++  it('preserves an unknown domain code and details from the actual API client', () => {
++    const error = new ApiError({
++      status: 422,
++      statusText: 'Unprocessable Content',
++      code: 'INVALID_DOCUMENT_LINK',
++      message: 'Документ нельзя связать',
++      requestId: 'req-test',
++      details: [{ field: 'space_key', message: 'другое пространство' }],
++    })
++
++    expect(formatApiErrorForUser(error, 'fallback')).toBe(
++      'Документ нельзя связать: Пространство: другое пространство',
++    )
++    expect(hasApiErrorCode(error, 'INVALID_DOCUMENT_LINK')).toBe(true)
++  })
++
+   it('uses the fallback when the API error has no useful message', () => {
+     expect(formatApiErrorForUser({ code: 'UNKNOWN', message: '' }, 'Не удалось')).toBe('Не удалось')
+   })
+@@ -47,6 +90,15 @@ describe('formatApiErrorForUser', () => {
+     expect(formatFirstApiErrorForUser([null, undefined, false], 'fallback')).toBe('')
+   })
+ 
++  it('uses the fallback for the first native error in aggregate page queries', () => {
++    expect(
++      formatFirstApiErrorForUser(
++        [null, new TypeError('Failed to fetch'), { code: 'FORBIDDEN' }],
++        'Не удалось загрузить материалы',
++      ),
++    ).toBe('Не удалось загрузить материалы')
++  })
++
+   it('identifies a specific API error code without trusting arbitrary values', () => {
+     expect(hasApiErrorCode({ code: 'CONFLICT' }, 'CONFLICT')).toBe(true)
+     expect(hasApiErrorCode({ code: 'FORBIDDEN' }, 'CONFLICT')).toBe(false)
+diff --git a/frontend/src/shared/lib/api-error.ts b/frontend/src/shared/lib/api-error.ts
+index 4baf55d..8e35ea8 100644
+--- a/frontend/src/shared/lib/api-error.ts
++++ b/frontend/src/shared/lib/api-error.ts
+@@ -7,6 +7,7 @@ type ApiErrorLike = {
+   code?: unknown
+   details?: unknown
+   message?: unknown
++  status?: unknown
+ }
+ 
+ const codeMessages: Record<string, string> = {
+@@ -59,7 +60,15 @@ export function hasApiErrorCode(error: unknown, expectedCode: string): boolean {
+ 
+ function readApiErrorLike(error: unknown): ApiErrorLike | null {
+   if (!error || typeof error !== 'object') return null
+-  return error as ApiErrorLike
++  const apiError = error as ApiErrorLike
++  if (apiError.status === 0) return null
++  const isHttpError =
++    typeof apiError.status === 'number' &&
++    Number.isInteger(apiError.status) &&
++    apiError.status >= 400 &&
++    apiError.status <= 599
++  // Native fetch/JSON errors are diagnostics, not a server error envelope.
++  return readString(apiError.code) || isHttpError ? apiError : null
+ }
+ 
+ function readString(value: unknown): string {

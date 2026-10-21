@@ -1,0 +1,71 @@
+diff --git a/frontend/src/pages/templates/index.tsx b/frontend/src/pages/templates/index.tsx
+index ecb00bb..efb4096 100644
+--- a/frontend/src/pages/templates/index.tsx
++++ b/frontend/src/pages/templates/index.tsx
+@@ -38,7 +38,7 @@ export function TemplatesPage() {
+   const templatesQuery = useTemplates()
+   const currentUserQuery = useCurrentUser()
+   const createTemplate = useCreateTemplate()
+-  const isSystemAdmin = currentUserQuery.data?.is_system_admin === true
++  const isSystemAdmin = !currentUserQuery.isError && currentUserQuery.data?.is_system_admin === true
+   const templates = templatesQuery.data?.templates ?? []
+   const [showCreate, setShowCreate] = useState(false)
+   const [createdTemplate, setCreatedTemplate] = useState<Template | null>(null)
+@@ -120,6 +120,13 @@ export function TemplatesPage() {
+         </div>
+       </header>
+ 
++      {currentUserQuery.isError && (
++        <ErrorState
++          message={`Не удалось проверить права. ${formatApiErrorForUser(currentUserQuery.error, 'Повторите запрос')}`}
++          onRetry={() => currentUserQuery.refetch()}
++        />
++      )}
++
+       {createdTemplate && (
+         <div
+           role="status"
+diff --git a/frontend/src/pages/templates/templates.test.tsx b/frontend/src/pages/templates/templates.test.tsx
+index 82dfa63..73cb040 100644
+--- a/frontend/src/pages/templates/templates.test.tsx
++++ b/frontend/src/pages/templates/templates.test.tsx
+@@ -10,6 +10,7 @@ const useTemplates = vi.hoisted(() => vi.fn())
+ 
+ const createTemplateMutate = vi.hoisted(() => vi.fn())
+ const templatesRefetch = vi.hoisted(() => vi.fn())
++const currentUserRefetch = vi.hoisted(() => vi.fn())
+ 
+ vi.mock('@/shared/api/hooks', () => ({
+   useCreateTemplate,
+@@ -29,6 +30,8 @@ function setupTemplates({
+   useCurrentUser.mockReturnValue({
+     data: { is_system_admin: true },
+     isLoading: false,
++    isError: false,
++    refetch: currentUserRefetch,
+     ...currentUserOverrides,
+   })
+   useTemplates.mockReturnValue({
+@@ -127,6 +130,22 @@ describe('TemplatesPage', () => {
+     expect(screen.getByRole('link', { name: 'Создать документ' })).toBeInTheDocument()
+   })
+ 
++  it('shows a retry when checking the current user fails without hiding the template list', () => {
++    setupTemplates({
++      currentUserOverrides: {
++        data: undefined,
++        isError: true,
++        error: { code: 'INTERNAL_ERROR', message: 'Unavailable' },
++      },
++    })
++
++    expect(screen.queryByRole('button', { name: 'Новый шаблон' })).not.toBeInTheDocument()
++    expect(screen.getByRole('alert')).toHaveTextContent('Не удалось проверить права')
++    expect(screen.getByRole('link', { name: 'Использовать шаблон Требования' })).toBeInTheDocument()
++    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }))
++    expect(currentUserRefetch).toHaveBeenCalledTimes(1)
++  })
++
+   it('confirms creation even when the current search excludes the new template', () => {
+     const created = {
+       id: 'new-template',

@@ -1,0 +1,1255 @@
+diff --git a/backend/api/src/routes/wiki.rs b/backend/api/src/routes/wiki.rs
+index 1174c17..15a966c 100644
+--- a/backend/api/src/routes/wiki.rs
++++ b/backend/api/src/routes/wiki.rs
+@@ -1,10 +1,10 @@
+ use app::wiki::{
+-    DEFAULT_AUDIT_LIMIT, DEFAULT_DOCUMENT_REVISION_LIMIT, DEFAULT_EVIDENCE_LIMIT,
+-    DEFAULT_SEARCH_LIMIT, MAX_AUDIT_LIMIT, MAX_DOCUMENT_REVISION_LIMIT, MAX_EVIDENCE_LIMIT,
+-    MAX_SEARCH_LIMIT, WikiSpaceAccess, audit_log_page, checksum, clamp_limit_with_default,
+-    markdown_to_html, normalize_attachment_file_name, normalize_document_type,
+-    normalize_evidence_type, normalize_phase_key, normalize_required, normalize_space_key,
+-    normalize_space_role, normalize_task_key, parse_audit_cursor, safe_download_filename, slugify,
++    DEFAULT_AUDIT_LIMIT, DEFAULT_DOCUMENT_REVISION_LIMIT, DEFAULT_EVIDENCE_LIMIT, MAX_AUDIT_LIMIT,
++    MAX_DOCUMENT_REVISION_LIMIT, MAX_EVIDENCE_LIMIT, WikiSpaceAccess, audit_log_page,
++    build_wiki_search_criteria_from_query, checksum, clamp_limit_with_default, markdown_to_html,
++    normalize_attachment_file_name, normalize_document_type, normalize_evidence_type,
++    normalize_phase_key, normalize_required, normalize_space_key, normalize_space_role,
++    normalize_task_key, parse_audit_cursor, safe_download_filename, search_result_page, slugify,
+     snippet, space_role_allows,
+ };
+ use axum::{
+@@ -2607,7 +2607,7 @@ pub async fn list_evidence(
+         .map(normalize_phase_key)
+         .transpose()?;
+     let store = store().lock().expect("wiki store lock");
+-    if let Some(key) = &requested_space {
++    if let Some(key) = requested_space {
+         ensure_space_access(&store, key, &claims.user_id, WikiSpaceAccess::View)?;
+     }
+     let mut items: Vec<_> = store
+@@ -2978,35 +2978,24 @@ pub async fn search(
+         return Ok(Json(response));
+     }
+ 
+-    let requested_space = query
+-        .space
+-        .as_deref()
+-        .map(normalize_space_key)
+-        .transpose()?;
+-    let requested_task_key = query
+-        .task_key
+-        .as_deref()
+-        .map(normalize_task_key)
+-        .transpose()?;
+-    let requested_phase_key = query
+-        .phase_key
+-        .as_deref()
+-        .map(normalize_phase_key)
+-        .transpose()?;
+-    let requested_document_type = query
+-        .document_type
+-        .as_deref()
+-        .map(|value| normalize_document_type(value, true))
+-        .transpose()?;
++    let criteria = build_wiki_search_criteria_from_query(&query)?;
++    let requested_space = &criteria.space_key;
++    let requested_task_key = &criteria.task_key;
++    let requested_phase_key = &criteria.phase_key;
++    let requested_document_type = criteria.document_type;
+     let store = store().lock().expect("wiki store lock");
+     if let Some(key) = &requested_space {
+         ensure_space_access(&store, key, &claims.user_id, WikiSpaceAccess::View)?;
+     }
+-    let needle = query.q.unwrap_or_default().to_lowercase();
+-    let include_archived = query.include_archived.unwrap_or(false);
++    let needle = criteria.needle.to_lowercase();
++    let include_archived = criteria.include_archived;
+     let mut results = Vec::new();
+ 
+-    for document in store.documents.values() {
++    for document in store
++        .documents
++        .values()
++        .filter(|_| criteria.result_type != Some("evidence"))
++    {
+         if !can_view_space(&store, &document.space_key, &claims.user_id) {
+             continue;
+         }
+@@ -3058,14 +3047,18 @@ pub async fn search(
+                 result_type: "document".to_string(),
+                 title: indexed_title.to_string(),
+                 space_key: document.space_key.clone(),
+-                url: format!("/documents/{}", document.slug),
++                url: format!("/documents/{}", document.id),
+                 snippet: snippet(indexed_markdown),
+                 updated_at: document.updated_at.clone(),
+             });
+         }
+     }
+ 
+-    for item in store.evidence.values() {
++    for item in store
++        .evidence
++        .values()
++        .filter(|_| criteria.result_type != Some("document"))
++    {
+         if !can_view_space(&store, &item.space_key, &claims.user_id) {
+             continue;
+         }
+@@ -3105,14 +3098,9 @@ pub async fn search(
+         }
+     }
+ 
+-    results.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+-    results.truncate(clamp_limit_with_default(
+-        query.limit,
+-        DEFAULT_SEARCH_LIMIT,
+-        MAX_SEARCH_LIMIT,
+-    ));
++    let response = search_result_page(results, criteria.limit as usize, criteria.cursor.as_ref())?;
+     record_search_query(metric_scope);
+-    Ok(Json(SearchResponse { results }))
++    Ok(Json(response))
+ }
+ 
+ fn auth_response(store: &mut WikiStore, user: &WikiUserResponse) -> WikiAuthResponse {
+diff --git a/backend/api/tests/wiki_mvp.rs b/backend/api/tests/wiki_mvp.rs
+index 7355992..e71c7f6 100644
+--- a/backend/api/tests/wiki_mvp.rs
++++ b/backend/api/tests/wiki_mvp.rs
+@@ -2101,6 +2101,109 @@ async fn wiki_memory_search_filters_document_type_task_phase_archived_and_permis
+     assert!(ids(&archived_search).contains(&requirements_id));
+ }
+ 
++#[tokio::test]
++async fn wiki_memory_search_pages_all_results_and_filters_type_before_limit() {
++    let app = test_app();
++    let token = login_memory_admin(&app).await;
++    let suffix = Uuid::now_v7().simple().to_string();
++    let short = &suffix[..12];
++    let search_token = format!("searchpage{short}");
++    let (status, evidence) = call(
++        &app,
++        Method::POST,
++        "/api/v1/evidence",
++        Some(&token),
++        Some(json!({
++            "space": "SDLC",
++            "title": format!("{search_token} evidence"),
++            "evidence_type": "external_url",
++            "url": "https://ci.local/jobs/search-page"
++        })),
++    )
++    .await;
++    assert_eq!(status, StatusCode::CREATED);
++    let evidence_id = evidence["id"].as_str().unwrap();
++
++    for index in 0..101 {
++        let (status, _) = call(
++            &app,
++            Method::POST,
++            "/api/v1/spaces/SDLC/documents",
++            Some(&token),
++            Some(json!({
++                "title": format!("{search_token} document {index}"),
++                "slug": format!("search-page-{short}-{index}"),
++                "document_type": "page",
++                "content_markdown": search_token,
++            })),
++        )
++        .await;
++        assert_eq!(status, StatusCode::CREATED);
++    }
++
++    let (status, first) = call(
++        &app,
++        Method::GET,
++        &format!("/api/v1/search?q={search_token}&space=SDLC&limit=100"),
++        Some(&token),
++        None,
++    )
++    .await;
++    assert_eq!(status, StatusCode::OK);
++    assert_eq!(first["results"].as_array().unwrap().len(), 100);
++    assert!(
++        first["results"]
++            .as_array()
++            .unwrap()
++            .iter()
++            .all(|item| item["result_type"] == "document")
++    );
++    let cursor = first["next_cursor"].as_str().unwrap();
++
++    let (status, second) = call(
++        &app,
++        Method::GET,
++        &format!("/api/v1/search?q={search_token}&space=SDLC&limit=100&cursor={cursor}"),
++        Some(&token),
++        None,
++    )
++    .await;
++    assert_eq!(status, StatusCode::OK);
++    assert_eq!(second["results"].as_array().unwrap().len(), 2);
++    assert!(
++        second["results"]
++            .as_array()
++            .unwrap()
++            .iter()
++            .any(|item| item["id"] == evidence_id)
++    );
++    assert!(second["next_cursor"].is_null());
++
++    let (status, materials) = call(
++        &app,
++        Method::GET,
++        &format!("/api/v1/search?q={search_token}&space=SDLC&result_type=evidence&limit=20"),
++        Some(&token),
++        None,
++    )
++    .await;
++    assert_eq!(status, StatusCode::OK);
++    assert_eq!(materials["results"].as_array().unwrap().len(), 1);
++    assert_eq!(materials["results"][0]["id"], evidence_id);
++
++    for query in ["result_type=other", "cursor=bad"] {
++        let (status, _) = call(
++            &app,
++            Method::GET,
++            &format!("/api/v1/search?{query}"),
++            Some(&token),
++            None,
++        )
++        .await;
++        assert_eq!(status, StatusCode::BAD_REQUEST);
++    }
++}
++
+ #[tokio::test]
+ async fn wiki_memory_task_phase_document_links_enforce_space_boundary() {
+     let app = test_app();
+@@ -3877,6 +3980,97 @@ async fn wiki_postgres_search_uses_fts_index_when_database_available() {
+     );
+ }
+ 
++#[tokio::test]
++async fn wiki_postgres_search_pages_and_filters_result_type_when_database_available() {
++    let Ok(database_url) = env::var("WIKI_TEST_DATABASE_URL") else {
++        eprintln!("skipping postgres search cursor test: WIKI_TEST_DATABASE_URL is not set");
++        return;
++    };
++    reset_postgres(&database_url).await;
++    let storage_dir = env::temp_dir().join(format!("wiki-api-test-{}", Uuid::now_v7()));
++    let (app, _) = postgres_test_app(database_url, storage_dir).await;
++    let token = login_admin(&app).await;
++    let suffix = Uuid::now_v7().simple().to_string();
++    let short = &suffix[..12];
++    let needle = format!("searchcursor{short}");
++
++    let (status, evidence) = call(
++        &app,
++        Method::POST,
++        "/api/v1/evidence",
++        Some(&token),
++        Some(json!({
++            "space": "SDLC", "title": format!("{needle} material"),
++            "evidence_type": "external_url", "url": "https://ci.local/jobs/search-cursor"
++        })),
++    )
++    .await;
++    assert_eq!(status, StatusCode::CREATED);
++    let evidence_id = evidence["id"].as_str().unwrap();
++
++    for index in 0..2 {
++        let (status, document) = call(
++            &app,
++            Method::POST,
++            "/api/v1/spaces/SDLC/documents",
++            Some(&token),
++            Some(json!({
++                "title": format!("{needle} document {index}"),
++                "slug": format!("search-cursor-{short}-{index}"),
++                "document_type": "page",
++                "content_markdown": format!("# {needle} document {index}"),
++            })),
++        )
++        .await;
++        assert_eq!(status, StatusCode::CREATED);
++        let document_id = document["id"].as_str().unwrap();
++        let (status, _) = call(
++            &app,
++            Method::POST,
++            &format!("/api/v1/documents/{document_id}/publish"),
++            Some(&token),
++            Some(json!({ "summary": "Search cursor smoke" })),
++        )
++        .await;
++        assert_eq!(status, StatusCode::OK);
++    }
++
++    let mut cursor = None;
++    let mut found = Vec::new();
++    for _ in 0..3 {
++        let path = match cursor.as_deref() {
++            Some(cursor) => format!("/api/v1/search?q={needle}&space=SDLC&limit=1&cursor={cursor}"),
++            None => format!("/api/v1/search?q={needle}&space=SDLC&limit=1"),
++        };
++        let (status, page) = call(&app, Method::GET, &path, Some(&token), None).await;
++        assert_eq!(status, StatusCode::OK);
++        assert_eq!(page["results"].as_array().unwrap().len(), 1);
++        found.push(page["results"][0]["id"].as_str().unwrap().to_string());
++        if page["results"][0]["result_type"] == "document" {
++            assert_eq!(
++                page["results"][0]["url"],
++                format!("/documents/{}", found.last().unwrap())
++            );
++        }
++        cursor = page["next_cursor"].as_str().map(str::to_string);
++    }
++    assert_eq!(found.len(), 3);
++    assert!(found.contains(&evidence_id.to_string()));
++    assert!(cursor.is_none());
++
++    let (status, materials) = call(
++        &app,
++        Method::GET,
++        &format!("/api/v1/search?q={needle}&space=SDLC&result_type=evidence&limit=1"),
++        Some(&token),
++        None,
++    )
++    .await;
++    assert_eq!(status, StatusCode::OK);
++    assert_eq!(materials["results"][0]["id"], evidence_id);
++    assert!(materials["next_cursor"].is_null());
++}
++
+ #[tokio::test]
+ async fn wiki_api_propagates_request_id_header() {
+     let app = test_app();
+diff --git a/backend/app/src/wiki.rs b/backend/app/src/wiki.rs
+index 88758f1..4e80ea4 100644
+--- a/backend/app/src/wiki.rs
++++ b/backend/app/src/wiki.rs
+@@ -1333,8 +1333,85 @@ pub struct WikiSearchCriteria {
+     pub task_key: Option<String>,
+     pub phase_key: Option<String>,
+     pub document_type: Option<&'static str>,
++    pub result_type: Option<&'static str>,
+     pub include_archived: bool,
+     pub limit: i64,
++    pub cursor: Option<WikiSearchCursor>,
++}
++
++#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
++pub struct WikiSearchCursor {
++    pub updated_at: DateTime<Utc>,
++    pub id: Uuid,
++    pub result_type: String,
++}
++
++pub fn parse_search_cursor(value: Option<&str>) -> Result<Option<WikiSearchCursor>, AppError> {
++    let Some(value) = value else { return Ok(None) };
++    let mut parts = value.split('.');
++    let (Some(micros), Some(id), Some(result_type), None) =
++        (parts.next(), parts.next(), parts.next(), parts.next())
++    else {
++        return Err(AppError::invalid_input("invalid search cursor"));
++    };
++    let updated_at = micros
++        .parse::<i64>()
++        .ok()
++        .and_then(DateTime::<Utc>::from_timestamp_micros)
++        .ok_or_else(|| AppError::invalid_input("invalid search cursor"))?;
++    let id = Uuid::parse_str(id).map_err(|_| AppError::invalid_input("invalid search cursor"))?;
++    if !matches!(result_type, "document" | "evidence") {
++        return Err(AppError::invalid_input("invalid search cursor"));
++    }
++    Ok(Some(WikiSearchCursor {
++        updated_at,
++        id,
++        result_type: result_type.to_string(),
++    }))
++}
++
++pub fn search_result_page(
++    results: Vec<shared::SearchResultResponse>,
++    limit: usize,
++    cursor: Option<&WikiSearchCursor>,
++) -> Result<shared::SearchResponse, AppError> {
++    let mut keyed = results
++        .into_iter()
++        .map(|result| {
++            let updated_at = DateTime::parse_from_rfc3339(&result.updated_at)
++                .map_err(|_| AppError::internal("invalid stored search timestamp"))?
++                .with_timezone(&Utc);
++            let id = Uuid::parse_str(&result.id)
++                .map_err(|_| AppError::internal("invalid stored search id"))?;
++            let key = WikiSearchCursor {
++                updated_at: DateTime::<Utc>::from_timestamp_micros(updated_at.timestamp_micros())
++                    .ok_or_else(|| AppError::internal("invalid stored search timestamp"))?,
++                id,
++                result_type: result.result_type.clone(),
++            };
++            Ok((key, result))
++        })
++        .collect::<Result<Vec<_>, AppError>>()?;
++    keyed.retain(|(key, _)| cursor.is_none_or(|cursor| key < cursor));
++    keyed.sort_by(|a, b| b.0.cmp(&a.0));
++    let has_more = keyed.len() > limit;
++    keyed.truncate(limit);
++    let next_cursor = if has_more {
++        keyed.last().map(|(key, _)| {
++            format!(
++                "{}.{}.{}",
++                key.updated_at.timestamp_micros(),
++                key.id,
++                key.result_type
++            )
++        })
++    } else {
++        None
++    };
++    Ok(shared::SearchResponse {
++        results: keyed.into_iter().map(|(_, result)| result).collect(),
++        next_cursor,
++    })
+ }
+ 
+ pub type WikiSearchRepositoryFuture<'a> =
+@@ -1368,18 +1445,21 @@ impl<'a, R: WikiSearchRepository + ?Sized> WikiSearchUseCase<'a, R> {
+         criteria: WikiSearchCriteria,
+         restricted_user_id: Option<Uuid>,
+     ) -> Result<shared::SearchResponse, AppError> {
+-        let mut results = self
+-            .repository
+-            .search_documents(&criteria, restricted_user_id)
+-            .await?;
+-        results.extend(
++        let mut results = if criteria.result_type == Some("evidence") {
++            Vec::new()
++        } else {
+             self.repository
+-                .search_evidence(&criteria, restricted_user_id)
+-                .await?,
+-        );
+-        results.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+-        results.truncate(criteria.limit as usize);
+-        Ok(shared::SearchResponse { results })
++                .search_documents(&criteria, restricted_user_id)
++                .await?
++        };
++        if criteria.result_type != Some("document") {
++            results.extend(
++                self.repository
++                    .search_evidence(&criteria, restricted_user_id)
++                    .await?,
++            );
++        }
++        search_result_page(results, criteria.limit as usize, criteria.cursor.as_ref())
+     }
+ }
+ 
+@@ -1662,15 +1742,17 @@ pub fn build_wiki_search_criteria(
+         document_type: document_type
+             .map(|value| normalize_document_type(value, true))
+             .transpose()?,
++        result_type: None,
+         include_archived: include_archived.unwrap_or(false),
+         limit: clamp_limit_with_default(limit, DEFAULT_SEARCH_LIMIT, MAX_SEARCH_LIMIT) as i64,
++        cursor: None,
+     })
+ }
+ 
+ pub fn build_wiki_search_criteria_from_query(
+     query: &shared::SearchQuery,
+ ) -> Result<WikiSearchCriteria, AppError> {
+-    build_wiki_search_criteria(
++    let mut criteria = build_wiki_search_criteria(
+         query.q.as_deref(),
+         query.space.as_deref(),
+         query.task_key.as_deref(),
+@@ -1678,7 +1760,15 @@ pub fn build_wiki_search_criteria_from_query(
+         query.document_type.as_deref(),
+         query.include_archived,
+         query.limit,
+-    )
++    )?;
++    criteria.result_type = match query.result_type.as_deref() {
++        None | Some("") => None,
++        Some("document") => Some("document"),
++        Some("evidence") => Some("evidence"),
++        _ => return Err(AppError::invalid_input("unsupported search result type")),
++    };
++    criteria.cursor = parse_search_cursor(query.cursor.as_deref())?;
++    Ok(criteria)
+ }
+ 
+ fn evidence_like_pattern(value: &str) -> String {
+@@ -4244,20 +4334,20 @@ mod tests {
+         let repository = StaticSearchRepository {
+             documents: vec![
+                 search_result(
+-                    "doc-old",
++                    "00000000-0000-0000-0000-000000000001",
+                     "document",
+                     "Old document",
+                     "2026-08-30T10:00:00Z",
+                 ),
+                 search_result(
+-                    "doc-new",
++                    "00000000-0000-0000-0000-000000000003",
+                     "document",
+                     "New document",
+                     "2026-09-01T10:00:00Z",
+                 ),
+             ],
+             evidence: vec![search_result(
+-                "evidence-mid",
++                "00000000-0000-0000-0000-000000000002",
+                 "evidence",
+                 "Middle evidence",
+                 "2026-08-31T10:00:00Z",
+@@ -4268,7 +4358,7 @@ mod tests {
+                 .unwrap();
+ 
+         let response = WikiSearchUseCase::new(&repository)
+-            .execute(criteria, Some(Uuid::nil()))
++            .execute(criteria.clone(), Some(Uuid::nil()))
+             .await
+             .unwrap();
+ 
+@@ -4278,8 +4368,51 @@ mod tests {
+                 .iter()
+                 .map(|result| result.id.as_str())
+                 .collect::<Vec<_>>(),
+-            vec!["doc-new", "evidence-mid"]
++            vec![
++                "00000000-0000-0000-0000-000000000003",
++                "00000000-0000-0000-0000-000000000002"
++            ]
+         );
++        let cursor = response.next_cursor.expect("more search results");
++        let mut second_criteria = criteria;
++        second_criteria.cursor = parse_search_cursor(Some(&cursor)).unwrap();
++        let second = WikiSearchUseCase::new(&repository)
++            .execute(second_criteria, Some(Uuid::nil()))
++            .await
++            .unwrap();
++        assert_eq!(second.results.len(), 1);
++        assert_eq!(second.results[0].id, "00000000-0000-0000-0000-000000000001");
++        assert!(second.next_cursor.is_none());
++    }
++
++    #[test]
++    fn wiki_search_cursor_rejects_invalid_values_and_orders_microsecond_ties_by_id() {
++        for value in [
++            "invalid",
++            "0.invalid.document",
++            "0.00000000-0000-0000-0000-000000000001.other",
++        ] {
++            assert!(parse_search_cursor(Some(value)).is_err());
++        }
++        let results = vec![
++            search_result(
++                "00000000-0000-0000-0000-000000000001",
++                "document",
++                "First",
++                "2026-09-01T10:00:00.123456100Z",
++            ),
++            search_result(
++                "00000000-0000-0000-0000-000000000002",
++                "evidence",
++                "Second",
++                "2026-09-01T10:00:00.123456900Z",
++            ),
++        ];
++        let first = search_result_page(results.clone(), 1, None).unwrap();
++        assert_eq!(first.results[0].id, "00000000-0000-0000-0000-000000000002");
++        let cursor = parse_search_cursor(first.next_cursor.as_deref()).unwrap();
++        let second = search_result_page(results, 1, cursor.as_ref()).unwrap();
++        assert_eq!(second.results[0].id, "00000000-0000-0000-0000-000000000001");
+     }
+ 
+     #[tokio::test]
+diff --git a/backend/cli/src/main.rs b/backend/cli/src/main.rs
+index 6d84af7..f63652b 100644
+--- a/backend/cli/src/main.rs
++++ b/backend/cli/src/main.rs
+@@ -400,9 +400,13 @@ enum SearchCommands {
+         #[arg(long = "type")]
+         document_type: Option<String>,
+         #[arg(long)]
++        result_type: Option<String>,
++        #[arg(long)]
+         include_archived: bool,
+         #[arg(long)]
+         limit: Option<usize>,
++        #[arg(long)]
++        cursor: Option<String>,
+     },
+ }
+ 
+@@ -989,8 +993,10 @@ async fn execute_search(api: &ApiClient, command: SearchCommands) -> Result<Valu
+             task,
+             phase,
+             document_type,
++            result_type,
+             include_archived,
+             limit,
++            cursor,
+         } => {
+             let query = query_string([
+                 ("q", Some(query)),
+@@ -998,11 +1004,13 @@ async fn execute_search(api: &ApiClient, command: SearchCommands) -> Result<Valu
+                 ("task_key", task),
+                 ("phase_key", phase),
+                 ("document_type", document_type),
++                ("result_type", result_type),
+                 (
+                     "include_archived",
+                     include_archived.then(|| "true".to_string()),
+                 ),
+                 ("limit", limit.map(|value| value.to_string())),
++                ("cursor", cursor),
+             ]);
+             api.get(&format!("/search{query}")).await
+         }
+@@ -1377,8 +1385,10 @@ mod tests {
+                     task: Some("SDLC-42".to_string()),
+                     phase: Some("testing".to_string()),
+                     document_type: Some("requirements".to_string()),
++                    result_type: Some("document".to_string()),
+                     include_archived: true,
+                     limit: Some(25),
++                    cursor: Some("42.00000000-0000-0000-0000-000000000000.document".to_string()),
+                 },
+             },
+         )
+@@ -1391,7 +1401,7 @@ mod tests {
+         assert_eq!(requests[0].method, Method::GET);
+         assert_eq!(
+             requests[0].path,
+-            "/api/v1/search?q=release%20gate&space=SDLC%20KB&task_key=SDLC-42&phase_key=testing&document_type=requirements&include_archived=true&limit=25"
++            "/api/v1/search?q=release%20gate&space=SDLC%20KB&task_key=SDLC-42&phase_key=testing&document_type=requirements&result_type=document&include_archived=true&limit=25&cursor=42.00000000-0000-0000-0000-000000000000.document"
+         );
+         assert_eq!(
+             requests[0].authorization.as_deref(),
+diff --git a/backend/infra/src/wiki_postgres/queries.rs b/backend/infra/src/wiki_postgres/queries.rs
+index 79acd8f..f42ec7d 100644
+--- a/backend/infra/src/wiki_postgres/queries.rs
++++ b/backend/infra/src/wiki_postgres/queries.rs
+@@ -96,8 +96,7 @@ pub(super) const SEARCH_DOCUMENTS_SQL: &str = r#"
+         END AS query
+     ),
+     matching_revisions AS MATERIALIZED (
+-        SELECT cr.id,
+-               ts_rank_cd(cr.search_vector, sq.query) AS search_rank
++        SELECT cr.id
+         FROM search_query sq
+         JOIN document_revisions cr ON sq.query IS NOT NULL
+         WHERE cr.search_vector @@ sq.query
+@@ -106,21 +105,12 @@ pub(super) const SEARCH_DOCUMENTS_SQL: &str = r#"
+            'document' AS result_type,
+            COALESCE(cr.title, d.title) AS title,
+            s.key AS space_key,
+-           '/documents/' || d.slug AS url,
++           '/documents/' || d.id::text AS url,
+            CASE
+                WHEN cr.id IS NOT NULL THEN COALESCE(NULLIF(cr.content_text, ''), cr.title)
+                ELSE COALESCE(NULLIF(dd.content_markdown, ''), d.title)
+            END AS snippet,
+-           d.updated_at,
+-           CASE
+-               WHEN sq.query IS NULL THEN 0::real
+-               WHEN mr.id IS NOT NULL THEN mr.search_rank
+-               ELSE ts_rank_cd(
+-                   setweight(to_tsvector('simple', coalesce(d.title, '')), 'A')
+-                   || setweight(to_tsvector('simple', coalesce(dd.content_markdown, '')), 'B'),
+-                   sq.query
+-               )
+-           END AS search_rank
++           d.updated_at
+     FROM search_query sq
+     CROSS JOIN documents d
+     JOIN spaces s ON s.id = d.space_id
+@@ -158,8 +148,9 @@ pub(super) const SEARCH_DOCUMENTS_SQL: &str = r#"
+           FROM space_members sm
+           WHERE sm.space_id = d.space_id AND sm.user_id = $7
+       ))
+-    ORDER BY search_rank DESC, d.updated_at DESC
+-    LIMIT $8
++      AND ($8::timestamptz IS NULL OR (d.updated_at, d.id, 'document'::text) < ($8, $9::uuid, $10::text))
++    ORDER BY d.updated_at DESC, d.id DESC
++    LIMIT $11
+ "#;
+ 
+ pub(super) const SEARCH_EVIDENCE_SQL: &str = r#"
+@@ -187,6 +178,7 @@ pub(super) const SEARCH_EVIDENCE_SQL: &str = r#"
+           FROM space_members sm
+           WHERE sm.space_id = e.space_id AND sm.user_id = $5
+       ))
+-    ORDER BY e.created_at DESC
+-    LIMIT $6
++      AND ($6::timestamptz IS NULL OR (e.created_at, e.id, 'evidence'::text) < ($6, $7::uuid, $8::text))
++    ORDER BY e.created_at DESC, e.id DESC
++    LIMIT $9
+ "#;
+diff --git a/backend/infra/src/wiki_postgres/search.rs b/backend/infra/src/wiki_postgres/search.rs
+index aef2b2f..9458318 100644
+--- a/backend/infra/src/wiki_postgres/search.rs
++++ b/backend/infra/src/wiki_postgres/search.rs
+@@ -29,7 +29,20 @@ impl WikiSearchRepository for PostgresWikiSearchRepository<'_> {
+                 .bind(criteria.document_type)
+                 .bind(criteria.include_archived)
+                 .bind(restricted_user_id)
+-                .bind(criteria.limit)
++                .bind(
++                    criteria
++                        .cursor
++                        .as_ref()
++                        .map(|cursor| cursor.updated_at.to_owned()),
++                )
++                .bind(criteria.cursor.as_ref().map(|cursor| cursor.id))
++                .bind(
++                    criteria
++                        .cursor
++                        .as_ref()
++                        .map(|cursor| cursor.result_type.as_str()),
++                )
++                .bind(criteria.limit + 1)
+                 .fetch_all(self.pool)
+                 .await
+                 .map_err(shared::AppError::database)?;
+@@ -49,7 +62,20 @@ impl WikiSearchRepository for PostgresWikiSearchRepository<'_> {
+                 .bind(criteria.task_key.as_deref())
+                 .bind(criteria.phase_key.as_deref())
+                 .bind(restricted_user_id)
+-                .bind(criteria.limit)
++                .bind(
++                    criteria
++                        .cursor
++                        .as_ref()
++                        .map(|cursor| cursor.updated_at.to_owned()),
++                )
++                .bind(criteria.cursor.as_ref().map(|cursor| cursor.id))
++                .bind(
++                    criteria
++                        .cursor
++                        .as_ref()
++                        .map(|cursor| cursor.result_type.as_str()),
++                )
++                .bind(criteria.limit + 1)
+                 .fetch_all(self.pool)
+                 .await
+                 .map_err(shared::AppError::database)?;
+diff --git a/backend/migrations/202609200003_search_cursor_index.down.sql b/backend/migrations/202609200003_search_cursor_index.down.sql
+new file mode 100644
+index 0000000..dbac7c7
+--- /dev/null
++++ b/backend/migrations/202609200003_search_cursor_index.down.sql
+@@ -0,0 +1 @@
++DROP INDEX IF EXISTS documents_search_cursor_idx;
+diff --git a/backend/migrations/202609200003_search_cursor_index.up.sql b/backend/migrations/202609200003_search_cursor_index.up.sql
+new file mode 100644
+index 0000000..d34c61d
+--- /dev/null
++++ b/backend/migrations/202609200003_search_cursor_index.up.sql
+@@ -0,0 +1 @@
++CREATE INDEX documents_search_cursor_idx ON documents (updated_at DESC, id DESC);
+diff --git a/backend/shared/src/wiki_contract.rs b/backend/shared/src/wiki_contract.rs
+index c9026bb..02f317e 100644
+--- a/backend/shared/src/wiki_contract.rs
++++ b/backend/shared/src/wiki_contract.rs
+@@ -753,9 +753,11 @@ pub struct SearchQuery {
+     pub task_key: Option<String>,
+     pub phase_key: Option<String>,
+     pub document_type: Option<String>,
++    pub result_type: Option<String>,
+     pub include_archived: Option<bool>,
+     #[param(minimum = 1, maximum = 100)]
+     pub limit: Option<usize>,
++    pub cursor: Option<String>,
+ }
+ 
+ #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+@@ -772,6 +774,7 @@ pub struct SearchResultResponse {
+ #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+ pub struct SearchResponse {
+     pub results: Vec<SearchResultResponse>,
++    pub next_cursor: Option<String>,
+ }
+ 
+ fn default_user_role() -> String {
+diff --git a/docs/API.md b/docs/API.md
+index b0f1872..73362a0 100644
+--- a/docs/API.md
++++ b/docs/API.md
+@@ -135,9 +135,9 @@ Canonical `evidence_type` values for MVP are `external_url` and `uploaded_file`.
+ 
+ | Method | Path      | Назначение       |
+ | ------ | --------- | ---------------- |
+-| `GET`  | `/search` | Поиск документов |
++| `GET`  | `/search` | Поиск документов и материалов |
+ 
+-Фильтры MVP: `space`, `task_key`, `phase_key`, `document_type`, `include_archived`, `limit`. Без `limit` поиск возвращает 20 результатов; `limit` ограничивается диапазоном `1..100`.
++Фильтры MVP: `q`, `space`, `task_key`, `phase_key`, `document_type`, `result_type` (`document` или `evidence`), `include_archived`, `limit`, `cursor`. Без `limit` поиск возвращает 20 результатов; `limit` ограничивается диапазоном `1..100`. `result_type` применяется до ограничения страницы, поэтому вкладка материалов не зависит от числа более новых документов. Ответ содержит `results` и `next_cursor` (`null` на последней странице). Результаты отсортированы по `(updated_at DESC, id DESC, result_type DESC)`; клиент передаёт непрозрачный `next_cursor` с теми же фильтрами для следующей страницы. Общее количество совпадений API не обещает. Ссылки на документы используют UUID, чтобы одинаковые slug в разных пространствах не вели к чужому документу.
+ 
+ Для опубликованных документов поиск использует текущую опубликованную ревизию. Если у опубликованного документа есть новый непубликованный draft, его текст не попадает в общий search response до следующей публикации.
+ 
+diff --git a/docs/ARCHITECTURE.md b/docs/ARCHITECTURE.md
+index 7cd9a8a..fc032ff 100644
+--- a/docs/ARCHITECTURE.md
++++ b/docs/ARCHITECTURE.md
+@@ -149,6 +149,8 @@ The PostgreSQL adapter is split by operation area:
+ 
+ Audit is append-only, so the list uses a `(created_at, id)` keyset cursor rather than an offset. The UUID breaks timestamp ties, and newer writes do not shift an already opened older page. Clients treat `next_cursor` as opaque.
+ 
++Search uses the same keyset principle across documents and evidence: repositories fetch at most `limit + 1` per allowed result type after `(updated_at, id, result_type)`, and the application layer merges, orders and emits the next cursor. The server applies `result_type` before limiting; there is no inferred total. Published-revision full-text matching remains in PostgreSQL, while the final result order is chronological rather than relevance-ranked.
++
+ ## 9. API Layer
+ 
+ Axum API owns:
+diff --git a/docs/CLI.md b/docs/CLI.md
+index ec992dc..26cb4b1 100644
+--- a/docs/CLI.md
++++ b/docs/CLI.md
+@@ -141,6 +141,8 @@ wiki template list
+ wiki template create --name "Release note" --type release_note --from-file release-note.md
+ wiki template apply requirements --space SDLC --title "Requirements"
+ wiki search query "authorization" --space SDLC --type requirements --limit 20
++wiki search query "authorization" --space SDLC --result-type evidence --limit 20
++wiki search query "authorization" --space SDLC --result-type evidence --limit 20 --cursor '<next_cursor>'
+ wiki search query "archived decision" --space SDLC --include-archived
+ ```
+ 
+@@ -155,7 +157,7 @@ wiki settings get
+ 
+ `wiki audit list` returns the API JSON as-is, including `request_id` and `next_cursor`. Pass `next_cursor` back as `--cursor` to read older events. Without `--limit`, the API returns the latest 50 events; `--limit` is clamped server-side to `1..200`.
+ 
+-Bounded read commands use the same limits as the public API: `wiki doc history` defaults to 20, clamps to `1..100` and accepts `--offset` (default `0`) for older revisions; `wiki evidence list` defaults to 30 and clamps to `1..100`; `wiki search query` defaults to 20 and clamps to `1..100`.
++Bounded read commands use the same limits as the public API: `wiki doc history` defaults to 20, clamps to `1..100` and accepts `--offset` (default `0`) for older revisions; `wiki evidence list` defaults to 30 and clamps to `1..100`; `wiki search query` defaults to 20, clamps to `1..100`, accepts `--result-type document|evidence` and continues with the response `next_cursor` via `--cursor`.
+ 
+ ## Contract Freeze
+ 
+diff --git a/docs/CURRENT_STATE.md b/docs/CURRENT_STATE.md
+index afd2cdf..cd01e20 100644
+--- a/docs/CURRENT_STATE.md
++++ b/docs/CURRENT_STATE.md
+@@ -1,5 +1,7 @@
+ # Current State - Wiki
+ 
++> Search pagination change (2026-09-20): server-side `result_type` and stable keyset cursor implemented in draft PR. Local Rust/PostgreSQL runs and 375/1920/2560 live screenshots are pending because the current host has critically low C: free space; remote CI does not replace that release gate. This search PR assumes the evidence `(created_at DESC, id DESC)` index from the separate evidence pagination PR is merged first.
++
+ > Snapshot date: 2026-09-03. Authority is repository code and tests; update this file whenever capability state changes.
+ 
+ ## Current Verified
+diff --git a/docs/DATA_MODEL.md b/docs/DATA_MODEL.md
+index 05d4e02..964c246 100644
+--- a/docs/DATA_MODEL.md
++++ b/docs/DATA_MODEL.md
+@@ -306,6 +306,7 @@ Required constraint categories:
+ - immutable revision version uniqueness per document;
+ - FTS index for published revision search;
+ - audit indexes by entity, actor and `(created_at DESC, id DESC)` for stable cursor pagination.
++- `documents_search_cursor_idx` on `(updated_at DESC, id DESC)` for search pagination; evidence cursor ordering uses `(created_at DESC, id DESC)` once the evidence-list index migration is applied.
+ 
+ ## 5. Search
+ 
+diff --git a/docs/PRODUCT_REQUIREMENTS.md b/docs/PRODUCT_REQUIREMENTS.md
+index 7955c8a..5edd588 100644
+--- a/docs/PRODUCT_REQUIREMENTS.md
++++ b/docs/PRODUCT_REQUIREMENTS.md
+@@ -263,6 +263,7 @@ CLI requirements:
+ - Списки имеют pagination или limit.
+ - Открытие обычной страницы до 200 KB должно быть интерактивным.
+ - Поиск MVP реализуется через PostgreSQL full-text search.
++- Поиск документов и материалов фильтруется по типу на сервере и листается стабильным курсором без ложного нуля при большом числе документов; UI не выдаёт размер одной страницы за общее число результатов.
+ 
+ ## 11. Критерии приёмки MVP
+ 
+diff --git a/frontend/src/api/wiki.ts b/frontend/src/api/wiki.ts
+index 6c94c3c..1009a27 100644
+--- a/frontend/src/api/wiki.ts
++++ b/frontend/src/api/wiki.ts
+@@ -71,8 +71,10 @@ export type SearchParams = {
+   task_key?: string
+   phase_key?: string
+   document_type?: string
++  result_type?: 'document' | 'evidence'
+   include_archived?: boolean
+   limit?: number
++  cursor?: string
+ }
+ 
+ export type EvidenceListParams = {
+diff --git a/frontend/src/pages/wiki-search/index.tsx b/frontend/src/pages/wiki-search/index.tsx
+index f692c45..190e862 100644
+--- a/frontend/src/pages/wiki-search/index.tsx
++++ b/frontend/src/pages/wiki-search/index.tsx
+@@ -21,8 +21,7 @@ const documentTypes = [
+   'test_plan',
+   'release_note',
+ ] as const
+-const searchLimit = 100
+-const pageSize = 12
++const pageSize = 20
+ const selectClassName =
+   'min-h-10 w-full rounded-md border border-border-strong bg-surface px-3 text-sm text-text-primary focus-visible:outline-2 focus-visible:outline-accent'
+ 
+@@ -59,13 +58,19 @@ export function WikiSearchPage() {
+     useState<(typeof resultTypes)[number]['value']>('all')
+   const [documentTypeFilter, setDocumentTypeFilter] = useState<string>('all')
+   const [showFilters, setShowFilters] = useState(false)
+-  const [page, setPage] = useState(1)
++  const [pageCursors, setPageCursors] = useState<(string | undefined)[]>([undefined])
++  const currentPage = pageCursors.length
+   const resultsSection = useRef<HTMLElement>(null)
+ 
+   useEffect(() => {
+-    const timeout = window.setTimeout(() => setAppliedQuery(query.trim()), 300)
++    const timeout = window.setTimeout(() => {
++      if (query.trim() !== appliedQuery) {
++        setAppliedQuery(query.trim())
++        setPageCursors([undefined])
++      }
++    }, 300)
+     return () => window.clearTimeout(timeout)
+-  }, [query])
++  }, [query, appliedQuery])
+ 
+   const searchParams: SearchParams = useMemo(
+     () => ({
+@@ -75,21 +80,15 @@ export function WikiSearchPage() {
+       phase_key: optional(appliedFilters.phase),
+       document_type:
+         appliedFilters.documentType === 'all' ? undefined : appliedFilters.documentType,
+-      limit: searchLimit,
++      result_type: resultTypeFilter === 'all' ? undefined : resultTypeFilter,
++      limit: pageSize,
++      cursor: pageCursors[currentPage - 1],
+     }),
+-    [appliedFilters, appliedQuery],
++    [appliedFilters, appliedQuery, resultTypeFilter, pageCursors, currentPage],
+   )
+   const searchQuery = useWikiSearch(searchParams)
+   const results = searchQuery.data?.results ?? []
+-  const documentCount = results.filter((result) => result.result_type === 'document').length
+-  const evidenceCount = results.filter((result) => result.result_type === 'evidence').length
+-  const filteredResults =
+-    resultTypeFilter === 'all'
+-      ? results
+-      : results.filter((result) => result.result_type === resultTypeFilter)
+-  const totalPages = Math.max(1, Math.ceil(filteredResults.length / pageSize))
+-  const currentPage = Math.min(page, totalPages)
+-  const visibleResults = filteredResults.slice((currentPage - 1) * pageSize, currentPage * pageSize)
++  const nextCursor = searchQuery.data?.next_cursor
+   const activeFilterCount =
+     [appliedFilters.space, appliedFilters.task, appliedFilters.phase].filter(
+       (value) => value.trim() !== '',
+@@ -98,7 +97,7 @@ export function WikiSearchPage() {
+   function submitSearch(event: FormEvent<HTMLFormElement>) {
+     event.preventDefault()
+     setAppliedQuery(query.trim())
+-    setPage(1)
++    setPageCursors([undefined])
+   }
+ 
+   function applyFilters(event: FormEvent<HTMLFormElement>) {
+@@ -110,7 +109,7 @@ export function WikiSearchPage() {
+       documentType: documentTypeFilter,
+     })
+     if (documentTypeFilter !== 'all') setResultTypeFilter('document')
+-    setPage(1)
++    setPageCursors([undefined])
+   }
+ 
+   function selectResultType(value: (typeof resultTypes)[number]['value']) {
+@@ -119,11 +118,12 @@ export function WikiSearchPage() {
+       setDocumentTypeFilter('all')
+       setAppliedFilters((filters) => ({ ...filters, documentType: 'all' }))
+     }
+-    setPage(1)
++    setPageCursors([undefined])
+   }
+ 
+-  function changePage(nextPage: number) {
+-    setPage(nextPage)
++  function changePage(direction: 'previous' | 'next') {
++    if (direction === 'previous') setPageCursors((cursors) => cursors.slice(0, -1))
++    else if (nextCursor) setPageCursors((cursors) => [...cursors, nextCursor])
+     resultsSection.current?.scrollIntoView?.({ block: 'start' })
+   }
+ 
+@@ -145,7 +145,6 @@ export function WikiSearchPage() {
+               value={query}
+               onChange={(event) => {
+                 setQuery(event.target.value)
+-                setPage(1)
+               }}
+               placeholder="Название, текст или ключ"
+             />
+@@ -241,7 +240,7 @@ export function WikiSearchPage() {
+                     setDocumentTypeFilter('all')
+                     setAppliedFilters({ space: '', task: '', phase: '', documentType: 'all' })
+                     setResultTypeFilter('all')
+-                    setPage(1)
++                    setPageCursors([undefined])
+                   }}
+                 >
+                   Сбросить фильтры
+@@ -266,34 +265,26 @@ export function WikiSearchPage() {
+           </h2>
+           {!searchQuery.isLoading && !searchQuery.isError && (
+             <p role="status" className="text-sm text-text-muted">
+-              {filteredResults.length === 0
++              {results.length === 0
+                 ? '0 результатов'
+-                : `${(currentPage - 1) * pageSize + 1}–${Math.min(currentPage * pageSize, filteredResults.length)} из ${filteredResults.length}`}
++                : `Показано ${(currentPage - 1) * pageSize + 1}–${(currentPage - 1) * pageSize + results.length}`}
+             </p>
+           )}
+         </div>
+         <div role="group" aria-label="Тип результата" className="flex flex-wrap gap-2">
+-          {resultTypes.map((item) => {
+-            const count =
+-              item.value === 'document'
+-                ? documentCount
+-                : item.value === 'evidence'
+-                  ? evidenceCount
+-                  : results.length
+-            return (
+-              <Button
+-                key={item.value}
+-                type="button"
+-                size="sm"
+-                variant={resultTypeFilter === item.value ? 'secondary' : 'outline'}
+-                className="min-h-10 sm:min-h-10"
+-                aria-pressed={resultTypeFilter === item.value}
+-                onClick={() => selectResultType(item.value)}
+-              >
+-                {item.label} <span className="text-text-muted">{count}</span>
+-              </Button>
+-            )
+-          })}
++          {resultTypes.map((item) => (
++            <Button
++              key={item.value}
++              type="button"
++              size="sm"
++              variant={resultTypeFilter === item.value ? 'secondary' : 'outline'}
++              className="min-h-10 sm:min-h-10"
++              aria-pressed={resultTypeFilter === item.value}
++              onClick={() => selectResultType(item.value)}
++            >
++              {item.label}
++            </Button>
++          ))}
+         </div>
+ 
+         {searchQuery.isLoading && <LoadingState message="Ищем" />}
+@@ -303,12 +294,12 @@ export function WikiSearchPage() {
+             onRetry={() => searchQuery.refetch()}
+           />
+         )}
+-        {!searchQuery.isLoading && !searchQuery.isError && filteredResults.length === 0 && (
++        {!searchQuery.isLoading && !searchQuery.isError && results.length === 0 && (
+           <EmptyState message="Ничего не найдено" />
+         )}
+-        {!searchQuery.isLoading && !searchQuery.isError && filteredResults.length > 0 && (
++        {!searchQuery.isLoading && !searchQuery.isError && results.length > 0 && (
+           <div className="divide-y divide-border border-y border-border">
+-            {visibleResults.map((result: SearchResult) => {
++            {results.map((result: SearchResult) => {
+               const Icon = resultIcon(result.result_type)
+               return (
+                 <Link
+@@ -336,7 +327,7 @@ export function WikiSearchPage() {
+             })}
+           </div>
+         )}
+-        {filteredResults.length > pageSize && !searchQuery.isError && (
++        {(currentPage > 1 || nextCursor) && !searchQuery.isLoading && !searchQuery.isError && (
+           <nav aria-label="Страницы результатов" className="flex items-center justify-end gap-2">
+             <Button
+               type="button"
+@@ -344,30 +335,23 @@ export function WikiSearchPage() {
+               variant="outline"
+               className="min-h-10 sm:min-h-10"
+               disabled={currentPage === 1}
+-              onClick={() => changePage(currentPage - 1)}
++              onClick={() => changePage('previous')}
+             >
+               Назад
+             </Button>
+-            <span className="text-sm text-text-muted">
+-              {currentPage} / {totalPages}
+-            </span>
++            <span className="text-sm text-text-muted">Страница {currentPage}</span>
+             <Button
+               type="button"
+               size="sm"
+               variant="outline"
+               className="min-h-10 sm:min-h-10"
+-              disabled={currentPage === totalPages}
+-              onClick={() => changePage(currentPage + 1)}
++              disabled={!nextCursor}
++              onClick={() => changePage('next')}
+             >
+               Далее
+             </Button>
+           </nav>
+         )}
+-        {results.length === searchLimit && !searchQuery.isError && (
+-          <p className="text-sm text-text-muted">
+-            Показаны первые 100 результатов. Уточните запрос для более точной выдачи.
+-          </p>
+-        )}
+       </section>
+     </div>
+   )
+diff --git a/frontend/src/pages/wiki-search/wiki-search.test.tsx b/frontend/src/pages/wiki-search/wiki-search.test.tsx
+index fff42a7..e6a22ab 100644
+--- a/frontend/src/pages/wiki-search/wiki-search.test.tsx
++++ b/frontend/src/pages/wiki-search/wiki-search.test.tsx
+@@ -34,12 +34,22 @@ function setupSearch(
+   results = [documentResult, evidenceResult],
+   overrides: Record<string, unknown> = {},
+ ) {
+-  useWikiSearch.mockReturnValue({
+-    data: { results },
+-    isLoading: false,
+-    isError: false,
+-    refetch: searchRefetch,
+-    ...overrides,
++  useWikiSearch.mockImplementation((params: { result_type?: string; cursor?: string }) => {
++    const matching = results.filter(
++      (result) => !params.result_type || result.result_type === params.result_type,
++    )
++    const offset = params.cursor ? Number(params.cursor.slice(5)) : 0
++    const page = matching.slice(offset, offset + 20)
++    return {
++      data: {
++        results: page,
++        next_cursor: offset + 20 < matching.length ? `page-${offset + 20}` : null,
++      },
++      isLoading: false,
++      isError: false,
++      refetch: searchRefetch,
++      ...overrides,
++    }
+   })
+ 
+   render(
+@@ -54,7 +64,7 @@ describe('WikiSearchPage', () => {
+     vi.clearAllMocks()
+   })
+ 
+-  it('filters visible result types and sends expanded filters to the API hook', async () => {
++  it('sends result type and expanded filters to the API hook', async () => {
+     setupSearch()
+ 
+     expect(screen.getByRole('link', { name: /Требования Wiki/ })).toHaveAttribute(
+@@ -63,9 +73,12 @@ describe('WikiSearchPage', () => {
+     )
+     expect(screen.getByRole('link', { name: /Smoke proof/ })).toHaveAttribute('href', '/evidence')
+ 
+-    fireEvent.click(screen.getByRole('button', { name: /Документы 1/ }))
++    fireEvent.click(screen.getByRole('button', { name: 'Документы' }))
+     expect(screen.getByRole('link', { name: /Требования Wiki/ })).toBeInTheDocument()
+     expect(screen.queryByRole('link', { name: /Smoke proof/ })).not.toBeInTheDocument()
++    expect(useWikiSearch).toHaveBeenLastCalledWith(
++      expect.objectContaining({ result_type: 'document' }),
++    )
+ 
+     fireEvent.click(screen.getByRole('button', { name: 'Фильтры' }))
+     fireEvent.change(screen.getByRole('searchbox', { name: 'Поисковый запрос' }), {
+@@ -77,7 +90,9 @@ describe('WikiSearchPage', () => {
+     fireEvent.change(screen.getByLabelText('Тип документа'), { target: { value: 'test_plan' } })
+     expect(useWikiSearch).toHaveBeenLastCalledWith({
+       document_type: undefined,
+-      limit: 100,
++      result_type: 'document',
++      cursor: undefined,
++      limit: 20,
+       phase_key: undefined,
+       q: '',
+       space: undefined,
+@@ -88,7 +103,9 @@ describe('WikiSearchPage', () => {
+     await waitFor(() =>
+       expect(useWikiSearch).toHaveBeenLastCalledWith({
+         document_type: 'test_plan',
+-        limit: 100,
++        result_type: 'document',
++        cursor: undefined,
++        limit: 20,
+         phase_key: 'testing',
+         q: 'релиз',
+         space: 'ENG',
+@@ -102,39 +119,54 @@ describe('WikiSearchPage', () => {
+     fireEvent.click(screen.getByRole('button', { name: 'Сбросить фильтры' }))
+     expect(screen.getByLabelText('Пространство')).toHaveValue('')
+     expect(screen.getByLabelText('Тип документа')).toHaveValue('all')
+-    expect(screen.getByRole('button', { name: /Все 2/ })).toHaveAttribute('aria-pressed', 'true')
++    expect(screen.getByRole('button', { name: 'Все' })).toHaveAttribute('aria-pressed', 'true')
+   })
+ 
+-  it('limits visible results by page and labels the API cap honestly', () => {
+-    const results = Array.from({ length: 100 }, (_, index) => ({
++  it('requests subsequent pages and displays only the current page range', () => {
++    const results = Array.from({ length: 41 }, (_, index) => ({
+       ...documentResult,
+       id: `doc-${index + 1}`,
+       title: `Документ ${String(index + 1).padStart(3, '0')}`,
+     }))
+     setupSearch(results)
+ 
+-    expect(screen.getAllByRole('link', { name: /Документ \d+/ })).toHaveLength(12)
+-    expect(screen.getByText('1–12 из 100')).toBeInTheDocument()
+-    expect(screen.getByText(/Показаны первые 100 результатов/)).toBeInTheDocument()
++    expect(screen.getAllByRole('link', { name: /Документ \d+/ })).toHaveLength(20)
++    expect(screen.getByText('Показано 1–20')).toBeInTheDocument()
+     const pagination = screen.getByRole('navigation', { name: 'Страницы результатов' })
+     fireEvent.click(within(pagination).getByRole('button', { name: 'Далее' }))
+-    expect(screen.getAllByRole('link', { name: /Документ \d+/ })).toHaveLength(12)
+-    expect(screen.getByText('13–24 из 100')).toBeInTheDocument()
+-    expect(screen.getByRole('link', { name: /Документ 013/ })).toBeInTheDocument()
++    expect(useWikiSearch).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: 'page-20' }))
++    expect(screen.getAllByRole('link', { name: /Документ \d+/ })).toHaveLength(20)
++    expect(screen.getByText('Показано 21–40')).toBeInTheDocument()
++    fireEvent.click(within(pagination).getByRole('button', { name: 'Далее' }))
++    expect(screen.getByText('Показано 41–41')).toBeInTheDocument()
++    expect(within(pagination).getByRole('button', { name: 'Далее' })).toBeDisabled()
++    fireEvent.click(within(pagination).getByRole('button', { name: 'Назад' }))
++    expect(screen.getByText('Показано 21–40')).toBeInTheDocument()
+   })
+ 
+-  it('clears document type when the evidence view is selected', () => {
+-    setupSearch()
++  it('finds materials beyond the first hundred documents and clears document type', () => {
++    const documents = Array.from({ length: 101 }, (_, index) => ({
++      ...documentResult,
++      id: `doc-${index}`,
++    }))
++    setupSearch([...documents, evidenceResult])
+     fireEvent.click(screen.getByRole('button', { name: 'Фильтры' }))
+     fireEvent.change(screen.getByLabelText('Тип документа'), { target: { value: 'requirements' } })
+     fireEvent.click(screen.getByRole('button', { name: 'Применить' }))
+-    expect(screen.getByRole('button', { name: /Документы 1/ })).toHaveAttribute(
++    expect(screen.getByRole('button', { name: 'Документы' })).toHaveAttribute(
+       'aria-pressed',
+       'true',
+     )
+-    fireEvent.click(screen.getByRole('button', { name: /Материалы 1/ }))
++    fireEvent.click(screen.getByRole('button', { name: 'Материалы' }))
+     expect(screen.getByLabelText('Тип документа')).toHaveValue('all')
+     expect(screen.getByRole('link', { name: /Smoke proof/ })).toBeInTheDocument()
++    expect(useWikiSearch).toHaveBeenLastCalledWith(
++      expect.objectContaining({
++        result_type: 'evidence',
++        document_type: undefined,
++        cursor: undefined,
++      }),
++    )
+   })
+ 
+   it('renders permission denied search errors with retry', () => {

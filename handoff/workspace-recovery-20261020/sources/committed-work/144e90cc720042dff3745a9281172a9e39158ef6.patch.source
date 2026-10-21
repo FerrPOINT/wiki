@@ -1,0 +1,1170 @@
+diff --git a/.base-revision b/.base-revision
+index e7bc130..3620eda 100644
+--- a/.base-revision
++++ b/.base-revision
+@@ -1 +1 @@
+-9408802dfa978cba2f67162a49adca6f65851b01
++bff9bfa8b7669ef23bd64dba36e78eb750eb43d4
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 66b84df..b28270b 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -119,6 +119,18 @@ jobs:
+           CI: "true"
+       - run: pnpm openapi:check
+       - run: pnpm test -- --run
++      - name: Install pinned Base UI validators
++        run: pnpm --dir ../../services-base/frontend install --frozen-lockfile
++        env:
++          CI: "true"
++      - name: Accepted image parents and Docker ownership policy
++        run: |
++          python3 ../../services-base/scripts/build_provenance.py --recipe ../backend/Dockerfile.umbrella --recipe Dockerfile.umbrella
++          python3 ../../services-base/scripts/check_docker_invocations.py --repo ..
++      - name: UI route contract and committed browser evidence
++        run: |
++          pnpm ui:check
++          pnpm ui:acceptance
+       - run: pnpm lint
+       - run: pnpm format:check
+       - name: OpenAPI compatibility against target branch
+diff --git a/backend/Cargo.lock b/backend/Cargo.lock
+index fbef1d7..638ac67 100644
+--- a/backend/Cargo.lock
++++ b/backend/Cargo.lock
+@@ -1607,6 +1607,7 @@ dependencies = [
+  "domain",
+  "reqwest",
+  "sdlc-auth-core",
++ "sdlc-shared",
+  "serde",
+  "serde_json",
+  "serial_test",
+@@ -2866,7 +2867,9 @@ dependencies = [
+  "axum",
+  "serde",
+  "serde_json",
++ "sqlx",
+  "thiserror 2.0.20",
++ "tokio",
+  "tower-http 0.7.1",
+  "tracing",
+  "uuid",
+diff --git a/backend/Dockerfile.umbrella b/backend/Dockerfile.umbrella
+index 30d8401..83a5f88 100644
+--- a/backend/Dockerfile.umbrella
++++ b/backend/Dockerfile.umbrella
+@@ -2,7 +2,7 @@
+ # The repo's own backend/Dockerfile builds with context=backend only; this
+ # variant additionally stages the sibling services-base checkout so the
+ # sdlc-auth-core path dependency (../../../services-base/...) resolves.
+-FROM rust:1.88.0-slim-bookworm AS builder
++FROM rust:1.88.0-slim-bookworm@sha256:38bc5a86d998772d4aec2348656ed21438d20fcdce2795b56ca434cf21430d89 AS builder
+ 
+ RUN apt-get update && apt-get install -y pkg-config libssl-dev unzip curl unzip && rm -rf /var/lib/apt/lists/*
+ 
+@@ -27,9 +27,9 @@ COPY wiki/backend/cli ./cli
+ 
+ RUN cargo build --locked --release --bin server
+ 
+-FROM debian:bookworm-slim
++FROM debian:bookworm-slim@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251
+ RUN apt-get update \
+-    && apt-get install -y --no-install-recommends ca-certificates libssl3 wget \
++    && apt-get install -y --no-install-recommends ca-certificates libssl3 wget curl \
+     && rm -rf /var/lib/apt/lists/* \
+     && groupadd --gid 10001 wiki \
+     && useradd --uid 10001 --gid wiki --home-dir /nonexistent --shell /usr/sbin/nologin --no-create-home wiki \
+diff --git a/backend/api/src/lib.rs b/backend/api/src/lib.rs
+index 0ba8ac0..181fdf3 100644
+--- a/backend/api/src/lib.rs
++++ b/backend/api/src/lib.rs
+@@ -513,15 +513,15 @@ async fn request_id_middleware(request: Request, next: Next) -> Response {
+ }
+ 
+ fn normalize_request_id(value: &HeaderValue) -> Option<String> {
+-    let normalized = value.to_str().ok()?.trim();
+-    if normalized.is_empty() || normalized.len() > 128 {
++    let normalized = value.to_str().ok()?;
++    if normalized.len() != 36 || uuid::Uuid::parse_str(normalized).is_err() {
+         return None;
+     }
+     Some(normalized.to_string())
+ }
+ 
+ fn new_request_id() -> String {
+-    format!("req_{}", uuid::Uuid::now_v7().simple())
++    uuid::Uuid::now_v7().to_string()
+ }
+ 
+ fn cors_layer(origins: &[String]) -> tower_http::cors::CorsLayer {
+diff --git a/backend/api/tests/wiki_mvp.rs b/backend/api/tests/wiki_mvp.rs
+index 371af2c..08130fb 100644
+--- a/backend/api/tests/wiki_mvp.rs
++++ b/backend/api/tests/wiki_mvp.rs
+@@ -4175,7 +4175,25 @@ async fn wiki_api_propagates_request_id_header() {
+         .get("x-request-id")
+         .and_then(|value| value.to_str().ok())
+         .expect("generated request id header should be present");
+-    assert!(generated.starts_with("req_"));
++    assert_eq!(generated.len(), 36);
++    Uuid::parse_str(generated).expect("generated request id must be a canonical UUID");
++
++    let (_, invalid_headers, _) = call_with_headers(
++        &app,
++        Method::GET,
++        "/api/v1/health",
++        None,
++        None,
++        &[("x-request-id", "legacy-request-name")],
++    )
++    .await;
++    let replacement = invalid_headers
++        .get("x-request-id")
++        .unwrap()
++        .to_str()
++        .unwrap();
++    assert_eq!(replacement.len(), 36);
++    Uuid::parse_str(replacement).expect("invalid request id is replaced with a UUID");
+ 
+     let (status, headers, body) = call_with_headers(
+         &app,
+@@ -4183,7 +4201,7 @@ async fn wiki_api_propagates_request_id_header() {
+         "/api/v1/users/me",
+         None,
+         None,
+-        &[("x-request-id", "req-client-1")],
++        &[("x-request-id", "11111111-2222-3333-4444-555555555555")],
+     )
+     .await;
+     assert_eq!(status, StatusCode::UNAUTHORIZED);
+@@ -4192,7 +4210,7 @@ async fn wiki_api_propagates_request_id_header() {
+         headers
+             .get("x-request-id")
+             .and_then(|value| value.to_str().ok()),
+-        Some("req-client-1")
++        Some("11111111-2222-3333-4444-555555555555")
+     );
+ }
+ 
+@@ -4431,7 +4449,7 @@ async fn wiki_metrics_endpoint_exposes_prometheus_http_and_wiki_metrics() {
+ #[tokio::test]
+ async fn wiki_api_records_request_id_in_audit_log() {
+     let app = test_app();
+-    let login_request_id = format!("req-audit-login-{}", Uuid::now_v7().simple());
++    let login_request_id = Uuid::now_v7().to_string();
+ 
+     let (status, _, login) = call_with_headers(
+         &app,
+@@ -4445,7 +4463,7 @@ async fn wiki_api_records_request_id_in_audit_log() {
+     assert_eq!(status, StatusCode::OK);
+     let token = login["access_token"].as_str().unwrap();
+ 
+-    let document_request_id = format!("req-audit-document-{}", Uuid::now_v7().simple());
++    let document_request_id = Uuid::now_v7().to_string();
+     let slug = format!("audit-request-id-{}", Uuid::now_v7().simple());
+     let (status, _, document) = call_with_headers(
+         &app,
+@@ -4704,7 +4722,7 @@ async fn wiki_postgres_audit_records_request_id_when_database_available() {
+     reset_postgres(&database_url).await;
+     let storage_dir = env::temp_dir().join(format!("wiki-api-test-{}", Uuid::now_v7()));
+     let (app, _) = postgres_test_app(database_url, storage_dir).await;
+-    let login_request_id = format!("req-pg-audit-login-{}", Uuid::now_v7().simple());
++    let login_request_id = Uuid::now_v7().to_string();
+ 
+     let (status, _, login) = call_with_headers(
+         &app,
+@@ -4718,7 +4736,7 @@ async fn wiki_postgres_audit_records_request_id_when_database_available() {
+     assert_eq!(status, StatusCode::OK);
+     let token = login["access_token"].as_str().unwrap();
+ 
+-    let document_request_id = format!("req-pg-audit-document-{}", Uuid::now_v7().simple());
++    let document_request_id = Uuid::now_v7().to_string();
+     let slug = format!("pg-audit-request-id-{}", Uuid::now_v7().simple());
+     let (status, _, document) = call_with_headers(
+         &app,
+diff --git a/backend/infra/Cargo.toml b/backend/infra/Cargo.toml
+index f6b442e..c842473 100644
+--- a/backend/infra/Cargo.toml
++++ b/backend/infra/Cargo.toml
+@@ -7,6 +7,7 @@ license-file.workspace = true
+ publish = false
+ 
+ [dependencies]
++sdlc-shared = { path = "../../../services-base/crates/sdlc-shared", features = ["readiness-sqlx"] }
+ # Fleet auth core: sibling services-base checkout (umbrella compose + CI).
+ # In CI the repo checks out to $GITHUB_WORKSPACE/wiki and services-base to
+ # $GITHUB_WORKSPACE/services-base, so the relative path matches on both.
+@@ -20,7 +21,7 @@ app = { path = "../app" }
+ async-trait.workspace = true
+ tokio.workspace = true
+ chrono.workspace = true
+-sqlx.workspace = true
++sqlx = { workspace = true, features = ["macros"] }
+ tracing.workspace = true
+ uuid.workspace = true
+ 
+diff --git a/backend/infra/src/wiki_postgres/mod.rs b/backend/infra/src/wiki_postgres/mod.rs
+index 6c19386..f22bdea 100644
+--- a/backend/infra/src/wiki_postgres/mod.rs
++++ b/backend/infra/src/wiki_postgres/mod.rs
+@@ -186,11 +186,13 @@ impl PostgresWikiBackend {
+ #[async_trait::async_trait]
+ impl WikiBackendPort for PostgresWikiBackend {
+     async fn readiness_check(&self) -> Result<(), shared::AppError> {
+-        let _: i32 = sqlx::query_scalar("SELECT 1")
+-            .fetch_one(&self.pool)
+-            .await
+-            .map_err(shared::AppError::database)?;
+-        Ok(())
++        sdlc_shared::readiness::check(
++            &self.pool,
++            &sqlx::migrate!("../migrations"),
++            "SELECT id, space_id FROM documents LIMIT 0",
++        )
++        .await
++        .map_err(shared::AppError::database)
+     }
+ 
+     async fn run_maintenance(&self) -> Result<WikiMaintenanceReport, shared::AppError> {
+diff --git a/docker-compose.yml b/docker-compose.yml
+index 13ba9b1..ccf4aa9 100644
+--- a/docker-compose.yml
++++ b/docker-compose.yml
+@@ -15,7 +15,10 @@ services:
+       timeout: 5s
+       retries: 5
+ 
+-  backend:
++  wiki-backend:
++    networks:
++      default:
++        aliases: [backend]
+     build:
+       context: ..
+       dockerfile: wiki/backend/Dockerfile
+@@ -54,7 +57,10 @@ services:
+       timeout: 5s
+       retries: 5
+ 
+-  frontend:
++  wiki-web:
++    networks:
++      default:
++        aliases: [frontend]
+     build:
+       context: ..
+       dockerfile: wiki/frontend/Dockerfile
+@@ -64,7 +70,7 @@ services:
+     ports:
+       - "19877:80"
+     depends_on:
+-      backend:
++      wiki-backend:
+         condition: service_healthy
+ 
+   traefik:
+diff --git a/docs/DEPLOYMENT.md b/docs/DEPLOYMENT.md
+index 839119f..06e4e55 100644
+--- a/docs/DEPLOYMENT.md
++++ b/docs/DEPLOYMENT.md
+@@ -32,7 +32,7 @@ cp .env.example .env
+ # отредактируйте секреты и задайте bootstrap admin для fresh DB
+ # для production также задайте WIKI_ENVIRONMENT=production и HTTPS CORS origins
+ # Для backend в контейнере с PostgreSQL persistence используйте host `postgres:5432`.
+-docker compose up -d postgres backend
++docker compose up -d postgres wiki-backend
+ curl -sf http://localhost:3456/api/v1/health/ready
+ ```
+ 
+@@ -103,7 +103,7 @@ Archive format and restore procedure are described in `docs/BACKUP_RESTORE.md`.
+ ```bash
+ git pull origin main
+ docker compose down -v   # при изменениях миграций
+-docker compose up -d postgres backend
++docker compose up -d postgres wiki-backend
+ ```
+ 
+ ## 12. Reverse Proxy Example (nginx)
+diff --git a/docs/LOCAL_SETUP.md b/docs/LOCAL_SETUP.md
+index 1f59c0e..ce357b1 100644
+--- a/docs/LOCAL_SETUP.md
++++ b/docs/LOCAL_SETUP.md
+@@ -131,7 +131,7 @@ docker compose build
+ docker compose up -d
+ 
+ # Логи
+-docker compose logs -f backend
++docker compose logs -f wiki-backend
+ ```
+ 
+ ## 7. Тестовые данные
+@@ -141,7 +141,7 @@ docker compose logs -f backend
+ ```bash
+ # Автосоздание admin пользователя из .env происходит при старте backend,
+ # если заданы WIKI_BOOTSTRAP__ADMIN_EMAIL и WIKI_BOOTSTRAP__ADMIN_PASSWORD.
+-docker compose up -d --force-recreate backend
++docker compose up -d --force-recreate wiki-backend
+ 
+ # Seed demo-проекта и задач (опционально)
+ ./scripts/seed-demo.sh
+diff --git a/docs/OPS_RUNBOOK.md b/docs/OPS_RUNBOOK.md
+index 7e71489..7dc032b 100644
+--- a/docs/OPS_RUNBOOK.md
++++ b/docs/OPS_RUNBOOK.md
+@@ -8,7 +8,7 @@
+ 
+ ```bash
+ docker compose ps
+-docker compose logs --tail 100 backend
++docker compose logs --tail 100 wiki-backend
+ curl -f https://wiki.example.com/api/v1/health
+ curl -f https://wiki.example.com/metrics | grep up
+ ```
+@@ -52,7 +52,7 @@ ls -lh ./backups/wiki-*.tar.gz
+ ./scripts/restore.sh ./backups/wiki-YYYYMMDD-HHMMSS.tar.gz
+ 
+ # Restart
+-docker compose up -d backend frontend
++docker compose up -d wiki-backend wiki-web
+ curl -sf http://localhost:3456/api/v1/health
+ curl -sf http://localhost:3456/api/v1/health/ready
+ ```
+diff --git a/docs/TROUBLESHOOTING.md b/docs/TROUBLESHOOTING.md
+index 12b30db..02b8702 100644
+--- a/docs/TROUBLESHOOTING.md
++++ b/docs/TROUBLESHOOTING.md
+@@ -136,7 +136,7 @@ curl http://localhost:3456/metrics
+ cargo run --bin server 2>&1 | jq
+ 
+ # docker
+-docker compose logs -f backend
++docker compose logs -f wiki-backend
+ ```
+ 
+ ## 8. References
+diff --git a/docs/plans/2026-10-04-unification-completion.md b/docs/plans/2026-10-04-unification-completion.md
+new file mode 100644
+index 0000000..140ca22
+--- /dev/null
++++ b/docs/plans/2026-10-04-unification-completion.md
+@@ -0,0 +1,7 @@
++# План унификации — 4 октября 2026
++
++Работа выполняется в отдельной task ветке. Закрываем Docker/naming, readiness собственной БД и схемы, request correlation, воспроизводимость сборки и UI contract/acceptance без доменных миграций. Существующие маршруты и wire formats совместимы; данные, secrets, snapshots и работающие контейнеры не меняются.
++
++Проверки: обязательные gates репозитория, PostgreSQL 17.6 в собственном временном Compose проекте, отрицательные HTTP/readiness contracts, выбранные workspace profiles, browser evidence после фиксации исходников. Изменения Base потребляются по exact SHA. Merge/deploy выполняются отдельно. Средства проверки не запускают production agents или внешние dispatch.
++
++Приёмка: окончательные task SHA проверены, результаты отражены в PR и обезличенном отчёте Base. Непроверенные пункты не отмечаются завершёнными.
+diff --git a/docs/ui-routes.json b/docs/ui-routes.json
+new file mode 100644
+index 0000000..34bad0a
+--- /dev/null
++++ b/docs/ui-routes.json
+@@ -0,0 +1,325 @@
++{
++  "schemaVersion": 1,
++  "product": "wiki",
++  "acceptanceStatus": "pending",
++  "routeSource": "frontend/src/app/router.tsx",
++  "shellSource": "frontend/src/widgets/app-shell.tsx",
++  "routes": [
++    {
++      "pattern": "/",
++      "kind": "operational",
++      "layout": "wide",
++      "roles": [
++        "authenticated",
++        "system-admin"
++      ],
++      "fixture": "synthetic:wiki:/",
++      "states": [
++        "normal",
++        "loading",
++        "empty",
++        "permission-denied",
++        "error"
++      ],
++      "qa": {
++        "status": "not-run"
++      }
++    },
++    {
++      "pattern": "/*",
++      "kind": "redirect"
++    },
++    {
++      "pattern": "/admin",
++      "kind": "operational",
++      "layout": "wide",
++      "roles": [
++        "authenticated",
++        "system-admin"
++      ],
++      "fixture": "synthetic:wiki:/admin",
++      "states": [
++        "normal",
++        "loading",
++        "empty",
++        "permission-denied",
++        "error"
++      ],
++      "qa": {
++        "status": "not-run"
++      }
++    },
++    {
++      "pattern": "/audit-log",
++      "kind": "operational",
++      "layout": "wide",
++      "roles": [
++        "authenticated",
++        "system-admin"
++      ],
++      "fixture": "synthetic:wiki:/audit-log",
++      "states": [
++        "normal",
++        "loading",
++        "empty",
++        "permission-denied",
++        "error"
++      ],
++      "qa": {
++        "status": "not-run"
++      }
++    },
++    {
++      "pattern": "/documents/:documentId",
++      "kind": "operational",
++      "layout": "detail-with-aside",
++      "roles": [
++        "authenticated",
++        "system-admin"
++      ],
++      "fixture": "synthetic:wiki:/documents/:documentId",
++      "states": [
++        "normal",
++        "loading",
++        "empty",
++        "permission-denied",
++        "error"
++      ],
++      "qa": {
++        "status": "not-run"
++      }
++    },
++    {
++      "pattern": "/documents/new",
++      "kind": "operational",
++      "layout": "reading",
++      "roles": [
++        "authenticated",
++        "system-admin"
++      ],
++      "fixture": "synthetic:wiki:/documents/new",
++      "states": [
++        "normal",
++        "loading",
++        "empty",
++        "permission-denied",
++        "error"
++      ],
++      "qa": {
++        "status": "not-run"
++      }
++    },
++    {
++      "pattern": "/evidence",
++      "kind": "operational",
++      "layout": "wide",
++      "roles": [
++        "authenticated",
++        "system-admin"
++      ],
++      "fixture": "synthetic:wiki:/evidence",
++      "states": [
++        "normal",
++        "loading",
++        "empty",
++        "permission-denied",
++        "error"
++      ],
++      "qa": {
++        "status": "not-run"
++      }
++    },
++    {
++      "pattern": "/login",
++      "kind": "public"
++    },
++    {
++      "pattern": "/phases",
++      "kind": "operational",
++      "layout": "wide",
++      "roles": [
++        "authenticated",
++        "system-admin"
++      ],
++      "fixture": "synthetic:wiki:/phases",
++      "states": [
++        "normal",
++        "loading",
++        "empty",
++        "permission-denied",
++        "error"
++      ],
++      "qa": {
++        "status": "not-run"
++      }
++    },
++    {
++      "pattern": "/phases/:phaseId",
++      "kind": "operational",
++      "layout": "wide",
++      "roles": [
++        "authenticated",
++        "system-admin"
++      ],
++      "fixture": "synthetic:wiki:/phases/:phaseId",
++      "states": [
++        "normal",
++        "loading",
++        "empty",
++        "permission-denied",
++        "error"
++      ],
++      "qa": {
++        "status": "not-run"
++      }
++    },
++    {
++      "pattern": "/register",
++      "kind": "redirect"
++    },
++    {
++      "pattern": "/search",
++      "kind": "operational",
++      "layout": "wide",
++      "roles": [
++        "authenticated",
++        "system-admin"
++      ],
++      "fixture": "synthetic:wiki:/search",
++      "states": [
++        "normal",
++        "loading",
++        "empty",
++        "permission-denied",
++        "error"
++      ],
++      "qa": {
++        "status": "not-run"
++      }
++    },
++    {
++      "pattern": "/settings",
++      "kind": "operational",
++      "layout": "reading",
++      "roles": [
++        "authenticated",
++        "system-admin"
++      ],
++      "fixture": "synthetic:wiki:/settings",
++      "states": [
++        "normal",
++        "loading",
++        "empty",
++        "permission-denied",
++        "error"
++      ],
++      "qa": {
++        "status": "not-run"
++      }
++    },
++    {
++      "pattern": "/spaces",
++      "kind": "operational",
++      "layout": "wide",
++      "roles": [
++        "authenticated",
++        "system-admin"
++      ],
++      "fixture": "synthetic:wiki:/spaces",
++      "states": [
++        "normal",
++        "loading",
++        "empty",
++        "permission-denied",
++        "error"
++      ],
++      "qa": {
++        "status": "not-run"
++      }
++    },
++    {
++      "pattern": "/sso/callback",
++      "kind": "public"
++    },
++    {
++      "pattern": "/tasks",
++      "kind": "operational",
++      "layout": "wide",
++      "roles": [
++        "authenticated",
++        "system-admin"
++      ],
++      "fixture": "synthetic:wiki:/tasks",
++      "states": [
++        "normal",
++        "loading",
++        "empty",
++        "permission-denied",
++        "error"
++      ],
++      "qa": {
++        "status": "not-run"
++      }
++    },
++    {
++      "pattern": "/tasks/:taskKey",
++      "kind": "operational",
++      "layout": "detail-with-aside",
++      "roles": [
++        "authenticated",
++        "system-admin"
++      ],
++      "fixture": "synthetic:wiki:/tasks/:taskKey",
++      "states": [
++        "normal",
++        "loading",
++        "empty",
++        "permission-denied",
++        "error"
++      ],
++      "qa": {
++        "status": "not-run"
++      }
++    },
++    {
++      "pattern": "/templates",
++      "kind": "operational",
++      "layout": "wide",
++      "roles": [
++        "authenticated",
++        "system-admin"
++      ],
++      "fixture": "synthetic:wiki:/templates",
++      "states": [
++        "normal",
++        "loading",
++        "empty",
++        "permission-denied",
++        "error"
++      ],
++      "qa": {
++        "status": "not-run"
++      }
++    },
++    {
++      "pattern": "/users",
++      "kind": "operational",
++      "layout": "wide",
++      "roles": [
++        "authenticated",
++        "system-admin"
++      ],
++      "fixture": "synthetic:wiki:/users",
++      "states": [
++        "normal",
++        "loading",
++        "empty",
++        "permission-denied",
++        "error"
++      ],
++      "qa": {
++        "status": "not-run"
++      }
++    }
++  ]
++}
+diff --git a/frontend/AGENTS.md b/frontend/AGENTS.md
+new file mode 100644
+index 0000000..0adfc50
+--- /dev/null
++++ b/frontend/AGENTS.md
+@@ -0,0 +1,19 @@
++<!-- BEGIN BASE FRONTEND RULES -->
++## Общий UI-контракт Base
++
++- Использовать общий shell, branding и tokens Base. Контент и доменные решения
++  принадлежат продукту; страницы входа Auth не требуют доступности Admin.
++- Описать маршруты, роли, состояния и layout modes в route contract. Приватный
++  operational route сохраняет SSO; fixtures используют synthetic данные.
++- Перед коммитом выполнить route/acceptance gates и матрицу viewport, тем,
++  direct/reload, keyboard/focus, geometry, console/network.
++- Browser evidence относится к committed source SHA и реальному candidate image.
++  После evidence допускаются документационные коммиты, если runtime fingerprints
++  не изменились. Secrets и реальные пользовательские данные исключить.
++- Изменение публичных контрактов сверять с backend/OpenAPI; SDK сохраняет HTTP
++  status, бизнес-код и correlation id, включая пустые error responses.
++- Compose-кандидаты работают только в собственном временном project; cleanup
++  выполняется при успехе, ошибке и отмене. Runtime workspace не пересоздавать.
++
++Этот блок обновляется `services-base/scripts/sync_frontend_agents.mjs`.
++<!-- END BASE FRONTEND RULES -->
+diff --git a/frontend/Dockerfile.umbrella b/frontend/Dockerfile.umbrella
+index 737c4ea..1b39fdb 100644
+--- a/frontend/Dockerfile.umbrella
++++ b/frontend/Dockerfile.umbrella
+@@ -1,8 +1,9 @@
++ARG SDLC_RUNTIME_FLAVOR=sdlc1
+ # Umbrella build for the SDLC fleet root compose (context = /opt/dev/sdlc).
+ # The repo's own frontend/Dockerfile builds with context=repo-root only; this
+ # variant additionally stages the sibling services-base frontend so the
+ # `@sdlc/ui` file dependency (../../services-base/frontend) resolves.
+-FROM node:22.20.0-bookworm-slim AS builder
++FROM node:22.20.0-bookworm-slim@sha256:b21fe589dfbe5cc39365d0544b9be3f1f33f55f3c86c87a76ff65a02f8f5848e AS builder
+ 
+ RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
+ 
+@@ -25,7 +26,9 @@ ARG VITE_AUTH_ISSUER="http://localhost:7701"
+ ENV VITE_AUTH_ISSUER=${VITE_AUTH_ISSUER}
+ RUN pnpm generate:api && pnpm build
+ 
+-FROM nginx:alpine
++FROM nginx:1.29.8-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de AS sdlc1
++FROM nginx:1.31.6-alpine@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2 AS sdlc2
++FROM ${SDLC_RUNTIME_FLAVOR} AS runtime
+ COPY --from=builder /workspace/wiki/frontend/dist /usr/share/nginx/html
+ COPY wiki/frontend/nginx.conf /etc/nginx/conf.d/default.conf
+ EXPOSE 80
+diff --git a/frontend/nginx.conf b/frontend/nginx.conf
+index 26b1a99..217f4c1 100644
+--- a/frontend/nginx.conf
++++ b/frontend/nginx.conf
+@@ -22,7 +22,7 @@ server {
+     }
+ 
+     location /api/ {
+-        proxy_pass http://backend:3456;
++        proxy_pass http://wiki-backend:3456;
+         proxy_http_version 1.1;
+         proxy_set_header Host $host;
+         proxy_set_header X-Real-IP $remote_addr;
+diff --git a/frontend/package.json b/frontend/package.json
+index ce8cae3..afa09a3 100644
+--- a/frontend/package.json
++++ b/frontend/package.json
+@@ -22,7 +22,9 @@
+     "openapi:compat": "node scripts/base-openapi-compat.mjs",
+     "postinstall": "openapi-typescript ../openapi/openapi.json -o src/api/generated.ts && node scripts/generate-exports.mjs",
+     "prebuild": "node scripts/generate-exports.mjs",
+-    "theme:check": "node ../../services-base/frontend/scripts/sdlc-effective-theme-check.mjs"
++    "theme:check": "node ../../services-base/frontend/scripts/sdlc-effective-theme-check.mjs",
++    "ui:check": "node ../../services-base/frontend/scripts/check-ui-contract.mjs --repo .. --require-installed",
++    "ui:acceptance": "node ../../services-base/frontend/scripts/check-ui-contract.mjs --repo .. --acceptance"
+   },
+   "dependencies": {
+     "@radix-ui/react-alert-dialog": "^1.1.13",
+diff --git a/frontend/src/widgets/app-shell.tsx b/frontend/src/widgets/app-shell.tsx
+index 13a02d3..8181909 100644
+--- a/frontend/src/widgets/app-shell.tsx
++++ b/frontend/src/widgets/app-shell.tsx
+@@ -1,5 +1,4 @@
+-import { useEffect, useState, type ElementType } from 'react'
+-import { Link, NavLink, Outlet, useLocation } from 'react-router'
++import { Link, Outlet, useLocation } from 'react-router'
+ import {
+   ClipboardList,
+   FileCheck2,
+@@ -9,39 +8,15 @@ import {
+   History,
+   Home,
+   Library,
+-  LogOut,
+-  Menu,
+   Search,
+   Settings,
+   ShieldCheck,
+-  User,
+   Users,
+ } from 'lucide-react'
+-import {
+-  Button,
+-  Dialog,
+-  DialogContent,
+-  DialogHeader,
+-  DialogTitle,
+-  DialogTrigger,
+-  DropdownMenu,
+-  DropdownMenuContent,
+-  DropdownMenuItem,
+-  DropdownMenuTrigger,
+-  PageFrame,
+-  PlatformHeader,
+-  PlatformMark,
+-  ThemeToggle,
+-} from '@sdlc/ui/ui'
++import { AppShell as BaseAppShell, Button, type ShellNavItem } from '@sdlc/ui/ui'
+ import { useCurrentUser, useLogout } from '@/shared/api/hooks'
+ 
+-type NavItem = {
+-  to: string
+-  icon: ElementType
+-  label: string
+-}
+-
+-const baseNavItems: NavItem[] = [
++const baseNavItems: ShellNavItem[] = [
+   { to: '/', icon: Home, label: 'Обзор' },
+   { to: '/spaces', icon: Library, label: 'Пространства' },
+   { to: '/tasks', icon: ClipboardList, label: 'Задачи' },
+@@ -51,199 +26,56 @@ const baseNavItems: NavItem[] = [
+   { to: '/search', icon: Search, label: 'Поиск' },
+ ]
+ 
+-const adminNavItems: NavItem[] = [
++const adminNavItems: ShellNavItem[] = [
+   { to: '/audit-log', icon: History, label: 'Аудит' },
+   { to: '/users', icon: Users, label: 'Пользователи' },
+   { to: '/settings', icon: Settings, label: 'Настройки' },
+   { to: '/admin', icon: ShieldCheck, label: 'Администрирование' },
+ ]
+ 
+-function SidebarLink({
+-  to,
+-  icon: Icon,
+-  label,
+-  onClick,
+-  responsiveLabel = false,
+-}: {
+-  to: string
+-  icon: ElementType
+-  label: string
+-  onClick?: () => void
+-  responsiveLabel?: boolean
+-}) {
+-  return (
+-    <NavLink
+-      to={to}
+-      end={to === '/'}
+-      onClick={onClick}
+-      title={responsiveLabel ? label : undefined}
+-      className={({ isActive }) =>
+-        `flex min-h-11 items-center gap-3 rounded-md px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-10 ${
+-          responsiveLabel ? 'md:justify-center md:px-2 xl:justify-start xl:px-3' : ''
+-        } ${
+-          isActive
+-            ? 'bg-surface-raised text-text-primary'
+-            : 'text-text-secondary hover:bg-surface-raised hover:text-text-primary'
+-        }`
+-      }
+-    >
+-      <Icon className="h-5 w-5 shrink-0" aria-hidden />
+-      <span className={responsiveLabel ? 'md:sr-only xl:not-sr-only xl:truncate' : 'truncate'}>
+-        {label}
+-      </span>
+-    </NavLink>
+-  )
+-}
+-
+-function NavigationList({
+-  items,
+-  onNavigate,
+-  responsiveLabels = false,
+-}: {
+-  items: NavItem[]
+-  onNavigate?: () => void
+-  responsiveLabels?: boolean
+-}) {
+-  return (
+-    <nav className="flex flex-col gap-1" aria-label="Основная навигация">
+-      {items.map((item) => (
+-        <SidebarLink
+-          key={item.to}
+-          {...item}
+-          onClick={onNavigate}
+-          responsiveLabel={responsiveLabels}
+-        />
+-      ))}
+-    </nav>
+-  )
+-}
+-
+ export function AppShell() {
+-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+-  const location = useLocation()
++  const { pathname } = useLocation()
+   const { data: user } = useCurrentUser()
+   const logout = useLogout()
+   const identity = user?.display_name?.trim() || user?.email || 'Пользователь'
+-
+-  useEffect(() => {
+-    const desktop = window.matchMedia('(min-width: 768px)')
+-    const closeOnDesktop = () => {
+-      if (desktop.matches) setMobileMenuOpen(false)
+-    }
+-    desktop.addEventListener('change', closeOnDesktop)
+-    return () => desktop.removeEventListener('change', closeOnDesktop)
+-  }, [])
+-
+-  const navItems = [...baseNavItems, ...(user?.is_system_admin ? adminNavItems : [])]
+-  const pageLayout =
+-    location.pathname === '/settings' || location.pathname === '/documents/new'
++  const navigation = [...baseNavItems, ...(user?.is_system_admin ? adminNavItems : [])]
++  const layout =
++    pathname === '/settings' || pathname === '/documents/new'
+       ? 'reading'
+-      : /^\/(documents|tasks)\/[^/]+$/.test(location.pathname)
++      : /^\/(documents|tasks)\/[^/]+$/.test(pathname)
+         ? 'detail-with-aside'
+         : 'wide'
+-
++  const create = (
++    <Button asChild className="min-h-11 w-full gap-2">
++      <Link to="/documents/new">
++        <FilePlus2 className="h-4 w-4" aria-hidden />
++        Новый документ
++      </Link>
++    </Button>
++  )
+   return (
+-    <div className="min-h-screen bg-background text-text-primary">
+-      <PlatformHeader
+-        currentServiceKey="wiki"
+-        leading={
+-          <>
+-            <Dialog open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+-              <DialogTrigger asChild>
+-                <Button
+-                  variant="ghost"
+-                  size="icon"
+-                  className="h-11 w-11 md:hidden"
+-                  aria-label="Открыть навигацию"
+-                >
+-                  <Menu className="h-5 w-5" aria-hidden />
+-                </Button>
+-              </DialogTrigger>
+-              <DialogContent
+-                aria-describedby={undefined}
+-                className="!left-0 !top-0 !flex !h-dvh !max-h-dvh !w-[min(320px,calc(100%-2rem))] !max-w-none !translate-x-0 !translate-y-0 !flex-col !gap-0 !rounded-none !border-y-0 !border-l-0 !p-0 [&>button]:h-11 [&>button]:w-11"
+-              >
+-                <DialogHeader className="flex h-[var(--shell-header-height)] shrink-0 justify-center border-b border-border px-4 pr-14 text-left">
+-                  <DialogTitle className="text-base">
+-                    <span className="sr-only">Навигация Wiki</span>
+-                    <span className="flex items-center gap-3" aria-hidden>
+-                      <PlatformMark size="sm" withName={false} />
+-                      <span>Wiki</span>
+-                    </span>
+-                  </DialogTitle>
+-                </DialogHeader>
+-                <div className="min-h-0 flex-1 overflow-y-auto p-3">
+-                  <Button asChild className="mb-3 min-h-11 w-full gap-2">
+-                    <Link to="/documents/new" onClick={() => setMobileMenuOpen(false)}>
+-                      <FilePlus2 className="h-4 w-4" aria-hidden />
+-                      Новый документ
+-                    </Link>
+-                  </Button>
+-                  <NavigationList items={navItems} onNavigate={() => setMobileMenuOpen(false)} />
+-                </div>
+-              </DialogContent>
+-            </Dialog>
+-
+-            <Link
+-              to="/"
+-              className="hidden h-11 min-w-11 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus min-[360px]:flex md:h-10 md:min-w-10"
+-              aria-label="Wiki"
+-            >
+-              <PlatformMark size="sm" withName={false} />
+-            </Link>
+-          </>
+-        }
+-        actions={
+-          <>
+-            <Button asChild size="sm" className="hidden h-10 min-w-10 gap-2 px-3 md:inline-flex">
+-              <Link to="/documents/new" aria-label="Новый документ">
+-                <FilePlus2 className="h-4 w-4" aria-hidden />
+-                <span>Новый документ</span>
+-              </Link>
+-            </Button>
+-            <ThemeToggle />
+-            <DropdownMenu>
+-              <DropdownMenuTrigger asChild>
+-                <Button
+-                  variant="ghost"
+-                  size="icon"
+-                  className="h-11 w-11 md:h-10 md:w-10"
+-                  aria-label="Аккаунт"
+-                >
+-                  <User className="h-5 w-5" aria-hidden />
+-                </Button>
+-              </DropdownMenuTrigger>
+-              <DropdownMenuContent align="end" className="w-64 max-w-[calc(100vw-2rem)]">
+-                <div className="break-words px-2 py-1.5 text-sm font-medium text-text-primary">
+-                  {identity}
+-                </div>
+-                {user?.email && user.email !== identity && (
+-                  <div className="break-words px-2 pb-2 text-xs text-text-muted">{user.email}</div>
+-                )}
+-                <DropdownMenuItem
+-                  onSelect={() => logout.mutate()}
+-                  className="min-h-11 gap-2 text-text-secondary md:min-h-10"
+-                >
+-                  <LogOut className="h-4 w-4" aria-hidden />
+-                  <span>Выйти</span>
+-                </DropdownMenuItem>
+-              </DropdownMenuContent>
+-            </DropdownMenu>
+-          </>
+-        }
+-      />
+-      <aside className="fixed bottom-0 left-0 top-[var(--shell-header-height)] z-20 hidden w-[var(--shell-sidebar-compact)] flex-col border-r border-border bg-surface md:flex xl:w-[var(--shell-sidebar-expanded)]">
+-        <div className="min-h-0 flex-1 overflow-y-auto p-2 xl:p-3">
+-          <NavigationList items={navItems} responsiveLabels />
+-        </div>
+-      </aside>
+-      <div className="md:pl-[var(--shell-sidebar-compact)] xl:pl-[var(--shell-sidebar-expanded)]">
+-        <main className="shell-main min-h-[calc(100dvh-var(--shell-header-height))]">
+-          <PageFrame mode={pageLayout}>
+-            <Outlet />
+-          </PageFrame>
+-        </main>
+-      </div>
+-    </div>
++    <BaseAppShell
++      currentServiceKey="wiki"
++      title="Wiki"
++      navigation={navigation}
++      layout={layout}
++      drawerAction={create}
++      actions={
++        <Button asChild size="sm" className="hidden h-10 gap-2 md:inline-flex">
++          <Link to="/documents/new">
++            <FilePlus2 className="h-4 w-4" aria-hidden />
++            Новый документ
++          </Link>
++        </Button>
++      }
++      account={{
++        label: identity,
++        secondary: user?.email !== identity ? user?.email : undefined,
++        onLogout: () => logout.mutate(),
++        pending: logout.isPending,
++      }}
++    >
++      <Outlet />
++    </BaseAppShell>
+   )
+ }
+diff --git a/scripts/backup.sh b/scripts/backup.sh
+index 80b806e..81fed9a 100644
+--- a/scripts/backup.sh
++++ b/scripts/backup.sh
+@@ -47,7 +47,7 @@ docker compose exec -T postgres pg_dump \
+   > "${TMP_DIR}/postgres.dump"
+ 
+ echo "Backing up attachments..."
+-if BACKEND_CONTAINER="$(docker compose ps -q backend 2>/dev/null)" && [ -n "$BACKEND_CONTAINER" ]; then
++if BACKEND_CONTAINER="$(docker compose ps -q wiki-backend 2>/dev/null)" && [ -n "$BACKEND_CONTAINER" ]; then
+   mkdir -p "${TMP_DIR}/attachments"
+   if docker compose cp "backend:${CONTAINER_STORAGE_DIR}/." "${TMP_DIR}/attachments" >/dev/null 2>&1; then
+     tar -cf "${TMP_DIR}/attachments.tar" -C "${TMP_DIR}/attachments" .
+diff --git a/scripts/deploy-production.sh b/scripts/deploy-production.sh
+index 91c8edc..f5837b0 100644
+--- a/scripts/deploy-production.sh
++++ b/scripts/deploy-production.sh
+@@ -34,7 +34,7 @@ else
+ fi
+ 
+ docker compose "${COMPOSE_FILES[@]}" build
+-docker compose "${COMPOSE_FILES[@]}" up -d postgres backend frontend
+-docker compose "${COMPOSE_FILES[@]}" exec -T backend wget -qO- http://localhost:3456/api/v1/health/ready > /dev/null
++docker compose "${COMPOSE_FILES[@]}" up -d postgres wiki-backend wiki-web
++docker compose "${COMPOSE_FILES[@]}" exec -T wiki-backend wget -qO- http://localhost:3456/api/v1/health/ready > /dev/null
+ 
+ echo "Production deployed."
+diff --git a/scripts/deploy-staging.sh b/scripts/deploy-staging.sh
+index e979ef8..3bdc666 100644
+--- a/scripts/deploy-staging.sh
++++ b/scripts/deploy-staging.sh
+@@ -20,7 +20,7 @@ else
+ fi
+ 
+ docker compose "${COMPOSE_FILES[@]}" build
+-docker compose "${COMPOSE_FILES[@]}" up -d postgres backend frontend
+-docker compose "${COMPOSE_FILES[@]}" exec -T backend wget -qO- http://localhost:3456/api/v1/health/ready > /dev/null
++docker compose "${COMPOSE_FILES[@]}" up -d postgres wiki-backend wiki-web
++docker compose "${COMPOSE_FILES[@]}" exec -T wiki-backend wget -qO- http://localhost:3456/api/v1/health/ready > /dev/null
+ 
+ echo "Staging deployed."
+diff --git a/scripts/init-admin.sh b/scripts/init-admin.sh
+index e302e62..a0acc07 100644
+--- a/scripts/init-admin.sh
++++ b/scripts/init-admin.sh
+@@ -31,6 +31,6 @@ export WIKI_BOOTSTRAP__ADMIN_DISPLAY_NAME
+ cd "$PROJECT_DIR"
+ 
+ echo "Ensuring admin user ${WIKI_BOOTSTRAP__ADMIN_EMAIL} through backend bootstrap..."
+-docker compose up -d --force-recreate backend
++docker compose up -d --force-recreate wiki-backend
+ 
+ echo "Admin bootstrap applied. Login with ${WIKI_BOOTSTRAP__ADMIN_EMAIL} after backend healthcheck is green."
+diff --git a/scripts/init.sh b/scripts/init.sh
+index e901f91..dd5421f 100644
+--- a/scripts/init.sh
++++ b/scripts/init.sh
+@@ -37,9 +37,9 @@ echo "Waiting for postgres healthy..."
+ docker compose exec -T postgres pg_isready -U "${POSTGRES_USER:-wiki}" -d "${POSTGRES_DB:-wiki}" > /dev/null
+ 
+ echo "Starting Wiki services..."
+-docker compose up -d backend frontend
++docker compose up -d wiki-backend wiki-web
+ 
+ echo "Waiting for backend readiness..."
+-docker compose exec -T backend wget -qO- http://localhost:3456/api/v1/health/ready > /dev/null
++docker compose exec -T wiki-backend wget -qO- http://localhost:3456/api/v1/health/ready > /dev/null
+ 
+ echo "Init complete."
+diff --git a/scripts/reset-admin-password.sh b/scripts/reset-admin-password.sh
+index da76145..36f2afc 100644
+--- a/scripts/reset-admin-password.sh
++++ b/scripts/reset-admin-password.sh
+@@ -31,6 +31,6 @@ export WIKI_BOOTSTRAP__ADMIN_DISPLAY_NAME
+ cd "$PROJECT_DIR"
+ 
+ echo "Resetting admin password for ${WIKI_BOOTSTRAP__ADMIN_EMAIL} through backend bootstrap..."
+-docker compose up -d --force-recreate backend
++docker compose up -d --force-recreate wiki-backend
+ 
+ echo "Admin password bootstrap applied. Login after backend healthcheck is green."
+diff --git a/scripts/restore.sh b/scripts/restore.sh
+index 4f5d5d2..7711207 100644
+--- a/scripts/restore.sh
++++ b/scripts/restore.sh
+@@ -54,7 +54,7 @@ if [ ! -f "${TMP_DIR}/attachments.tar" ]; then
+ fi
+ 
+ echo "Stopping application services..."
+-docker compose stop backend frontend >/dev/null 2>&1 || true
++docker compose stop wiki-backend wiki-web >/dev/null 2>&1 || true
+ 
+ echo "Ensuring PostgreSQL is running..."
+ docker compose up -d postgres >/dev/null
+@@ -70,13 +70,13 @@ echo "Restoring attachments..."
+ mkdir -p "${TMP_DIR}/attachments"
+ tar -xf "${TMP_DIR}/attachments.tar" -C "${TMP_DIR}/attachments"
+ 
+-if [ -z "$(docker compose ps -a -q backend 2>/dev/null)" ]; then
+-  docker compose create backend >/dev/null
++if [ -z "$(docker compose ps -a -q wiki-backend 2>/dev/null)" ]; then
++  docker compose create wiki-backend >/dev/null
+ fi
+ 
+-docker compose run --rm --no-deps --entrypoint sh backend -c \
++docker compose run --rm --no-deps --entrypoint sh wiki-backend -c \
+   'dir="${WIKI_STORAGE__DIR:-/var/lib/wiki/uploads}"; mkdir -p "$dir"; rm -rf "$dir"/* "$dir"/.[!.]* "$dir"/..?*'
+ docker compose cp "${TMP_DIR}/attachments/." "backend:${CONTAINER_STORAGE_DIR}" >/dev/null
+ 
+ echo "Restore complete."
+-echo "Start application services with: docker compose up -d backend frontend"
++echo "Start application services with: docker compose up -d wiki-backend wiki-web"

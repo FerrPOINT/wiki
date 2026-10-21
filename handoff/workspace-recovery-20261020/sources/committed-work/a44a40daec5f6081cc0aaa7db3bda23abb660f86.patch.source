@@ -1,0 +1,1389 @@
+diff --git a/docs/CURRENT_STATE.md b/docs/CURRENT_STATE.md
+index afd2cdf..cbbed98 100644
+--- a/docs/CURRENT_STATE.md
++++ b/docs/CURRENT_STATE.md
+@@ -1,5 +1,7 @@
+ # Current State - Wiki
+ 
++> Dossier UI update (2026-09-20): `/tasks` and `/phases` use compact searchable client-side pages, while detail links open exact document/evidence records and no longer infer workflow readiness from item counts. Draft PR still needs 375/1920/2560 live QA. The current list API remains unbounded and loads full nested dossiers with PostgreSQL N+1 queries; server-side summary/cursor pagination is a separate required follow-up.
++
+ > Snapshot date: 2026-09-03. Authority is repository code and tests; update this file whenever capability state changes.
+ 
+ ## Current Verified
+diff --git a/docs/USER_GUIDE.md b/docs/USER_GUIDE.md
+index a8769d5..031f25f 100644
+--- a/docs/USER_GUIDE.md
++++ b/docs/USER_GUIDE.md
+@@ -45,6 +45,8 @@ Wiki хранит важные материалы вокруг SDLC-задач:
+ 
+ В MVP нет страниц reports, notifications и integrations. Health/readiness доступны только как API probes для эксплуатации.
+ 
++Каталоги задач и фаз можно фильтровать по ключу или названию и просматривать постранично. В досье ссылки на документы и материалы открывают выбранную запись; счётчики показывают количество связанных объектов, а не оценку готовности процесса.
++
+ ## 5. Состояния документов
+ 
+ | Состояние | Значение                                                                  |
+diff --git a/frontend/src/pages/phase-dossier/index.tsx b/frontend/src/pages/phase-dossier/index.tsx
+index cc6794f..08470de 100644
+--- a/frontend/src/pages/phase-dossier/index.tsx
++++ b/frontend/src/pages/phase-dossier/index.tsx
+@@ -1,6 +1,6 @@
+ import { type FormEvent, useState } from 'react'
+ import { Link, useParams, useSearchParams } from 'react-router'
+-import { CheckCircle2, CircleDashed, FileCheck2, FileText, GitBranch, Link2 } from 'lucide-react'
++import { FileCheck2, FileText, Link2, Search } from 'lucide-react'
+ import {
+   defaultSpaceKey,
+   useLinkPhaseDocument,
+@@ -10,10 +10,8 @@ import {
+ } from '@/shared/api/hooks'
+ import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
+ import { Button } from '@sdlc/ui/ui'
+-import { Card, CardContent, CardHeader, CardTitle } from '@sdlc/ui/ui'
+ import { Input } from '@sdlc/ui/ui'
+ import { Label } from '@sdlc/ui/ui'
+-import { Progress } from '@sdlc/ui/ui'
+ import { formatApiErrorForUser } from '@/shared/lib/api-error'
+ import { resolveSpaceKey } from '@/shared/lib/space-selection'
+ import {
+@@ -22,21 +20,17 @@ import {
+   formatDocumentType,
+   formatEvidenceType,
+ } from '@/shared/lib/wiki-format'
+-import type { PhasePage } from '@/api/wiki'
++
++const pageSize = 12
+ 
+ const selectClassName =
+-  'flex h-9 w-full rounded-md border border-border-strong bg-surface px-3 py-1 text-sm text-text-primary shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50'
++  'flex min-h-10 w-full rounded-md border border-border-strong bg-surface px-3 py-1 text-sm text-text-primary shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50'
+ 
+ type SpaceOption = {
+   key: string
+   name: string
+ }
+ 
+-function readiness(phase: Pick<PhasePage, 'document_count' | 'evidence_count'>): number {
+-  const score = phase.document_count * 45 + phase.evidence_count * 35
+-  return Math.max(0, Math.min(100, score))
+-}
+-
+ function useSelectedSpaceKey() {
+   const [searchParams, setSearchParams] = useSearchParams()
+   const spacesQuery = useSpaces()
+@@ -60,17 +54,19 @@ function scopedPath(path: string, spaceKey: string): string {
+   return spaceKey === defaultSpaceKey ? path : `${path}?space=${encodeURIComponent(spaceKey)}`
+ }
+ 
+-function evidencePhasePath(spaceKey: string, phaseKey: string): string {
+-  const params = new URLSearchParams({ space: spaceKey, phase_key: phaseKey })
++function evidencePhasePath(spaceKey: string, phaseKey: string, evidenceId: string): string {
++  const params = new URLSearchParams({ space: spaceKey, phase_key: phaseKey, id: evidenceId })
+   return `/evidence?${params.toString()}`
+ }
+ 
+ function SpaceSelector({
+   value,
+   onChange,
++  disabled = false,
+ }: {
+   value: string
+   onChange: (spaceKey: string) => void
++  disabled?: boolean
+ }) {
+   const spacesQuery = useSpaces()
+   const spaces: SpaceOption[] = spacesQuery.data?.spaces ?? []
+@@ -85,7 +81,7 @@ function SpaceSelector({
+         className={selectClassName}
+         value={value}
+         onChange={(event) => onChange(event.target.value)}
+-        disabled={spacesQuery.isLoading || options.length === 0}
++        disabled={disabled || spacesQuery.isLoading || spacesQuery.isError || options.length === 0}
+       >
+         {options.length === 0 && <option value="">Нет пространств</option>}
+         {options.map((space) => (
+@@ -102,6 +98,17 @@ export function PhaseDossiersPage() {
+   const [selectedSpaceKey, setSelectedSpaceKey, spacesQuery] = useSelectedSpaceKey()
+   const phasesQuery = usePhases(selectedSpaceKey)
+   const phases = phasesQuery.data?.phases ?? []
++  const [search, setSearch] = useState('')
++  const [page, setPage] = useState(1)
++  const needle = search.trim().toLocaleLowerCase('ru')
++  const filteredPhases = needle
++    ? phases.filter((phase) =>
++        `${phase.phase_key} ${phase.title ?? ''}`.toLocaleLowerCase('ru').includes(needle),
++      )
++    : phases
++  const totalPages = Math.max(1, Math.ceil(filteredPhases.length / pageSize))
++  const currentPage = Math.min(page, totalPages)
++  const visiblePhases = filteredPhases.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+ 
+   return (
+     <div className="space-y-5">
+@@ -112,7 +119,14 @@ export function PhaseDossiersPage() {
+             Каждая завершённая фаза должна иметь документы и материалы, достаточные для аудита.
+           </p>
+         </div>
+-        <SpaceSelector value={selectedSpaceKey} onChange={setSelectedSpaceKey} />
++        <SpaceSelector
++          value={selectedSpaceKey}
++          onChange={(spaceKey) => {
++            setSelectedSpaceKey(spaceKey)
++            setSearch('')
++            setPage(1)
++          }}
++        />
+       </section>
+ 
+       {spacesQuery.isLoading && <LoadingState message="Загружаем пространства" />}
+@@ -139,42 +153,80 @@ export function PhaseDossiersPage() {
+           <EmptyState message="Документы и материалы ещё не связаны с фазами" />
+         )}
+       {selectedSpaceKey && !phasesQuery.isLoading && !phasesQuery.isError && phases.length > 0 && (
+-        <section className="grid gap-4 lg:grid-cols-4">
+-          {phases.map((phase) => {
+-            const value = readiness(phase)
+-            return (
+-              <Card key={phase.phase_key}>
+-                <CardHeader>
+-                  <CardTitle className="flex items-center justify-between gap-2 text-base">
+-                    {phase.title ?? phase.phase_key}
+-                    {phase.evidence_count > 0 ? (
+-                      <CheckCircle2 className="h-4 w-4 text-success" />
+-                    ) : (
+-                      <CircleDashed className="h-4 w-4 text-warning" />
+-                    )}
+-                  </CardTitle>
+-                </CardHeader>
+-                <CardContent className="space-y-4">
+-                  <div className="space-y-1.5">
+-                    <div className="flex justify-between text-xs text-text-muted">
+-                      <span>Заполненность</span>
+-                      <span>{value}%</span>
+-                    </div>
+-                    <Progress value={value} variant={value < 50 ? 'danger' : 'default'} />
+-                  </div>
+-                  <div className="text-xs text-text-muted">
+-                    Документы: {phase.document_count} · Материалы: {phase.evidence_count}
+-                  </div>
++        <section aria-label="Список фаз" className="space-y-3">
++          <div className="relative max-w-md">
++            <Search
++              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
++              aria-hidden
++            />
++            <Input
++              type="search"
++              aria-label="Найти фазу"
++              className="min-h-10 pl-9"
++              placeholder="Ключ или название"
++              value={search}
++              onChange={(event) => {
++                setSearch(event.target.value)
++                setPage(1)
++              }}
++            />
++          </div>
++          <p role="status" className="text-xs text-text-muted">
++            Показано {visiblePhases.length} из {filteredPhases.length} фаз
++          </p>
++          {filteredPhases.length === 0 ? (
++            <EmptyState message="По запросу фазы не найдены" />
++          ) : (
++            <ul className="divide-y divide-border border-y border-border">
++              {visiblePhases.map((phase) => (
++                <li key={phase.phase_key}>
+                   <Link
+                     to={scopedPath(`/phases/${phase.phase_key}`, selectedSpaceKey)}
+-                    className="text-sm text-accent"
++                    className="flex min-h-16 min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 px-2 py-3 hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
+                   >
+-                    Открыть фазу
++                    <span className="min-w-0">
++                      <span className="block break-words text-sm font-medium text-text-primary">
++                        {phase.title ?? phase.phase_key}
++                      </span>
++                      {phase.title && (
++                        <span className="block text-xs text-text-muted">{phase.phase_key}</span>
++                      )}
++                    </span>
++                    <span className="shrink-0 text-xs text-text-muted">
++                      Документы: {phase.document_count} · Материалы: {phase.evidence_count}
++                    </span>
+                   </Link>
+-                </CardContent>
+-              </Card>
+-            )
+-          })}
++                </li>
++              ))}
++            </ul>
++          )}
++          {totalPages > 1 && (
++            <nav aria-label="Страницы фаз" className="flex items-center justify-end gap-2">
++              <Button
++                type="button"
++                size="sm"
++                variant="outline"
++                className="min-h-10"
++                disabled={currentPage === 1}
++                onClick={() => setPage(currentPage - 1)}
++              >
++                Назад
++              </Button>
++              <span className="text-sm text-text-muted">
++                {currentPage} / {totalPages}
++              </span>
++              <Button
++                type="button"
++                size="sm"
++                variant="outline"
++                className="min-h-10"
++                disabled={currentPage === totalPages}
++                onClick={() => setPage(currentPage + 1)}
++              >
++                Далее
++              </Button>
++            </nav>
++          )}
+         </section>
+       )}
+     </div>
+@@ -189,12 +241,11 @@ export function PhaseDossierPage() {
+   const [documentId, setDocumentId] = useState('')
+   const [linkMessage, setLinkMessage] = useState('')
+   const phase = phaseQuery.data
+-  const value = phase ? readiness(phase) : 0
+ 
+   function handleLinkDocument(event: FormEvent<HTMLFormElement>) {
+     event.preventDefault()
+     const trimmedDocumentId = documentId.trim()
+-    if (!trimmedDocumentId) return
++    if (!trimmedDocumentId || linkDocument.isPending) return
+     setLinkMessage('')
+     linkDocument.mutate(
+       {
+@@ -235,116 +286,142 @@ export function PhaseDossierPage() {
+ 
+   return (
+     <div className="space-y-5">
+-      <section className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+-        <div>
+-          <div className="text-sm text-text-muted">карточка фазы</div>
+-          <h1 className="mt-2 text-2xl font-bold">{phase.title ?? phase.phase_key}</h1>
+-          <p className="mt-1 max-w-3xl text-sm text-text-muted">
+-            Документы и материалы, привязанные к фазе процесса в пространстве {selectedSpaceKey}.
+-          </p>
+-        </div>
+-        <SpaceSelector value={selectedSpaceKey} onChange={setSelectedSpaceKey} />
+-        <div className="min-w-72 rounded-md border border-border p-3">
+-          <div className="flex items-center justify-between text-sm">
+-            <span className="font-medium">Заполненность</span>
+-            <span className="text-text-muted">{value}%</span>
++      <section className="space-y-3">
++        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
++          <div className="min-w-0">
++            <Link
++              to={scopedPath('/phases', selectedSpaceKey)}
++              className="inline-flex min-h-10 items-center text-sm text-accent hover:text-accent-hover"
++            >
++              К фазам
++            </Link>
++            <h1 className="mt-2 break-words text-2xl font-bold">
++              {phase.title ?? phase.phase_key}
++            </h1>
++            {phase.title && phase.title !== phase.phase_key && (
++              <p className="mt-1 break-words text-sm text-text-muted">{phase.phase_key}</p>
++            )}
+           </div>
+-          <Progress value={value} className="mt-3" />
+-          <p className="mt-2 text-xs text-text-muted">
+-            Документы: {phase.document_count} · Материалы: {phase.evidence_count}
+-          </p>
++          <SpaceSelector
++            value={selectedSpaceKey}
++            disabled={linkDocument.isPending}
++            onChange={(spaceKey) => {
++              setSelectedSpaceKey(spaceKey)
++              setDocumentId('')
++              setLinkMessage('')
++            }}
++          />
++        </div>
++        <div className="flex flex-wrap gap-x-5 gap-y-1 border-y border-border py-2 text-sm text-text-muted">
++          <span>Документы: {phase.document_count}</span>
++          <span>Материалы: {phase.evidence_count}</span>
+         </div>
+       </section>
+ 
+-      <section className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+-        <Card>
+-          <CardHeader>
+-            <CardTitle className="flex items-center gap-2 text-base">
+-              <FileText className="h-4 w-4 text-accent" />
+-              Документы фазы
+-            </CardTitle>
+-          </CardHeader>
+-          <CardContent className="space-y-3">
+-            <form
+-              onSubmit={handleLinkDocument}
+-              className="rounded-md bg-surface-raised p-3"
+-              aria-label="Привязать документ к фазе"
+-            >
+-              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+-                <div className="space-y-1.5">
+-                  <Label htmlFor="phase-document-link">Документ для фазы</Label>
+-                  <Input
+-                    id="phase-document-link"
+-                    value={documentId}
+-                    onChange={(event) => setDocumentId(event.target.value)}
+-                    placeholder="product-requirements"
+-                    disabled={linkDocument.isPending}
+-                  />
+-                </div>
+-                <Button type="submit" disabled={linkDocument.isPending || !documentId.trim()}>
+-                  <Link2 className="h-4 w-4" />
+-                  {linkDocument.isPending ? 'Привязываем' : 'Привязать'}
+-                </Button>
++      {spacesQuery.isError && (
++        <ErrorState
++          message={formatApiErrorForUser(spacesQuery.error, 'Не удалось загрузить пространства')}
++          onRetry={() => spacesQuery.refetch()}
++        />
++      )}
++
++      <div className="grid gap-6 xl:grid-cols-2">
++        <section className="min-w-0 space-y-3" aria-labelledby="phase-documents-title">
++          <h2 id="phase-documents-title" className="text-base font-semibold">
++            Документы фазы
++          </h2>
++          <form
++            onSubmit={handleLinkDocument}
++            className="border-y border-border bg-surface-raised p-3"
++            aria-label="Привязать документ к фазе"
++          >
++            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
++              <div className="space-y-1.5">
++                <Label htmlFor="phase-document-link">Документ для фазы</Label>
++                <Input
++                  id="phase-document-link"
++                  className="min-h-10"
++                  value={documentId}
++                  onChange={(event) => setDocumentId(event.target.value)}
++                  placeholder="product-requirements"
++                  disabled={linkDocument.isPending}
++                />
+               </div>
+-              {linkDocument.isError && (
+-                <p className="mt-2 text-sm text-danger" role="alert">
+-                  {formatApiErrorForUser(linkDocument.error, 'Не удалось привязать документ')}
+-                </p>
+-              )}
+-              {linkMessage && !linkDocument.isError && (
+-                <p className="mt-2 text-sm text-success">{linkMessage}</p>
+-              )}
+-            </form>
+-            {phase.documents.length === 0 && (
+-              <EmptyState message="С фазой пока не связан ни один документ" />
+-            )}
+-            {phase.documents.map((document) => (
+-              <Link
+-                key={document.id}
+-                to={`/documents/${document.slug}`}
+-                className="flex items-center justify-between rounded-md border border-border p-3 text-sm hover:bg-surface-raised"
++              <Button
++                type="submit"
++                className="min-h-10 sm:min-h-10"
++                disabled={linkDocument.isPending || !documentId.trim()}
+               >
+-                <span>
+-                  {document.title}
+-                  <span className="ml-2 text-xs text-text-muted">
+-                    {formatDocumentType(document.document_type)}
+-                  </span>
+-                </span>
+-                <span className="rounded bg-surface-raised px-2 py-1 text-xs text-text-secondary">
+-                  {formatDocumentStatus(document.status)}
+-                </span>
+-              </Link>
+-            ))}
+-          </CardContent>
+-        </Card>
++                <Link2 className="h-4 w-4" />
++                {linkDocument.isPending ? 'Привязываем' : 'Привязать'}
++              </Button>
++            </div>
++            {linkDocument.isError && (
++              <p className="mt-2 text-sm text-danger" role="alert">
++                {formatApiErrorForUser(linkDocument.error, 'Не удалось привязать документ')}
++              </p>
++            )}
++            {linkMessage && !linkDocument.isError && (
++              <p className="mt-2 text-sm text-success">{linkMessage}</p>
++            )}
++          </form>
++          {phase.documents.length === 0 ? (
++            <EmptyState message="С фазой пока не связан ни один документ" />
++          ) : (
++            <ul className="divide-y divide-border border-y border-border">
++              {phase.documents.map((document) => (
++                <li key={document.id}>
++                  <Link
++                    to={`/documents/${document.id}`}
++                    className="flex min-h-14 min-w-0 items-start gap-3 px-2 py-3 hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
++                  >
++                    <FileText className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
++                    <span className="min-w-0">
++                      <span className="block break-words text-sm font-medium text-text-primary">
++                        {document.title}
++                      </span>
++                      <span className="block text-xs text-text-muted">
++                        {formatDocumentType(document.document_type)} ·{' '}
++                        {formatDocumentStatus(document.status)}
++                      </span>
++                    </span>
++                  </Link>
++                </li>
++              ))}
++            </ul>
++          )}
++        </section>
+ 
+-        <Card>
+-          <CardHeader>
+-            <CardTitle className="flex items-center gap-2 text-base">
+-              <FileCheck2 className="h-4 w-4 text-accent" />
+-              Материалы
+-            </CardTitle>
+-          </CardHeader>
+-          <CardContent className="space-y-3 text-sm text-text-secondary">
+-            {phase.evidence.length === 0 && <EmptyState message="Материалы пока не прикреплены" />}
+-            {phase.evidence.map((item) => (
+-              <Link
+-                key={item.id}
+-                to={evidencePhasePath(selectedSpaceKey, phase.phase_key)}
+-                className="flex items-center justify-between rounded-md border border-border p-3 hover:bg-surface-raised"
+-              >
+-                <span className="inline-flex items-center gap-2">
+-                  <GitBranch className="h-4 w-4 text-accent" />
+-                  {item.title}
+-                </span>
+-                <span className="rounded bg-surface-raised px-2 py-1 text-xs text-text-muted">
+-                  {formatEvidenceType(item.evidence_type)} · {formatDateTime(item.created_at)}
+-                </span>
+-              </Link>
+-            ))}
+-          </CardContent>
+-        </Card>
+-      </section>
++        <section className="min-w-0 space-y-3" aria-labelledby="phase-evidence-title">
++          <h2 id="phase-evidence-title" className="text-base font-semibold">
++            Материалы
++          </h2>
++          {phase.evidence.length === 0 ? (
++            <EmptyState message="Материалы пока не прикреплены" />
++          ) : (
++            <ul className="divide-y divide-border border-y border-border">
++              {phase.evidence.map((item) => (
++                <li key={item.id}>
++                  <Link
++                    to={evidencePhasePath(selectedSpaceKey, phase.phase_key, item.id)}
++                    className="flex min-h-14 min-w-0 items-start gap-3 px-2 py-3 hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
++                  >
++                    <FileCheck2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
++                    <span className="min-w-0">
++                      <span className="block break-words text-sm font-medium text-text-primary">
++                        {item.title}
++                      </span>
++                      <span className="block text-xs text-text-muted">
++                        {formatEvidenceType(item.evidence_type)} · {formatDateTime(item.created_at)}
++                      </span>
++                    </span>
++                  </Link>
++                </li>
++              ))}
++            </ul>
++          )}
++        </section>
++      </div>
+     </div>
+   )
+ }
+diff --git a/frontend/src/pages/phase-dossier/phase-dossier.test.tsx b/frontend/src/pages/phase-dossier/phase-dossier.test.tsx
+index ace7b78..b9bf35c 100644
+--- a/frontend/src/pages/phase-dossier/phase-dossier.test.tsx
++++ b/frontend/src/pages/phase-dossier/phase-dossier.test.tsx
+@@ -1,8 +1,8 @@
+-import { fireEvent, render, screen } from '@testing-library/react'
++import { fireEvent, render, screen, within } from '@testing-library/react'
+ import { MemoryRouter, Route, Routes } from 'react-router'
+ import { afterEach, describe, expect, it, vi } from 'vitest'
+ 
+-import { PhaseDossierPage } from './'
++import { PhaseDossierPage, PhaseDossiersPage } from './'
+ 
+ const useLinkPhaseDocument = vi.hoisted(() => vi.fn())
+ const usePhase = vi.hoisted(() => vi.fn())
+@@ -32,9 +32,11 @@ const phasePage = {
+ function renderPhasePage(
+   linkState: Record<string, unknown> = {},
+   initialEntry = '/phases/implementation',
++  phaseData: Record<string, unknown> = phasePage,
++  spaceState: Record<string, unknown> = {},
+ ) {
+   usePhase.mockReturnValue({
+-    data: phasePage,
++    data: phaseData,
+     isLoading: false,
+     isError: false,
+     refetch: phaseRefetch,
+@@ -48,6 +50,9 @@ function renderPhasePage(
+       ],
+     },
+     isLoading: false,
++    isError: false,
++    refetch: vi.fn(),
++    ...spaceState,
+   })
+   useLinkPhaseDocument.mockReturnValue({
+     mutate: linkPhaseMutate,
+@@ -66,6 +71,26 @@ function renderPhasePage(
+   )
+ }
+ 
++function renderPhaseList(phases: Array<Record<string, unknown>>) {
++  usePhases.mockReturnValue({ data: { phases }, isLoading: false, isError: false })
++  useSpaces.mockReturnValue({
++    data: {
++      spaces: [
++        { key: 'BASE', name: 'BASE' },
++        { key: 'DOCS', name: 'Документы' },
++      ],
++    },
++    isLoading: false,
++  })
++  render(
++    <MemoryRouter initialEntries={['/phases?space=DOCS']}>
++      <Routes>
++        <Route path="/phases" element={<PhaseDossiersPage />} />
++      </Routes>
++    </MemoryRouter>,
++  )
++}
++
+ describe('PhaseDossierPage', () => {
+   afterEach(() => {
+     vi.clearAllMocks()
+@@ -120,4 +145,97 @@ describe('PhaseDossierPage', () => {
+       expect.objectContaining({ onSuccess: expect.any(Function) }),
+     )
+   })
++
++  it('opens exact document and evidence records in the selected space', () => {
++    renderPhasePage({}, '/phases/testing?space=DOCS', {
++      ...phasePage,
++      phase_key: 'testing',
++      document_count: 1,
++      evidence_count: 1,
++      documents: [
++        {
++          id: 'doc-uuid',
++          slug: 'shared-slug',
++          title: 'План',
++          document_type: 'test_plan',
++          status: 'published',
++        },
++      ],
++      evidence: [
++        {
++          id: 'proof-uuid',
++          title: 'CI proof',
++          evidence_type: 'external_url',
++          created_at: '2026-09-20T10:00:00Z',
++        },
++      ],
++    })
++
++    expect(screen.getByRole('link', { name: /План/ })).toHaveAttribute(
++      'href',
++      '/documents/doc-uuid',
++    )
++    expect(screen.getByRole('link', { name: /CI proof/ })).toHaveAttribute(
++      'href',
++      '/evidence?space=DOCS&phase_key=testing&id=proof-uuid',
++    )
++    expect(screen.getByRole('link', { name: 'К фазам' })).toHaveAttribute(
++      'href',
++      '/phases?space=DOCS',
++    )
++    expect(screen.queryByText('Заполненность')).not.toBeInTheDocument()
++  })
++
++  it('does not submit the link form again while saving', () => {
++    renderPhasePage({ isPending: true })
++    fireEvent.change(screen.getByLabelText('Документ для фазы'), { target: { value: 'plan' } })
++    fireEvent.submit(screen.getByRole('form', { name: 'Привязать документ к фазе' }))
++    expect(linkPhaseMutate).not.toHaveBeenCalled()
++    expect(screen.getByLabelText('Пространство')).toBeDisabled()
++  })
++
++  it('keeps the dossier visible and offers retry when the space catalog fails', () => {
++    const refetch = vi.fn()
++    renderPhasePage({}, '/phases/implementation?space=DOCS', phasePage, {
++      data: undefined,
++      isError: true,
++      error: { code: 'INTERNAL_ERROR' },
++      refetch,
++    })
++    expect(screen.getByRole('heading', { name: 'implementation' })).toBeInTheDocument()
++    expect(screen.getByRole('alert')).toHaveTextContent('Не удалось загрузить пространства')
++    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }))
++    expect(refetch).toHaveBeenCalledTimes(1)
++  })
++})
++
++describe('PhaseDossiersPage', () => {
++  afterEach(() => vi.clearAllMocks())
++
++  it('shows compact searchable pages without a fabricated completion state', () => {
++    renderPhaseList(
++      Array.from({ length: 25 }, (_, index) => ({
++        phase_key: `phase-${String(index + 1).padStart(2, '0')}`,
++        title: `Фаза ${index + 1}`,
++        document_count: 1,
++        evidence_count: 1,
++      })),
++    )
++
++    expect(screen.queryByText('Заполненность')).not.toBeInTheDocument()
++    expect(screen.getByText('Показано 12 из 25 фаз')).toBeInTheDocument()
++    expect(screen.getAllByRole('listitem')).toHaveLength(12)
++    const pagination = screen.getByRole('navigation', { name: 'Страницы фаз' })
++    fireEvent.click(within(pagination).getByRole('button', { name: 'Далее' }))
++    expect(screen.getByText('2 / 3')).toBeInTheDocument()
++    fireEvent.change(screen.getByRole('searchbox', { name: 'Найти фазу' }), {
++      target: { value: 'phase-25' },
++    })
++    expect(screen.getByText('Показано 1 из 1 фаз')).toBeInTheDocument()
++    expect(screen.getByRole('link', { name: /phase-25/ })).toHaveAttribute(
++      'href',
++      '/phases/phase-25?space=DOCS',
++    )
++    expect(screen.queryByRole('navigation', { name: 'Страницы фаз' })).not.toBeInTheDocument()
++  })
+ })
+diff --git a/frontend/src/pages/task-dossier/index.tsx b/frontend/src/pages/task-dossier/index.tsx
+index 744f362..794226e 100644
+--- a/frontend/src/pages/task-dossier/index.tsx
++++ b/frontend/src/pages/task-dossier/index.tsx
+@@ -1,6 +1,6 @@
+ import { type FormEvent, useState } from 'react'
+ import { Link, useParams, useSearchParams } from 'react-router'
+-import { CircleDashed, FileCheck2, FileText, GitBranch, Link2 } from 'lucide-react'
++import { FileCheck2, FileText, GitBranch, Link2, Search } from 'lucide-react'
+ import {
+   defaultSpaceKey,
+   useLinkTaskDocument,
+@@ -10,11 +10,8 @@ import {
+ } from '@/shared/api/hooks'
+ import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
+ import { Button } from '@sdlc/ui/ui'
+-import { Card, CardContent, CardHeader, CardTitle } from '@sdlc/ui/ui'
+ import { Input } from '@sdlc/ui/ui'
+ import { Label } from '@sdlc/ui/ui'
+-import { Progress } from '@sdlc/ui/ui'
+-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@sdlc/ui/ui'
+ import { formatApiErrorForUser } from '@/shared/lib/api-error'
+ import { resolveSpaceKey } from '@/shared/lib/space-selection'
+ import {
+@@ -23,21 +20,17 @@ import {
+   formatDocumentType,
+   formatEvidenceType,
+ } from '@/shared/lib/wiki-format'
+-import type { TaskPage } from '@/api/wiki'
++
++const pageSize = 12
+ 
+ const selectClassName =
+-  'flex h-9 w-full rounded-md border border-border-strong bg-surface px-3 py-1 text-sm text-text-primary shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50'
++  'flex min-h-10 w-full rounded-md border border-border-strong bg-surface px-3 py-1 text-sm text-text-primary shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50'
+ 
+ type SpaceOption = {
+   key: string
+   name: string
+ }
+ 
+-function readiness(task: Pick<TaskPage, 'document_count' | 'evidence_count'>): number {
+-  const score = task.document_count * 45 + task.evidence_count * 35
+-  return Math.max(0, Math.min(100, score))
+-}
+-
+ function useSelectedSpaceKey() {
+   const [searchParams, setSearchParams] = useSearchParams()
+   const spacesQuery = useSpaces()
+@@ -61,17 +54,19 @@ function scopedPath(path: string, spaceKey: string): string {
+   return spaceKey === defaultSpaceKey ? path : `${path}?space=${encodeURIComponent(spaceKey)}`
+ }
+ 
+-function evidenceTaskPath(spaceKey: string, taskKey: string): string {
+-  const params = new URLSearchParams({ space: spaceKey, task_key: taskKey })
++function evidenceTaskPath(spaceKey: string, taskKey: string, evidenceId: string): string {
++  const params = new URLSearchParams({ space: spaceKey, task_key: taskKey, id: evidenceId })
+   return `/evidence?${params.toString()}`
+ }
+ 
+ function SpaceSelector({
+   value,
+   onChange,
++  disabled = false,
+ }: {
+   value: string
+   onChange: (spaceKey: string) => void
++  disabled?: boolean
+ }) {
+   const spacesQuery = useSpaces()
+   const spaces: SpaceOption[] = spacesQuery.data?.spaces ?? []
+@@ -86,7 +81,7 @@ function SpaceSelector({
+         className={selectClassName}
+         value={value}
+         onChange={(event) => onChange(event.target.value)}
+-        disabled={spacesQuery.isLoading || options.length === 0}
++        disabled={disabled || spacesQuery.isLoading || spacesQuery.isError || options.length === 0}
+       >
+         {options.length === 0 && <option value="">Нет пространств</option>}
+         {options.map((space) => (
+@@ -103,6 +98,17 @@ export function TaskDossiersPage() {
+   const [selectedSpaceKey, setSelectedSpaceKey, spacesQuery] = useSelectedSpaceKey()
+   const tasksQuery = useTasks(selectedSpaceKey)
+   const tasks = tasksQuery.data?.tasks ?? []
++  const [search, setSearch] = useState('')
++  const [page, setPage] = useState(1)
++  const needle = search.trim().toLocaleLowerCase('ru')
++  const filteredTasks = needle
++    ? tasks.filter((task) =>
++        `${task.task_key} ${task.title ?? ''}`.toLocaleLowerCase('ru').includes(needle),
++      )
++    : tasks
++  const totalPages = Math.max(1, Math.ceil(filteredTasks.length / pageSize))
++  const currentPage = Math.min(page, totalPages)
++  const visibleTasks = filteredTasks.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+ 
+   return (
+     <div className="space-y-5">
+@@ -114,7 +120,14 @@ export function TaskDossiersPage() {
+             статусом в трекере.
+           </p>
+         </div>
+-        <SpaceSelector value={selectedSpaceKey} onChange={setSelectedSpaceKey} />
++        <SpaceSelector
++          value={selectedSpaceKey}
++          onChange={(spaceKey) => {
++            setSelectedSpaceKey(spaceKey)
++            setSearch('')
++            setPage(1)
++          }}
++        />
+       </section>
+ 
+       {spacesQuery.isLoading && <LoadingState message="Загружаем пространства" />}
+@@ -138,43 +151,82 @@ export function TaskDossiersPage() {
+         <EmptyState message="Документы ещё не связаны с задачами" />
+       )}
+       {selectedSpaceKey && !tasksQuery.isLoading && !tasksQuery.isError && tasks.length > 0 && (
+-        <section className="grid gap-4 lg:grid-cols-3">
+-          {tasks.map((task) => {
+-            const value = readiness(task)
+-            return (
+-              <Card key={task.task_key}>
+-                <CardHeader>
+-                  <CardTitle className="text-base">{task.task_key}</CardTitle>
+-                </CardHeader>
+-                <CardContent className="space-y-4">
+-                  <p className="min-h-10 text-sm text-text-secondary">
+-                    {task.title ?? 'Документы и материалы по задаче'}
+-                  </p>
+-                  <div className="grid grid-cols-2 gap-2 text-xs text-text-muted">
+-                    <span className="rounded bg-surface-raised px-2 py-1">
+-                      Документы: {task.document_count}
+-                    </span>
+-                    <span className="rounded bg-surface-raised px-2 py-1">
+-                      Материалы: {task.evidence_count}
+-                    </span>
+-                  </div>
+-                  <div className="space-y-1.5">
+-                    <div className="flex justify-between text-xs text-text-muted">
+-                      <span>Заполненность</span>
+-                      <span>{value}%</span>
+-                    </div>
+-                    <Progress value={value} />
+-                  </div>
++        <section aria-label="Список задач" className="space-y-3">
++          <div className="relative max-w-md">
++            <Search
++              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
++              aria-hidden
++            />
++            <Input
++              type="search"
++              aria-label="Найти задачу"
++              className="min-h-10 pl-9"
++              placeholder="Ключ или название"
++              value={search}
++              onChange={(event) => {
++                setSearch(event.target.value)
++                setPage(1)
++              }}
++            />
++          </div>
++          <p role="status" className="text-xs text-text-muted">
++            Показано {visibleTasks.length} из {filteredTasks.length} задач
++          </p>
++          {filteredTasks.length === 0 ? (
++            <EmptyState message="По запросу задачи не найдены" />
++          ) : (
++            <ul className="divide-y divide-border border-y border-border">
++              {visibleTasks.map((task) => (
++                <li key={task.task_key}>
+                   <Link
+                     to={scopedPath(`/tasks/${task.task_key}`, selectedSpaceKey)}
+-                    className="inline-flex text-sm text-accent"
++                    className="flex min-h-16 min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 px-2 py-3 hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
+                   >
+-                    Открыть задачу
++                    <span className="min-w-0">
++                      <span className="block break-words text-sm font-medium text-text-primary">
++                        {task.task_key}
++                      </span>
++                      {task.title && (
++                        <span className="block break-words text-sm text-text-secondary">
++                          {task.title}
++                        </span>
++                      )}
++                    </span>
++                    <span className="shrink-0 text-xs text-text-muted">
++                      Документы: {task.document_count} · Материалы: {task.evidence_count}
++                    </span>
+                   </Link>
+-                </CardContent>
+-              </Card>
+-            )
+-          })}
++                </li>
++              ))}
++            </ul>
++          )}
++          {totalPages > 1 && (
++            <nav aria-label="Страницы задач" className="flex items-center justify-end gap-2">
++              <Button
++                type="button"
++                size="sm"
++                variant="outline"
++                className="min-h-10"
++                disabled={currentPage === 1}
++                onClick={() => setPage(currentPage - 1)}
++              >
++                Назад
++              </Button>
++              <span className="text-sm text-text-muted">
++                {currentPage} / {totalPages}
++              </span>
++              <Button
++                type="button"
++                size="sm"
++                variant="outline"
++                className="min-h-10"
++                disabled={currentPage === totalPages}
++                onClick={() => setPage(currentPage + 1)}
++              >
++                Далее
++              </Button>
++            </nav>
++          )}
+         </section>
+       )}
+     </div>
+@@ -196,7 +248,7 @@ export function TaskDossierPage() {
+   function handleLinkDocument(event: FormEvent<HTMLFormElement>) {
+     event.preventDefault()
+     const trimmedDocumentId = documentId.trim()
+-    if (!trimmedDocumentId) return
++    if (!trimmedDocumentId || linkDocument.isPending) return
+     setLinkMessage('')
+     linkDocument.mutate(
+       {
+@@ -237,160 +289,164 @@ export function TaskDossierPage() {
+ 
+   return (
+     <div className="space-y-5">
+-      <section className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+-        <div>
+-          <div className="text-sm text-text-muted">карточка задачи</div>
+-          <h1 className="mt-2 text-2xl font-bold">{task.task_key}</h1>
+-          <p className="mt-1 max-w-3xl text-sm text-text-muted">
+-            Документы, фазы и материалы, связанные с задачей в пространстве {selectedSpaceKey}.
+-          </p>
+-        </div>
+-        <SpaceSelector value={selectedSpaceKey} onChange={setSelectedSpaceKey} />
+-        <div className="grid grid-cols-3 gap-2 text-center text-xs text-text-muted sm:min-w-80">
+-          <div className="rounded-md border border-border p-2">
+-            <div className="text-lg font-semibold text-text-primary">{task.document_count}</div>
+-            документы
+-          </div>
+-          <div className="rounded-md border border-border p-2">
+-            <div className="text-lg font-semibold text-text-primary">{phaseKeys.length}</div>
+-            фазы
+-          </div>
+-          <div className="rounded-md border border-border p-2">
+-            <div className="text-lg font-semibold text-text-primary">{task.evidence_count}</div>
+-            материалы
++      <section className="space-y-3">
++        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
++          <div className="min-w-0">
++            <Link
++              to={scopedPath('/tasks', selectedSpaceKey)}
++              className="inline-flex min-h-10 items-center text-sm text-accent hover:text-accent-hover"
++            >
++              К задачам
++            </Link>
++            <h1 className="mt-2 break-words text-2xl font-bold">{task.task_key}</h1>
++            {task.title && (
++              <p className="mt-1 break-words text-sm text-text-secondary">{task.title}</p>
++            )}
+           </div>
++          <SpaceSelector
++            value={selectedSpaceKey}
++            disabled={linkDocument.isPending}
++            onChange={(spaceKey) => {
++              setSelectedSpaceKey(spaceKey)
++              setDocumentId('')
++              setLinkMessage('')
++            }}
++          />
++        </div>
++        <div className="flex flex-wrap gap-x-5 gap-y-1 border-y border-border py-2 text-sm text-text-muted">
++          <span>Документы: {task.document_count}</span>
++          <span>Фазы материалов: {phaseKeys.length}</span>
++          <span>Материалы: {task.evidence_count}</span>
+         </div>
+       </section>
+ 
+-      <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+-        <Card>
+-          <CardHeader>
+-            <CardTitle className="text-base">Документы задачи</CardTitle>
+-          </CardHeader>
+-          <CardContent className="space-y-4">
+-            <form
+-              onSubmit={handleLinkDocument}
+-              className="rounded-md bg-surface-raised p-3"
+-              aria-label="Привязать документ к задаче"
+-            >
+-              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+-                <div className="space-y-1.5">
+-                  <Label htmlFor="task-document-link">Документ для задачи</Label>
+-                  <Input
+-                    id="task-document-link"
+-                    value={documentId}
+-                    onChange={(event) => setDocumentId(event.target.value)}
+-                    placeholder="product-requirements"
+-                    disabled={linkDocument.isPending}
+-                  />
+-                </div>
+-                <Button type="submit" disabled={linkDocument.isPending || !documentId.trim()}>
+-                  <Link2 className="h-4 w-4" />
+-                  {linkDocument.isPending ? 'Привязываем' : 'Привязать'}
+-                </Button>
++      {spacesQuery.isError && (
++        <ErrorState
++          message={formatApiErrorForUser(spacesQuery.error, 'Не удалось загрузить пространства')}
++          onRetry={() => spacesQuery.refetch()}
++        />
++      )}
++
++      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
++        <section className="min-w-0 space-y-3" aria-labelledby="task-documents-title">
++          <h2 id="task-documents-title" className="text-base font-semibold">
++            Документы задачи
++          </h2>
++          <form
++            onSubmit={handleLinkDocument}
++            className="border-y border-border bg-surface-raised p-3"
++            aria-label="Привязать документ к задаче"
++          >
++            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
++              <div className="space-y-1.5">
++                <Label htmlFor="task-document-link">Документ для задачи</Label>
++                <Input
++                  id="task-document-link"
++                  className="min-h-10"
++                  value={documentId}
++                  onChange={(event) => setDocumentId(event.target.value)}
++                  placeholder="product-requirements"
++                  disabled={linkDocument.isPending}
++                />
+               </div>
+-              {linkDocument.isError && (
+-                <p className="mt-2 text-sm text-danger" role="alert">
+-                  {formatApiErrorForUser(linkDocument.error, 'Не удалось привязать документ')}
+-                </p>
+-              )}
+-              {linkMessage && !linkDocument.isError && (
+-                <p className="mt-2 text-sm text-success">{linkMessage}</p>
+-              )}
+-            </form>
+-            {task.documents.length === 0 ? (
+-              <EmptyState message="С задачей пока не связан ни один документ" />
+-            ) : (
+-              <Table>
+-                <TableHeader>
+-                  <TableRow>
+-                    <TableHead>Документ</TableHead>
+-                    <TableHead>Тип</TableHead>
+-                    <TableHead>Статус</TableHead>
+-                  </TableRow>
+-                </TableHeader>
+-                <TableBody>
+-                  {task.documents.map((document) => (
+-                    <TableRow key={document.id}>
+-                      <TableCell>
+-                        <Link
+-                          to={`/documents/${document.slug}`}
+-                          className="inline-flex items-center gap-2 text-accent hover:text-accent-hover"
+-                        >
+-                          <FileText className="h-4 w-4" />
+-                          {document.title}
+-                        </Link>
+-                      </TableCell>
+-                      <TableCell>{formatDocumentType(document.document_type)}</TableCell>
+-                      <TableCell>
+-                        <span className="rounded bg-surface-raised px-2 py-1 text-xs text-text-secondary">
+-                          {formatDocumentStatus(document.status)}
+-                        </span>
+-                      </TableCell>
+-                    </TableRow>
+-                  ))}
+-                </TableBody>
+-              </Table>
++              <Button
++                type="submit"
++                className="min-h-10 sm:min-h-10"
++                disabled={linkDocument.isPending || !documentId.trim()}
++              >
++                <Link2 className="h-4 w-4" />
++                {linkDocument.isPending ? 'Привязываем' : 'Привязать'}
++              </Button>
++            </div>
++            {linkDocument.isError && (
++              <p className="mt-2 text-sm text-danger" role="alert">
++                {formatApiErrorForUser(linkDocument.error, 'Не удалось привязать документ')}
++              </p>
+             )}
+-          </CardContent>
+-        </Card>
+-
+-        <Card>
+-          <CardHeader>
+-            <CardTitle className="text-base">Фазы</CardTitle>
+-          </CardHeader>
+-          <CardContent className="space-y-3">
+-            {phaseKeys.length === 0 && (
+-              <EmptyState message="Материалы задачи пока не привязаны к фазам" />
++            {linkMessage && !linkDocument.isError && (
++              <p className="mt-2 text-sm text-success">{linkMessage}</p>
+             )}
+-            {phaseKeys.map((phaseKey) => (
+-              <Link
+-                key={phaseKey}
+-                to={scopedPath(`/phases/${phaseKey}`, selectedSpaceKey)}
+-                className="flex items-center justify-between rounded-md border border-border p-3 text-sm hover:bg-surface-raised"
+-              >
+-                <span className="inline-flex items-center gap-2">
+-                  <GitBranch className="h-4 w-4 text-accent" />
+-                  {phaseKey}
+-                </span>
+-                <span className="inline-flex items-center gap-2 text-xs text-text-muted">
+-                  есть материалы
+-                  <CircleDashed className="h-4 w-4 text-warning" />
+-                </span>
+-              </Link>
++          </form>
++          {task.documents.length === 0 ? (
++            <EmptyState message="С задачей пока не связан ни один документ" />
++          ) : (
++            <ul className="divide-y divide-border border-y border-border">
++              {task.documents.map((document) => (
++                <li key={document.id}>
++                  <Link
++                    to={`/documents/${document.id}`}
++                    className="flex min-h-14 min-w-0 items-start gap-3 px-2 py-3 hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
++                  >
++                    <FileText className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
++                    <span className="min-w-0">
++                      <span className="block break-words text-sm font-medium text-text-primary">
++                        {document.title}
++                      </span>
++                      <span className="block text-xs text-text-muted">
++                        {formatDocumentType(document.document_type)} ·{' '}
++                        {formatDocumentStatus(document.status)}
++                      </span>
++                    </span>
++                  </Link>
++                </li>
++              ))}
++            </ul>
++          )}
++        </section>
++
++        <section className="min-w-0 space-y-3" aria-labelledby="task-phases-title">
++          <h2 id="task-phases-title" className="text-base font-semibold">
++            Фазы материалов
++          </h2>
++          {phaseKeys.length === 0 ? (
++            <EmptyState message="Материалы задачи пока не привязаны к фазам" />
++          ) : (
++            <ul className="divide-y divide-border border-y border-border">
++              {phaseKeys.map((phaseKey) => (
++                <li key={phaseKey}>
++                  <Link
++                    to={scopedPath(`/phases/${phaseKey}`, selectedSpaceKey)}
++                    className="flex min-h-12 min-w-0 items-center gap-3 px-2 py-2 text-sm hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
++                  >
++                    <GitBranch className="h-4 w-4 shrink-0 text-accent" aria-hidden />
++                    <span className="min-w-0 break-words">{phaseKey}</span>
++                  </Link>
++                </li>
++              ))}
++            </ul>
++          )}
++        </section>
++      </div>
++
++      <section className="space-y-3" aria-labelledby="task-evidence-title">
++        <h2 id="task-evidence-title" className="text-base font-semibold">
++          Материалы задачи
++        </h2>
++        {task.evidence.length === 0 ? (
++          <EmptyState message="Материалы пока не прикреплены" />
++        ) : (
++          <ul className="divide-y divide-border border-y border-border">
++            {task.evidence.map((item) => (
++              <li key={item.id}>
++                <Link
++                  to={evidenceTaskPath(selectedSpaceKey, task.task_key, item.id)}
++                  className="flex min-h-14 min-w-0 items-start gap-3 px-2 py-3 hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
++                >
++                  <FileCheck2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
++                  <span className="min-w-0">
++                    <span className="block break-words text-sm font-medium text-text-primary">
++                      {item.title}
++                    </span>
++                    <span className="block text-xs text-text-muted">
++                      {formatEvidenceType(item.evidence_type)} · {formatDateTime(item.created_at)}
++                    </span>
++                  </span>
++                </Link>
++              </li>
+             ))}
+-          </CardContent>
+-        </Card>
++          </ul>
++        )}
+       </section>
+-
+-      <Card>
+-        <CardHeader>
+-          <CardTitle className="flex items-center gap-2 text-base">
+-            <FileCheck2 className="h-4 w-4 text-accent" />
+-            Материалы задачи
+-          </CardTitle>
+-        </CardHeader>
+-        <CardContent className="grid gap-3 lg:grid-cols-3">
+-          {task.evidence.length === 0 && <EmptyState message="Материалы пока не прикреплены" />}
+-          {task.evidence.map((item) => (
+-            <Link
+-              key={item.id}
+-              to={evidenceTaskPath(selectedSpaceKey, task.task_key)}
+-              className="rounded-md border border-border p-3 hover:bg-surface-raised"
+-            >
+-              <div className="flex items-center gap-2 text-sm font-medium">
+-                <Link2 className="h-4 w-4 text-accent" />
+-                {item.title}
+-              </div>
+-              <div className="mt-2 flex gap-2 text-xs text-text-muted">
+-                <span>{formatEvidenceType(item.evidence_type)}</span>
+-                <span>·</span>
+-                <span>{formatDateTime(item.created_at)}</span>
+-              </div>
+-            </Link>
+-          ))}
+-        </CardContent>
+-      </Card>
+     </div>
+   )
+ }
+diff --git a/frontend/src/pages/task-dossier/task-dossier.test.tsx b/frontend/src/pages/task-dossier/task-dossier.test.tsx
+index 105b452..c55f713 100644
+--- a/frontend/src/pages/task-dossier/task-dossier.test.tsx
++++ b/frontend/src/pages/task-dossier/task-dossier.test.tsx
+@@ -1,8 +1,8 @@
+-import { fireEvent, render, screen } from '@testing-library/react'
++import { fireEvent, render, screen, within } from '@testing-library/react'
+ import { MemoryRouter, Route, Routes } from 'react-router'
+ import { afterEach, describe, expect, it, vi } from 'vitest'
+ 
+-import { TaskDossierPage } from './'
++import { TaskDossierPage, TaskDossiersPage } from './'
+ 
+ const useLinkTaskDocument = vi.hoisted(() => vi.fn())
+ const useSpaces = vi.hoisted(() => vi.fn())
+@@ -29,9 +29,14 @@ const taskPage = {
+   evidence: [],
+ }
+ 
+-function renderTaskPage(linkState: Record<string, unknown> = {}, initialEntry = '/tasks/BASE-42') {
++function renderTaskPage(
++  linkState: Record<string, unknown> = {},
++  initialEntry = '/tasks/BASE-42',
++  taskData: Record<string, unknown> = taskPage,
++  spaceState: Record<string, unknown> = {},
++) {
+   useTask.mockReturnValue({
+-    data: taskPage,
++    data: taskData,
+     isLoading: false,
+     isError: false,
+     refetch: taskRefetch,
+@@ -45,6 +50,9 @@ function renderTaskPage(linkState: Record<string, unknown> = {}, initialEntry =
+       ],
+     },
+     isLoading: false,
++    isError: false,
++    refetch: vi.fn(),
++    ...spaceState,
+   })
+   useLinkTaskDocument.mockReturnValue({
+     mutate: linkTaskMutate,
+@@ -63,6 +71,26 @@ function renderTaskPage(linkState: Record<string, unknown> = {}, initialEntry =
+   )
+ }
+ 
++function renderTaskList(tasks: Array<Record<string, unknown>>) {
++  useTasks.mockReturnValue({ data: { tasks }, isLoading: false, isError: false })
++  useSpaces.mockReturnValue({
++    data: {
++      spaces: [
++        { key: 'BASE', name: 'BASE' },
++        { key: 'DOCS', name: 'Документы' },
++      ],
++    },
++    isLoading: false,
++  })
++  render(
++    <MemoryRouter initialEntries={['/tasks?space=DOCS']}>
++      <Routes>
++        <Route path="/tasks" element={<TaskDossiersPage />} />
++      </Routes>
++    </MemoryRouter>,
++  )
++}
++
+ describe('TaskDossierPage', () => {
+   afterEach(() => {
+     vi.clearAllMocks()
+@@ -117,4 +145,96 @@ describe('TaskDossierPage', () => {
+       expect.objectContaining({ onSuccess: expect.any(Function) }),
+     )
+   })
++
++  it('opens exact document and evidence records in the selected space', () => {
++    renderTaskPage({}, '/tasks/BASE-42?space=DOCS', {
++      ...taskPage,
++      document_count: 1,
++      evidence_count: 1,
++      documents: [
++        {
++          id: 'doc-uuid',
++          slug: 'shared-slug',
++          title: 'План',
++          document_type: 'test_plan',
++          status: 'published',
++        },
++      ],
++      evidence: [
++        {
++          id: 'proof-uuid',
++          title: 'CI proof',
++          evidence_type: 'external_url',
++          created_at: '2026-09-20T10:00:00Z',
++          phase_key: 'testing',
++        },
++      ],
++    })
++
++    expect(screen.getByRole('link', { name: /План/ })).toHaveAttribute(
++      'href',
++      '/documents/doc-uuid',
++    )
++    expect(screen.getByRole('link', { name: /CI proof/ })).toHaveAttribute(
++      'href',
++      '/evidence?space=DOCS&task_key=BASE-42&id=proof-uuid',
++    )
++    expect(screen.getByRole('link', { name: 'К задачам' })).toHaveAttribute(
++      'href',
++      '/tasks?space=DOCS',
++    )
++  })
++
++  it('does not submit the link form again while saving', () => {
++    renderTaskPage({ isPending: true })
++    fireEvent.change(screen.getByLabelText('Документ для задачи'), { target: { value: 'plan' } })
++    fireEvent.submit(screen.getByRole('form', { name: 'Привязать документ к задаче' }))
++    expect(linkTaskMutate).not.toHaveBeenCalled()
++    expect(screen.getByLabelText('Пространство')).toBeDisabled()
++  })
++
++  it('keeps the dossier visible and offers retry when the space catalog fails', () => {
++    const refetch = vi.fn()
++    renderTaskPage({}, '/tasks/BASE-42?space=DOCS', taskPage, {
++      data: undefined,
++      isError: true,
++      error: { code: 'INTERNAL_ERROR' },
++      refetch,
++    })
++    expect(screen.getByRole('heading', { name: 'BASE-42' })).toBeInTheDocument()
++    expect(screen.getByRole('alert')).toHaveTextContent('Не удалось загрузить пространства')
++    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }))
++    expect(refetch).toHaveBeenCalledTimes(1)
++  })
++})
++
++describe('TaskDossiersPage', () => {
++  afterEach(() => vi.clearAllMocks())
++
++  it('shows compact searchable pages without a fabricated readiness score', () => {
++    renderTaskList(
++      Array.from({ length: 25 }, (_, index) => ({
++        task_key: `DOCS-${String(index + 1).padStart(2, '0')}`,
++        title: `Задача ${index + 1}`,
++        document_count: 1,
++        evidence_count: 0,
++      })),
++    )
++
++    expect(screen.queryByText('Заполненность')).not.toBeInTheDocument()
++    expect(screen.getByText('Показано 12 из 25 задач')).toBeInTheDocument()
++    expect(screen.getAllByRole('listitem')).toHaveLength(12)
++    const pagination = screen.getByRole('navigation', { name: 'Страницы задач' })
++    fireEvent.click(within(pagination).getByRole('button', { name: 'Далее' }))
++    expect(screen.getByText('2 / 3')).toBeInTheDocument()
++    fireEvent.change(screen.getByRole('searchbox', { name: 'Найти задачу' }), {
++      target: { value: 'DOCS-25' },
++    })
++    expect(screen.getByText('Показано 1 из 1 задач')).toBeInTheDocument()
++    expect(screen.getByRole('link', { name: /DOCS-25/ })).toHaveAttribute(
++      'href',
++      '/tasks/DOCS-25?space=DOCS',
++    )
++    expect(screen.queryByRole('navigation', { name: 'Страницы задач' })).not.toBeInTheDocument()
++  })
+ })

@@ -1,0 +1,178 @@
+diff --git a/backend/app/src/wiki.rs b/backend/app/src/wiki.rs
+index 9b8e39d..3fb0512 100644
+--- a/backend/app/src/wiki.rs
++++ b/backend/app/src/wiki.rs
+@@ -1278,28 +1278,40 @@ impl<'a, R: WikiEvidenceRepository + ?Sized> WikiEvidenceUseCase<'a, R> {
+ 
+     pub async fn list(
+         &self,
+-        space_key: Option<&str>,
++        request: shared::EvidenceQuery,
+         document_id: Option<Uuid>,
+-        task_key: Option<&str>,
+-        phase_key: Option<&str>,
+         access_user_id: Option<Uuid>,
+-        query: Option<&str>,
+-        cursor: Option<&str>,
+-        limit: Option<usize>,
+     ) -> Result<shared::EvidenceListResponse, AppError> {
+-        let limit = clamp_limit_with_default(limit, DEFAULT_EVIDENCE_LIMIT, MAX_EVIDENCE_LIMIT);
+-        let query = query.map(str::trim).filter(|value| !value.is_empty());
++        let limit =
++            clamp_limit_with_default(request.limit, DEFAULT_EVIDENCE_LIMIT, MAX_EVIDENCE_LIMIT);
++        let query = request
++            .q
++            .as_deref()
++            .map(str::trim)
++            .filter(|value| !value.is_empty());
+         if query.is_some_and(|value| value.chars().count() > 200) {
+             return Err(AppError::invalid_input("evidence query is too long"));
+         }
+         let criteria = WikiEvidenceQueryCriteria {
+-            space_key: space_key.map(normalize_space_key).transpose()?,
++            space_key: request
++                .space
++                .as_deref()
++                .map(normalize_space_key)
++                .transpose()?,
+             document_id,
+-            task_key: task_key.map(normalize_task_key).transpose()?,
+-            phase_key: phase_key.map(normalize_phase_key).transpose()?,
++            task_key: request
++                .task_key
++                .as_deref()
++                .map(normalize_task_key)
++                .transpose()?,
++            phase_key: request
++                .phase_key
++                .as_deref()
++                .map(normalize_phase_key)
++                .transpose()?,
+             access_user_id,
+             query: query.map(str::to_lowercase),
+-            cursor: parse_evidence_cursor(cursor)?,
++            cursor: parse_evidence_cursor(request.cursor.as_deref())?,
+             limit: (limit + 1) as i64,
+         };
+         evidence_page(self.repository.list_evidence(&criteria).await?, limit)
+@@ -4019,14 +4031,16 @@ mod tests {
+ 
+         let list = use_case
+             .list(
+-                Some("sdlc"),
++                shared::EvidenceQuery {
++                    space: Some("sdlc".to_string()),
++                    task_key: Some(" SDLC-42 ".to_string()),
++                    phase_key: Some(" Implementation ".to_string()),
++                    q: Some(" Build LOG ".to_string()),
++                    limit: Some(500),
++                    ..Default::default()
++                },
+                 Some(document_id),
+-                Some(" SDLC-42 "),
+-                Some(" Implementation "),
+                 Some(access_user_id),
+-                Some(" Build LOG "),
+-                None,
+-                Some(500),
+             )
+             .await
+             .unwrap();
+@@ -4050,7 +4064,7 @@ mod tests {
+         );
+ 
+         let list = use_case
+-            .list(None, None, None, None, None, None, None, None)
++            .list(shared::EvidenceQuery::default(), None, None)
+             .await
+             .unwrap();
+         assert_eq!(list.evidence.len(), 1);
+@@ -4067,14 +4081,28 @@ mod tests {
+ 
+         assert!(
+             use_case
+-                .list(None, None, None, None, None, None, Some("bad"), None)
++                .list(
++                    shared::EvidenceQuery {
++                        cursor: Some("bad".to_string()),
++                        ..Default::default()
++                    },
++                    None,
++                    None
++                )
+                 .await
+                 .is_err()
+         );
+         let long_query = "a".repeat(201);
+         assert!(
+             use_case
+-                .list(None, None, None, None, None, Some(&long_query), None, None)
++                .list(
++                    shared::EvidenceQuery {
++                        q: Some(long_query),
++                        ..Default::default()
++                    },
++                    None,
++                    None
++                )
+                 .await
+                 .is_err()
+         );
+diff --git a/backend/infra/src/wiki_postgres/evidence.rs b/backend/infra/src/wiki_postgres/evidence.rs
+index e2bcf32..00a37b2 100644
+--- a/backend/infra/src/wiki_postgres/evidence.rs
++++ b/backend/infra/src/wiki_postgres/evidence.rs
+@@ -354,16 +354,7 @@ impl PostgresWikiBackend {
+             request_id: None,
+         };
+         WikiEvidenceUseCase::new(&repository)
+-            .list(
+-                space_key.as_deref(),
+-                document_id,
+-                query.task_key.as_deref(),
+-                query.phase_key.as_deref(),
+-                access_user_id,
+-                query.q.as_deref(),
+-                query.cursor.as_deref(),
+-                query.limit,
+-            )
++            .list(query, document_id, access_user_id)
+             .await
+     }
+ 
+diff --git a/backend/shared/src/wiki_contract.rs b/backend/shared/src/wiki_contract.rs
+index 54622e3..f55efe1 100644
+--- a/backend/shared/src/wiki_contract.rs
++++ b/backend/shared/src/wiki_contract.rs
+@@ -675,7 +675,7 @@ pub struct CreateEvidenceRequest {
+     pub checksum: Option<String>,
+ }
+ 
+-#[derive(Debug, Clone, Deserialize, IntoParams)]
++#[derive(Debug, Clone, Default, Deserialize, IntoParams)]
+ pub struct EvidenceQuery {
+     pub space: Option<String>,
+     pub document_id: Option<String>,
+diff --git a/frontend/src/pages/evidence/index.tsx b/frontend/src/pages/evidence/index.tsx
+index c576a72..6dd8ec7 100644
+--- a/frontend/src/pages/evidence/index.tsx
++++ b/frontend/src/pages/evidence/index.tsx
+@@ -266,9 +266,15 @@ export function EvidencePage() {
+     }
+     setFilterError('')
+     const nextParams = new URLSearchParams(searchParams)
+-    const values = [filterQuery, filterSpace.toUpperCase(), filterDocument, filterTask, filterPhase]
+-    FILTER_KEYS.forEach((key, index) => {
+-      const value = optional(values[index])
++    const values: Record<(typeof FILTER_KEYS)[number], string> = {
++      q: filterQuery,
++      space: filterSpace.toUpperCase(),
++      document_id: filterDocument,
++      task_key: filterTask,
++      phase_key: filterPhase,
++    }
++    FILTER_KEYS.forEach((key) => {
++      const value = optional(values[key])
+       if (value) nextParams.set(key, value)
+       else nextParams.delete(key)
+     })

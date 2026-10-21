@@ -1,0 +1,122 @@
+diff --git a/frontend/src/pages/audit-log/audit-log.test.tsx b/frontend/src/pages/audit-log/audit-log.test.tsx
+index 9a688b5..98cc386 100644
+--- a/frontend/src/pages/audit-log/audit-log.test.tsx
++++ b/frontend/src/pages/audit-log/audit-log.test.tsx
+@@ -269,6 +269,24 @@ describe('AuditLogPage', () => {
+     )
+   })
+ 
++  it('accepts a historical actor UUID even when the user directory loads', () => {
++    useAuditLog.mockReturnValue(queryResult({ entries, next_cursor: null }))
++    render(<AuditLogPage />)
++
++    fireEvent.click(screen.getByRole('button', { name: 'Фильтры' }))
++    fireEvent.click(screen.getByRole('button', { name: 'Ввести UUID' }))
++    const historicalActorId = '00000000-0000-4000-8000-000000000099'
++    fireEvent.change(screen.getByLabelText('Участник'), { target: { value: historicalActorId } })
++    fireEvent.click(screen.getByRole('button', { name: 'Применить' }))
++
++    expect(useAuditLog).toHaveBeenLastCalledWith(
++      expect.objectContaining({ actor_id: historicalActorId }),
++    )
++    fireEvent.click(screen.getByRole('button', { name: 'Фильтры (1)' }))
++    fireEvent.click(screen.getByRole('button', { name: 'Выбрать из списка' }))
++    expect(screen.getByLabelText('Участник')).toHaveValue(historicalActorId)
++  })
++
+   it('keeps filters available after an empty filtered result', () => {
+     useAuditLog.mockImplementation(({ action }: AuditLogParams) =>
+       queryResult({ entries: action ? [] : entries, next_cursor: null }),
+diff --git a/frontend/src/pages/audit-log/index.tsx b/frontend/src/pages/audit-log/index.tsx
+index 21a648b..b522684 100644
+--- a/frontend/src/pages/audit-log/index.tsx
++++ b/frontend/src/pages/audit-log/index.tsx
+@@ -51,6 +51,7 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
+ 
+ export function AuditLogPage() {
+   const [showFilters, setShowFilters] = useState(false)
++  const [manualActorId, setManualActorId] = useState(false)
+   const [draftFilters, setDraftFilters] = useState(emptyFilters)
+   const [appliedFilters, setAppliedFilters] = useState(emptyFilters)
+   const [filterError, setFilterError] = useState('')
+@@ -176,7 +177,9 @@ export function AuditLogPage() {
+                 <label htmlFor="audit-actor" className="text-sm font-medium">
+                   Участник
+                 </label>
+-                {usersQuery.isError || (!usersQuery.isLoading && users.length === 0) ? (
++                {manualActorId ||
++                usersQuery.isError ||
++                (!usersQuery.isLoading && users.length === 0) ? (
+                   <div className="space-y-1">
+                     <div className="flex gap-2">
+                       <Input
+@@ -205,28 +208,50 @@ export function AuditLogPage() {
+                         Каталог пользователей недоступен; укажите UUID
+                       </p>
+                     )}
++                    {!usersQuery.isError && users.length > 0 && (
++                      <Button
++                        type="button"
++                        size="sm"
++                        variant="ghost"
++                        className="h-8 px-0"
++                        onClick={() => setManualActorId(false)}
++                      >
++                        Выбрать из списка
++                      </Button>
++                    )}
+                   </div>
+                 ) : (
+-                  <select
+-                    id="audit-actor"
+-                    className={selectClassName}
+-                    value={draftFilters.actor_id}
+-                    disabled={usersQuery.isLoading}
+-                    onChange={(event) => updateDraft('actor_id', event.target.value)}
+-                  >
+-                    <option value="">
+-                      {usersQuery.isLoading ? 'Загружаем пользователей' : 'Все участники'}
+-                    </option>
+-                    {draftFilters.actor_id &&
+-                      !users.some((user) => user.id === draftFilters.actor_id) && (
+-                        <option value={draftFilters.actor_id}>{draftFilters.actor_id}</option>
+-                      )}
+-                    {users.map((user) => (
+-                      <option key={user.id} value={user.id}>
+-                        {user.display_name ?? user.username ?? user.email} · {user.email}
++                  <div className="space-y-1">
++                    <select
++                      id="audit-actor"
++                      className={selectClassName}
++                      value={draftFilters.actor_id}
++                      disabled={usersQuery.isLoading}
++                      onChange={(event) => updateDraft('actor_id', event.target.value)}
++                    >
++                      <option value="">
++                        {usersQuery.isLoading ? 'Загружаем пользователей' : 'Все участники'}
+                       </option>
+-                    ))}
+-                  </select>
++                      {draftFilters.actor_id &&
++                        !users.some((user) => user.id === draftFilters.actor_id) && (
++                          <option value={draftFilters.actor_id}>{draftFilters.actor_id}</option>
++                        )}
++                      {users.map((user) => (
++                        <option key={user.id} value={user.id}>
++                          {user.display_name ?? user.username ?? user.email} · {user.email}
++                        </option>
++                      ))}
++                    </select>
++                    <Button
++                      type="button"
++                      size="sm"
++                      variant="ghost"
++                      className="h-8 px-0"
++                      onClick={() => setManualActorId(true)}
++                    >
++                      Ввести UUID
++                    </Button>
++                  </div>
+                 )}
+               </div>
+               <div className="space-y-1">
