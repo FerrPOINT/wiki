@@ -2,3 +2,6 @@
 *.sh text eol=lf
 *.ps1 text eol=crlf
 backend/migrations/*.sql text eol=lf
+
+# Canonical bytes for the exact Base selector.
+scripts/vendor/base_quality_selection.py text eol=lf

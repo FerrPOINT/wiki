@@ -1,5 +1,34 @@
 # Testing Strategy - Wiki
 
+## Scoped unit/static и полный release
+
+Из корня PDLC3 обычные проверки выбирают только нужный продукт и компонент:
+
+```powershell
+./check-workspace.ps1 -Profile Unit -Repository wiki -Component tooling -BaseRef HEAD
+./check-workspace.ps1 -Profile Build -Repository wiki -BaseRef HEAD -PlanOnly
+```
+
+`.quality-gate.json` описывает docs/frontend/backend/tooling; неизвестный путь
+расширяет выбор до всего продукта. Frontend test-only оставляет unit/static без
+Vite build. Backend inputs сохраняются консервативными: разделение `cfg(test)` и
+native/artifact reuse этим изменением не квалифицированы.
+
+Обычные frontend-команды: `pnpm --dir frontend test:unit` и
+`pnpm --dir frontend build` (один unit run перед компиляцией). Полный прежний
+Vitest inventory доступен через `pnpm --dir frontend test:all`; unit исключает
+только явно названные integration/slow/e2e suites, не удаляя их из release.
+Backend fast lane: `cargo test --locked -p domain --lib` из `backend`.
+
+Автоматический CI использует standalone Base selector, один Rust 1.88.0 job и
+условные application checks/builds. Полный прежний CI запускается вручную через
+`.github/workflows/release.yml` (`workflow_dispatch`): PostgreSQL, full workspace
+и minimum Rust all-targets, ignored central-directory projection, OpenAPI,
+packed Base consumer и effective themes сохраняются. Полный frontend test run
+передаётся compile-only step без второго unit run. UI pin `.base-ui-revision`
+равен прежнему эффективному SDK SHA; frontend использует его независимо от
+backend `.base-revision`. Это не обновление dependencies и не release proof.
+
 ## 1. Principles
 
 ### Live Detail Geometry
@@ -148,7 +177,7 @@ Baseline test fixtures:
 - linked evidence artifact;
 - viewer/editor users for permission checks.
 
-## 6. Merge Checklist
+## 6. Manual Release Checklist
 
 - [ ] `cargo fmt --all -- --check` clean
 - [ ] `cargo clippy --workspace --all-targets -- -D warnings` clean
@@ -179,6 +208,8 @@ Baseline test fixtures:
 Подключение версий, границы контрактов и проверки описаны в [BASE_INTEGRATION](BASE_INTEGRATION.md).
 
 Регрессия central_projection_distinguishes_database_failure_from_invalid_claims
-проверяет закрытый DB pool и неполные claims отдельно. CI явно запускает
+проверяет закрытый DB pool и неполные claims отдельно. Ручной release workflow явно запускает
 mixed_central_directory_preserves_identity_and_disabled_state_in_postgres
 на своём PostgreSQL; workspace test не исполняет ignored-тест автоматически.
+
+Scoped entrypoint, сохраняемые release gates и ограничения: [build performance](plan/2026-10-21-build-performance.md).
