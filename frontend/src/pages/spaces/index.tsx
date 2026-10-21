@@ -316,7 +316,7 @@ export function SpacesPage() {
   )
   const [showCreate, setShowCreate] = useState(false)
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState('all')
+  const [status, setStatus] = useState('active')
   const [sort, setSort] = useState('updated')
   const [mineOnly, setMineOnly] = useState(false)
   const [page, setPage] = useState(1)

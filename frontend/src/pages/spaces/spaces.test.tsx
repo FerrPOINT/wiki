@@ -355,6 +355,10 @@ describe('SpacesPage', () => {
       ],
     })
 
+    expect(screen.queryByRole('button', { name: /База знаний Base/ })).toBeNull()
+    fireEvent.change(screen.getByLabelText('Статус пространства'), {
+      target: { value: 'archived' },
+    })
     fireEvent.click(screen.getByRole('button', { name: /База знаний Base/ }))
     expect(screen.queryByLabelText('Название пространства')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Архивировать' })).not.toBeInTheDocument()

@@ -32,6 +32,7 @@ export function useWorkspaceCatalog(enabled = true) {
   const actor = useAuthStore((state) => state.userId)
   return useQuery({
     queryKey: ['wiki', 'workspace-catalog', actor],
+    select: (items: Workspace[]) => items.filter((project) => project.state !== 'archived'),
     enabled,
     refetchInterval: 60000,
     queryFn: async ({ signal }) => {
