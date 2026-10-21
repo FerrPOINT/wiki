@@ -1,0 +1,566 @@
+diff --git a/backend/api/src/routes/wiki.rs b/backend/api/src/routes/wiki.rs
+index 1174c17..764ffab 100644
+--- a/backend/api/src/routes/wiki.rs
++++ b/backend/api/src/routes/wiki.rs
+@@ -2930,6 +2930,7 @@ pub async fn list_audit_log(
+     ensure_system_admin(&store, &claims.user_id)?;
+     let limit = clamp_limit_with_default(query.limit, DEFAULT_AUDIT_LIMIT, MAX_AUDIT_LIMIT);
+     let cursor = parse_audit_cursor(query.cursor.as_deref())?;
++    let filter = app::wiki::WikiAuditFilter::from_query(&query)?;
+     let mut entries = store
+         .audit
+         .iter()
+@@ -2946,6 +2947,7 @@ pub async fn list_audit_log(
+     entries.sort_unstable_by(|left, right| right.0.cmp(&left.0).then_with(|| right.1.cmp(&left.1)));
+     let page = entries
+         .into_iter()
++        .filter(|(created_at, _, entry)| filter.matches(entry, created_at))
+         .filter(|(created_at, id, _)| {
+             cursor.as_ref().is_none_or(|cursor| {
+                 created_at < &cursor.created_at
+diff --git a/backend/api/tests/wiki_mvp.rs b/backend/api/tests/wiki_mvp.rs
+index 7355992..c068633 100644
+--- a/backend/api/tests/wiki_mvp.rs
++++ b/backend/api/tests/wiki_mvp.rs
+@@ -4309,6 +4309,37 @@ async fn wiki_audit_log_honors_bounded_limit_query() {
+     assert_eq!(entries.len(), 1);
+     assert_eq!(entries[0]["action"], "document.create");
+     assert_eq!(entries[0]["entity_id"], document_id);
++    let actor_id = entries[0]["actor_id"].as_str().unwrap();
++    let (status, filtered) = call(
++        &app,
++        Method::GET,
++        &format!(
++            "/api/v1/audit-log?limit=1&action=document.create&entity_type=document&actor_id={actor_id}"
++        ),
++        Some(&token),
++        None,
++    )
++    .await;
++    assert_eq!(status, StatusCode::OK);
++    assert_eq!(filtered["entries"][0]["entity_id"], document_id);
++    let (status, empty) = call(
++        &app,
++        Method::GET,
++        "/api/v1/audit-log?action=document.missing",
++        Some(&token),
++        None,
++    )
++    .await;
++    assert_eq!(status, StatusCode::OK);
++    assert!(empty["entries"].as_array().unwrap().is_empty());
++    for path in [
++        "/api/v1/audit-log?actor_id=invalid",
++        "/api/v1/audit-log?from=invalid",
++        "/api/v1/audit-log?from=2026-09-02T00:00:00Z&to=2026-09-01T00:00:00Z",
++    ] {
++        let (status, _) = call(&app, Method::GET, path, Some(&token), None).await;
++        assert_eq!(status, StatusCode::BAD_REQUEST);
++    }
+ }
+ 
+ #[tokio::test]
+@@ -4461,12 +4492,17 @@ async fn wiki_postgres_audit_cursor_keeps_timestamp_ties_stable() {
+             .fetch_one(&pool)
+             .await
+             .unwrap();
++    let actor_id: Uuid = sqlx::query_scalar("SELECT id FROM users LIMIT 1")
++        .fetch_one(&pool)
++        .await
++        .unwrap();
+     let ids: Vec<Uuid> = (0..3).map(|_| Uuid::now_v7()).collect();
+     for id in &ids {
+         sqlx::query(
+-            "INSERT INTO audit_log (id, action, entity_type, entity_id, request_id, created_at) VALUES ($1, 'audit.page', 'test', $2, $3, $4)",
++            "INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, request_id, created_at) VALUES ($1, $2, 'audit.page', 'test', $3, $4, $5)",
+         )
+         .bind(id)
++        .bind(actor_id)
+         .bind(Uuid::now_v7())
+         .bind(format!("audit-page-{id}"))
+         .bind(future_at)
+@@ -4500,6 +4536,25 @@ async fn wiki_postgres_audit_cursor_keeps_timestamp_ties_stable() {
+             .unwrap();
+         }
+     }
++    let from = (future_at - chrono::Duration::seconds(1))
++        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
++    let to = (future_at + chrono::Duration::minutes(2))
++        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
++    let filtered_path = format!(
++        "/api/v1/audit-log?limit=1&action=audit.page&entity_type=test&actor_id={actor_id}&from={from}&to={to}"
++    );
++    let mut cursor: Option<String> = None;
++    for expected_id in expected {
++        let path = cursor.as_ref().map_or_else(
++            || filtered_path.clone(),
++            |cursor| format!("{filtered_path}&cursor={cursor}"),
++        );
++        let (status, page) = call(&app, Method::GET, &path, Some(token), None).await;
++        assert_eq!(status, StatusCode::OK);
++        assert_eq!(page["entries"][0]["id"], expected_id.to_string());
++        cursor = page["next_cursor"].as_str().map(ToString::to_string);
++    }
++    assert!(cursor.is_none());
+     let index_exists: bool = sqlx::query_scalar(
+         "SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'audit_time_id_idx')",
+     )
+diff --git a/backend/app/src/wiki.rs b/backend/app/src/wiki.rs
+index 88758f1..cd8a622 100644
+--- a/backend/app/src/wiki.rs
++++ b/backend/app/src/wiki.rs
+@@ -1489,11 +1489,92 @@ pub fn audit_log_page(
+     })
+ }
+ 
++#[derive(Debug, Clone, Default)]
++pub struct WikiAuditFilter {
++    pub action: Option<String>,
++    pub entity_type: Option<String>,
++    pub actor_id: Option<Uuid>,
++    pub from: Option<DateTime<Utc>>,
++    pub to: Option<DateTime<Utc>>,
++}
++
++impl WikiAuditFilter {
++    pub fn from_query(query: &shared::AuditLogQuery) -> Result<Self, AppError> {
++        fn text(value: Option<&str>, name: &str) -> Result<Option<String>, AppError> {
++            value
++                .map(str::trim)
++                .filter(|value| !value.is_empty())
++                .map(|value| {
++                    if value.len() > 128 || value.chars().any(char::is_control) {
++                        Err(AppError::invalid_input(format!("invalid {name} filter")))
++                    } else {
++                        Ok(value.to_string())
++                    }
++                })
++                .transpose()
++        }
++
++        fn timestamp(value: Option<&str>, name: &str) -> Result<Option<DateTime<Utc>>, AppError> {
++            value
++                .map(str::trim)
++                .filter(|value| !value.is_empty())
++                .map(|value| {
++                    DateTime::parse_from_rfc3339(value)
++                        .map(|value| value.with_timezone(&Utc))
++                        .map_err(|_| AppError::invalid_input(format!("invalid {name} timestamp")))
++                })
++                .transpose()
++        }
++
++        let from = timestamp(query.from.as_deref(), "from")?;
++        let to = timestamp(query.to.as_deref(), "to")?;
++        if from
++            .as_ref()
++            .zip(to.as_ref())
++            .is_some_and(|(from, to)| from >= to)
++        {
++            return Err(AppError::invalid_input("from must be before to"));
++        }
++        Ok(Self {
++            action: text(query.action.as_deref(), "action")?,
++            entity_type: text(query.entity_type.as_deref(), "entity_type")?,
++            actor_id: query
++                .actor_id
++                .as_deref()
++                .map(str::trim)
++                .filter(|value| !value.is_empty())
++                .map(|value| {
++                    Uuid::parse_str(value)
++                        .map_err(|_| AppError::invalid_input("invalid actor_id filter"))
++                })
++                .transpose()?,
++            from,
++            to,
++        })
++    }
++
++    pub fn matches(&self, entry: &shared::AuditEntryResponse, created_at: &DateTime<Utc>) -> bool {
++        self.action
++            .as_ref()
++            .is_none_or(|value| entry.action == value.as_str())
++            && self
++                .entity_type
++                .as_ref()
++                .is_none_or(|value| entry.entity_type == value.as_str())
++            && self
++                .actor_id
++                .is_none_or(|value| entry.actor_id == value.to_string())
++            && self.from.as_ref().is_none_or(|value| created_at >= value)
++            && self.to.as_ref().is_none_or(|value| created_at < value)
++    }
++}
++
+ pub trait WikiAuditRepository {
+     fn list_recent_entries(
+         &self,
+         limit: usize,
+         cursor: Option<WikiAuditCursor>,
++        filter: WikiAuditFilter,
+     ) -> WikiAuditRepositoryFuture<'_, Vec<shared::AuditEntryResponse>>;
+ 
+     fn record_entry(&self, command: WikiAuditCommand) -> WikiAuditRepositoryFuture<'_, ()>;
+@@ -1514,9 +1595,10 @@ impl<'a, R: WikiAuditRepository + ?Sized> WikiAuditUseCase<'a, R> {
+     ) -> Result<shared::AuditLogResponse, AppError> {
+         let limit = clamp_limit_with_default(query.limit, DEFAULT_AUDIT_LIMIT, MAX_AUDIT_LIMIT);
+         let cursor = parse_audit_cursor(query.cursor.as_deref())?;
++        let filter = WikiAuditFilter::from_query(&query)?;
+         let entries = self
+             .repository
+-            .list_recent_entries(limit + 1, cursor)
++            .list_recent_entries(limit + 1, cursor, filter)
+             .await?;
+         audit_log_page(entries, limit)
+     }
+@@ -2637,6 +2719,7 @@ mod tests {
+             &self,
+             limit: usize,
+             cursor: Option<WikiAuditCursor>,
++            filter: WikiAuditFilter,
+         ) -> WikiAuditRepositoryFuture<'_, Vec<shared::AuditEntryResponse>> {
+             Box::pin(async move {
+                 let start = cursor
+@@ -2651,6 +2734,12 @@ mod tests {
+                     .entries
+                     .iter()
+                     .skip(start)
++                    .filter(|entry| {
++                        let created_at = DateTime::parse_from_rfc3339(&entry.created_at)
++                            .expect("valid audit fixture timestamp")
++                            .with_timezone(&Utc);
++                        filter.matches(entry, &created_at)
++                    })
+                     .take(limit)
+                     .cloned()
+                     .collect())
+@@ -4347,6 +4436,7 @@ mod tests {
+             .list_recent(shared::AuditLogQuery {
+                 limit: None,
+                 cursor: None,
++                ..Default::default()
+             })
+             .await
+             .unwrap();
+@@ -4405,6 +4495,7 @@ mod tests {
+             .list_recent(shared::AuditLogQuery {
+                 limit: Some(1),
+                 cursor: None,
++                ..Default::default()
+             })
+             .await
+             .unwrap();
+@@ -4413,6 +4504,7 @@ mod tests {
+             .list_recent(shared::AuditLogQuery {
+                 limit: Some(1),
+                 cursor: first.next_cursor,
++                ..Default::default()
+             })
+             .await
+             .unwrap();
+@@ -4421,6 +4513,7 @@ mod tests {
+             .list_recent(shared::AuditLogQuery {
+                 limit: Some(1),
+                 cursor: second.next_cursor,
++                ..Default::default()
+             })
+             .await
+             .unwrap();
+@@ -4431,11 +4524,73 @@ mod tests {
+             .list_recent(shared::AuditLogQuery {
+                 limit: Some(1),
+                 cursor: Some("not-a-cursor".to_string()),
++                ..Default::default()
+             })
+             .await;
+         assert!(matches!(invalid, Err(AppError::InvalidInput(_))));
+     }
+ 
++    #[tokio::test]
++    async fn wiki_audit_filters_apply_before_cursor_and_validate_range() {
++        let mut entries = vec![
++            audit_entry("document.publish"),
++            audit_entry("document.edit"),
++            audit_entry("document.publish"),
++            audit_entry("document.publish"),
++            audit_entry("space.create"),
++        ];
++        for (index, entry) in entries.iter_mut().enumerate() {
++            entry.created_at = format!("2026-09-01T10:00:0{}Z", 4 - index);
++        }
++        entries[2].actor_id = Uuid::now_v7().to_string();
++        entries[4].entity_type = "space".to_string();
++        let repository = RecordingAuditRepository {
++            entries,
++            recorded: std::sync::Mutex::new(Vec::new()),
++        };
++        let use_case = WikiAuditUseCase::new(&repository);
++        let query = shared::AuditLogQuery {
++            limit: Some(1),
++            action: Some(" document.publish ".to_string()),
++            entity_type: Some("document".to_string()),
++            actor_id: Some(Uuid::nil().to_string()),
++            from: Some("2026-09-01T10:00:00Z".to_string()),
++            to: Some("2026-09-01T10:00:05Z".to_string()),
++            ..Default::default()
++        };
++        let first = use_case.list_recent(query.clone()).await.unwrap();
++        assert_eq!(first.entries[0].created_at, "2026-09-01T10:00:04Z");
++        let second = use_case
++            .list_recent(shared::AuditLogQuery {
++                cursor: first.next_cursor,
++                ..query.clone()
++            })
++            .await
++            .unwrap();
++        assert_eq!(second.entries[0].created_at, "2026-09-01T10:00:01Z");
++        assert!(second.next_cursor.is_none());
++
++        for invalid in [
++            shared::AuditLogQuery {
++                actor_id: Some("not-a-uuid".to_string()),
++                ..query.clone()
++            },
++            shared::AuditLogQuery {
++                from: Some("invalid".to_string()),
++                ..query.clone()
++            },
++            shared::AuditLogQuery {
++                to: Some("2026-09-01T09:00:00Z".to_string()),
++                ..query
++            },
++        ] {
++            assert!(matches!(
++                use_case.list_recent(invalid).await,
++                Err(AppError::InvalidInput(_))
++            ));
++        }
++    }
++
+     #[test]
+     fn wiki_settings_snapshot_exposes_only_safe_runtime_values() {
+         let snapshot = WikiSettingsSnapshot::from_config(&test_app_config());
+diff --git a/backend/cli/src/main.rs b/backend/cli/src/main.rs
+index 6d84af7..913ed57 100644
+--- a/backend/cli/src/main.rs
++++ b/backend/cli/src/main.rs
+@@ -413,6 +413,16 @@ enum AuditCommands {
+         limit: Option<usize>,
+         #[arg(long)]
+         cursor: Option<String>,
++        #[arg(long)]
++        action: Option<String>,
++        #[arg(long)]
++        entity_type: Option<String>,
++        #[arg(long)]
++        actor_id: Option<String>,
++        #[arg(long)]
++        from: Option<String>,
++        #[arg(long)]
++        to: Option<String>,
+     },
+ }
+ 
+@@ -1011,10 +1021,23 @@ async fn execute_search(api: &ApiClient, command: SearchCommands) -> Result<Valu
+ 
+ async fn execute_audit(api: &ApiClient, command: AuditCommands) -> Result<Value> {
+     match command {
+-        AuditCommands::List { limit, cursor } => {
++        AuditCommands::List {
++            limit,
++            cursor,
++            action,
++            entity_type,
++            actor_id,
++            from,
++            to,
++        } => {
+             let query = query_string([
+                 ("limit", limit.map(|value| value.to_string())),
+                 ("cursor", cursor),
++                ("action", action),
++                ("entity_type", entity_type),
++                ("actor_id", actor_id),
++                ("from", from),
++                ("to", to),
+             ]);
+             api.get(&format!("/audit-log{query}")).await
+         }
+@@ -2038,6 +2061,11 @@ mod tests {
+                 command: AuditCommands::List {
+                     limit: None,
+                     cursor: None,
++                    action: None,
++                    entity_type: None,
++                    actor_id: None,
++                    from: None,
++                    to: None,
+                 },
+             },
+         )
+@@ -2088,6 +2116,11 @@ mod tests {
+                 command: AuditCommands::List {
+                     limit: Some(25),
+                     cursor: Some("123.cursor-id".to_string()),
++                    action: Some("document.publish".to_string()),
++                    entity_type: Some("document".to_string()),
++                    actor_id: Some("00000000-0000-0000-0000-000000000000".to_string()),
++                    from: Some("2026-09-01T00:00:00Z".to_string()),
++                    to: Some("2026-09-02T00:00:00Z".to_string()),
+                 },
+             },
+         )
+@@ -2100,7 +2133,7 @@ mod tests {
+         assert_eq!(requests[0].method, Method::GET);
+         assert_eq!(
+             requests[0].path,
+-            "/api/v1/audit-log?limit=25&cursor=123.cursor-id"
++            "/api/v1/audit-log?limit=25&cursor=123.cursor-id&action=document.publish&entity_type=document&actor_id=00000000-0000-0000-0000-000000000000&from=2026-09-01T00%3A00%3A00Z&to=2026-09-02T00%3A00%3A00Z"
+         );
+         assert_eq!(
+             requests[0].authorization.as_deref(),
+diff --git a/backend/infra/src/wiki_postgres/audit.rs b/backend/infra/src/wiki_postgres/audit.rs
+index debf760..2f59155 100644
+--- a/backend/infra/src/wiki_postgres/audit.rs
++++ b/backend/infra/src/wiki_postgres/audit.rs
+@@ -1,7 +1,7 @@
+ use super::{PostgresWikiBackend, mapping::audit_entry_from_row};
+ use app::wiki::{
+-    WikiAuditCommand, WikiAuditCursor, WikiAuditRepository, WikiAuditRepositoryFuture,
+-    WikiAuditUseCase,
++    WikiAuditCommand, WikiAuditCursor, WikiAuditFilter, WikiAuditRepository,
++    WikiAuditRepositoryFuture, WikiAuditUseCase,
+ };
+ use shared::wiki_contract::*;
+ use sqlx::{Postgres, QueryBuilder};
+@@ -17,6 +17,7 @@ impl WikiAuditRepository for PostgresWikiAuditRepository<'_> {
+         &self,
+         limit: usize,
+         cursor: Option<WikiAuditCursor>,
++        filter: WikiAuditFilter,
+     ) -> WikiAuditRepositoryFuture<'_, Vec<AuditEntryResponse>> {
+         Box::pin(async move {
+             let mut query = QueryBuilder::<Postgres>::new(
+@@ -25,9 +26,25 @@ impl WikiAuditRepository for PostgresWikiAuditRepository<'_> {
+                 FROM audit_log
+                 ",
+             );
++            query.push(" WHERE true");
++            if let Some(action) = filter.action {
++                query.push(" AND action = ").push_bind(action);
++            }
++            if let Some(entity_type) = filter.entity_type {
++                query.push(" AND entity_type = ").push_bind(entity_type);
++            }
++            if let Some(actor_id) = filter.actor_id {
++                query.push(" AND actor_id = ").push_bind(actor_id);
++            }
++            if let Some(from) = filter.from {
++                query.push(" AND created_at >= ").push_bind(from);
++            }
++            if let Some(to) = filter.to {
++                query.push(" AND created_at < ").push_bind(to);
++            }
+             if let Some(cursor) = cursor {
+                 query
+-                    .push(" WHERE (created_at, id) < (")
++                    .push(" AND (created_at, id) < (")
+                     .push_bind(cursor.created_at)
+                     .push(", ")
+                     .push_bind(cursor.id)
+diff --git a/backend/shared/src/wiki_contract.rs b/backend/shared/src/wiki_contract.rs
+index c9026bb..e9f281b 100644
+--- a/backend/shared/src/wiki_contract.rs
++++ b/backend/shared/src/wiki_contract.rs
+@@ -739,11 +739,16 @@ pub struct AuditLogResponse {
+     pub next_cursor: Option<String>,
+ }
+ 
+-#[derive(Debug, Clone, Deserialize, IntoParams)]
++#[derive(Debug, Clone, Default, Deserialize, IntoParams)]
+ pub struct AuditLogQuery {
+     #[param(minimum = 1, maximum = 200)]
+     pub limit: Option<usize>,
+     pub cursor: Option<String>,
++    pub action: Option<String>,
++    pub entity_type: Option<String>,
++    pub actor_id: Option<String>,
++    pub from: Option<String>,
++    pub to: Option<String>,
+ }
+ 
+ #[derive(Debug, Clone, Deserialize, IntoParams)]
+diff --git a/docs/API.md b/docs/API.md
+index b0f1872..d9674ff 100644
+--- a/docs/API.md
++++ b/docs/API.md
+@@ -148,11 +148,11 @@ Canonical `evidence_type` values for MVP are `external_url` and `uploaded_file`.
+ | `GET`  | `/templates` | Список шаблонов                                                    |
+ | `POST` | `/templates` | Создать шаблон, system admin only                                  |
+ | `GET`  | `/settings`  | Admin-only read-only snapshot безопасных runtime настроек инстанса |
+-| `GET`  | `/audit-log` | Страницы audit events для admin UI; `limit` clamps to `1..200`, необязательный `cursor` |
++| `GET`  | `/audit-log` | Страницы audit events для admin UI; `limit` clamps to `1..200`, необязательные `cursor`, `action`, `entity_type`, `actor_id`, `from`, `to` |
+ 
+ `GET /settings` не возвращает секреты, connection strings, storage paths или bootstrap credentials. MVP endpoint показывает только значения, нужные UI/CLI: API path, регистрацию, storage/search backend, лимит загрузки, язык и timezone.
+ 
+-`GET /audit-log` возвращает append-only события с `request_id` в порядке `(created_at DESC, id DESC)`. Endpoint всегда bounded: без параметра отдаёт последние 50 событий, `limit` ограничивается диапазоном `1..200`. Ответ содержит `next_cursor` (`null` на последней странице); для следующей страницы клиент передаёт его неизменённым в `cursor`. Неизвестный формат курсора даёт `400`. Keyset-пагинация сохраняет границы уже открытых страниц при появлении новых событий и различает записи с одинаковым временем. Для mutating HTTP-запросов audit entry использует тот же `X-Request-ID`, который backend вернул клиенту в response header; если запрос пришёл без валидного id, middleware создаёт `req_` id и он попадает в audit.
++`GET /audit-log` возвращает append-only события с `request_id` в порядке `(created_at DESC, id DESC)`. Endpoint всегда bounded: без параметра отдаёт последние 50 событий, `limit` ограничивается диапазоном `1..200`. Ответ содержит `next_cursor` (`null` на последней странице); для следующей страницы клиент передаёт его неизменённым в `cursor`. Необязательные `action` и `entity_type` сравниваются точно, `actor_id` принимает UUID, `from` и `to` принимают RFC3339 и задают полуоткрытый интервал `[from, to)` в UTC. Фильтры действуют на весь audit до cursor/limit; при переходе к следующей странице клиент сохраняет тот же набор фильтров. Неверные UUID/даты, обратный диапазон и неизвестный формат курсора дают `400`. Keyset-пагинация сохраняет границы уже открытых страниц при появлении новых событий и различает записи с одинаковым временем. Для mutating HTTP-запросов audit entry использует тот же `X-Request-ID`, который backend вернул клиенту в response header; если запрос пришёл без валидного id, middleware создаёт `req_` id и он попадает в audit.
+ 
+ ## 13. Deferred API Areas
+ 
+diff --git a/docs/ARCHITECTURE.md b/docs/ARCHITECTURE.md
+index 7cd9a8a..3455a6d 100644
+--- a/docs/ARCHITECTURE.md
++++ b/docs/ARCHITECTURE.md
+@@ -147,7 +147,7 @@ The PostgreSQL adapter is split by operation area:
+ - idempotency records for protected write replay;
+ - search.
+ 
+-Audit is append-only, so the list uses a `(created_at, id)` keyset cursor rather than an offset. The UUID breaks timestamp ties, and newer writes do not shift an already opened older page. Clients treat `next_cursor` as opaque.
++Audit is append-only, so the list uses a `(created_at, id)` keyset cursor rather than an offset. The UUID breaks timestamp ties, and newer writes do not shift an already opened older page. Exact action/type/actor and timestamp-range filters are applied before the cursor in both memory and PostgreSQL paths. Clients treat `next_cursor` as opaque and retain the filters across pages.
+ 
+ ## 9. API Layer
+ 
+diff --git a/docs/CLI.md b/docs/CLI.md
+index ec992dc..868e6cc 100644
+--- a/docs/CLI.md
++++ b/docs/CLI.md
+@@ -150,10 +150,11 @@ wiki search query "archived decision" --space SDLC --include-archived
+ wiki audit list
+ wiki audit list --limit 25
+ wiki audit list --limit 25 --cursor CURSOR_FROM_PREVIOUS_RESPONSE
++wiki audit list --action document.publish --entity-type document --actor-id UUID --from 2026-09-01T00:00:00Z --to 2026-09-02T00:00:00Z
+ wiki settings get
+ ```
+ 
+-`wiki audit list` returns the API JSON as-is, including `request_id` and `next_cursor`. Pass `next_cursor` back as `--cursor` to read older events. Without `--limit`, the API returns the latest 50 events; `--limit` is clamped server-side to `1..200`.
++`wiki audit list` returns the API JSON as-is, including `request_id` and `next_cursor`. Pass `next_cursor` back as `--cursor` with the same filters to read older matching events. `--action`/`--entity-type` use exact matching, `--actor-id` expects UUID, and `--from`/`--to` define an RFC3339 `[from, to)` interval. Without `--limit`, the API returns the latest 50 events; `--limit` is clamped server-side to `1..200`.
+ 
+ Bounded read commands use the same limits as the public API: `wiki doc history` defaults to 20, clamps to `1..100` and accepts `--offset` (default `0`) for older revisions; `wiki evidence list` defaults to 30 and clamps to `1..100`; `wiki search query` defaults to 20 and clamps to `1..100`.
+ 
+diff --git a/docs/CURRENT_STATE.md b/docs/CURRENT_STATE.md
+index afd2cdf..f083a2c 100644
+--- a/docs/CURRENT_STATE.md
++++ b/docs/CURRENT_STATE.md
+@@ -56,6 +56,7 @@
+ 
+ ## Known Local Environment Limits
+ 
++- 2026-09-20 audit-filter change: local Rust build and live browser QA are deferred while C: has about 0.08 GB free. CI must run the isolated PostgreSQL tests and OpenAPI drift gate; no working Docker volumes are changed by this PR.
+ - Native Windows Rust linking currently requires MSVC `link.exe`; backend checks are run through WSL on this host.
+ - `pnpm add` is blocked on this host by Corepack/Node `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING`; existing package binaries under `frontend/node_modules/.bin` can still be used for TypeScript/tests/build/lint verification.
+ - Docker PostgreSQL smoke can be run through `scripts/postgres-smoke.ps1` once Docker Desktop is available. In the last setup check, Docker CLI was installed, but the Docker daemon/service was stopped and could not be started from this process; the test Postgres port `3458` was closed.
+diff --git a/docs/PRODUCT_REQUIREMENTS.md b/docs/PRODUCT_REQUIREMENTS.md
+index 7955c8a..6bb9cbc 100644
+--- a/docs/PRODUCT_REQUIREMENTS.md
++++ b/docs/PRODUCT_REQUIREMENTS.md
+@@ -91,7 +91,7 @@ MVP не включает:
+ | REQ-TPL-001   | Templates        | Editor создаёт документ из базового шаблона                                                                                               |
+ | REQ-SET-001   | Settings         | Admin видит безопасный runtime snapshot настроек инстанса: API path, регистрацию, storage/search backend, лимит загрузки, язык и timezone |
+ | REQ-OPS-001   | Runtime health   | API отдаёт liveness/readiness для запуска, мониторинга и деплоя; отдельная UI-страница для этого не нужна                                  |
+-| REQ-AUD-001   | Audit            | Система пишет audit для login/logout, document create/edit/publish/archive, evidence add, member/role changes                             |
++| REQ-AUD-001   | Audit            | Система пишет audit для login/logout, document create/edit/publish/archive, evidence add, member/role changes; admin фильтрует весь журнал по действию, типу сущности, автору и диапазону времени до cursor-пагинации |
+ | REQ-API-001   | API              | Все MVP-операции доступны через `/api/v1`; protected domain/admin write-запросы с `Idempotency-Key` безопасны для retry без duplicate domain/audit writes |
+ | REQ-CLI-001   | CLI              | CLI покрывает те же базовые операции, что и API, и возвращает JSON по умолчанию                                                           |
+ | REQ-UI-001    | UI               | UI покрывает основные сценарии spaces, documents, task/phase dossiers, evidence, search и admin                                           |

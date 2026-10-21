@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import {
+  Select,
   Button,
   EmptyState,
   ErrorState,
@@ -116,29 +117,29 @@ export function SpaceProjectsEditor({
         <form onSubmit={attach} className="flex flex-wrap items-end gap-2">
           <div className="min-w-0 flex-1 space-y-1.5">
             <Label htmlFor={`${spaceKey}-project`}>Добавить проект</Label>
-            <select
+            <Select
               id={`${spaceKey}-project`}
               value={selected}
-              onChange={(event) => setSelected(event.target.value)}
+              onValueChange={(nextValue) => setSelected(nextValue)}
               disabled={mutation.isPending || !available.length}
-              className="min-h-10 w-full rounded-md border border-border bg-surface px-3"
-            >
-              <option value="">
-                {catalog.isPending
-                  ? 'Загружаем проекты…'
-                  : available.length
-                    ? 'Выберите проект'
-                    : 'Нет доступных проектов для добавления'}
-              </option>
-              {available.map((project) => (
-                <option
-                  key={projectIdentity(project.namespace)}
-                  value={projectIdentity(project.namespace)}
-                >
-                  {project.name} · {project.project_key}
-                </option>
-              ))}
-            </select>
+              className="w-full"
+              options={[
+                {
+                  value: '',
+                  label: String(
+                    catalog.isPending
+                      ? 'Загружаем проекты…'
+                      : available.length
+                        ? 'Выберите проект'
+                        : 'Нет доступных проектов для добавления',
+                  ),
+                },
+                ...(available.map((project) => ({
+                  value: String(projectIdentity(project.namespace)),
+                  label: [project.name, ' · ', project.project_key].join(''),
+                })) ?? []),
+              ]}
+            />
           </div>
           <Button disabled={!selected || mutation.isPending}>Добавить</Button>
         </form>

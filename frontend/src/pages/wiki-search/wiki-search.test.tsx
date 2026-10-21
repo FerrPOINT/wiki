@@ -1,3 +1,4 @@
+import { chooseValue } from '../../test/choice'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -97,10 +98,17 @@ describe('WikiSearchPage', () => {
     fireEvent.change(screen.getByRole('searchbox', { name: 'Поисковый запрос' }), {
       target: { value: 'релиз' },
     })
+    // Query debounce is independent of the explicitly applied expanded filters.
+    await waitFor(() =>
+      expect(useWikiSearch).toHaveBeenLastCalledWith(
+        expect.objectContaining({ q: 'релиз', result_type: 'document' }),
+        true,
+      ),
+    )
     fireEvent.change(screen.getByLabelText('Пространство'), { target: { value: 'eng' } })
     fireEvent.change(screen.getByLabelText('Задача'), { target: { value: 'BASE-42' } })
     fireEvent.change(screen.getByLabelText('Фаза'), { target: { value: 'testing' } })
-    fireEvent.change(screen.getByLabelText('Тип документа'), { target: { value: 'test_plan' } })
+    await chooseValue(screen.getByLabelText('Тип документа'), 'test_plan')
     expect(useWikiSearch).toHaveBeenLastCalledWith(
       {
         document_type: undefined,
@@ -108,7 +116,7 @@ describe('WikiSearchPage', () => {
         cursor: undefined,
         limit: 20,
         phase_key: undefined,
-        q: '',
+        q: 'релиз',
         space: undefined,
         task_key: undefined,
       },
@@ -143,7 +151,7 @@ describe('WikiSearchPage', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'Сбросить фильтры' }))
     expect(screen.getByLabelText('Пространство')).toHaveValue('')
-    expect(screen.getByLabelText('Тип документа')).toHaveValue('all')
+    expect(screen.getByLabelText('Тип документа')).toHaveAttribute('data-value', 'all')
     expect(screen.getByRole('button', { name: 'Все' })).toHaveAttribute('aria-pressed', 'true')
   })
 
@@ -164,7 +172,7 @@ describe('WikiSearchPage', () => {
     expect(screen.getByLabelText('Пространство')).toHaveValue('ENG')
     expect(screen.getByLabelText('Задача')).toHaveValue('BASE-42')
     expect(screen.getByLabelText('Фаза')).toHaveValue('testing')
-    expect(screen.getByLabelText('Тип документа')).toHaveValue('test_plan')
+    expect(screen.getByLabelText('Тип документа')).toHaveAttribute('data-value', 'test_plan')
     expect(useWikiSearch).toHaveBeenLastCalledWith(
       expect.objectContaining({
         q: 'Wiki',
@@ -234,21 +242,21 @@ describe('WikiSearchPage', () => {
     expect(screen.getByText('Показано 21–40')).toBeInTheDocument()
   })
 
-  it('finds materials beyond the first hundred documents and clears document type', () => {
+  it('finds materials beyond the first hundred documents and clears document type', async () => {
     const documents = Array.from({ length: 101 }, (_, index) => ({
       ...documentResult,
       id: `doc-${index}`,
     }))
     setupSearch([...documents, evidenceResult])
     fireEvent.click(screen.getByRole('button', { name: 'Фильтры' }))
-    fireEvent.change(screen.getByLabelText('Тип документа'), { target: { value: 'requirements' } })
+    await chooseValue(screen.getByLabelText('Тип документа'), 'requirements')
     fireEvent.click(screen.getByRole('button', { name: 'Применить' }))
     expect(screen.getByRole('button', { name: 'Документы' })).toHaveAttribute(
       'aria-pressed',
       'true',
     )
     fireEvent.click(screen.getByRole('button', { name: 'Материалы' }))
-    expect(screen.getByLabelText('Тип документа')).toHaveValue('all')
+    expect(screen.getByLabelText('Тип документа')).toHaveAttribute('data-value', 'all')
     expect(screen.getByRole('link', { name: /Smoke proof/ })).toBeInTheDocument()
     expect(useWikiSearch).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -286,7 +294,7 @@ it.each([undefined, 'updated report'])(
     )
     if (draft)
       fireEvent.change(screen.getByLabelText('Поисковый запрос'), { target: { value: draft } })
-    fireEvent.change(screen.getByLabelText('Область поиска'), { target: { value: 'all' } })
+    await chooseValue(screen.getByLabelText('Область поиска'), 'all')
     await waitFor(() =>
       expect(new URLSearchParams(router.state.location.search).get('search_scope')).toBe('all'),
     )

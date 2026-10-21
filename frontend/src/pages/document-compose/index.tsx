@@ -3,22 +3,34 @@ import { useNamespaceContext } from '@/widgets/namespace-context'
 import { documentPath } from '@/api/workspaces'
 import { FormEvent, useEffect, useState } from 'react'
 import Markdown from 'react-markdown'
-import { NamespaceLink as Link } from '@pdlc/ui/ui'
-import { useNamespaceNavigate as useNavigate } from '@pdlc/ui/ui'
+import {
+  NamespaceLink as Link,
+  Button,
+  useNamespaceNavigate as useNavigate,
+  ErrorState,
+  FormField,
+  LoadingState,
+  SearchableSelect,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Input,
+  Label,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  Textarea,
+  UnsavedChangesGuard,
+} from '@pdlc/ui/ui'
+
 import { useSearchParams } from 'react-router'
 import { FileText, GitBranch, Save, Tag } from 'lucide-react'
 import { useCreateDocument, useTemplates } from '@/shared/api/hooks'
-import { ErrorState, FormField, LoadingState, SearchableSelect } from '@pdlc/ui/ui'
-import { Button } from '@pdlc/ui/ui'
-import { Card, CardContent, CardHeader, CardTitle } from '@pdlc/ui/ui'
-import { Input } from '@pdlc/ui/ui'
-import { Label } from '@pdlc/ui/ui'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@pdlc/ui/ui'
-import { Textarea } from '@pdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDocumentType } from '@/shared/lib/wiki-format'
 import { resolveSpaceKey } from '@/shared/lib/space-selection'
-import { UnsavedChangesGuard } from '@pdlc/ui/ui'
 
 const typeOptions = [
   'page',
@@ -287,7 +299,8 @@ export function DocumentComposePage() {
             <div className="flex flex-wrap gap-2">
               {templatesQuery.isLoading && <LoadingState message="Загружаем шаблоны" />}
               {(templatesQuery.data?.templates ?? []).map((template) => (
-                <button
+                <Button
+                  variant="outline"
                   key={template.id}
                   type="button"
                   disabled={createDocument.isPending}
@@ -295,7 +308,7 @@ export function DocumentComposePage() {
                   onClick={() => applyTemplate(template.id)}
                 >
                   {template.name}
-                </button>
+                </Button>
               ))}
             </div>
 

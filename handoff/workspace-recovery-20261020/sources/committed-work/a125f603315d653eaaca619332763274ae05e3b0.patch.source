@@ -1,0 +1,64 @@
+diff --git a/.base-revision b/.base-revision
+index ace32ea..e560de2 100644
+--- a/.base-revision
++++ b/.base-revision
+@@ -1 +1 @@
+-c0f175c67fc02ba0910a310b163b8032dac92d06
++0ffb99e209bb62031488cbae1b61c9a2e40faec9
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 99f1213..d44f829 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -6,6 +6,9 @@
+ 
+ ## [Unreleased]
+ 
++- Общий Base snapshot обновлён до 0ffb99e: verified profile/directory contracts
++  и UI dependency graph без замены shell. Принятый runtime не переключается.
++
+ - Локальная default-ветка интегрирована с Base UI-источниками; fallback имени
+   Central Auth и безопасные server-error тексты дополняют существующий transport
+   formatter. Проверки источников и isolated PostgreSQL не означают runtime rollout.
+diff --git a/frontend/pnpm-lock.yaml b/frontend/pnpm-lock.yaml
+index 7e6ce00..aae6989 100644
+--- a/frontend/pnpm-lock.yaml
++++ b/frontend/pnpm-lock.yaml
+@@ -2001,10 +2001,14 @@ packages:
+     peerDependencies:
+       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
+ 
+-  lucide-react@1.47.0:
+-    resolution: {integrity: sha512-o8C23aXpNQypRY73W7fW02EyvWJinEMXgKeGjFoKym0zj3Q73hD97A1IQps1g8C14HTGsOpZL0Am+xjfgFZAbg==}
++  lucide-react@1.51.0:
++    resolution: {integrity: sha512-9929jimol5y7VbXUlVKcgURMSeIxFJB7dtWCkRAaNnF7KiCRkSkhmqWPUmAmUFYPezNawFk6qvz3Mu0gEnfI4g==}
+     peerDependencies:
++      '@types/react': '*'
+       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
++    peerDependenciesMeta:
++      '@types/react':
++        optional: true
+ 
+   lz-string@1.5.0:
+     resolution: {integrity: sha512-h5bgJWpxJNswbU7qCrV0tIKQCaS3blPDrqKWx+QxzuzL1zGUzij9XCWLrSLsJPu5t+eWA/ycetzYAO5IOMcWAQ==}
+@@ -3486,7 +3490,7 @@ snapshots:
+       clsx: 2.1.1
+       i18next: 25.10.10(typescript@5.9.3)
+       jose: 6.2.12
+-      lucide-react: 1.47.0(react@19.2.7)
++      lucide-react: 1.51.0(@types/react@19.2.17)(react@19.2.7)
+       react: 19.2.7
+       react-dom: 19.2.7(react@19.2.7)
+       react-i18next: 15.7.4(i18next@25.10.10(typescript@5.9.3))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@5.9.3)
+@@ -4298,9 +4302,11 @@ snapshots:
+     dependencies:
+       react: 19.2.7
+ 
+-  lucide-react@1.47.0(react@19.2.7):
++  lucide-react@1.51.0(@types/react@19.2.17)(react@19.2.7):
+     dependencies:
+       react: 19.2.7
++    optionalDependencies:
++      '@types/react': 19.2.17
+ 
+   lz-string@1.5.0: {}
+ 

@@ -1,3 +1,5 @@
+import { findChoiceOption } from '../../test/choice'
+import { chooseValue } from '../../test/choice'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -48,12 +50,12 @@ it('requires a project choice and records the task project when a shared space h
     false,
   )
   const user = userEvent.setup()
-  await user.selectOptions(
+  await chooseValue(
     screen.getByLabelText('Проект задачи'),
     `${registry}/${projects[1]!.namespace.namespace_id}`,
   )
-  await screen.findByRole('option', { name: 'SECOND-1 · Task' })
-  await user.selectOptions(
+  await findChoiceOption(await screen.findByLabelText('Задача проекта'), 'SECOND-1 · Task')
+  await chooseValue(
     screen.getByLabelText('Задача проекта'),
     `${task.tracker_instance_id}/${task.task_id}`,
   )

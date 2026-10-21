@@ -1,0 +1,1499 @@
+diff --git a/docs/CURRENT_STATE.md b/docs/CURRENT_STATE.md
+index cbbed98..158294f 100644
+--- a/docs/CURRENT_STATE.md
++++ b/docs/CURRENT_STATE.md
+@@ -1,6 +1,6 @@
+ # Current State - Wiki
+ 
+-> Dossier UI update (2026-09-20): `/tasks` and `/phases` use compact searchable client-side pages, while detail links open exact document/evidence records and no longer infer workflow readiness from item counts. Draft PR still needs 375/1920/2560 live QA. The current list API remains unbounded and loads full nested dossiers with PostgreSQL N+1 queries; server-side summary/cursor pagination is a separate required follow-up.
++> Dossier UI update (2026-09-20): `/tasks` and `/phases` use compact server-side summary pages (12 per request) with space-wide `q` search, cursor navigation and exact `total`. Dashboard uses bounded summary previews and `total` instead of loading nested dossiers. Detail links open exact document/evidence records and no longer infer workflow readiness from item counts. This frontend depends on draft API PR #29; neither PR is ready to merge before dependency ordering and 375/1920/2560 live QA.
+ 
+ > Snapshot date: 2026-09-03. Authority is repository code and tests; update this file whenever capability state changes.
+ 
+diff --git a/docs/USER_GUIDE.md b/docs/USER_GUIDE.md
+index 031f25f..2405721 100644
+--- a/docs/USER_GUIDE.md
++++ b/docs/USER_GUIDE.md
+@@ -45,7 +45,7 @@ Wiki хранит важные материалы вокруг SDLC-задач:
+ 
+ В MVP нет страниц reports, notifications и integrations. Health/readiness доступны только как API probes для эксплуатации.
+ 
+-Каталоги задач и фаз можно фильтровать по ключу или названию и просматривать постранично. В досье ссылки на документы и материалы открывают выбранную запись; счётчики показывают количество связанных объектов, а не оценку готовности процесса.
++Каталоги задач и фаз ищут по ключу, названию и связанным документам во всём выбранном пространстве. Списки показывают по 12 записей с переходом между страницами; общее число найденных задач или фаз берётся из серверной сводки. В досье ссылки на документы и материалы открывают выбранную запись, а счётчики показывают количество связанных объектов, не оценку готовности процесса.
+ 
+ ## 5. Состояния документов
+ 
+diff --git a/frontend/src/api/wiki-dossier-summaries.test.ts b/frontend/src/api/wiki-dossier-summaries.test.ts
+new file mode 100644
+index 0000000..ac3f97a
+--- /dev/null
++++ b/frontend/src/api/wiki-dossier-summaries.test.ts
+@@ -0,0 +1,33 @@
++import { beforeEach, describe, expect, it, vi } from 'vitest'
++import { listPhaseSummaries, listTaskSummaries } from './wiki'
++
++const apiRequest = vi.hoisted(() => vi.fn())
++
++vi.mock('./client', () => ({
++  apiRequest,
++  apiBlobRequest: vi.fn(),
++}))
++
++describe('dossier summary API paths', () => {
++  beforeEach(() => vi.clearAllMocks())
++
++  it('passes bounded task search and cursor as query parameters', () => {
++    listTaskSummaries('TEAM SPACE', { limit: 12, cursor: 'TEAM-10', q: 'План' })
++
++    const url = new URL(apiRequest.mock.calls[0]![0], 'http://wiki.test')
++    expect(url.pathname).toBe('/api/v1/spaces/TEAM%20SPACE/task-summaries')
++    expect(Object.fromEntries(url.searchParams)).toEqual({
++      limit: '12',
++      cursor: 'TEAM-10',
++      q: 'План',
++    })
++  })
++
++  it('uses the phase summary endpoint without empty optional filters', () => {
++    listPhaseSummaries('BASE', { limit: 4, q: '' })
++
++    const url = new URL(apiRequest.mock.calls[0]![0], 'http://wiki.test')
++    expect(url.pathname).toBe('/api/v1/spaces/BASE/phase-summaries')
++    expect(Object.fromEntries(url.searchParams)).toEqual({ limit: '4' })
++  })
++})
+diff --git a/frontend/src/api/wiki.ts b/frontend/src/api/wiki.ts
+index 6c94c3c..185e671 100644
+--- a/frontend/src/api/wiki.ts
++++ b/frontend/src/api/wiki.ts
+@@ -57,6 +57,24 @@ export type MoveDocumentRequest = GeneratedMoveDocumentRequest
+ export type LinkDocumentRequest = GeneratedLinkDocumentRequest
+ export type TaskPage = TaskPageResponse
+ export type PhasePage = PhasePageResponse
++export type DossierCatalogParams = {
++  limit?: number
++  cursor?: string
++  q?: string
++}
++export type TaskSummaryList = {
++  tasks: Pick<TaskPage, 'space_key' | 'task_key' | 'title' | 'document_count' | 'evidence_count'>[]
++  next_cursor: string | null
++  total: number
++}
++export type PhaseSummaryList = {
++  phases: Pick<
++    PhasePage,
++    'space_key' | 'phase_key' | 'title' | 'document_count' | 'evidence_count'
++  >[]
++  next_cursor: string | null
++  total: number
++}
+ export type Template = TemplateResponse
+ export type CreateTemplateRequest = GeneratedCreateTemplateRequest
+ export type AuditEntry = AuditEntryResponse
+@@ -229,6 +247,15 @@ export function listTasks(spaceKey: string): Promise<TaskPageListResponse> {
+   return apiRequest<TaskPageListResponse>(`/api/v1/spaces/${encodeURIComponent(spaceKey)}/tasks`)
+ }
+ 
++export function listTaskSummaries(
++  spaceKey: string,
++  params: DossierCatalogParams = {},
++): Promise<TaskSummaryList> {
++  return apiRequest<TaskSummaryList>(
++    `/api/v1/spaces/${encodeURIComponent(spaceKey)}/task-summaries${queryString(params)}`,
++  )
++}
++
+ export function getTask(spaceKey: string, taskKey: string): Promise<TaskPage> {
+   return apiRequest<TaskPage>(
+     `/api/v1/spaces/${encodeURIComponent(spaceKey)}/tasks/${encodeURIComponent(taskKey)}`,
+@@ -253,6 +280,15 @@ export function listPhases(spaceKey: string): Promise<PhasePageListResponse> {
+   return apiRequest<PhasePageListResponse>(`/api/v1/spaces/${encodeURIComponent(spaceKey)}/phases`)
+ }
+ 
++export function listPhaseSummaries(
++  spaceKey: string,
++  params: DossierCatalogParams = {},
++): Promise<PhaseSummaryList> {
++  return apiRequest<PhaseSummaryList>(
++    `/api/v1/spaces/${encodeURIComponent(spaceKey)}/phase-summaries${queryString(params)}`,
++  )
++}
++
+ export function getPhase(spaceKey: string, phaseKey: string): Promise<PhasePage> {
+   return apiRequest<PhasePage>(
+     `/api/v1/spaces/${encodeURIComponent(spaceKey)}/phases/${encodeURIComponent(phaseKey)}`,
+diff --git a/frontend/src/pages/dashboard/dashboard.test.tsx b/frontend/src/pages/dashboard/dashboard.test.tsx
+index dba8d7f..65f159f 100644
+--- a/frontend/src/pages/dashboard/dashboard.test.tsx
++++ b/frontend/src/pages/dashboard/dashboard.test.tsx
+@@ -1,20 +1,20 @@
+ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
++import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+ import { MemoryRouter } from 'react-router'
+ import { beforeEach, describe, expect, it, vi } from 'vitest'
+ 
+ import { DashboardPage } from './'
+ 
+ const listSpaces = vi.hoisted(() => vi.fn())
+-const listTasks = vi.hoisted(() => vi.fn())
+-const listPhases = vi.hoisted(() => vi.fn())
++const listTaskSummaries = vi.hoisted(() => vi.fn())
++const listPhaseSummaries = vi.hoisted(() => vi.fn())
+ const listEvidence = vi.hoisted(() => vi.fn())
+ const searchWiki = vi.hoisted(() => vi.fn())
+ 
+ vi.mock('@/api/wiki', () => ({
+   listSpaces,
+-  listTasks,
+-  listPhases,
++  listTaskSummaries,
++  listPhaseSummaries,
+   listEvidence,
+   searchWiki,
+ }))
+@@ -65,7 +65,7 @@ describe('DashboardPage', () => {
+         },
+       ],
+     })
+-    listTasks.mockResolvedValueOnce({
++    listTaskSummaries.mockResolvedValueOnce({
+       tasks: [
+         {
+           space_key: 'BASE',
+@@ -73,12 +73,12 @@ describe('DashboardPage', () => {
+           title: 'Требования к Wiki',
+           document_count: 1,
+           evidence_count: 1,
+-          documents: [],
+-          evidence: [],
+         },
+       ],
++      next_cursor: 'BASE-42',
++      total: 7,
+     })
+-    listPhases.mockResolvedValueOnce({
++    listPhaseSummaries.mockResolvedValueOnce({
+       phases: [
+         {
+           space_key: 'BASE',
+@@ -86,10 +86,10 @@ describe('DashboardPage', () => {
+           title: 'implementation',
+           document_count: 1,
+           evidence_count: 1,
+-          documents: [],
+-          evidence: [],
+         },
+       ],
++      next_cursor: null,
++      total: 3,
+     })
+     listEvidence.mockResolvedValue({ evidence: [] })
+ 
+@@ -105,13 +105,18 @@ describe('DashboardPage', () => {
+       'href',
+       '/tasks/BASE-42?space=BASE',
+     )
++    const stats = within(screen.getByRole('region', { name: 'Показатели Wiki' }))
++    expect(stats.getByText('7')).toBeInTheDocument()
++    expect(stats.getByText('3')).toBeInTheDocument()
++    expect(listTaskSummaries).toHaveBeenCalledWith('BASE', { limit: 4 })
++    expect(listPhaseSummaries).toHaveBeenCalledWith('BASE', { limit: 1 })
+   })
+ 
+   it('renders overview API errors with a retry action', async () => {
+     listSpaces.mockRejectedValue(new Error('Forbidden'))
+     searchWiki.mockRejectedValue(new Error('Forbidden'))
+-    listTasks.mockRejectedValue(new Error('Forbidden'))
+-    listPhases.mockRejectedValue(new Error('Forbidden'))
++    listTaskSummaries.mockRejectedValue(new Error('Forbidden'))
++    listPhaseSummaries.mockRejectedValue(new Error('Forbidden'))
+     listEvidence.mockResolvedValue({ evidence: [] })
+ 
+     render(wrapper(<DashboardPage />))
+@@ -122,8 +127,8 @@ describe('DashboardPage', () => {
+     await waitFor(() => {
+       expect(listSpaces).toHaveBeenCalledTimes(2)
+       expect(searchWiki).not.toHaveBeenCalled()
+-      expect(listTasks).not.toHaveBeenCalled()
+-      expect(listPhases).not.toHaveBeenCalled()
++      expect(listTaskSummaries).not.toHaveBeenCalled()
++      expect(listPhaseSummaries).not.toHaveBeenCalled()
+     })
+   })
+ 
+@@ -132,10 +137,12 @@ describe('DashboardPage', () => {
+       spaces: [{ key: 'BASE', name: 'Base', document_count: 1 }],
+     })
+     searchWiki.mockRejectedValue(new Error('Search unavailable'))
+-    listTasks.mockResolvedValue({
++    listTaskSummaries.mockResolvedValue({
+       tasks: [{ task_key: 'BASE-42', title: 'Проверить релиз', document_count: 1 }],
++      next_cursor: null,
++      total: 1,
+     })
+-    listPhases.mockResolvedValue({ phases: [] })
++    listPhaseSummaries.mockResolvedValue({ phases: [], next_cursor: null, total: 0 })
+ 
+     render(wrapper(<DashboardPage />))
+ 
+@@ -149,18 +156,18 @@ describe('DashboardPage', () => {
+       spaces: [{ key: 'BASE', name: 'Base', document_count: 1 }],
+     })
+     searchWiki.mockResolvedValue({ results: [] })
+-    listTasks.mockResolvedValue({ tasks: [] })
+-    listPhases.mockRejectedValueOnce(new Error('Phases unavailable'))
+-    listPhases.mockResolvedValue({ phases: [] })
++    listTaskSummaries.mockResolvedValue({ tasks: [], next_cursor: null, total: 0 })
++    listPhaseSummaries.mockRejectedValueOnce(new Error('Phases unavailable'))
++    listPhaseSummaries.mockResolvedValue({ phases: [], next_cursor: null, total: 0 })
+ 
+     render(wrapper(<DashboardPage />))
+ 
+     expect(await screen.findByText('Phases unavailable')).toBeInTheDocument()
+     fireEvent.click(screen.getByRole('button', { name: /повторить/i }))
+-    await waitFor(() => expect(listPhases).toHaveBeenCalledTimes(2))
++    await waitFor(() => expect(listPhaseSummaries).toHaveBeenCalledTimes(2))
+     expect(listSpaces).toHaveBeenCalledTimes(1)
+     expect(searchWiki).toHaveBeenCalledTimes(1)
+-    expect(listTasks).toHaveBeenCalledTimes(1)
++    expect(listTaskSummaries).toHaveBeenCalledTimes(1)
+   })
+ 
+   it('switches the scoped overview between spaces', async () => {
+@@ -184,13 +191,15 @@ describe('DashboardPage', () => {
+             ]
+           : [],
+     }))
+-    listTasks.mockImplementation(async (space: string) => ({
++    listTaskSummaries.mockImplementation(async (space: string) => ({
+       tasks:
+         space === 'TEAM'
+           ? [{ task_key: 'TEAM-1', title: 'Задача команды', document_count: 1 }]
+           : [],
++      next_cursor: null,
++      total: space === 'TEAM' ? 1 : 0,
+     }))
+-    listPhases.mockResolvedValue({ phases: [] })
++    listPhaseSummaries.mockResolvedValue({ phases: [], next_cursor: null, total: 0 })
+ 
+     render(wrapper(<DashboardPage />))
+     const spaceSelect = await screen.findByLabelText('Пространство')
+@@ -199,7 +208,12 @@ describe('DashboardPage', () => {
+ 
+     expect(await screen.findByText('Документ команды')).toBeInTheDocument()
+     expect(await screen.findByText('Задача команды')).toBeInTheDocument()
+-    expect(listTasks).toHaveBeenCalledWith('TEAM')
++    expect(listTaskSummaries).toHaveBeenCalledWith('TEAM', { limit: 4 })
+     expect(searchWiki).toHaveBeenCalledWith(expect.objectContaining({ space: 'TEAM' }))
++    expect(
++      within(screen.getByRole('region', { name: 'Задачи в Wiki' })).getByRole('link', {
++        name: /Все/,
++      }),
++    ).toHaveAttribute('href', '/tasks?space=TEAM')
+   })
+ })
+diff --git a/frontend/src/pages/dashboard/index.tsx b/frontend/src/pages/dashboard/index.tsx
+index f078e76..9c8a17d 100644
+--- a/frontend/src/pages/dashboard/index.tsx
++++ b/frontend/src/pages/dashboard/index.tsx
+@@ -1,7 +1,7 @@
+ import { useState } from 'react'
+ import { Link } from 'react-router'
+ import { ArrowRight, FilePlus2, FileText, GitBranch, Library, Search } from 'lucide-react'
+-import { usePhases, useSpaces, useTasks, useWikiSearch } from '@/shared/api/hooks'
++import { usePhaseSummaries, useSpaces, useTaskSummaries, useWikiSearch } from '@/shared/api/hooks'
+ import { Button, EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
+ import { formatApiErrorForUser } from '@/shared/lib/api-error'
+ import { formatDateTime } from '@/shared/lib/wiki-format'
+@@ -22,23 +22,19 @@ export function DashboardPage() {
+     { space: activeSpaceKey || undefined, limit: 100 },
+     Boolean(activeSpaceKey),
+   )
+-  const tasksQuery = useTasks(activeSpaceKey)
+-  const phasesQuery = usePhases(activeSpaceKey)
++  const tasksQuery = useTaskSummaries(activeSpaceKey, { limit: 4 })
++  const phasesQuery = usePhaseSummaries(activeSpaceKey, { limit: 1 })
+   const recentDocuments = (searchQuery.data?.results ?? [])
+     .filter((result) => result.result_type === 'document')
+     .slice(0, 4)
+-  const focusTasks = (tasksQuery.data?.tasks ?? []).slice(0, 4)
++  const focusTasks = tasksQuery.data?.tasks ?? []
+   const documentCount = spaces.reduce((sum, space) => sum + space.document_count, 0)
+   const stats = [
+     { label: 'Пространства', value: spaces.length, icon: Library },
+     { label: 'Документы всего', value: documentCount, icon: FileText },
+     {
+       label: 'Задачи в пространстве',
+-      value: tasksQuery.isLoading
+-        ? '…'
+-        : tasksQuery.isError
+-          ? '—'
+-          : (tasksQuery.data?.tasks.length ?? 0),
++      value: tasksQuery.isLoading ? '…' : tasksQuery.isError ? '—' : (tasksQuery.data?.total ?? 0),
+       icon: FileText,
+     },
+     {
+@@ -47,7 +43,7 @@ export function DashboardPage() {
+         ? '…'
+         : phasesQuery.isError
+           ? '—'
+-          : (phasesQuery.data?.phases.length ?? 0),
++          : (phasesQuery.data?.total ?? 0),
+       icon: GitBranch,
+     },
+   ]
+@@ -207,7 +203,7 @@ export function DashboardPage() {
+                       Задачи в Wiki
+                     </h2>
+                     <Link
+-                      to="/tasks"
++                      to={`/tasks?space=${encodeURIComponent(activeSpaceKey)}`}
+                       className="inline-flex min-h-10 items-center gap-1 text-sm text-accent hover:underline"
+                     >
+                       Все <ArrowRight className="h-4 w-4" aria-hidden />
+@@ -238,7 +234,7 @@ export function DashboardPage() {
+                                 {task.title || task.task_key}
+                               </span>
+                               <span className="block text-xs text-text-muted">
+-                                {task.task_key} · {task.document_count} документов
++                                {task.task_key} · Документы: {task.document_count}
+                               </span>
+                             </span>
+                             <ArrowRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
+diff --git a/frontend/src/pages/phase-dossier/index.tsx b/frontend/src/pages/phase-dossier/index.tsx
+index 08470de..2ebb99b 100644
+--- a/frontend/src/pages/phase-dossier/index.tsx
++++ b/frontend/src/pages/phase-dossier/index.tsx
+@@ -1,11 +1,11 @@
+-import { type FormEvent, useState } from 'react'
++import { type FormEvent, useEffect, useRef, useState } from 'react'
+ import { Link, useParams, useSearchParams } from 'react-router'
+ import { FileCheck2, FileText, Link2, Search } from 'lucide-react'
+ import {
+   defaultSpaceKey,
+   useLinkPhaseDocument,
+   usePhase,
+-  usePhases,
++  usePhaseSummaries,
+   useSpaces,
+ } from '@/shared/api/hooks'
+ import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
+@@ -94,21 +94,131 @@ function SpaceSelector({
+   )
+ }
+ 
++function PhaseCatalog({ spaceKey }: { spaceKey: string }) {
++  const [search, setSearch] = useState('')
++  const [appliedSearch, setAppliedSearch] = useState('')
++  const [cursors, setCursors] = useState<(string | null)[]>([null])
++  const listRef = useRef<HTMLElement>(null)
++  const cursor = cursors[cursors.length - 1] ?? undefined
++  const phasesQuery = usePhaseSummaries(spaceKey, {
++    limit: pageSize,
++    cursor,
++    q: appliedSearch || undefined,
++  })
++  const phases = phasesQuery.data?.phases ?? []
++  const nextCursor = phasesQuery.data?.next_cursor
++
++  useEffect(() => {
++    if (search.trim() === appliedSearch) return
++    const timeout = window.setTimeout(() => {
++      setAppliedSearch(search.trim())
++      setCursors([null])
++    }, 300)
++    return () => window.clearTimeout(timeout)
++  }, [search, appliedSearch])
++
++  function changePage(nextCursors: (string | null)[]) {
++    setCursors(nextCursors)
++    listRef.current?.scrollIntoView?.({ block: 'start' })
++  }
++
++  return (
++    <section ref={listRef} aria-label="Список фаз" className="scroll-mt-16 space-y-3">
++      <div className="relative max-w-md">
++        <Search
++          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
++          aria-hidden
++        />
++        <Input
++          type="search"
++          aria-label="Найти фазу"
++          className="min-h-10 pl-9"
++          placeholder="Ключ, название или документ"
++          value={search}
++          onChange={(event) => setSearch(event.target.value)}
++        />
++      </div>
++
++      {phasesQuery.isLoading && <LoadingState message="Загружаем фазы" />}
++      {phasesQuery.isError && (
++        <ErrorState
++          message={formatApiErrorForUser(phasesQuery.error, 'Не удалось загрузить фазы')}
++          onRetry={() => phasesQuery.refetch()}
++        />
++      )}
++      {!phasesQuery.isLoading && !phasesQuery.isError && phases.length === 0 && (
++        <EmptyState
++          message={
++            cursors.length > 1
++              ? 'На этой странице фаз больше нет'
++              : appliedSearch
++                ? 'По запросу фазы не найдены'
++                : 'Документы и материалы ещё не связаны с фазами'
++          }
++        />
++      )}
++      {!phasesQuery.isLoading && !phasesQuery.isError && phases.length > 0 && (
++        <>
++          <p role="status" className="text-xs text-text-muted">
++            Фазы: {phases.length} из {phasesQuery.data?.total}
++          </p>
++          <ul className="divide-y divide-border border-y border-border">
++            {phases.map((phase) => (
++              <li key={phase.phase_key}>
++                <Link
++                  to={scopedPath(`/phases/${phase.phase_key}`, spaceKey)}
++                  className="flex min-h-16 min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 px-2 py-3 hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
++                >
++                  <span className="min-w-0">
++                    <span className="block break-words text-sm font-medium text-text-primary">
++                      {phase.title ?? phase.phase_key}
++                    </span>
++                    {phase.title && (
++                      <span className="block text-xs text-text-muted">{phase.phase_key}</span>
++                    )}
++                  </span>
++                  <span className="shrink-0 text-xs text-text-muted">
++                    Документы: {phase.document_count} · Материалы: {phase.evidence_count}
++                  </span>
++                </Link>
++              </li>
++            ))}
++          </ul>
++        </>
++      )}
++      {(cursors.length > 1 || nextCursor) && (
++        <nav aria-label="Страницы фаз" className="flex items-center justify-end gap-2">
++          <Button
++            type="button"
++            size="sm"
++            variant="outline"
++            className="min-h-10"
++            disabled={cursors.length === 1 || phasesQuery.isLoading || phasesQuery.isFetching}
++            onClick={() => changePage(cursors.slice(0, -1))}
++          >
++            Назад
++          </Button>
++          <span className="text-sm text-text-muted">Страница {cursors.length}</span>
++          <Button
++            type="button"
++            size="sm"
++            variant="outline"
++            className="min-h-10"
++            disabled={
++              !nextCursor || phasesQuery.isLoading || phasesQuery.isFetching || phasesQuery.isError
++            }
++            onClick={() => nextCursor && changePage([...cursors, nextCursor])}
++          >
++            Далее
++          </Button>
++        </nav>
++      )}
++    </section>
++  )
++}
++
+ export function PhaseDossiersPage() {
+   const [selectedSpaceKey, setSelectedSpaceKey, spacesQuery] = useSelectedSpaceKey()
+-  const phasesQuery = usePhases(selectedSpaceKey)
+-  const phases = phasesQuery.data?.phases ?? []
+-  const [search, setSearch] = useState('')
+-  const [page, setPage] = useState(1)
+-  const needle = search.trim().toLocaleLowerCase('ru')
+-  const filteredPhases = needle
+-    ? phases.filter((phase) =>
+-        `${phase.phase_key} ${phase.title ?? ''}`.toLocaleLowerCase('ru').includes(needle),
+-      )
+-    : phases
+-  const totalPages = Math.max(1, Math.ceil(filteredPhases.length / pageSize))
+-  const currentPage = Math.min(page, totalPages)
+-  const visiblePhases = filteredPhases.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+ 
+   return (
+     <div className="space-y-5">
+@@ -119,14 +229,7 @@ export function PhaseDossiersPage() {
+             Каждая завершённая фаза должна иметь документы и материалы, достаточные для аудита.
+           </p>
+         </div>
+-        <SpaceSelector
+-          value={selectedSpaceKey}
+-          onChange={(spaceKey) => {
+-            setSelectedSpaceKey(spaceKey)
+-            setSearch('')
+-            setPage(1)
+-          }}
+-        />
++        <SpaceSelector value={selectedSpaceKey} onChange={setSelectedSpaceKey} />
+       </section>
+ 
+       {spacesQuery.isLoading && <LoadingState message="Загружаем пространства" />}
+@@ -139,96 +242,7 @@ export function PhaseDossiersPage() {
+       {!spacesQuery.isLoading && !spacesQuery.isError && !selectedSpaceKey && (
+         <EmptyState message="Сначала создайте пространство" />
+       )}
+-      {selectedSpaceKey && phasesQuery.isLoading && <LoadingState message="Загружаем фазы" />}
+-      {selectedSpaceKey && phasesQuery.isError && (
+-        <ErrorState
+-          message={formatApiErrorForUser(phasesQuery.error, 'Не удалось загрузить фазы')}
+-          onRetry={() => phasesQuery.refetch()}
+-        />
+-      )}
+-      {selectedSpaceKey &&
+-        !phasesQuery.isLoading &&
+-        !phasesQuery.isError &&
+-        phases.length === 0 && (
+-          <EmptyState message="Документы и материалы ещё не связаны с фазами" />
+-        )}
+-      {selectedSpaceKey && !phasesQuery.isLoading && !phasesQuery.isError && phases.length > 0 && (
+-        <section aria-label="Список фаз" className="space-y-3">
+-          <div className="relative max-w-md">
+-            <Search
+-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
+-              aria-hidden
+-            />
+-            <Input
+-              type="search"
+-              aria-label="Найти фазу"
+-              className="min-h-10 pl-9"
+-              placeholder="Ключ или название"
+-              value={search}
+-              onChange={(event) => {
+-                setSearch(event.target.value)
+-                setPage(1)
+-              }}
+-            />
+-          </div>
+-          <p role="status" className="text-xs text-text-muted">
+-            Показано {visiblePhases.length} из {filteredPhases.length} фаз
+-          </p>
+-          {filteredPhases.length === 0 ? (
+-            <EmptyState message="По запросу фазы не найдены" />
+-          ) : (
+-            <ul className="divide-y divide-border border-y border-border">
+-              {visiblePhases.map((phase) => (
+-                <li key={phase.phase_key}>
+-                  <Link
+-                    to={scopedPath(`/phases/${phase.phase_key}`, selectedSpaceKey)}
+-                    className="flex min-h-16 min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 px-2 py-3 hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
+-                  >
+-                    <span className="min-w-0">
+-                      <span className="block break-words text-sm font-medium text-text-primary">
+-                        {phase.title ?? phase.phase_key}
+-                      </span>
+-                      {phase.title && (
+-                        <span className="block text-xs text-text-muted">{phase.phase_key}</span>
+-                      )}
+-                    </span>
+-                    <span className="shrink-0 text-xs text-text-muted">
+-                      Документы: {phase.document_count} · Материалы: {phase.evidence_count}
+-                    </span>
+-                  </Link>
+-                </li>
+-              ))}
+-            </ul>
+-          )}
+-          {totalPages > 1 && (
+-            <nav aria-label="Страницы фаз" className="flex items-center justify-end gap-2">
+-              <Button
+-                type="button"
+-                size="sm"
+-                variant="outline"
+-                className="min-h-10"
+-                disabled={currentPage === 1}
+-                onClick={() => setPage(currentPage - 1)}
+-              >
+-                Назад
+-              </Button>
+-              <span className="text-sm text-text-muted">
+-                {currentPage} / {totalPages}
+-              </span>
+-              <Button
+-                type="button"
+-                size="sm"
+-                variant="outline"
+-                className="min-h-10"
+-                disabled={currentPage === totalPages}
+-                onClick={() => setPage(currentPage + 1)}
+-              >
+-                Далее
+-              </Button>
+-            </nav>
+-          )}
+-        </section>
+-      )}
++      {selectedSpaceKey && <PhaseCatalog key={selectedSpaceKey} spaceKey={selectedSpaceKey} />}
+     </div>
+   )
+ }
+diff --git a/frontend/src/pages/phase-dossier/phase-dossier.test.tsx b/frontend/src/pages/phase-dossier/phase-dossier.test.tsx
+index b9bf35c..47dcbc9 100644
+--- a/frontend/src/pages/phase-dossier/phase-dossier.test.tsx
++++ b/frontend/src/pages/phase-dossier/phase-dossier.test.tsx
+@@ -1,4 +1,4 @@
+-import { fireEvent, render, screen, within } from '@testing-library/react'
++import { act, fireEvent, render, screen, within } from '@testing-library/react'
+ import { MemoryRouter, Route, Routes } from 'react-router'
+ import { afterEach, describe, expect, it, vi } from 'vitest'
+ 
+@@ -6,7 +6,7 @@ import { PhaseDossierPage, PhaseDossiersPage } from './'
+ 
+ const useLinkPhaseDocument = vi.hoisted(() => vi.fn())
+ const usePhase = vi.hoisted(() => vi.fn())
+-const usePhases = vi.hoisted(() => vi.fn())
++const usePhaseSummaries = vi.hoisted(() => vi.fn())
+ const useSpaces = vi.hoisted(() => vi.fn())
+ const linkPhaseMutate = vi.hoisted(() => vi.fn())
+ const phaseRefetch = vi.hoisted(() => vi.fn())
+@@ -15,7 +15,7 @@ vi.mock('@/shared/api/hooks', () => ({
+   defaultSpaceKey: 'BASE',
+   useLinkPhaseDocument,
+   usePhase,
+-  usePhases,
++  usePhaseSummaries,
+   useSpaces,
+ }))
+ 
+@@ -41,7 +41,6 @@ function renderPhasePage(
+     isError: false,
+     refetch: phaseRefetch,
+   })
+-  usePhases.mockReturnValue({ data: { phases: [] }, isLoading: false, isError: false })
+   useSpaces.mockReturnValue({
+     data: {
+       spaces: [
+@@ -71,8 +70,57 @@ function renderPhasePage(
+   )
+ }
+ 
+-function renderPhaseList(phases: Array<Record<string, unknown>>) {
+-  usePhases.mockReturnValue({ data: { phases }, isLoading: false, isError: false })
++function renderPhaseList(
++  phases: Array<{
++    phase_key: string
++    title: string
++    document_count: number
++    evidence_count: number
++  }>,
++  nextPageState: 'normal' | 'error' | 'empty' = 'normal',
++) {
++  usePhaseSummaries.mockImplementation(
++    (_spaceKey, params: { limit: number; cursor?: string; q?: string }) => {
++      if (nextPageState === 'error' && params.cursor) {
++        return {
++          data: undefined,
++          isLoading: false,
++          isFetching: false,
++          isError: true,
++          error: new Error('network error'),
++          refetch: vi.fn(),
++        }
++      }
++      if (nextPageState === 'empty' && params.cursor) {
++        return {
++          data: { phases: [], next_cursor: null, total: phases.length },
++          isLoading: false,
++          isFetching: false,
++          isError: false,
++          refetch: vi.fn(),
++        }
++      }
++      const needle = params.q?.toLocaleLowerCase('ru') ?? ''
++      const matching = phases.filter((phase) =>
++        `${phase.phase_key} ${phase.title}`.toLocaleLowerCase('ru').includes(needle),
++      )
++      const remaining = params.cursor
++        ? matching.filter((phase) => phase.phase_key > params.cursor!)
++        : matching
++      const page = remaining.slice(0, params.limit)
++      return {
++        data: {
++          phases: page,
++          next_cursor: remaining.length > params.limit ? page.at(-1)?.phase_key : null,
++          total: matching.length,
++        },
++        isLoading: false,
++        isFetching: false,
++        isError: false,
++        refetch: vi.fn(),
++      }
++    },
++  )
+   useSpaces.mockReturnValue({
+     data: {
+       spaces: [
+@@ -210,9 +258,13 @@ describe('PhaseDossierPage', () => {
+ })
+ 
+ describe('PhaseDossiersPage', () => {
+-  afterEach(() => vi.clearAllMocks())
++  afterEach(() => {
++    vi.useRealTimers()
++    vi.clearAllMocks()
++  })
+ 
+-  it('shows compact searchable pages without a fabricated completion state', () => {
++  it('searches the whole space and pages bounded summaries without completion state', () => {
++    vi.useFakeTimers()
+     renderPhaseList(
+       Array.from({ length: 25 }, (_, index) => ({
+         phase_key: `phase-${String(index + 1).padStart(2, '0')}`,
+@@ -223,19 +275,77 @@ describe('PhaseDossiersPage', () => {
+     )
+ 
+     expect(screen.queryByText('Заполненность')).not.toBeInTheDocument()
+-    expect(screen.getByText('Показано 12 из 25 фаз')).toBeInTheDocument()
++    expect(usePhaseSummaries).toHaveBeenCalledWith('DOCS', {
++      limit: 12,
++      cursor: undefined,
++      q: undefined,
++    })
++    expect(screen.getByText('Фазы: 12 из 25')).toBeInTheDocument()
+     expect(screen.getAllByRole('listitem')).toHaveLength(12)
+     const pagination = screen.getByRole('navigation', { name: 'Страницы фаз' })
+     fireEvent.click(within(pagination).getByRole('button', { name: 'Далее' }))
+-    expect(screen.getByText('2 / 3')).toBeInTheDocument()
++    expect(screen.getByText('Страница 2')).toBeInTheDocument()
++    expect(usePhaseSummaries).toHaveBeenLastCalledWith('DOCS', {
++      limit: 12,
++      cursor: 'phase-12',
++      q: undefined,
++    })
+     fireEvent.change(screen.getByRole('searchbox', { name: 'Найти фазу' }), {
+       target: { value: 'phase-25' },
+     })
+-    expect(screen.getByText('Показано 1 из 1 фаз')).toBeInTheDocument()
++    act(() => vi.advanceTimersByTime(300))
++    expect(usePhaseSummaries).toHaveBeenLastCalledWith('DOCS', {
++      limit: 12,
++      cursor: undefined,
++      q: 'phase-25',
++    })
++    expect(screen.getByText('Фазы: 1 из 1')).toBeInTheDocument()
+     expect(screen.getByRole('link', { name: /phase-25/ })).toHaveAttribute(
+       'href',
+       '/phases/phase-25?space=DOCS',
+     )
+     expect(screen.queryByRole('navigation', { name: 'Страницы фаз' })).not.toBeInTheDocument()
++
++    fireEvent.change(screen.getByRole('searchbox', { name: 'Найти фазу' }), {
++      target: { value: 'missing' },
++    })
++    act(() => vi.advanceTimersByTime(300))
++    expect(screen.getByText('По запросу фазы не найдены')).toBeInTheDocument()
++    expect(screen.getByRole('searchbox', { name: 'Найти фазу' })).toHaveValue('missing')
++  })
++
++  it('keeps previous-page navigation after a cursor request fails', () => {
++    renderPhaseList(
++      Array.from({ length: 13 }, (_, index) => ({
++        phase_key: `phase-${String(index + 1).padStart(2, '0')}`,
++        title: `Фаза ${index + 1}`,
++        document_count: 0,
++        evidence_count: 0,
++      })),
++      'error',
++    )
++
++    fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
++    expect(screen.getByRole('alert')).toBeInTheDocument()
++    expect(screen.getByRole('button', { name: 'Назад' })).toBeEnabled()
++    fireEvent.click(screen.getByRole('button', { name: 'Назад' }))
++    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
++    expect(screen.getByText('Фазы: 12 из 13')).toBeInTheDocument()
++  })
++
++  it('keeps back navigation when a later page becomes empty', () => {
++    renderPhaseList(
++      Array.from({ length: 13 }, (_, index) => ({
++        phase_key: `phase-${String(index + 1).padStart(2, '0')}`,
++        title: `Фаза ${index + 1}`,
++        document_count: 0,
++        evidence_count: 0,
++      })),
++      'empty',
++    )
++
++    fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
++    expect(screen.getByText('На этой странице фаз больше нет')).toBeInTheDocument()
++    expect(screen.getByRole('button', { name: 'Назад' })).toBeEnabled()
+   })
+ })
+diff --git a/frontend/src/pages/task-dossier/index.tsx b/frontend/src/pages/task-dossier/index.tsx
+index 794226e..b972d79 100644
+--- a/frontend/src/pages/task-dossier/index.tsx
++++ b/frontend/src/pages/task-dossier/index.tsx
+@@ -1,4 +1,4 @@
+-import { type FormEvent, useState } from 'react'
++import { type FormEvent, useEffect, useRef, useState } from 'react'
+ import { Link, useParams, useSearchParams } from 'react-router'
+ import { FileCheck2, FileText, GitBranch, Link2, Search } from 'lucide-react'
+ import {
+@@ -6,7 +6,7 @@ import {
+   useLinkTaskDocument,
+   useSpaces,
+   useTask,
+-  useTasks,
++  useTaskSummaries,
+ } from '@/shared/api/hooks'
+ import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
+ import { Button } from '@sdlc/ui/ui'
+@@ -94,21 +94,133 @@ function SpaceSelector({
+   )
+ }
+ 
++function TaskCatalog({ spaceKey }: { spaceKey: string }) {
++  const [search, setSearch] = useState('')
++  const [appliedSearch, setAppliedSearch] = useState('')
++  const [cursors, setCursors] = useState<(string | null)[]>([null])
++  const listRef = useRef<HTMLElement>(null)
++  const cursor = cursors[cursors.length - 1] ?? undefined
++  const tasksQuery = useTaskSummaries(spaceKey, {
++    limit: pageSize,
++    cursor,
++    q: appliedSearch || undefined,
++  })
++  const tasks = tasksQuery.data?.tasks ?? []
++  const nextCursor = tasksQuery.data?.next_cursor
++
++  useEffect(() => {
++    if (search.trim() === appliedSearch) return
++    const timeout = window.setTimeout(() => {
++      setAppliedSearch(search.trim())
++      setCursors([null])
++    }, 300)
++    return () => window.clearTimeout(timeout)
++  }, [search, appliedSearch])
++
++  function changePage(nextCursors: (string | null)[]) {
++    setCursors(nextCursors)
++    listRef.current?.scrollIntoView?.({ block: 'start' })
++  }
++
++  return (
++    <section ref={listRef} aria-label="Список задач" className="scroll-mt-16 space-y-3">
++      <div className="relative max-w-md">
++        <Search
++          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
++          aria-hidden
++        />
++        <Input
++          type="search"
++          aria-label="Найти задачу"
++          className="min-h-10 pl-9"
++          placeholder="Ключ, название или документ"
++          value={search}
++          onChange={(event) => setSearch(event.target.value)}
++        />
++      </div>
++
++      {tasksQuery.isLoading && <LoadingState message="Загружаем задачи" />}
++      {tasksQuery.isError && (
++        <ErrorState
++          message={formatApiErrorForUser(tasksQuery.error, 'Не удалось загрузить задачи')}
++          onRetry={() => tasksQuery.refetch()}
++        />
++      )}
++      {!tasksQuery.isLoading && !tasksQuery.isError && tasks.length === 0 && (
++        <EmptyState
++          message={
++            cursors.length > 1
++              ? 'На этой странице задач больше нет'
++              : appliedSearch
++                ? 'По запросу задачи не найдены'
++                : 'Документы ещё не связаны с задачами'
++          }
++        />
++      )}
++      {!tasksQuery.isLoading && !tasksQuery.isError && tasks.length > 0 && (
++        <>
++          <p role="status" className="text-xs text-text-muted">
++            Задачи: {tasks.length} из {tasksQuery.data?.total}
++          </p>
++          <ul className="divide-y divide-border border-y border-border">
++            {tasks.map((task) => (
++              <li key={task.task_key}>
++                <Link
++                  to={scopedPath(`/tasks/${task.task_key}`, spaceKey)}
++                  className="flex min-h-16 min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 px-2 py-3 hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
++                >
++                  <span className="min-w-0">
++                    <span className="block break-words text-sm font-medium text-text-primary">
++                      {task.task_key}
++                    </span>
++                    {task.title && (
++                      <span className="block break-words text-sm text-text-secondary">
++                        {task.title}
++                      </span>
++                    )}
++                  </span>
++                  <span className="shrink-0 text-xs text-text-muted">
++                    Документы: {task.document_count} · Материалы: {task.evidence_count}
++                  </span>
++                </Link>
++              </li>
++            ))}
++          </ul>
++        </>
++      )}
++      {(cursors.length > 1 || nextCursor) && (
++        <nav aria-label="Страницы задач" className="flex items-center justify-end gap-2">
++          <Button
++            type="button"
++            size="sm"
++            variant="outline"
++            className="min-h-10"
++            disabled={cursors.length === 1 || tasksQuery.isLoading || tasksQuery.isFetching}
++            onClick={() => changePage(cursors.slice(0, -1))}
++          >
++            Назад
++          </Button>
++          <span className="text-sm text-text-muted">Страница {cursors.length}</span>
++          <Button
++            type="button"
++            size="sm"
++            variant="outline"
++            className="min-h-10"
++            disabled={
++              !nextCursor || tasksQuery.isLoading || tasksQuery.isFetching || tasksQuery.isError
++            }
++            onClick={() => nextCursor && changePage([...cursors, nextCursor])}
++          >
++            Далее
++          </Button>
++        </nav>
++      )}
++    </section>
++  )
++}
++
+ export function TaskDossiersPage() {
+   const [selectedSpaceKey, setSelectedSpaceKey, spacesQuery] = useSelectedSpaceKey()
+-  const tasksQuery = useTasks(selectedSpaceKey)
+-  const tasks = tasksQuery.data?.tasks ?? []
+-  const [search, setSearch] = useState('')
+-  const [page, setPage] = useState(1)
+-  const needle = search.trim().toLocaleLowerCase('ru')
+-  const filteredTasks = needle
+-    ? tasks.filter((task) =>
+-        `${task.task_key} ${task.title ?? ''}`.toLocaleLowerCase('ru').includes(needle),
+-      )
+-    : tasks
+-  const totalPages = Math.max(1, Math.ceil(filteredTasks.length / pageSize))
+-  const currentPage = Math.min(page, totalPages)
+-  const visibleTasks = filteredTasks.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+ 
+   return (
+     <div className="space-y-5">
+@@ -120,14 +232,7 @@ export function TaskDossiersPage() {
+             статусом в трекере.
+           </p>
+         </div>
+-        <SpaceSelector
+-          value={selectedSpaceKey}
+-          onChange={(spaceKey) => {
+-            setSelectedSpaceKey(spaceKey)
+-            setSearch('')
+-            setPage(1)
+-          }}
+-        />
++        <SpaceSelector value={selectedSpaceKey} onChange={setSelectedSpaceKey} />
+       </section>
+ 
+       {spacesQuery.isLoading && <LoadingState message="Загружаем пространства" />}
+@@ -140,95 +245,7 @@ export function TaskDossiersPage() {
+       {!spacesQuery.isLoading && !spacesQuery.isError && !selectedSpaceKey && (
+         <EmptyState message="Сначала создайте пространство" />
+       )}
+-      {selectedSpaceKey && tasksQuery.isLoading && <LoadingState message="Загружаем задачи" />}
+-      {selectedSpaceKey && tasksQuery.isError && (
+-        <ErrorState
+-          message={formatApiErrorForUser(tasksQuery.error, 'Не удалось загрузить задачи')}
+-          onRetry={() => tasksQuery.refetch()}
+-        />
+-      )}
+-      {selectedSpaceKey && !tasksQuery.isLoading && !tasksQuery.isError && tasks.length === 0 && (
+-        <EmptyState message="Документы ещё не связаны с задачами" />
+-      )}
+-      {selectedSpaceKey && !tasksQuery.isLoading && !tasksQuery.isError && tasks.length > 0 && (
+-        <section aria-label="Список задач" className="space-y-3">
+-          <div className="relative max-w-md">
+-            <Search
+-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
+-              aria-hidden
+-            />
+-            <Input
+-              type="search"
+-              aria-label="Найти задачу"
+-              className="min-h-10 pl-9"
+-              placeholder="Ключ или название"
+-              value={search}
+-              onChange={(event) => {
+-                setSearch(event.target.value)
+-                setPage(1)
+-              }}
+-            />
+-          </div>
+-          <p role="status" className="text-xs text-text-muted">
+-            Показано {visibleTasks.length} из {filteredTasks.length} задач
+-          </p>
+-          {filteredTasks.length === 0 ? (
+-            <EmptyState message="По запросу задачи не найдены" />
+-          ) : (
+-            <ul className="divide-y divide-border border-y border-border">
+-              {visibleTasks.map((task) => (
+-                <li key={task.task_key}>
+-                  <Link
+-                    to={scopedPath(`/tasks/${task.task_key}`, selectedSpaceKey)}
+-                    className="flex min-h-16 min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 px-2 py-3 hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
+-                  >
+-                    <span className="min-w-0">
+-                      <span className="block break-words text-sm font-medium text-text-primary">
+-                        {task.task_key}
+-                      </span>
+-                      {task.title && (
+-                        <span className="block break-words text-sm text-text-secondary">
+-                          {task.title}
+-                        </span>
+-                      )}
+-                    </span>
+-                    <span className="shrink-0 text-xs text-text-muted">
+-                      Документы: {task.document_count} · Материалы: {task.evidence_count}
+-                    </span>
+-                  </Link>
+-                </li>
+-              ))}
+-            </ul>
+-          )}
+-          {totalPages > 1 && (
+-            <nav aria-label="Страницы задач" className="flex items-center justify-end gap-2">
+-              <Button
+-                type="button"
+-                size="sm"
+-                variant="outline"
+-                className="min-h-10"
+-                disabled={currentPage === 1}
+-                onClick={() => setPage(currentPage - 1)}
+-              >
+-                Назад
+-              </Button>
+-              <span className="text-sm text-text-muted">
+-                {currentPage} / {totalPages}
+-              </span>
+-              <Button
+-                type="button"
+-                size="sm"
+-                variant="outline"
+-                className="min-h-10"
+-                disabled={currentPage === totalPages}
+-                onClick={() => setPage(currentPage + 1)}
+-              >
+-                Далее
+-              </Button>
+-            </nav>
+-          )}
+-        </section>
+-      )}
++      {selectedSpaceKey && <TaskCatalog key={selectedSpaceKey} spaceKey={selectedSpaceKey} />}
+     </div>
+   )
+ }
+diff --git a/frontend/src/pages/task-dossier/task-dossier.test.tsx b/frontend/src/pages/task-dossier/task-dossier.test.tsx
+index c55f713..d606c9f 100644
+--- a/frontend/src/pages/task-dossier/task-dossier.test.tsx
++++ b/frontend/src/pages/task-dossier/task-dossier.test.tsx
+@@ -1,4 +1,4 @@
+-import { fireEvent, render, screen, within } from '@testing-library/react'
++import { act, fireEvent, render, screen, within } from '@testing-library/react'
+ import { MemoryRouter, Route, Routes } from 'react-router'
+ import { afterEach, describe, expect, it, vi } from 'vitest'
+ 
+@@ -7,7 +7,7 @@ import { TaskDossierPage, TaskDossiersPage } from './'
+ const useLinkTaskDocument = vi.hoisted(() => vi.fn())
+ const useSpaces = vi.hoisted(() => vi.fn())
+ const useTask = vi.hoisted(() => vi.fn())
+-const useTasks = vi.hoisted(() => vi.fn())
++const useTaskSummaries = vi.hoisted(() => vi.fn())
+ const linkTaskMutate = vi.hoisted(() => vi.fn())
+ const taskRefetch = vi.hoisted(() => vi.fn())
+ 
+@@ -16,7 +16,7 @@ vi.mock('@/shared/api/hooks', () => ({
+   useLinkTaskDocument,
+   useSpaces,
+   useTask,
+-  useTasks,
++  useTaskSummaries,
+ }))
+ 
+ const taskPage = {
+@@ -41,7 +41,6 @@ function renderTaskPage(
+     isError: false,
+     refetch: taskRefetch,
+   })
+-  useTasks.mockReturnValue({ data: { tasks: [] }, isLoading: false, isError: false })
+   useSpaces.mockReturnValue({
+     data: {
+       spaces: [
+@@ -71,8 +70,52 @@ function renderTaskPage(
+   )
+ }
+ 
+-function renderTaskList(tasks: Array<Record<string, unknown>>) {
+-  useTasks.mockReturnValue({ data: { tasks }, isLoading: false, isError: false })
++function renderTaskList(
++  tasks: Array<{ task_key: string; title: string; document_count: number; evidence_count: number }>,
++  nextPageState: 'normal' | 'error' | 'empty' = 'normal',
++) {
++  useTaskSummaries.mockImplementation(
++    (_spaceKey, params: { limit: number; cursor?: string; q?: string }) => {
++      if (nextPageState === 'error' && params.cursor) {
++        return {
++          data: undefined,
++          isLoading: false,
++          isFetching: false,
++          isError: true,
++          error: new Error('network error'),
++          refetch: vi.fn(),
++        }
++      }
++      if (nextPageState === 'empty' && params.cursor) {
++        return {
++          data: { tasks: [], next_cursor: null, total: tasks.length },
++          isLoading: false,
++          isFetching: false,
++          isError: false,
++          refetch: vi.fn(),
++        }
++      }
++      const needle = params.q?.toLocaleLowerCase('ru') ?? ''
++      const matching = tasks.filter((task) =>
++        `${task.task_key} ${task.title}`.toLocaleLowerCase('ru').includes(needle),
++      )
++      const remaining = params.cursor
++        ? matching.filter((task) => task.task_key > params.cursor!)
++        : matching
++      const page = remaining.slice(0, params.limit)
++      return {
++        data: {
++          tasks: page,
++          next_cursor: remaining.length > params.limit ? page.at(-1)?.task_key : null,
++          total: matching.length,
++        },
++        isLoading: false,
++        isFetching: false,
++        isError: false,
++        refetch: vi.fn(),
++      }
++    },
++  )
+   useSpaces.mockReturnValue({
+     data: {
+       spaces: [
+@@ -209,9 +252,13 @@ describe('TaskDossierPage', () => {
+ })
+ 
+ describe('TaskDossiersPage', () => {
+-  afterEach(() => vi.clearAllMocks())
++  afterEach(() => {
++    vi.useRealTimers()
++    vi.clearAllMocks()
++  })
+ 
+-  it('shows compact searchable pages without a fabricated readiness score', () => {
++  it('searches the whole space and pages bounded summaries without a readiness score', () => {
++    vi.useFakeTimers()
+     renderTaskList(
+       Array.from({ length: 25 }, (_, index) => ({
+         task_key: `DOCS-${String(index + 1).padStart(2, '0')}`,
+@@ -222,19 +269,96 @@ describe('TaskDossiersPage', () => {
+     )
+ 
+     expect(screen.queryByText('Заполненность')).not.toBeInTheDocument()
+-    expect(screen.getByText('Показано 12 из 25 задач')).toBeInTheDocument()
++    expect(useTaskSummaries).toHaveBeenCalledWith('DOCS', {
++      limit: 12,
++      cursor: undefined,
++      q: undefined,
++    })
++    expect(screen.getByText('Задачи: 12 из 25')).toBeInTheDocument()
+     expect(screen.getAllByRole('listitem')).toHaveLength(12)
+     const pagination = screen.getByRole('navigation', { name: 'Страницы задач' })
+     fireEvent.click(within(pagination).getByRole('button', { name: 'Далее' }))
+-    expect(screen.getByText('2 / 3')).toBeInTheDocument()
++    expect(screen.getByText('Страница 2')).toBeInTheDocument()
++    expect(useTaskSummaries).toHaveBeenLastCalledWith('DOCS', {
++      limit: 12,
++      cursor: 'DOCS-12',
++      q: undefined,
++    })
+     fireEvent.change(screen.getByRole('searchbox', { name: 'Найти задачу' }), {
+       target: { value: 'DOCS-25' },
+     })
+-    expect(screen.getByText('Показано 1 из 1 задач')).toBeInTheDocument()
++    act(() => vi.advanceTimersByTime(300))
++    expect(useTaskSummaries).toHaveBeenLastCalledWith('DOCS', {
++      limit: 12,
++      cursor: undefined,
++      q: 'DOCS-25',
++    })
++    expect(screen.getByText('Задачи: 1 из 1')).toBeInTheDocument()
+     expect(screen.getByRole('link', { name: /DOCS-25/ })).toHaveAttribute(
+       'href',
+       '/tasks/DOCS-25?space=DOCS',
+     )
+     expect(screen.queryByRole('navigation', { name: 'Страницы задач' })).not.toBeInTheDocument()
++
++    fireEvent.change(screen.getByRole('searchbox', { name: 'Найти задачу' }), {
++      target: { value: 'missing' },
++    })
++    act(() => vi.advanceTimersByTime(300))
++    expect(screen.getByText('По запросу задачи не найдены')).toBeInTheDocument()
++    expect(screen.getByRole('searchbox', { name: 'Найти задачу' })).toHaveValue('missing')
++  })
++
++  it('keeps previous-page navigation and search after a cursor request fails', () => {
++    renderTaskList(
++      Array.from({ length: 13 }, (_, index) => ({
++        task_key: `DOCS-${String(index + 1).padStart(2, '0')}`,
++        title: `Задача ${index + 1}`,
++        document_count: 0,
++        evidence_count: 0,
++      })),
++      'error',
++    )
++
++    fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
++    expect(screen.getByRole('alert')).toBeInTheDocument()
++    expect(screen.getByRole('searchbox', { name: 'Найти задачу' })).toBeInTheDocument()
++    expect(screen.getByRole('button', { name: 'Назад' })).toBeEnabled()
++    fireEvent.click(screen.getByRole('button', { name: 'Назад' }))
++    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
++    expect(screen.getByText('Задачи: 12 из 13')).toBeInTheDocument()
++  })
++
++  it('keeps back navigation when a later page becomes empty', () => {
++    renderTaskList(
++      Array.from({ length: 13 }, (_, index) => ({
++        task_key: `DOCS-${String(index + 1).padStart(2, '0')}`,
++        title: `Задача ${index + 1}`,
++        document_count: 0,
++        evidence_count: 0,
++      })),
++      'empty',
++    )
++
++    fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
++    expect(screen.getByText('На этой странице задач больше нет')).toBeInTheDocument()
++    expect(screen.getByRole('button', { name: 'Назад' })).toBeEnabled()
++  })
++
++  it('resets the catalog query when the selected space changes', () => {
++    vi.useFakeTimers()
++    renderTaskList([{ task_key: 'DOCS-01', title: 'Задача', document_count: 0, evidence_count: 0 }])
++    fireEvent.change(screen.getByRole('searchbox', { name: 'Найти задачу' }), {
++      target: { value: 'DOCS-01' },
++    })
++    act(() => vi.advanceTimersByTime(300))
++
++    fireEvent.change(screen.getByLabelText('Пространство'), { target: { value: 'BASE' } })
++
++    expect(screen.getByRole('searchbox', { name: 'Найти задачу' })).toHaveValue('')
++    expect(useTaskSummaries).toHaveBeenLastCalledWith('BASE', {
++      limit: 12,
++      cursor: undefined,
++      q: undefined,
++    })
+   })
+ })
+diff --git a/frontend/src/shared/api/hooks.test.tsx b/frontend/src/shared/api/hooks.test.tsx
+index 94e47be..aeea796 100644
+--- a/frontend/src/shared/api/hooks.test.tsx
++++ b/frontend/src/shared/api/hooks.test.tsx
+@@ -13,8 +13,11 @@ import {
+   useLinkPhaseDocument,
+   useLinkTaskDocument,
+   useMoveDocument,
++  usePhaseSummaries,
+   usePublishDocument,
++  useTaskSummaries,
+   useUpdateDocumentDraft,
++  wikiKeys,
+ } from './hooks'
+ 
+ const archiveDocument = vi.hoisted(() => vi.fn())
+@@ -25,6 +28,8 @@ const linkPhaseDocument = vi.hoisted(() => vi.fn())
+ const linkTaskDocument = vi.hoisted(() => vi.fn())
+ const listDocumentRevisions = vi.hoisted(() => vi.fn())
+ const listEvidence = vi.hoisted(() => vi.fn())
++const listPhaseSummaries = vi.hoisted(() => vi.fn())
++const listTaskSummaries = vi.hoisted(() => vi.fn())
+ const moveDocument = vi.hoisted(() => vi.fn())
+ const publishDocument = vi.hoisted(() => vi.fn())
+ const updateDocumentDraft = vi.hoisted(() => vi.fn())
+@@ -60,9 +65,9 @@ vi.mock('@/api/wiki', () => ({
+   listAuditLog: vi.fn(),
+   listDocumentRevisions,
+   listEvidence,
+-  listPhases: vi.fn(),
++  listPhaseSummaries,
+   listSpaces: vi.fn(),
+-  listTasks: vi.fn(),
++  listTaskSummaries,
+   listTemplates: vi.fn(),
+   listUsers: vi.fn(),
+   moveDocument,
+@@ -171,6 +176,21 @@ describe('wiki API hooks', () => {
+     expect(listEvidence).toHaveBeenCalledWith({ limit: 30 })
+   })
+ 
++  it('passes bounded dossier search and cursor params through summary hooks', async () => {
++    listTaskSummaries.mockResolvedValueOnce({ tasks: [], next_cursor: null, total: 0 })
++    listPhaseSummaries.mockResolvedValueOnce({ phases: [], next_cursor: null, total: 0 })
++
++    const taskParams = { limit: 12, q: 'release', cursor: 'BASE-10' }
++    const phaseParams = { limit: 12, q: 'testing', cursor: 'test' }
++    const taskHook = renderHook(() => useTaskSummaries('BASE', taskParams), { wrapper })
++    const phaseHook = renderHook(() => usePhaseSummaries('BASE', phaseParams), { wrapper })
++
++    await waitFor(() => expect(taskHook.result.current.isSuccess).toBe(true))
++    await waitFor(() => expect(phaseHook.result.current.isSuccess).toBe(true))
++    expect(listTaskSummaries).toHaveBeenCalledWith('BASE', taskParams)
++    expect(listPhaseSummaries).toHaveBeenCalledWith('BASE', phaseParams)
++  })
++
+   it('passes a revision page offset through the list hook', async () => {
+     listDocumentRevisions.mockResolvedValueOnce({ revisions: [] })
+ 
+@@ -283,6 +303,9 @@ describe('wiki API hooks', () => {
+   })
+ 
+   it('links task documents through the public API wrapper', async () => {
++    const queryClient = new QueryClient()
++    const summaryKey = wikiKeys.taskSummaryList('BASE', { limit: 12 })
++    queryClient.setQueryData(summaryKey, { tasks: [], next_cursor: null, total: 0 })
+     linkTaskDocument.mockResolvedValueOnce({
+       space_key: 'BASE',
+       task_key: 'BASE-42',
+@@ -292,7 +315,9 @@ describe('wiki API hooks', () => {
+       evidence: [],
+     })
+ 
+-    const { result } = renderHook(() => useLinkTaskDocument(), { wrapper })
++    const { result } = renderHook(() => useLinkTaskDocument(), {
++      wrapper: wrapperFor(queryClient),
++    })
+ 
+     await act(async () => {
+       await result.current.mutateAsync({
+@@ -305,9 +330,13 @@ describe('wiki API hooks', () => {
+     expect(linkTaskDocument).toHaveBeenCalledWith('BASE', 'BASE-42', {
+       document_id: 'product-requirements',
+     })
++    expect(queryClient.getQueryState(summaryKey)?.isInvalidated).toBe(true)
+   })
+ 
+   it('links phase documents through the public API wrapper', async () => {
++    const queryClient = new QueryClient()
++    const summaryKey = wikiKeys.phaseSummaryList('BASE', { limit: 12 })
++    queryClient.setQueryData(summaryKey, { phases: [], next_cursor: null, total: 0 })
+     linkPhaseDocument.mockResolvedValueOnce({
+       space_key: 'BASE',
+       phase_key: 'implementation',
+@@ -317,7 +346,9 @@ describe('wiki API hooks', () => {
+       evidence: [],
+     })
+ 
+-    const { result } = renderHook(() => useLinkPhaseDocument(), { wrapper })
++    const { result } = renderHook(() => useLinkPhaseDocument(), {
++      wrapper: wrapperFor(queryClient),
++    })
+ 
+     await act(async () => {
+       await result.current.mutateAsync({
+@@ -330,6 +361,7 @@ describe('wiki API hooks', () => {
+     expect(linkPhaseDocument).toHaveBeenCalledWith('BASE', 'implementation', {
+       document_id: 'product-requirements',
+     })
++    expect(queryClient.getQueryState(summaryKey)?.isInvalidated).toBe(true)
+   })
+ 
+   it('reads a selected evidence item through the public API wrapper', async () => {
+diff --git a/frontend/src/shared/api/hooks.ts b/frontend/src/shared/api/hooks.ts
+index 7e0a4cf..2ddc067 100644
+--- a/frontend/src/shared/api/hooks.ts
++++ b/frontend/src/shared/api/hooks.ts
+@@ -24,9 +24,9 @@ import {
+   listAuditLog,
+   listDocumentRevisions,
+   listEvidence,
+-  listPhases,
++  listPhaseSummaries,
+   listSpaces,
+-  listTasks,
++  listTaskSummaries,
+   listTemplates,
+   listUsers,
+   moveDocument,
+@@ -38,6 +38,7 @@ import {
+   type CreateEvidenceRequest,
+   type Document,
+   type DocumentRevisionListParams,
++  type DossierCatalogParams,
+   type EvidenceListParams,
+   type LinkDocumentRequest,
+   type MoveDocumentRequest,
+@@ -75,9 +76,13 @@ export const wikiKeys = {
+   documentRevision: (documentId: string, revisionId: string) =>
+     ['wiki', 'documents', documentId, 'revisions', revisionId] as const,
+   tasks: (spaceKey: string) => ['wiki', 'spaces', spaceKey, 'tasks'] as const,
++  taskSummaryList: (spaceKey: string, params: DossierCatalogParams) =>
++    ['wiki', 'spaces', spaceKey, 'tasks', 'summaries', params] as const,
+   task: (spaceKey: string, taskKey: string) =>
+     ['wiki', 'spaces', spaceKey, 'tasks', taskKey] as const,
+   phases: (spaceKey: string) => ['wiki', 'spaces', spaceKey, 'phases'] as const,
++  phaseSummaryList: (spaceKey: string, params: DossierCatalogParams) =>
++    ['wiki', 'spaces', spaceKey, 'phases', 'summaries', params] as const,
+   phase: (spaceKey: string, phaseKey: string) =>
+     ['wiki', 'spaces', spaceKey, 'phases', phaseKey] as const,
+   evidence: (params: EvidenceListParams) => ['wiki', 'evidence', params] as const,
+@@ -286,10 +291,10 @@ export function useDocumentRevision(documentId: string, revisionId: string, enab
+   })
+ }
+ 
+-export function useTasks(spaceKey = defaultSpaceKey) {
++export function useTaskSummaries(spaceKey: string, params: DossierCatalogParams) {
+   return useQuery({
+-    queryKey: wikiKeys.tasks(spaceKey),
+-    queryFn: () => listTasks(spaceKey),
++    queryKey: wikiKeys.taskSummaryList(spaceKey, params),
++    queryFn: () => listTaskSummaries(spaceKey, params),
+     enabled: Boolean(spaceKey),
+   })
+ }
+@@ -325,10 +330,10 @@ export function useLinkTaskDocument() {
+   })
+ }
+ 
+-export function usePhases(spaceKey = defaultSpaceKey) {
++export function usePhaseSummaries(spaceKey: string, params: DossierCatalogParams) {
+   return useQuery({
+-    queryKey: wikiKeys.phases(spaceKey),
+-    queryFn: () => listPhases(spaceKey),
++    queryKey: wikiKeys.phaseSummaryList(spaceKey, params),
++    queryFn: () => listPhaseSummaries(spaceKey, params),
+     enabled: Boolean(spaceKey),
+   })
+ }

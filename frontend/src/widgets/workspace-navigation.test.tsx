@@ -1,4 +1,5 @@
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { chooseValue } from '../test/choice'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Outlet, Route, Routes, useLocation } from 'react-router'
@@ -199,7 +200,7 @@ describe('Wiki project navigation', () => {
     ).toBeVisible()
     expect(screen.queryByLabelText('Content URL')).toBeNull()
     expect(requests.filter((path) => path.includes('/tree'))).toHaveLength(0)
-    await userEvent.setup().selectOptions(screen.getByLabelText('Пространство'), 'WIKI2')
+    await chooseValue(screen.getByLabelText('Пространство'), 'WIKI2')
     await waitFor(() =>
       expect(screen.getByLabelText('Content URL')).toHaveTextContent('space=WIKI2'),
     )
@@ -221,9 +222,10 @@ describe('Wiki project navigation', () => {
     mount(`/workspaces/${registry}/${id(1)}/documents`)
     await screen.findByRole('heading', { name: 'Выберите пространство проекта' })
     expect(screen.queryByLabelText('Content URL')).toBeNull()
+    fireEvent.keyDown(screen.getByLabelText('Пространство'), { key: 'Enter' })
     expect(
-      screen.getByRole('option', { name: 'Пространство 2 · WIKI2 · Недоступно' }),
-    ).toBeDisabled()
+      await screen.findByRole('option', { name: 'Пространство 2 · WIKI2 · Недоступно' }),
+    ).toHaveAttribute('data-disabled')
     expect(requests.filter((path) => path.includes('/tree'))).toHaveLength(0)
   })
   it('opens the exact historical revision after project detach and clears its obsolete project context', async () => {

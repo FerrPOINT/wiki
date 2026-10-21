@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router'
-import { Button, Label } from '@pdlc/ui/ui'
+import { Select, Button, Label } from '@pdlc/ui/ui'
 import { useQuery } from '@tanstack/react-query'
 import { apiRequest } from '@/api/client'
 import { useNamespaceContext } from '@/widgets/namespace-context'
@@ -91,26 +91,23 @@ export function TaskRevisionLink({
       <h2 className="font-semibold">Связать эту ревизию с задачей</h2>
       <div className="space-y-2">
         <Label htmlFor={`task-project-${documentId}`}>Проект задачи</Label>
-        <select
+        <Select
           id={`task-project-${documentId}`}
           value={ref ? projectIdentity(ref) : ''}
-          className="min-h-10 w-full rounded-md border border-border bg-surface px-3"
-          onChange={(event) => {
-            setProjectChoice(event.target.value)
+          className="w-full"
+          onValueChange={(nextValue) => {
+            setProjectChoice(nextValue)
             setSelected('')
             setOffset(0)
           }}
-        >
-          <option value="">Выберите проект</option>
-          {available.map((project) => (
-            <option
-              key={projectIdentity(project.namespace)}
-              value={projectIdentity(project.namespace)}
-            >
-              {project.name} · {project.project_key}
-            </option>
-          ))}
-        </select>
+          options={[
+            { value: '', label: 'Выберите проект' },
+            ...(available.map((project) => ({
+              value: String(projectIdentity(project.namespace)),
+              label: [project.name, ' · ', project.project_key].join(''),
+            })) ?? []),
+          ]}
+        />
       </div>
       {!ref ? (
         <p role="status">Выберите связанный проект, чтобы загрузить задачи.</p>
@@ -121,27 +118,26 @@ export function TaskRevisionLink({
       ) : (
         <div className="space-y-2">
           <Label htmlFor={`task-ref-${documentId}`}>Задача проекта</Label>
-          <select
+          <Select
             id={`task-ref-${documentId}`}
             required
             value={selected}
-            onChange={(event) => setSelected(event.target.value)}
-            className="min-h-10 w-full rounded-md border border-border bg-surface px-3"
-          >
-            <option value="">Выберите задачу</option>
-            {selected &&
+            onValueChange={(nextValue) => setSelected(nextValue)}
+            className="w-full"
+            options={[
+              { value: '', label: 'Выберите задачу' },
+              ...(selected &&
               !tasks.data?.some(
                 (item) => `${item.task.tracker_instance_id}/${item.task.task_id}` === selected,
-              ) && <option value={selected}>Задача из ссылки Tracker</option>}
-            {tasks.data?.map((item) => (
-              <option
-                key={item.task.task_id}
-                value={`${item.task.tracker_instance_id}/${item.task.task_id}`}
-              >
-                {item.task_key} · {item.label}
-              </option>
-            ))}
-          </select>
+              )
+                ? [{ value: String(selected), label: 'Задача из ссылки Tracker' }]
+                : []),
+              ...(tasks.data?.map((item) => ({
+                value: String(`${item.task.tracker_instance_id}/${item.task.task_id}`),
+                label: [item.task_key, ' · ', item.label].join(''),
+              })) ?? []),
+            ]}
+          />
         </div>
       )}
       <div className="flex flex-wrap gap-2">

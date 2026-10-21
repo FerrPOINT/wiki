@@ -1,23 +1,9 @@
 import { useProjectRouteRef } from '@/widgets/namespace-context'
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { NamespaceLink as Link, ResourceList, ResourceListRow } from '@pdlc/ui/ui'
-import { useSearchParams } from 'react-router'
 import {
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
-  Download,
-  ExternalLink,
-  FileText,
-  Info,
-  Link2,
-  Plus,
-  RotateCcw,
-  Search,
-  Upload,
-  X,
-} from 'lucide-react'
-import {
+  NamespaceLink as Link,
+  ResourceList,
+  ResourceListRow,
   Button,
   Card,
   CardContent,
@@ -35,6 +21,23 @@ import {
   TableHeader,
   TableRow,
 } from '@pdlc/ui/ui'
+import { useSearchParams } from 'react-router'
+import {
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  ExternalLink,
+  FileText,
+  Info,
+  Link2,
+  Plus,
+  RotateCcw,
+  Search,
+  Upload,
+  X,
+} from 'lucide-react'
+
 import {
   useAttachment,
   useCreateEvidence,
@@ -178,13 +181,14 @@ function EvidenceTitle({ item, onSelect }: { item: Evidence; onSelect: (id: stri
     )
   }
   return (
-    <button
+    <Button
+      variant="ghost"
       type="button"
       onClick={() => onSelect(item.id)}
       className="min-h-10 min-w-0 break-words text-left font-medium text-accent hover:text-accent-hover"
     >
       {item.title}
-    </button>
+    </Button>
   )
 }
 

@@ -1,0 +1,135 @@
+diff --git a/.base-revision b/.base-revision
+index a8ed992..7ca56ce 100644
+--- a/.base-revision
++++ b/.base-revision
+@@ -1 +1 @@
+-ae639b8f8c4be600e29d9014ac5fec17b1293ce0
++b192896902e3eed43363a3448d0c400eb7c8f04d
+diff --git a/frontend/src/pages/document-compose/document-compose.test.tsx b/frontend/src/pages/document-compose/document-compose.test.tsx
+index efb79b7..3138c11 100644
+--- a/frontend/src/pages/document-compose/document-compose.test.tsx
++++ b/frontend/src/pages/document-compose/document-compose.test.tsx
+@@ -9,6 +9,8 @@ const useSpaces = vi.hoisted(() => vi.fn())
+ const useTemplates = vi.hoisted(() => vi.fn())
+ 
+ const createDocumentMutate = vi.hoisted(() => vi.fn())
++const spacesRefetch = vi.hoisted(() => vi.fn())
++const templatesRefetch = vi.hoisted(() => vi.fn())
+ 
+ vi.mock('@/shared/api/hooks', () => ({
+   defaultSpaceKey: 'BASE',
+@@ -20,6 +22,7 @@ vi.mock('@/shared/api/hooks', () => ({
+ function setupCompose(
+   createOverrides: Record<string, unknown> = {},
+   initialRoute = '/documents/new?space=eng',
++  queryOverrides: { spaces?: Record<string, unknown>; templates?: Record<string, unknown> } = {},
+ ) {
+   useSpaces.mockReturnValue({
+     data: {
+@@ -40,6 +43,8 @@ function setupCompose(
+     },
+     isLoading: false,
+     isError: false,
++    refetch: spacesRefetch,
++    ...queryOverrides.spaces,
+   })
+   useTemplates.mockReturnValue({
+     data: {
+@@ -54,6 +59,8 @@ function setupCompose(
+     },
+     isLoading: false,
+     isError: false,
++    refetch: templatesRefetch,
++    ...queryOverrides.templates,
+   })
+   useCreateDocument.mockReturnValue({
+     mutate: createDocumentMutate,
+@@ -197,4 +204,53 @@ describe('DocumentComposePage', () => {
+     expect(alert).toHaveTextContent('Проверьте заполнение полей: Название: required')
+     expect(alert).not.toHaveTextContent('requestId')
+   })
++
++  it('reports a failed space catalogue and retries without discarding the draft or usable templates', () => {
++    setupCompose({}, '/documents/new?space=eng', {
++      spaces: { isError: true, error: { code: 'UNAVAILABLE', message: 'requestId=private' } },
++    })
++    fireEvent.change(screen.getByLabelText('Название'), {
++      target: { value: 'Несохранённый черновик' },
++    })
++    fireEvent.change(screen.getByLabelText('Markdown документа'), {
++      target: { value: '# Рабочий текст' },
++    })
++
++    const alert = screen.getByRole('alert')
++    expect(alert).toHaveTextContent('Не удалось загрузить пространства')
++    expect(alert).not.toHaveTextContent('private')
++    fireEvent.click(within(alert).getByRole('button'))
++    expect(spacesRefetch).toHaveBeenCalledOnce()
++    expect(templatesRefetch).not.toHaveBeenCalled()
++    expect(screen.getByLabelText('Название')).toHaveValue('Несохранённый черновик')
++    expect(screen.getByLabelText('Markdown документа')).toHaveValue('# Рабочий текст')
++    expect(screen.getByRole('button', { name: 'План проверки' })).toBeVisible()
++    expect(createDocumentMutate).not.toHaveBeenCalled()
++  })
++
++  it('localizes a template failure while retaining the selected space and draft', () => {
++    setupCompose({}, '/documents/new?space=eng', {
++      templates: { isError: true, error: { code: 'UNAVAILABLE', message: 'requestId=private' } },
++    })
++    fireEvent.change(screen.getByLabelText('Название'), {
++      target: { value: 'Черновик без шаблона' },
++    })
++
++    const alert = screen.getByRole('alert')
++    expect(alert).toHaveTextContent('Не удалось загрузить шаблоны')
++    fireEvent.click(within(alert).getByRole('button'))
++    expect(templatesRefetch).toHaveBeenCalledOnce()
++    expect(spacesRefetch).not.toHaveBeenCalled()
++    expect(screen.getByLabelText('Пространство')).toHaveValue('ENG')
++    expect(screen.getByLabelText('Название')).toHaveValue('Черновик без шаблона')
++    expect(screen.getByRole('button', { name: 'Сохранить черновик' })).toBeEnabled()
++    expect(createDocumentMutate).not.toHaveBeenCalled()
++  })
++
++  it('shows the space catalogue loading state without submitting a document', () => {
++    setupCompose({}, '/documents/new?space=eng', { spaces: { isLoading: true } })
++    expect(screen.getByText('Загружаем пространства')).toBeVisible()
++    expect(screen.getByLabelText('Пространство')).toHaveValue('ENG')
++    expect(createDocumentMutate).not.toHaveBeenCalled()
++  })
+ })
+diff --git a/frontend/src/pages/document-compose/index.tsx b/frontend/src/pages/document-compose/index.tsx
+index df759e5..14fc68f 100644
+--- a/frontend/src/pages/document-compose/index.tsx
++++ b/frontend/src/pages/document-compose/index.tsx
+@@ -138,6 +138,14 @@ export function DocumentComposePage() {
+         />
+       )}
+ 
++      {spacesQuery.isLoading && <LoadingState message="Загружаем пространства" />}
++      {spacesQuery.isError && (
++        <ErrorState
++          message={formatApiErrorForUser(spacesQuery.error, 'Не удалось загрузить пространства')}
++          onRetry={() => void spacesQuery.refetch()}
++        />
++      )}
++
+       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
+         <Card>
+           <CardHeader>
+@@ -176,6 +184,15 @@ export function DocumentComposePage() {
+ 
+             <div className="flex flex-wrap gap-2">
+               {templatesQuery.isLoading && <LoadingState message="Загружаем шаблоны" />}
++              {templatesQuery.isError && (
++                <ErrorState
++                  message={formatApiErrorForUser(
++                    templatesQuery.error,
++                    'Не удалось загрузить шаблоны',
++                  )}
++                  onRetry={() => void templatesQuery.refetch()}
++                />
++              )}
+               {(templatesQuery.data?.templates ?? []).map((template) => (
+                 <button
+                   key={template.id}

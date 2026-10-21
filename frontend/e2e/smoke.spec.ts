@@ -884,6 +884,7 @@ test.describe('wiki smoke', () => {
     for (const viewport of [
       { width: 375, height: 812 },
       { width: 1440, height: 900 },
+      { width: 1920, height: 1080 },
       { width: 2560, height: 1440 },
     ]) {
       await page.setViewportSize(viewport)
@@ -935,7 +936,7 @@ test.describe('wiki smoke', () => {
 
     const trigger = page.getByRole('button', { name: 'Открыть навигацию' })
     await trigger.click()
-    const dialog = page.getByRole('dialog', { name: 'Навигация Wiki' })
+    const dialog = page.getByRole('dialog', { name: 'Wiki', exact: true })
 
     await expect(dialog).toBeVisible()
     await expect(dialog.getByRole('link', { name: 'Пространства' })).toHaveAttribute(

@@ -1,0 +1,87 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index d44f829..a3b5dfe 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -6,6 +6,10 @@
+ 
+ ## [Unreleased]
+ 
++- Frontend architecture and tech choices name Base as the shared UI owner;
++  the earlier product-local Radix/shadcn choice is explicitly superseded.
++  Domain adapters and existing runtime behavior are unchanged.
++
+ - Общий Base snapshot обновлён до 0ffb99e: verified profile/directory contracts
+   и UI dependency graph без замены shell. Принятый runtime не переключается.
+ 
+diff --git a/docs/FRONTEND_ARCHITECTURE.md b/docs/FRONTEND_ARCHITECTURE.md
+index f12aa79..708425b 100644
+--- a/docs/FRONTEND_ARCHITECTURE.md
++++ b/docs/FRONTEND_ARCHITECTURE.md
+@@ -4,6 +4,13 @@
+ 
+ Frontend - React SPA on Vite, TypeScript and Tailwind. The UI is an operational knowledge base, so it should prioritize fast navigation, readable documents, dense lists and predictable controls.
+ 
++Shared UI ownership belongs to [Base UI/UX Standard](../../services-base/docs/platform/UI_UX_STANDARD.md).
++Wiki imports shell, controls, states and page compositions from `@sdlc/ui`;
++it supplies domain slots, data and callbacks without a second UI kit or token set.
++The earlier local Radix/shadcn choice is superseded. Snapshot wiring is documented
++in [Base Integration](BASE_INTEGRATION.md); routes and exceptions belong to the
++[UI/UX Map](UI_UX_MAP.md).
++
+ ## 2. Tech Stack
+ 
+ | Layer        | Library                                          |
+@@ -12,7 +19,7 @@ Frontend - React SPA on Vite, TypeScript and Tailwind. The UI is an operational
+ | Build        | Vite                                             |
+ | Language     | TypeScript                                       |
+ | Styling      | Tailwind CSS with CSS variables                  |
+-| Components   | Radix primitives / local shadcn-style components |
++| Components   | `@sdlc/ui` from the pinned Base snapshot          |
+ | Icons        | lucide-react                                     |
+ | Server state | TanStack Query                                   |
+ | Client state | Zustand                                          |
+@@ -22,6 +29,11 @@ Frontend - React SPA on Vite, TypeScript and Tailwind. The UI is an operational
+ 
+ ## 3. Target Folders
+ 
++This is a target domain-folder map, not an inventory of shipped files.
++`widgets/app-shell.tsx` is the product adapter for Base `AppShell`, not a separate
++shell implementation. `shared/ui` contains domain adapters; common primitives
++and tokens remain in Base.
++
+ ```text
+ frontend/src/
+   app/
+@@ -76,7 +88,7 @@ app -> pages -> widgets -> features -> entities -> shared
+ - Upper layers may import lower layers.
+ - Lower layers do not import upper layers.
+ - Feature modules should expose a small public API through `index.ts`.
+-- Shared UI components do not know domain objects.
++- Base UI components do not know Wiki domain objects; product adapters may bind domain data.
+ 
+ ## 5. Main Routes
+ 
+diff --git a/docs/TECH_CHOICES.md b/docs/TECH_CHOICES.md
+index a612466..3c9a916 100644
+--- a/docs/TECH_CHOICES.md
++++ b/docs/TECH_CHOICES.md
+@@ -31,7 +31,7 @@
+ |---|---|
+ | UI | React + Vite |
+ | Styling | Tailwind CSS |
+-| Components | Radix/local shadcn-style components |
++| Components | `@sdlc/ui` from the pinned Base snapshot |
+ | Server state | TanStack Query |
+ | Client state | Zustand |
+ | Routing | react-router |
+@@ -39,4 +39,10 @@
+ 
+ ## 4. Rationale
+ 
++Shared shell, controls, states, page compositions and semantic tokens belong to
++[Base UI/UX Standard](../../services-base/docs/platform/UI_UX_STANDARD.md).
++The earlier local Radix/shadcn choice is superseded for product UI ownership;
++Wiki imports Base primitives and owns only domain adapters, content and actions.
++See [Base Integration](BASE_INTEGRATION.md) and the [UI/UX Map](UI_UX_MAP.md).
++
+ The stack stays close to the broader SDLC toolset to reuse operational knowledge, while adding Wiki-specific libraries only where the base product needs them: Markdown, sanitization, local attachment storage, search and revision diffing.

@@ -1,3 +1,4 @@
+import { chooseValue } from '../../test/choice'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { useNamespaceNavigate as useNavigate } from '@pdlc/ui/ui'
 import { MemoryRouter, useLocation } from 'react-router'
@@ -225,7 +226,7 @@ describe('AuditLogPage', () => {
     expect(screen.getAllByText('integration.sync')).toHaveLength(3)
   })
 
-  it('applies filters before cursor paging and resets to the first page', () => {
+  it('applies filters before cursor paging and resets to the first page', async () => {
     useAuditLog.mockImplementation(({ cursor }: AuditLogParams) =>
       queryResult(
         cursor
@@ -241,9 +242,9 @@ describe('AuditLogPage', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'Фильтры' }))
     expect(useUsers).toHaveBeenLastCalledWith(true)
-    fireEvent.change(screen.getByLabelText('Действие'), { target: { value: 'document.publish' } })
-    fireEvent.change(screen.getByLabelText('Тип объекта'), { target: { value: 'document' } })
-    fireEvent.change(screen.getByLabelText('Участник'), { target: { value: actorId } })
+    await chooseValue(screen.getByLabelText('Действие'), 'document.publish')
+    await chooseValue(screen.getByLabelText('Тип объекта'), 'document')
+    await chooseValue(screen.getByLabelText('Участник'), actorId)
     fireEvent.change(screen.getByLabelText('С даты (местное время)'), {
       target: { value: '2026-09-20T10:00' },
     })
@@ -315,20 +316,20 @@ describe('AuditLogPage', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Фильтры (5)' }))
-    expect(screen.getByLabelText('Действие')).toHaveValue('integration.sync')
-    expect(screen.getByLabelText('Тип объекта')).toHaveValue('integration')
-    expect(screen.getByLabelText('Участник')).toHaveValue(actorId)
+    expect(screen.getByLabelText('Действие')).toHaveAttribute('data-value', 'integration.sync')
+    expect(screen.getByLabelText('Тип объекта')).toHaveAttribute('data-value', 'integration')
+    expect(screen.getByLabelText('Участник')).toHaveAttribute('data-value', actorId)
     expect(screen.getByLabelText('С даты (местное время)')).toHaveValue('2026-09-20T10:00')
     expect(screen.getByLabelText('До даты (не включая)')).toHaveValue('2026-09-21T10:00')
     expect(screen.getByTestId('router-location')).toHaveTextContent('keep=1')
   })
 
-  it('restores applied filters through browser Back and Forward', () => {
+  it('restores applied filters through browser Back and Forward', async () => {
     useAuditLog.mockReturnValue(queryResult({ entries, next_cursor: null }))
     renderAuditLog('/audit-log?keep=1')
 
     fireEvent.click(screen.getByRole('button', { name: 'Фильтры' }))
-    fireEvent.change(screen.getByLabelText('Действие'), { target: { value: 'document.publish' } })
+    await chooseValue(screen.getByLabelText('Действие'), 'document.publish')
     fireEvent.click(screen.getByRole('button', { name: 'Применить' }))
     expect(screen.getByTestId('router-location')).toHaveTextContent(
       '/audit-log?keep=1&action=document.publish',
@@ -434,17 +435,17 @@ describe('AuditLogPage', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'Фильтры (1)' }))
     fireEvent.click(screen.getByRole('button', { name: 'Выбрать из списка' }))
-    expect(screen.getByLabelText('Участник')).toHaveValue(historicalActorId)
+    expect(screen.getByLabelText('Участник')).toHaveAttribute('data-value', historicalActorId)
   })
 
-  it('keeps filters available after an empty filtered result', () => {
+  it('keeps filters available after an empty filtered result', async () => {
     useAuditLog.mockImplementation(({ action }: AuditLogParams) =>
       queryResult({ entries: action ? [] : entries, next_cursor: null }),
     )
     renderAuditLog()
 
     fireEvent.click(screen.getByRole('button', { name: 'Фильтры' }))
-    fireEvent.change(screen.getByLabelText('Действие'), { target: { value: 'document.publish' } })
+    await chooseValue(screen.getByLabelText('Действие'), 'document.publish')
     fireEvent.click(screen.getByRole('button', { name: 'Применить' }))
 
     expect(screen.getByText('Событий по фильтрам не найдено')).toBeInTheDocument()

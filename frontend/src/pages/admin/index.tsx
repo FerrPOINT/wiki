@@ -1,4 +1,4 @@
-import { LoadingState, Loader, NamespaceLink as Link } from '@pdlc/ui/ui'
+import { LoadingState, Loader, NamespaceLink as Link, Button } from '@pdlc/ui/ui'
 
 import {
   ArrowRight,
@@ -11,7 +11,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useAuditLog, useSpaces, useUsers, useWikiSettings } from '@/shared/api/hooks'
-import { Button } from '@pdlc/ui/ui'
+
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatBytes, formatDateTime } from '@/shared/lib/wiki-format'
 

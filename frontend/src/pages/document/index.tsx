@@ -1,7 +1,26 @@
 import { useNamespaceContext } from '@/widgets/namespace-context'
 import { TaskRevisionLink } from '@/features/managed-links/TaskRevisionLink'
 import { FormEvent, useEffect, useRef, useState } from 'react'
-import { NamespaceLink as Link } from '@pdlc/ui/ui'
+import {
+  NamespaceLink as Link,
+  Button,
+  ConfirmDialog,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  Label,
+  Textarea,
+  UnsavedChangesGuard,
+} from '@pdlc/ui/ui'
 import { useParams } from 'react-router'
 import {
   Archive,
@@ -27,19 +46,13 @@ import {
   usePublishDocument,
   useUpdateDocumentDraft,
 } from '@/shared/api/hooks'
-import { ConfirmDialog, EmptyState, ErrorState, LoadingState } from '@pdlc/ui/ui'
-import { Button } from '@pdlc/ui/ui'
-import { Card, CardContent, CardHeader, CardTitle } from '@pdlc/ui/ui'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@pdlc/ui/ui'
-import { Input } from '@pdlc/ui/ui'
-import { Label } from '@pdlc/ui/ui'
-import { Textarea } from '@pdlc/ui/ui'
+
 import {
   formatApiErrorForUser,
   formatFirstApiErrorForUser,
   hasApiErrorCode,
 } from '@/shared/lib/api-error'
-import { UnsavedChangesGuard } from '@pdlc/ui/ui'
+
 import {
   formatDateTime,
   formatDocumentStatus,
@@ -353,22 +366,24 @@ export function DocumentPage() {
             aria-label="Режим документа"
             className="inline-grid grid-cols-2 rounded-md border border-border bg-surface p-1"
           >
-            <button
+            <Button
+              variant="ghost"
               type="button"
               aria-pressed={!isEditing}
               className={`inline-flex min-h-10 items-center justify-center gap-2 rounded px-3 text-sm ${!isEditing ? 'bg-surface-raised font-medium text-text-primary' : 'text-text-muted'}`}
               onClick={() => setSelectedMode('read')}
             >
               <Eye className="h-4 w-4" /> Просмотр
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
               type="button"
               aria-pressed={isEditing}
               className={`inline-flex min-h-10 items-center justify-center gap-2 rounded px-3 text-sm ${isEditing ? 'bg-surface-raised font-medium text-text-primary' : 'text-text-muted'}`}
               onClick={() => setSelectedMode('edit')}
             >
               <FilePenLine className="h-4 w-4" /> Правка
-            </button>
+            </Button>
           </div>
           {draftChanged && (
             <span role="status" className="text-xs text-warning">

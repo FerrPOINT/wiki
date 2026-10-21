@@ -1513,6 +1513,37 @@
         ]
       }
     },
+    "/api/v1/space-admission": {
+      "get": {
+        "tags": [
+          "spaces"
+        ],
+        "operationId": "human_admission_window",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HumanAdmissionWindowV1"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": ""
+          },
+          "503": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/spaces": {
       "get": {
         "tags": [
@@ -3826,6 +3857,38 @@
             "type": "string"
           },
           "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "HumanAdmissionWindowV1": {
+        "type": "object",
+        "description": "Display freshness only; every resource request still needs its own owner proof.",
+        "required": [
+          "schema_version",
+          "enforced"
+        ],
+        "properties": {
+          "enforced": {
+            "type": "boolean"
+          },
+          "remaining_millis": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "schema_version": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "scope_revision": {
             "type": [
               "string",
               "null"

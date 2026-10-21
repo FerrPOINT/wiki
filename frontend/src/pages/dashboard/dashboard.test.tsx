@@ -1,3 +1,4 @@
+import { chooseValue, findChoiceOption, choiceOptions } from '../../test/choice'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
@@ -49,10 +50,10 @@ describe('DashboardPage', () => {
       listPhaseSummaries.mockResolvedValue({ phases: [], next_cursor: null, total: 0 })
 
       render(wrapper(<DashboardPage />))
-      await screen.findByRole('option', { name: 'Same name' })
-      expect(screen.getAllByRole('option')).toHaveLength(1)
-      expect(screen.getByLabelText('Пространство')).toHaveValue('LIVE')
-      expect(screen.getByRole('option')).toHaveValue('LIVE')
+      const field = screen.getByRole('combobox', { name: 'Пространство' })
+      expect((await findChoiceOption(field, 'Same name')).value).toBe('LIVE')
+      expect(await choiceOptions(field)).toHaveLength(1)
+      expect(field).toHaveAttribute('data-value', 'LIVE')
       const stats = within(screen.getByRole('region', { name: 'Показатели Wiki' }))
       expect(stats.getByText('7')).toBeInTheDocument()
       expect(stats.queryByText('1007')).not.toBeInTheDocument()
@@ -288,8 +289,8 @@ describe('DashboardPage', () => {
 
     render(wrapper(<DashboardPage />))
     const spaceSelect = await screen.findByLabelText('Пространство')
-    await waitFor(() => expect(screen.getByRole('option', { name: 'Team' })).toBeInTheDocument())
-    fireEvent.change(spaceSelect, { target: { value: 'TEAM' } })
+    expect((await findChoiceOption(spaceSelect, 'Team')).value).toBe('TEAM')
+    await chooseValue(spaceSelect, 'TEAM')
 
     expect(await screen.findByText('Документ команды')).toBeInTheDocument()
     expect(await screen.findByText('Задача команды')).toBeInTheDocument()

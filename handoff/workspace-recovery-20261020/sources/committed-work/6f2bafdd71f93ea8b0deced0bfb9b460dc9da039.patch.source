@@ -1,0 +1,1206 @@
+diff --git a/frontend/e2e/smoke.spec.ts b/frontend/e2e/smoke.spec.ts
+index 8f5cdc5..5bb1b17 100644
+--- a/frontend/e2e/smoke.spec.ts
++++ b/frontend/e2e/smoke.spec.ts
+@@ -172,6 +172,18 @@ const phase = {
+   documents: [documentSummary],
+   evidence: [evidence, fileEvidence],
+ }
++const baseSpace = {
++  id: 'space-sdlc',
++  key: 'BASE',
++  name: 'База знаний Base',
++  description: 'Основное пространство Wiki для документов платформы Base',
++  owner_id: user.id,
++  status: 'active',
++  document_count: 1,
++  member_count: 1,
++  created_at: now,
++  updated_at: now,
++}
+ const settings = {
+   instance_name: 'Wiki',
+   api_base_path: '/api/v1',
+@@ -311,22 +323,7 @@ async function installWikiApiMocks(page: Page) {
+     }
+     if (method === 'GET' && path === '/settings') return routeJson(route, settings)
+     if (method === 'GET' && path === '/spaces') {
+-      return routeJson(route, {
+-        spaces: [
+-          {
+-            id: 'space-sdlc',
+-            key: 'BASE',
+-            name: 'База знаний Base',
+-            description: 'Основное пространство Wiki для документов платформы Base',
+-            owner_id: user.id,
+-            status: 'active',
+-            document_count: 1,
+-            member_count: 1,
+-            created_at: now,
+-            updated_at: now,
+-          },
+-        ],
+-      })
++      return routeJson(route, { spaces: [baseSpace] })
+     }
+     if (method === 'POST' && path === '/spaces/BASE/archive') {
+       return routeJson(route, {
+@@ -424,6 +421,10 @@ async function installWikiApiMocks(page: Page) {
+       currentDocument = { ...currentDocument, parent_id: body.parent_id ?? null, updated_at: now }
+       return routeJson(route, currentDocument)
+     }
++    if (method === 'GET' && path === '/spaces/BASE/task-summaries')
++      return routeJson(route, { tasks: [currentTask], next_cursor: null, total: 1 })
++    if (method === 'GET' && path === '/spaces/BASE/phase-summaries')
++      return routeJson(route, { phases: [currentPhase], next_cursor: null, total: 1 })
+     if (method === 'GET' && path === '/spaces/BASE/tasks')
+       return routeJson(route, { tasks: [currentTask] })
+     if (method === 'GET' && path === '/spaces/BASE/tasks/BASE-42')
+@@ -563,13 +564,221 @@ async function installWikiApiMocks(page: Page) {
+   }
+ }
+ 
+-async function gotoWiki(page: Page, path = '/') {
++async function gotoWiki(
++  page: Page,
++  path = '/',
++  expectedPath = path === '/' ? '/?space=BASE' : path,
++) {
+   const target = new URL(path, `${baseURL}/`).toString()
+   await page.goto(target)
+-  await expect(page).toHaveURL(target, { timeout: 10_000 })
++  await expect(page).toHaveURL(new URL(expectedPath, `${baseURL}/`).toString(), { timeout: 10_000 })
+ }
+ 
+ test.describe('wiki smoke', () => {
++  test('restores overview space context after direct login, reload and browser history', async ({
++    page,
++  }) => {
++    await installWikiApiMocks(page)
++    await page.route('**/api/v1/spaces', (route) =>
++      routeJson(route, {
++        spaces: [
++          baseSpace,
++          { ...baseSpace, id: 'space-team', key: 'TEAM', name: 'Команда', document_count: 42 },
++        ],
++      }),
++    )
++    await page.route('**/api/v1/spaces/TEAM/task-summaries?*', (route) =>
++      routeJson(route, {
++        tasks: [{ ...task, task_key: 'TEAM-1', title: 'Задача команды' }],
++        next_cursor: null,
++        total: 999,
++      }),
++    )
++    await page.route('**/api/v1/spaces/TEAM/phase-summaries?*', (route) =>
++      routeJson(route, { phases: [], next_cursor: null, total: 555 }),
++    )
++    const scopedReads: URL[] = []
++    const pageErrors: string[] = []
++    const failedResponses: string[] = []
++    page.on('pageerror', (error) => pageErrors.push(error.message))
++    page.on('response', (response) => {
++      if (response.status() >= 400) failedResponses.push(response.url())
++    })
++    page.on('request', (request) => {
++      const url = new URL(request.url())
++      if (url.pathname.endsWith('-summaries')) scopedReads.push(url)
++    })
++    await gotoWiki(page, '/?space=TEAM&keep=yes&page=3')
++    const select = page.getByRole('combobox', { name: 'Пространство', exact: true })
++    await expect(select).toHaveValue('TEAM')
++    await expect(page.getByRole('link', { name: 'Новый документ', exact: true })).toHaveCount(1)
++    await expect(page.getByRole('link', { name: 'Новый документ', exact: true })).toHaveAttribute(
++      'href',
++      '/documents/new?space=TEAM',
++    )
++    await expect(page.getByRole('link', { name: 'Найти', exact: true })).toHaveAttribute(
++      'href',
++      '/search?space=TEAM',
++    )
++    const stats = page.getByRole('region', { name: 'Показатели Wiki' })
++    await expect(stats.getByText('43', { exact: true })).toBeVisible()
++    await expect(stats.getByText('999', { exact: true })).toBeVisible()
++    await expect(stats.getByText('555', { exact: true })).toBeVisible()
++    await page.reload()
++    await expect(select).toHaveValue('TEAM')
++    await select.selectOption('BASE')
++    await expect(page).toHaveURL(`${baseURL}/?space=BASE&keep=yes`)
++    await page.goBack()
++    await expect(select).toHaveValue('TEAM')
++    await expect(page).toHaveURL(`${baseURL}/?space=TEAM&keep=yes&page=3`)
++    await page.goForward()
++    await expect(select).toHaveValue('BASE')
++    await expect(
++      page
++        .getByRole('region', { name: 'Задачи в Wiki' })
++        .getByRole('link', { name: /Требования к Wiki MVP/ }),
++    ).toHaveAttribute('href', '/tasks/BASE-42?space=BASE')
++    expect(
++      scopedReads
++        .filter((url) => url.pathname.endsWith('/task-summaries'))
++        .every((url) => url.searchParams.get('limit') === '4'),
++    ).toBe(true)
++    expect(
++      scopedReads
++        .filter((url) => url.pathname.endsWith('/phase-summaries'))
++        .every((url) => url.searchParams.get('limit') === '1'),
++    ).toBe(true)
++    expect(pageErrors).toEqual([])
++    expect(failedResponses).toEqual([])
++  })
++
++  test('does not read or offer CRUD for an unknown overview space and wraps long keys', async ({
++    page,
++  }, testInfo) => {
++    await installWikiApiMocks(page)
++    const reads: string[] = []
++    page.on('request', (request) => {
++      const url = new URL(request.url())
++      if (url.pathname === '/api/v1/search' || url.pathname.endsWith('-summaries'))
++        reads.push(url.pathname)
++    })
++    await gotoWiki(page, `/?space=${longUnbrokenValue}`)
++    await expect(page.getByRole('heading', { name: 'Объект не найден' })).toBeVisible()
++    await expect(page.getByRole('link', { name: 'Все пространства', exact: true })).toBeVisible()
++    await expect(page.getByRole('link', { name: 'Новый документ', exact: true })).toHaveCount(0)
++    await expect(page.getByRole('button', { name: 'Повторить', exact: true })).toHaveCount(0)
++    await expect(page.getByRole('combobox')).toHaveCount(0)
++    for (const width of [375, 1920, 2560]) {
++      await page.setViewportSize({ width, height: 1080 })
++      expect(
++        await page.evaluate(
++          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
++        ),
++      ).toBe(true)
++      await page.screenshot({
++        path: testInfo.outputPath(`overview-missing-${width}.png`),
++        fullPage: true,
++      })
++    }
++    expect(reads).toEqual([])
++  })
++
++  for (const status of [403, 404, 503]) {
++    test(`keeps healthy overview tasks visible after document HTTP ${status} and retries only recoverable failures`, async ({
++      page,
++    }) => {
++      await installWikiApiMocks(page)
++      let recovered = false
++      await page.route('**/api/v1/search?*', (route) => {
++        if (recovered) return routeJson(route, { results: [] })
++        return routeJson(
++          route,
++          {
++            code:
++              status === 403 ? 'FORBIDDEN' : status === 404 ? 'NOT_FOUND' : 'SERVICE_UNAVAILABLE',
++            message: 'Поиск временно недоступен',
++          },
++          status,
++        )
++      })
++      await gotoWiki(page)
++      const documents = page.getByRole('region', { name: 'Последние документы' })
++      const tasks = page.getByRole('region', { name: 'Задачи в Wiki' })
++      await expect(tasks.getByRole('link', { name: /Требования к Wiki MVP/ })).toBeVisible()
++      if (status === 503) {
++        await expect(documents.getByRole('alert')).toContainText('Поиск временно недоступен', {
++          timeout: 15_000,
++        })
++        recovered = true
++        await documents.getByRole('button', { name: 'Повторить', exact: true }).click()
++        await expect(documents.getByText('Недавние документы не найдены')).toBeVisible()
++      } else {
++        await expect(
++          documents.getByRole('heading', {
++            name: status === 403 ? 'Нет доступа' : 'Объект не найден',
++          }),
++        ).toBeVisible({ timeout: 15_000 })
++        await expect(documents.getByRole('button', { name: 'Повторить', exact: true })).toHaveCount(
++          0,
++        )
++        await expect(page.getByRole('link', { name: 'Найти', exact: true })).toHaveCount(0)
++        await expect(page.getByRole('link', { name: 'Новый документ', exact: true })).toHaveCount(0)
++      }
++    })
++  }
++
++  test('retains cached overview documents on a recoverable refresh failure but hides them on denied refresh', async ({
++    page,
++  }, testInfo) => {
++    await installWikiApiMocks(page)
++    let status = 200
++    await page.route('**/api/v1/search?*', (route) =>
++      status === 200
++        ? route.fallback()
++        : routeJson(
++            route,
++            {
++              code: status === 403 ? 'FORBIDDEN' : 'SERVICE_UNAVAILABLE',
++              message: longUnbrokenValue,
++            },
++            status,
++          ),
++    )
++    await gotoWiki(page)
++    const documents = page.getByRole('region', { name: 'Последние документы' })
++    const cachedDocument = documents.getByRole('link', { name: /Требования к Wiki MVP/ })
++    await expect(cachedDocument).toHaveAttribute(
++      'href',
++      '/documents/product-requirements?space=BASE',
++    )
++    status = 503
++    await page.getByRole('link', { name: 'Пространства', exact: true }).click()
++    await page.getByRole('link', { name: 'Обзор', exact: true }).click()
++    await expect(documents.locator('[data-page-state="partial-error"]')).toBeVisible({
++      timeout: 15_000,
++    })
++    await expect(cachedDocument).toBeVisible()
++    for (const width of [375, 1920, 2560]) {
++      await page.setViewportSize({ width, height: 1080 })
++      expect(
++        await page.evaluate(
++          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
++        ),
++      ).toBe(true)
++      await page.screenshot({
++        path: testInfo.outputPath(`overview-partial-${width}.png`),
++        fullPage: true,
++      })
++    }
++    status = 403
++    await documents.getByRole('button', { name: 'Повторить', exact: true }).click()
++    await expect(documents.getByRole('heading', { name: 'Нет доступа' })).toBeVisible({
++      timeout: 15_000,
++    })
++    await expect(cachedDocument).toHaveCount(0)
++    await expect(documents.getByRole('button', { name: 'Повторить', exact: true })).toHaveCount(0)
++  })
++
+   test('uses the shared work-area geometry across semantic page modes', async ({
+     page,
+   }, testInfo) => {
+@@ -961,7 +1170,7 @@ test.describe('wiki smoke', () => {
+     const apiMocks = await installWikiApiMocks(page)
+     await gotoWiki(page)
+ 
+-    await expect(page).toHaveURL(`${baseURL}/`, { timeout: 10_000 })
++    await expect(page).toHaveURL(`${baseURL}/?space=BASE`, { timeout: 10_000 })
+     await expect(page.getByRole('heading', { name: 'Wiki', exact: true })).toBeVisible()
+ 
+     await gotoWiki(page, '/spaces')
+diff --git a/frontend/src/pages/dashboard/dashboard.test.tsx b/frontend/src/pages/dashboard/dashboard.test.tsx
+index b0baaeb..1a5a2bc 100644
+--- a/frontend/src/pages/dashboard/dashboard.test.tsx
++++ b/frontend/src/pages/dashboard/dashboard.test.tsx
+@@ -1,9 +1,10 @@
+ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+ import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+-import { MemoryRouter } from 'react-router'
++import { MemoryRouter, useLocation, useNavigate } from 'react-router'
+ import { beforeEach, describe, expect, it, vi } from 'vitest'
+ 
+ import { DashboardPage } from './'
++import { wikiKeys } from '@/shared/api/hooks'
+ 
+ const listSpaces = vi.hoisted(() => vi.fn())
+ const listTaskSummaries = vi.hoisted(() => vi.fn())
+@@ -23,17 +24,50 @@ beforeEach(() => {
+   vi.clearAllMocks()
+ })
+ 
+-function wrapper(children: React.ReactNode) {
+-  const queryClient = new QueryClient({
++function createQueryClient() {
++  return new QueryClient({
+     defaultOptions: { queries: { retry: false } },
+   })
++}
++
++function RouterState() {
++  const location = useLocation()
++  const navigate = useNavigate()
++  return (
++    <>
++      <output aria-label="URL">
++        {location.pathname}
++        {location.search}
++      </output>
++      <button onClick={() => navigate(-1)}>History back</button>
++      <button onClick={() => navigate(1)}>History forward</button>
++    </>
++  )
++}
++
++function wrapper(children: React.ReactNode, entry = '/', queryClient = createQueryClient()) {
+   return (
+     <QueryClientProvider client={queryClient}>
+-      <MemoryRouter>{children}</MemoryRouter>
++      <MemoryRouter initialEntries={[entry]}>
++        {children}
++        <RouterState />
++      </MemoryRouter>
+     </QueryClientProvider>
+   )
+ }
+ 
++const overviewSpaces = [
++  { key: 'BASE', name: 'Base', status: 'active', document_count: 123 },
++  { key: 'TEAM', name: 'Team', status: 'active', document_count: 42 },
++]
++
++function setupOverview() {
++  listSpaces.mockResolvedValue({ spaces: overviewSpaces })
++  searchWiki.mockResolvedValue({ results: [] })
++  listTaskSummaries.mockResolvedValue({ tasks: [], next_cursor: null, total: 0 })
++  listPhaseSummaries.mockResolvedValue({ phases: [], next_cursor: null, total: 0 })
++}
++
+ describe('DashboardPage', () => {
+   it('renders the wiki overview and API-backed document actions', async () => {
+     listSpaces.mockResolvedValueOnce({
+@@ -96,9 +130,9 @@ describe('DashboardPage', () => {
+     render(wrapper(<DashboardPage />))
+ 
+     expect(screen.getByRole('heading', { name: 'Wiki' })).toBeInTheDocument()
+-    expect(screen.getByRole('link', { name: /новый документ/i })).toHaveAttribute(
++    expect(await screen.findByRole('link', { name: /новый документ/i })).toHaveAttribute(
+       'href',
+-      '/documents/new',
++      '/documents/new?space=BASE',
+     )
+     expect(await screen.findAllByText('Требования к Wiki')).toHaveLength(2)
+     expect(screen.getByRole('link', { name: /BASE-42/ })).toHaveAttribute(
+@@ -272,4 +306,182 @@ describe('DashboardPage', () => {
+       }),
+     ).toHaveAttribute('href', '/tasks?space=TEAM')
+   })
++
++  it('restores a selected space from the URL and Back/Forward without dropping other parameters', async () => {
++    setupOverview()
++    render(wrapper(<DashboardPage />, '/?space=TEAM&keep=yes'))
++    const select = await screen.findByRole('combobox', { name: 'Пространство' })
++    expect(select).toHaveValue('TEAM')
++    expect(screen.getByRole('link', { name: 'Новый документ' })).toHaveAttribute(
++      'href',
++      '/documents/new?space=TEAM',
++    )
++    expect(screen.getByRole('link', { name: 'Найти' })).toHaveAttribute(
++      'href',
++      '/search?space=TEAM',
++    )
++    fireEvent.change(select, { target: { value: 'BASE' } })
++    await waitFor(() =>
++      expect(screen.getByLabelText('URL')).toHaveTextContent('/?space=BASE&keep=yes'),
++    )
++    fireEvent.click(screen.getByRole('button', { name: 'History back' }))
++    await waitFor(() => expect(select).toHaveValue('TEAM'))
++    fireEvent.click(screen.getByRole('button', { name: 'History forward' }))
++    await waitFor(() => expect(select).toHaveValue('BASE'))
++  })
++
++  it('normalizes a valid space and makes the default selection explicit in the URL', async () => {
++    setupOverview()
++    const view = render(wrapper(<DashboardPage />, '/?space=%20team%20&keep=yes'))
++    await waitFor(() =>
++      expect(screen.getByLabelText('URL')).toHaveTextContent('/?space=TEAM&keep=yes'),
++    )
++    view.unmount()
++    render(wrapper(<DashboardPage />, '/?keep=yes'))
++    await waitFor(() =>
++      expect(screen.getByLabelText('URL')).toHaveTextContent('/?keep=yes&space=BASE'),
++    )
++  })
++
++  it('does not replace an unknown space with Base or issue reads/CRUD for a missing parent', async () => {
++    setupOverview()
++    render(wrapper(<DashboardPage />, '/?space=MISSING&keep=yes'))
++    expect(await screen.findByRole('heading', { name: 'Объект не найден' })).toBeInTheDocument()
++    expect(screen.getByText('Пространство «MISSING» не найдено')).toBeInTheDocument()
++    expect(screen.queryByRole('link', { name: /документ/i })).not.toBeInTheDocument()
++    expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument()
++    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
++    expect(searchWiki).not.toHaveBeenCalled()
++    expect(listTaskSummaries).not.toHaveBeenCalled()
++    expect(listPhaseSummaries).not.toHaveBeenCalled()
++    expect(screen.getByLabelText('URL')).toHaveTextContent('/?space=MISSING&keep=yes')
++  })
++
++  it.each([403, 404])(
++    'hides stale catalog, metrics and creation on terminal HTTP %s',
++    async (status) => {
++      setupOverview()
++      const client = createQueryClient()
++      client.setQueryData(wikiKeys.spaces, { spaces: overviewSpaces })
++      listSpaces.mockRejectedValue({ status, code: status === 403 ? 'FORBIDDEN' : 'NOT_FOUND' })
++      render(wrapper(<DashboardPage />, '/', client))
++      await screen.findByRole('heading', {
++        name: status === 403 ? 'Нет доступа' : 'Объект не найден',
++      })
++      expect(screen.queryByRole('region', { name: 'Показатели Wiki' })).not.toBeInTheDocument()
++      expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
++      expect(screen.queryByRole('link', { name: 'Новый документ' })).not.toBeInTheDocument()
++      expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument()
++    },
++  )
++
++  it('retains a cached catalog on a retryable refresh failure without allowing stale writes', async () => {
++    setupOverview()
++    const client = createQueryClient()
++    client.setQueryData(wikiKeys.spaces, { spaces: overviewSpaces })
++    listSpaces.mockRejectedValue({ status: 503, message: 'Catalog refresh failed' })
++    render(wrapper(<DashboardPage />, '/', client))
++    expect(await screen.findByText('Catalog refresh failed')).toBeInTheDocument()
++    expect(screen.getByRole('region', { name: 'Показатели Wiki' })).toBeInTheDocument()
++    expect(document.querySelector('[data-page-state="partial-error"]')).toBeInTheDocument()
++    expect(screen.queryByRole('link', { name: 'Новый документ' })).not.toBeInTheDocument()
++  })
++
++  it('retains cached documents on a refresh failure with their original query/hash and space context', async () => {
++    setupOverview()
++    const client = createQueryClient()
++    client.setQueryData(wikiKeys.search({ space: 'BASE', limit: 100 }), {
++      results: [
++        {
++          id: 'cached',
++          title: 'Cached document',
++          result_type: 'document',
++          space_key: 'BASE',
++          url: '/documents/cached?revision=2#section',
++          updated_at: '2026-10-01T10:00:00Z',
++        },
++      ],
++    })
++    searchWiki.mockRejectedValue({ status: 503, message: 'Search refresh failed' })
++    render(wrapper(<DashboardPage />, '/', client))
++    const section = within(await screen.findByRole('region', { name: 'Последние документы' }))
++    expect(await section.findByText('Search refresh failed')).toBeInTheDocument()
++    expect(section.getByRole('link', { name: /Cached document/ })).toHaveAttribute(
++      'href',
++      '/documents/cached?revision=2&space=BASE#section',
++    )
++    expect(section.getByRole('button', { name: 'Повторить' })).toBeInTheDocument()
++  })
++
++  it('keeps a stale task total but does not expose a cached denied phase total or retry', async () => {
++    setupOverview()
++    const client = createQueryClient()
++    client.setQueryData(wikiKeys.taskSummaryList('BASE', { limit: 4 }), {
++      tasks: [{ task_key: 'BASE-42', title: 'Cached task', document_count: 1 }],
++      total: 7,
++    })
++    client.setQueryData(wikiKeys.phaseSummaryList('BASE', { limit: 1 }), { phases: [], total: 99 })
++    listTaskSummaries.mockRejectedValue({ status: 503, message: 'Task refresh failed' })
++    listPhaseSummaries.mockRejectedValue({ status: 403, code: 'FORBIDDEN' })
++    render(wrapper(<DashboardPage />, '/', client))
++    const stats = within(await screen.findByRole('region', { name: 'Показатели Wiki' }))
++    await stats.findByRole('alert', { name: 'Недостаточно прав для действия' })
++    expect(stats.getByText('7')).toBeInTheDocument()
++    expect(stats.getByText('Устарело')).toBeInTheDocument()
++    expect(stats.queryByText('99')).not.toBeInTheDocument()
++    expect(
++      stats.queryByRole('button', { name: 'Повторить загрузку: Фазы в пространстве' }),
++    ).not.toBeInTheDocument()
++    expect(screen.getByText('Cached task')).toBeInTheDocument()
++  })
++
++  it('uses complete-source counts rather than bounded list lengths', async () => {
++    setupOverview()
++    listTaskSummaries.mockResolvedValue({
++      tasks: [{ task_key: 'BASE-42', title: 'Only one visible task', document_count: 1 }],
++      next_cursor: 'BASE-42',
++      total: 999,
++    })
++    listPhaseSummaries.mockResolvedValue({ phases: [], next_cursor: null, total: 555 })
++    render(wrapper(<DashboardPage />))
++    const stats = within(await screen.findByRole('region', { name: 'Показатели Wiki' }))
++    expect(await stats.findByText('999')).toBeInTheDocument()
++    expect(stats.getByText('555')).toBeInTheDocument()
++    expect(stats.getByText('165')).toBeInTheDocument()
++    expect(listTaskSummaries).toHaveBeenCalledWith('BASE', { limit: 4 })
++    expect(listPhaseSummaries).toHaveBeenCalledWith('BASE', { limit: 1 })
++  })
++
++  it('does not offer document creation in an empty or archived space catalog', async () => {
++    setupOverview()
++    listSpaces.mockResolvedValue({ spaces: [] })
++    const view = render(wrapper(<DashboardPage />))
++    await screen.findByText('Пространства пока не созданы')
++    expect(screen.queryByRole('link', { name: /документ/i })).not.toBeInTheDocument()
++    expect(searchWiki).not.toHaveBeenCalled()
++    view.unmount()
++    listSpaces.mockResolvedValue({
++      spaces: [{ ...overviewSpaces[0], status: 'archived', document_count: 0 }],
++    })
++    render(wrapper(<DashboardPage />))
++    await screen.findByText('В этом пространстве пока нет документов')
++    expect(screen.queryByRole('link', { name: 'Новый документ' })).not.toBeInTheDocument()
++    expect(screen.queryByRole('link', { name: 'Создать документ' })).not.toBeInTheDocument()
++  })
++
++  it('shows a denied document section without hiding healthy tasks or offering retry', async () => {
++    setupOverview()
++    searchWiki.mockRejectedValue({ status: 403, code: 'FORBIDDEN' })
++    listTaskSummaries.mockResolvedValue({
++      tasks: [{ task_key: 'BASE-42', title: 'Healthy task', document_count: 1 }],
++      total: 1,
++    })
++    render(wrapper(<DashboardPage />))
++    const documents = within(await screen.findByRole('region', { name: 'Последние документы' }))
++    await documents.findByRole('heading', { name: 'Нет доступа' })
++    expect(documents.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument()
++    expect(screen.getByText('Healthy task')).toBeInTheDocument()
++    expect(screen.queryByRole('link', { name: 'Найти' })).not.toBeInTheDocument()
++    expect(screen.queryByRole('link', { name: 'Новый документ' })).not.toBeInTheDocument()
++  })
+ })
+diff --git a/frontend/src/pages/dashboard/index.tsx b/frontend/src/pages/dashboard/index.tsx
+index fbf2115..d0200e9 100644
+--- a/frontend/src/pages/dashboard/index.tsx
++++ b/frontend/src/pages/dashboard/index.tsx
+@@ -1,5 +1,5 @@
+-import { useState } from 'react'
+-import { Link } from 'react-router'
++import { useEffect } from 'react'
++import { Link, useSearchParams } from 'react-router'
+ import {
+   ArrowRight,
+   FilePlus2,
+@@ -12,50 +12,90 @@ import {
+   type LucideIcon,
+ } from 'lucide-react'
+ import { usePhaseSummaries, useSpaces, useTaskSummaries, useWikiSearch } from '@/shared/api/hooks'
+-import { Button, EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
++import {
++  Button,
++  DashboardLayout,
++  EmptyState,
++  ResourceStateView,
++  Select,
++  resourceErrorState,
++  type ResourceState,
++} from '@sdlc/ui/ui'
++import { textQuery, updateQuery } from '@sdlc/ui/lib'
+ import { formatApiErrorForUser } from '@/shared/lib/api-error'
+ import { formatDateTime } from '@/shared/lib/wiki-format'
+ import { resolveSpaceKey } from '@/shared/lib/space-selection'
+ 
+-const selectClassName =
+-  'min-h-10 rounded-md border border-border bg-surface px-3 text-sm text-text-primary focus-visible:outline-2 focus-visible:outline-accent'
++const spaceQuery = textQuery()
++
++function queryState(
++  query: {
++    isLoading: boolean
++    isError: boolean
++    error: unknown
++    data: unknown
++    refetch: () => unknown
++  },
++  loading: string,
++  fallback: string,
++): ResourceState {
++  return query.isError
++    ? resourceErrorState(
++        query.error,
++        () => {
++          void query.refetch()
++        },
++        {
++          hasData: query.data !== undefined,
++          message: formatApiErrorForUser(query.error, fallback),
++        },
++      )
++    : query.isLoading
++      ? { kind: 'loading', message: loading }
++      : { kind: 'ready' }
++}
++
++function hasContent(state: ResourceState): boolean {
++  return state.kind === 'ready' || state.kind === 'partial-error'
++}
++
++function documentHref(path: string, spaceKey: string): string {
++  const url = new URL(path, 'http://wiki.local')
++  url.searchParams.set('space', spaceKey)
++  return `${url.pathname}${url.search}${url.hash}`
++}
+ 
+ interface DashboardMetricProps {
+-  error?: string
++  state?: ResourceState
+   icon: LucideIcon
+-  isLoading?: boolean
+   label: string
+-  onRetry?: () => void
+   value: number
+ }
+ 
+-function DashboardMetric({
+-  error,
+-  icon: Icon,
+-  isLoading = false,
+-  label,
+-  onRetry,
+-  value,
+-}: DashboardMetricProps) {
++function DashboardMetric({ state, icon: Icon, label, value }: DashboardMetricProps) {
++  const error = state && 'message' in state ? state.message : undefined
++  const onRetry = state && 'onRetry' in state ? state.onRetry : undefined
++  const stale = state?.kind === 'partial-error'
+   return (
+     <div className="flex min-w-0 items-center gap-3">
+       <Icon className="h-5 w-5 shrink-0 text-accent" aria-hidden />
+       <div className="min-w-0">
+         <div className="flex min-h-7 items-center gap-1">
+-          {isLoading ? (
++          {state?.kind === 'loading' ? (
+             <Loader2
+               className="h-4 w-4 animate-spin text-text-muted"
+               aria-label={`Загружаем показатель «${label}»`}
+             />
+           ) : error ? (
+             <>
++              {stale && <span className="text-lg font-semibold">{value}</span>}
+               <span
+                 role="alert"
+                 aria-label={error}
+                 title={error}
+-                className="text-xs font-medium text-danger"
++                className={`text-xs font-medium ${stale ? 'text-warning' : 'text-danger'}`}
+               >
+-                Не загружено
++                {stale ? 'Устарело' : 'Не загружено'}
+               </span>
+               {onRetry && (
+                 <Button
+@@ -82,19 +122,65 @@ function DashboardMetric({
+ }
+ 
+ export function DashboardPage() {
+-  const [requestedSpaceKey, setRequestedSpaceKey] = useState('')
++  const [searchParams, setSearchParams] = useSearchParams()
++  const requestedSpaceKey = spaceQuery.parse(searchParams.get('space')).trim().toUpperCase()
+   const spacesQuery = useSpaces()
+   const spaces = spacesQuery.data?.spaces ?? []
+-  const activeSpaceKey = spaces.some((space) => space.key === requestedSpaceKey)
+-    ? requestedSpaceKey
+-    : resolveSpaceKey(null, spaces)
+-  const activeSpace = spaces.find((space) => space.key === activeSpaceKey)
++  const catalogState = queryState(
++    spacesQuery,
++    'Загружаем пространства',
++    'Не удалось загрузить пространства',
++  )
++  const selectedSpaceKey = resolveSpaceKey(requestedSpaceKey, spaces)
++  const activeSpace = hasContent(catalogState)
++    ? spaces.find((space) => space.key === selectedSpaceKey)
++    : undefined
++  const activeSpaceKey = activeSpace?.key ?? ''
+   const searchQuery = useWikiSearch(
+     { space: activeSpaceKey || undefined, limit: 100 },
+     Boolean(activeSpaceKey),
+   )
+   const tasksQuery = useTaskSummaries(activeSpaceKey, { limit: 4 })
+   const phasesQuery = usePhaseSummaries(activeSpaceKey, { limit: 1 })
++  const documentsState = queryState(
++    searchQuery,
++    'Загружаем документы',
++    'Не удалось загрузить документы',
++  )
++  const tasksState = queryState(tasksQuery, 'Загружаем задачи', 'Не удалось загрузить задачи')
++  const phasesState = queryState(phasesQuery, 'Загружаем фазы', 'Не удалось загрузить фазы')
++  const state: ResourceState = !hasContent(catalogState)
++    ? catalogState
++    : requestedSpaceKey && !activeSpace
++      ? {
++          kind: 'not-found',
++          message: `Пространство «${requestedSpaceKey}» не найдено`,
++          back: (
++            <Button asChild variant="secondary" className="mt-3">
++              <Link to="/spaces">Все пространства</Link>
++            </Button>
++          ),
++        }
++      : spaces.length === 0
++        ? {
++            kind: 'empty',
++            message: 'Пространства пока не созданы',
++            action: (
++              <Button asChild variant="secondary">
++                <Link to="/spaces">Открыть пространства</Link>
++              </Button>
++            ),
++          }
++        : catalogState
++  const searchHref = `/search?${new URLSearchParams({ space: activeSpaceKey })}`
++  const createHref = `/documents/new?${new URLSearchParams({ space: activeSpaceKey })}`
++  const canCreate = Boolean(
++    activeSpace &&
++    activeSpace.status !== 'archived' &&
++    !spacesQuery.isError &&
++    documentsState.kind !== 'permission-denied' &&
++    ![documentsState, tasksState, phasesState].some((source) => source.kind === 'not-found'),
++  )
+   const recentDocuments = (searchQuery.data?.results ?? [])
+     .filter((result) => result.result_type === 'document')
+     .slice(0, 4)
+@@ -107,210 +193,194 @@ export function DashboardPage() {
+       label: 'Задачи в пространстве',
+       value: tasksQuery.data?.total ?? 0,
+       icon: FileText,
+-      isLoading: tasksQuery.isLoading,
+-      error: tasksQuery.isError
+-        ? formatApiErrorForUser(tasksQuery.error, 'Не удалось загрузить задачи')
+-        : undefined,
++      state: 'onRetry' in tasksState ? { ...tasksState, onRetry: undefined } : tasksState,
+     },
+     {
+       label: 'Фазы в пространстве',
+       value: phasesQuery.data?.total ?? 0,
+       icon: GitBranch,
+-      isLoading: phasesQuery.isLoading,
+-      error: phasesQuery.isError
+-        ? formatApiErrorForUser(phasesQuery.error, 'Не удалось загрузить фазы')
+-        : undefined,
+-      onRetry: phasesQuery.isError ? () => void phasesQuery.refetch() : undefined,
++      state: phasesState,
+     },
+   ]
+ 
+-  return (
+-    <div className="space-y-5">
+-      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+-        <div>
+-          <h1 className="text-2xl font-bold">Wiki</h1>
+-          <p className="mt-1 text-sm text-text-muted">Документы, задачи и фазы процесса.</p>
+-        </div>
+-        <div className="flex flex-wrap gap-2">
+-          <Button asChild size="sm" className="min-h-10">
+-            <Link to="/documents/new">
+-              <FilePlus2 className="h-4 w-4" />
+-              Новый документ
+-            </Link>
+-          </Button>
+-          <Button asChild size="sm" variant="secondary" className="min-h-10">
+-            <Link to="/search">
+-              <Search className="h-4 w-4" />
+-              Найти
+-            </Link>
+-          </Button>
+-        </div>
+-      </header>
++  useEffect(() => {
++    if (!activeSpaceKey || searchParams.get('space') === activeSpaceKey) return
++    setSearchParams((current) => updateQuery(current, { space: activeSpaceKey }), { replace: true })
++  }, [activeSpaceKey, searchParams, setSearchParams])
+ 
+-      {spacesQuery.isError ? (
+-        <ErrorState
+-          message={formatApiErrorForUser(spacesQuery.error, 'Не удалось загрузить пространства')}
+-          onRetry={() => void spacesQuery.refetch()}
+-        />
+-      ) : (
+-        <>
+-          <div className="flex flex-wrap items-center justify-between gap-3 border-y border-border py-3">
+-            <div className="flex min-w-0 items-center gap-3">
+-              <label htmlFor="overview-space" className="shrink-0 text-sm text-text-muted">
+-                Пространство
+-              </label>
+-              <select
+-                id="overview-space"
+-                className={`${selectClassName} max-w-64 min-w-0`}
+-                value={activeSpaceKey}
+-                onChange={(event) => setRequestedSpaceKey(event.target.value)}
+-                disabled={spacesQuery.isLoading || spaces.length === 0}
+-              >
+-                {spaces.length === 0 && <option value="">Нет пространств</option>}
+-                {spaces.map((space) => (
+-                  <option key={space.key} value={space.key}>
+-                    {space.name}
+-                  </option>
+-                ))}
+-              </select>
+-            </div>
+-            <Link
+-              to="/spaces"
+-              className="inline-flex min-h-10 items-center gap-1 text-sm text-accent hover:underline"
++  return (
++    <DashboardLayout
++      title="Wiki"
++      state={state}
++      actions={
++        activeSpace && (
++          <div className="flex flex-wrap gap-2">
++            {canCreate && (
++              <Button asChild size="sm" className="min-h-10">
++                <Link to={createHref}>
++                  <FilePlus2 className="h-4 w-4" />
++                  Новый документ
++                </Link>
++              </Button>
++            )}
++            {documentsState.kind !== 'permission-denied' && documentsState.kind !== 'not-found' && (
++              <Button asChild size="sm" variant="secondary" className="min-h-10">
++                <Link to={searchHref}>
++                  <Search className="h-4 w-4" />
++                  Найти
++                </Link>
++              </Button>
++            )}
++          </div>
++        )
++      }
++    >
++      <>
++        <div className="flex flex-wrap items-center justify-between gap-3 border-y border-border py-3">
++          <div className="flex min-w-0 items-center gap-3">
++            <label htmlFor="overview-space" className="shrink-0 text-sm text-text-muted">
++              Пространство
++            </label>
++            <Select
++              id="overview-space"
++              className="max-w-64"
++              value={activeSpaceKey}
++              onChange={(event) =>
++                setSearchParams((current) =>
++                  updateQuery(current, { space: spaceQuery.format(event.target.value) }, true),
++                )
++              }
++              disabled={spacesQuery.isLoading || spaces.length === 0}
+             >
+-              Все пространства <ArrowRight className="h-4 w-4" aria-hidden />
+-            </Link>
++              {spaces.length === 0 && <option value="">Нет пространств</option>}
++              {spaces.map((space) => (
++                <option key={space.key} value={space.key}>
++                  {space.name}
++                </option>
++              ))}
++            </Select>
+           </div>
++          <Link
++            to="/spaces"
++            className="base-control inline-flex items-center gap-1 text-sm text-accent hover:underline"
++          >
++            Все пространства <ArrowRight className="h-4 w-4" aria-hidden />
++          </Link>
++        </div>
+ 
+-          {spacesQuery.isLoading ? (
+-            <LoadingState message="Загружаем пространства" />
+-          ) : spaces.length === 0 ? (
+-            <EmptyState message="Пространства пока не созданы" />
+-          ) : (
+-            <>
+-              <section
+-                aria-label="Показатели Wiki"
+-                className="grid grid-cols-2 gap-x-5 gap-y-3 border-b border-border pb-4 lg:grid-cols-4"
+-              >
+-                {stats.map((metric) => (
+-                  <DashboardMetric key={metric.label} {...metric} />
+-                ))}
+-              </section>
++        <>
++          <section
++            aria-label="Показатели Wiki"
++            className="grid grid-cols-2 gap-x-5 gap-y-3 border-b border-border pb-4 lg:grid-cols-4"
++          >
++            {stats.map((metric) => (
++              <DashboardMetric key={metric.label} {...metric} />
++            ))}
++          </section>
+ 
+-              <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
+-                <section aria-labelledby="recent-documents" className="min-w-0">
+-                  <div className="mb-2 flex items-center justify-between gap-3">
+-                    <h2 id="recent-documents" className="text-base font-semibold">
+-                      Последние документы
+-                    </h2>
++          <div className="grid gap-5 lg:grid-cols-[1.5fr_1fr]">
++            <section aria-labelledby="recent-documents" className="min-w-0">
++              <div className="mb-2 flex items-center justify-between gap-3">
++                <h2 id="recent-documents" className="text-base font-semibold">
++                  Последние документы
++                </h2>
++                {documentsState.kind !== 'permission-denied' &&
++                  documentsState.kind !== 'not-found' && (
+                     <Link
+-                      to="/search"
+-                      className="inline-flex min-h-10 items-center gap-1 text-sm text-accent hover:underline"
++                      to={searchHref}
++                      className="base-control inline-flex items-center gap-1 text-sm text-accent hover:underline"
+                     >
+                       Все <ArrowRight className="h-4 w-4" aria-hidden />
+                     </Link>
+-                  </div>
+-                  {searchQuery.isLoading ? (
+-                    <LoadingState message="Загружаем документы" />
+-                  ) : searchQuery.isError ? (
+-                    <ErrorState
+-                      message={formatApiErrorForUser(
+-                        searchQuery.error,
+-                        'Не удалось загрузить документы',
+-                      )}
+-                      onRetry={() => void searchQuery.refetch()}
+-                    />
+-                  ) : recentDocuments.length === 0 ? (
+-                    <EmptyState
+-                      message={
+-                        activeSpace?.document_count
+-                          ? 'Недавние документы не найдены'
+-                          : 'В этом пространстве пока нет документов'
+-                      }
+-                      action={
++                  )}
++              </div>
++              <ResourceStateView state={documentsState} />
++              {hasContent(documentsState) &&
++                (recentDocuments.length === 0 ? (
++                  <EmptyState
++                    message={
++                      activeSpace?.document_count
++                        ? 'Недавние документы не найдены'
++                        : 'В этом пространстве пока нет документов'
++                    }
++                    action={
++                      activeSpace?.document_count || canCreate ? (
+                         <Button asChild size="sm">
+-                          <Link to={activeSpace?.document_count ? '/search' : '/documents/new'}>
++                          <Link to={activeSpace?.document_count ? searchHref : createHref}>
+                             {activeSpace?.document_count ? 'Открыть поиск' : 'Создать документ'}
+                           </Link>
+                         </Button>
+-                      }
+-                    />
+-                  ) : (
+-                    <ul className="divide-y divide-border border-y border-border">
+-                      {recentDocuments.map((document) => (
+-                        <li key={document.id}>
+-                          <Link
+-                            to={document.url}
+-                            className="flex min-h-14 items-center justify-between gap-3 py-2 hover:bg-surface-raised"
+-                          >
+-                            <span className="min-w-0">
+-                              <span className="block truncate text-sm font-medium text-text-primary">
+-                                {document.title}
+-                              </span>
+-                              <span className="block text-xs text-text-muted">
+-                                {formatDateTime(document.updated_at)}
+-                              </span>
++                      ) : undefined
++                    }
++                  />
++                ) : (
++                  <ul className="divide-y divide-border border-y border-border">
++                    {recentDocuments.map((document) => (
++                      <li key={document.id}>
++                        <Link
++                          to={documentHref(document.url, document.space_key || activeSpaceKey)}
++                          className="flex min-h-14 items-center justify-between gap-3 py-2 hover:bg-surface-raised"
++                        >
++                          <span className="min-w-0">
++                            <span className="block truncate text-sm font-medium text-text-primary">
++                              {document.title}
+                             </span>
+-                            <ArrowRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
+-                          </Link>
+-                        </li>
+-                      ))}
+-                    </ul>
+-                  )}
+-                </section>
+-
+-                <section aria-labelledby="focus-tasks" className="min-w-0">
+-                  <div className="mb-2 flex items-center justify-between gap-3">
+-                    <h2 id="focus-tasks" className="text-base font-semibold">
+-                      Задачи в Wiki
+-                    </h2>
+-                    <Link
+-                      to={`/tasks?space=${encodeURIComponent(activeSpaceKey)}`}
+-                      className="inline-flex min-h-10 items-center gap-1 text-sm text-accent hover:underline"
+-                    >
+-                      Все <ArrowRight className="h-4 w-4" aria-hidden />
+-                    </Link>
+-                  </div>
+-                  {tasksQuery.isLoading ? (
+-                    <LoadingState message="Загружаем задачи" />
+-                  ) : tasksQuery.isError ? (
+-                    <ErrorState
+-                      message={formatApiErrorForUser(
+-                        tasksQuery.error,
+-                        'Не удалось загрузить задачи',
+-                      )}
+-                      onRetry={() => void tasksQuery.refetch()}
+-                    />
+-                  ) : focusTasks.length === 0 ? (
+-                    <EmptyState message="Документы ещё не связаны с задачами" />
+-                  ) : (
+-                    <ul className="divide-y divide-border border-y border-border">
+-                      {focusTasks.map((task) => (
+-                        <li key={task.task_key}>
+-                          <Link
+-                            to={`/tasks/${task.task_key}?space=${encodeURIComponent(activeSpaceKey)}`}
+-                            className="flex min-h-14 items-center justify-between gap-3 py-2 hover:bg-surface-raised"
+-                          >
+-                            <span className="min-w-0">
+-                              <span className="block truncate text-sm font-medium text-text-primary">
+-                                {task.title || task.task_key}
+-                              </span>
+-                              <span className="block text-xs text-text-muted">
+-                                {task.task_key} · Документы: {task.document_count}
+-                              </span>
++                            <span className="block text-xs text-text-muted">
++                              {formatDateTime(document.updated_at)}
+                             </span>
+-                            <ArrowRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
+-                          </Link>
+-                        </li>
+-                      ))}
+-                    </ul>
+-                  )}
+-                </section>
++                          </span>
++                          <ArrowRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
++                        </Link>
++                      </li>
++                    ))}
++                  </ul>
++                ))}
++            </section>
++
++            <section aria-labelledby="focus-tasks" className="min-w-0">
++              <div className="mb-2 flex items-center justify-between gap-3">
++                <h2 id="focus-tasks" className="text-base font-semibold">
++                  Задачи в Wiki
++                </h2>
++                {tasksState.kind !== 'permission-denied' && tasksState.kind !== 'not-found' && (
++                  <Link
++                    to={`/tasks?space=${encodeURIComponent(activeSpaceKey)}`}
++                    className="base-control inline-flex items-center gap-1 text-sm text-accent hover:underline"
++                  >
++                    Все <ArrowRight className="h-4 w-4" aria-hidden />
++                  </Link>
++                )}
+               </div>
+-            </>
+-          )}
++              <ResourceStateView state={tasksState} />
++              {hasContent(tasksState) &&
++                (focusTasks.length === 0 ? (
++                  <EmptyState message="Документы ещё не связаны с задачами" />
++                ) : (
++                  <ul className="divide-y divide-border border-y border-border">
++                    {focusTasks.map((task) => (
++                      <li key={task.task_key}>
++                        <Link
++                          to={`/tasks/${encodeURIComponent(task.task_key)}?space=${encodeURIComponent(activeSpaceKey)}`}
++                          className="flex min-h-14 items-center justify-between gap-3 py-2 hover:bg-surface-raised"
++                        >
++                          <span className="min-w-0">
++                            <span className="block truncate text-sm font-medium text-text-primary">
++                              {task.title || task.task_key}
++                            </span>
++                            <span className="block text-xs text-text-muted">
++                              {task.task_key} · Документы: {task.document_count}
++                            </span>
++                          </span>
++                          <ArrowRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden />
++                        </Link>
++                      </li>
++                    ))}
++                  </ul>
++                ))}
++            </section>
++          </div>
+         </>
+-      )}
+-    </div>
++      </>
++    </DashboardLayout>
+   )
+ }
+diff --git a/frontend/src/pages/spaces/index.tsx b/frontend/src/pages/spaces/index.tsx
+index 69c81e7..1aec8f1 100644
+--- a/frontend/src/pages/spaces/index.tsx
++++ b/frontend/src/pages/spaces/index.tsx
+@@ -52,11 +52,16 @@ type SpaceDraft = { name: string; description: string }
+ type CreateDraft = SpaceDraft & { key: string }
+ const emptyCreateDraft: CreateDraft = { key: '', name: '', description: '' }
+ 
+-function queryError(error: unknown, fallback: string, retry: () => void): ResourceState {
+-  const state = resourceErrorState(error, retry)
+-  return state.kind === 'error'
+-    ? { ...state, message: formatApiErrorForUser(error, fallback) }
+-    : state
++function queryError(
++  error: unknown,
++  fallback: string,
++  retry: () => void,
++  hasData = false,
++): ResourceState {
++  return resourceErrorState(error, retry, {
++    hasData,
++    message: formatApiErrorForUser(error, fallback),
++  })
+ }
+ 
+ function flattenTree(nodes: SpaceTreeNode[], limit = 5): SpaceTreeNode[] {
+@@ -448,16 +453,17 @@ export function SpacesPage() {
+   }
+ 
+   const errorState = spacesQuery.isError
+-    ? queryError(spacesQuery.error, 'Не удалось загрузить пространства', () =>
+-        spacesQuery.refetch(),
++    ? queryError(
++        spacesQuery.error,
++        'Не удалось загрузить пространства',
++        () => spacesQuery.refetch(),
++        Boolean(spacesQuery.data),
+       )
+     : undefined
+   const terminal = errorState?.kind === 'permission-denied' || errorState?.kind === 'not-found'
+   const hasCatalog = Boolean(spacesQuery.data)
+   const state: ResourceState = errorState
+-    ? errorState.kind === 'error' && hasCatalog && errorState.onRetry
+-      ? { ...errorState, kind: 'partial-error' }
+-      : errorState
++    ? errorState
+     : spacesQuery.isLoading
+       ? { kind: 'loading', message: 'Загружаем пространства' }
+       : spaces.length === 0
+diff --git a/frontend/src/widgets/app-shell.test.tsx b/frontend/src/widgets/app-shell.test.tsx
+index 86950d6..4248a33 100644
+--- a/frontend/src/widgets/app-shell.test.tsx
++++ b/frontend/src/widgets/app-shell.test.tsx
+@@ -156,9 +156,12 @@ describe('AppShell', () => {
+     expect(screen.queryByRole('link', { name: 'Новый документ' })).not.toBeInTheDocument()
+   })
+ 
+-  it('leaves document creation ownership to the spaces page so empty catalogs cannot offer a parentless write', () => {
+-    mockHooks()
+-    renderShell('/spaces')
+-    expect(screen.queryByRole('link', { name: 'Новый документ' })).not.toBeInTheDocument()
+-  })
++  it.each(['/', '/spaces'])(
++    'leaves creation ownership to the %s page so empty catalogs cannot offer a parentless write',
++    (path) => {
++      mockHooks()
++      renderShell(path)
++      expect(screen.queryByRole('link', { name: 'Новый документ' })).not.toBeInTheDocument()
++    },
++  )
+ })
+diff --git a/frontend/src/widgets/app-shell.tsx b/frontend/src/widgets/app-shell.tsx
+index 2207599..21559da 100644
+--- a/frontend/src/widgets/app-shell.tsx
++++ b/frontend/src/widgets/app-shell.tsx
+@@ -54,7 +54,7 @@ export function AppShell() {
+       navigation={[...baseNavItems, ...(user?.is_system_admin ? adminNavItems : [])]}
+       layout={layout}
+       actions={
+-        !['/documents/new', '/spaces'].includes(location.pathname) && (
++        !['/', '/documents/new', '/spaces'].includes(location.pathname) && (
+           <Button asChild>
+             <Link to={createHref} aria-label="Новый документ" title="Новый документ">
+               <FilePlus2 className="h-4 w-4" aria-hidden />

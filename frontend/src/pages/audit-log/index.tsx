@@ -1,11 +1,25 @@
+import {
+  Disclosure,
+  Select,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  ResourceList,
+  ResourceListRow,
+  Button,
+  Input,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@pdlc/ui/ui'
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { ChevronLeft, ChevronRight, ListFilter, RefreshCw } from 'lucide-react'
 import { useAuditLog, useUsers } from '@/shared/api/hooks'
-import { EmptyState, ErrorState, LoadingState, ResourceList, ResourceListRow } from '@pdlc/ui/ui'
-import { Button } from '@pdlc/ui/ui'
-import { Input } from '@pdlc/ui/ui'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@pdlc/ui/ui'
+
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime } from '@/shared/lib/wiki-format'
 
@@ -35,8 +49,7 @@ const actionLabels: Record<string, string> = {
 }
 
 const PAGE_SIZE = 20
-const selectClassName =
-  'min-h-10 w-full rounded-md border border-border-strong bg-surface px-3 text-sm text-text-primary focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50'
+
 const entityTypes = [
   ['document', 'Документ'],
   ['space', 'Пространство'],
@@ -289,44 +302,49 @@ export function AuditLogPage() {
                 <label htmlFor="audit-action" className="text-sm font-medium">
                   Действие
                 </label>
-                <select
+                <Select
                   id="audit-action"
-                  className={selectClassName}
+                  className="w-full"
                   value={draftFilters.action}
-                  onChange={(event) => updateDraft('action', event.target.value)}
-                >
-                  <option value="">Все действия</option>
-                  {draftFilters.action && !actionLabels[draftFilters.action] && (
-                    <option value={draftFilters.action}>{draftFilters.action}</option>
-                  )}
-                  {Object.entries(actionLabels).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
+                  onValueChange={(nextValue) => updateDraft('action', nextValue)}
+                  options={[
+                    { value: '', label: 'Все действия' },
+                    ...(draftFilters.action && !actionLabels[draftFilters.action]
+                      ? [{ value: String(draftFilters.action), label: String(draftFilters.action) }]
+                      : []),
+                    ...(Object.entries(actionLabels).map(([value, label]) => ({
+                      value: String(value),
+                      label: String(label),
+                    })) ?? []),
+                  ]}
+                />
               </div>
               <div className="space-y-1">
                 <label htmlFor="audit-entity-type" className="text-sm font-medium">
                   Тип объекта
                 </label>
-                <select
+                <Select
                   id="audit-entity-type"
-                  className={selectClassName}
+                  className="w-full"
                   value={draftFilters.entity_type}
-                  onChange={(event) => updateDraft('entity_type', event.target.value)}
-                >
-                  <option value="">Все типы</option>
-                  {draftFilters.entity_type &&
-                    !entityTypes.some(([value]) => value === draftFilters.entity_type) && (
-                      <option value={draftFilters.entity_type}>{draftFilters.entity_type}</option>
-                    )}
-                  {entityTypes.map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
+                  onValueChange={(nextValue) => updateDraft('entity_type', nextValue)}
+                  options={[
+                    { value: '', label: 'Все типы' },
+                    ...(draftFilters.entity_type &&
+                    !entityTypes.some(([value]) => value === draftFilters.entity_type)
+                      ? [
+                          {
+                            value: String(draftFilters.entity_type),
+                            label: String(draftFilters.entity_type),
+                          },
+                        ]
+                      : []),
+                    ...(entityTypes.map(([value, label]) => ({
+                      value: String(value),
+                      label: String(label),
+                    })) ?? []),
+                  ]}
+                />
               </div>
               <div className="space-y-1">
                 <label htmlFor="audit-actor" className="text-sm font-medium">
@@ -377,26 +395,38 @@ export function AuditLogPage() {
                   </div>
                 ) : (
                   <div className="space-y-1">
-                    <select
+                    <Select
                       id="audit-actor"
-                      className={selectClassName}
+                      className="w-full"
                       value={draftFilters.actor_id}
                       disabled={usersQuery.isLoading}
-                      onChange={(event) => updateDraft('actor_id', event.target.value)}
-                    >
-                      <option value="">
-                        {usersQuery.isLoading ? 'Загружаем пользователей' : 'Все участники'}
-                      </option>
-                      {draftFilters.actor_id &&
-                        !users.some((user) => user.id === draftFilters.actor_id) && (
-                          <option value={draftFilters.actor_id}>{draftFilters.actor_id}</option>
-                        )}
-                      {users.map((user) => (
-                        <option key={user.id} value={user.id}>
-                          {user.display_name ?? user.username ?? user.email} · {user.email}
-                        </option>
-                      ))}
-                    </select>
+                      onValueChange={(nextValue) => updateDraft('actor_id', nextValue)}
+                      options={[
+                        {
+                          value: '',
+                          label: String(
+                            usersQuery.isLoading ? 'Загружаем пользователей' : 'Все участники',
+                          ),
+                        },
+                        ...(draftFilters.actor_id &&
+                        !users.some((user) => user.id === draftFilters.actor_id)
+                          ? [
+                              {
+                                value: String(draftFilters.actor_id),
+                                label: String(draftFilters.actor_id),
+                              },
+                            ]
+                          : []),
+                        ...(users.map((user) => ({
+                          value: String(user.id),
+                          label: [
+                            user.display_name ?? user.username ?? user.email,
+                            ' · ',
+                            user.email,
+                          ].join(''),
+                        })) ?? []),
+                      ]}
+                    />
                     <Button
                       type="button"
                       size="sm"
@@ -498,17 +528,14 @@ export function AuditLogPage() {
                           {event.entity_type}: {event.entity_id}
                         </dd>
                       </dl>
-                      <details className="mt-1 text-xs">
-                        <summary className="min-h-10 cursor-pointer py-2 text-text-secondary hover:text-text-primary">
-                          Технические данные
-                        </summary>
+                      <Disclosure className="mt-1 text-xs" summary={<>Технические данные</>}>
                         <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 pb-2">
                           <dt className="text-text-muted">Действие</dt>
                           <dd className="min-w-0 break-all font-mono">{event.action}</dd>
                           <dt className="text-text-muted">Запрос</dt>
                           <dd className="min-w-0 break-all font-mono">{event.request_id}</dd>
                         </dl>
-                      </details>
+                      </Disclosure>
                     </li>
                   </ResourceListRow>
                 ))}

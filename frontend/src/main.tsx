@@ -1,12 +1,12 @@
 import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { I18nextProvider } from 'react-i18next'
-import { Toaster } from 'sonner'
+import { Toaster } from '@pdlc/ui/ui'
 import i18n from './shared/i18n/config'
 import { RouterProvider } from 'react-router'
 import { router } from './app/router'
 import { AuthBoundary } from './app/auth-boundary'
-import { ThemeProvider, useTheme, PlatformProvider, PlatformServicesProvider } from '@pdlc/ui/lib'
+import { ThemeProvider, PlatformProvider, PlatformServicesProvider } from '@pdlc/ui/lib'
 import './index.css'
 import { relaySsoCallback, ssoNamespace } from '@pdlc/ui/sso'
 import {
@@ -15,11 +15,6 @@ import {
 } from '@pdlc/ui/platform'
 
 capturePlatformReturn(import.meta.env.VITE_PLATFORM_ORIGIN)
-
-function AppToaster() {
-  const { theme } = useTheme()
-  return <Toaster theme={theme === 'light' ? 'light' : 'dark'} />
-}
 
 function Boot() {
   const [ready, setReady] = useState(i18n.isInitialized)
@@ -46,7 +41,7 @@ function Boot() {
               <RouterProvider router={router} />
             </PlatformServicesProvider>
           </PlatformProvider>
-          <AppToaster />
+          <Toaster />
         </ThemeProvider>
       </AuthBoundary>
     </I18nextProvider>

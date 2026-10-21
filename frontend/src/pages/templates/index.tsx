@@ -1,5 +1,18 @@
 import { FormEvent, useEffect, useRef, useState } from 'react'
-import { CodeBlock, NamespaceLink as Link, ResourceList, ResourceListRow } from '@pdlc/ui/ui'
+import {
+  Select,
+  CodeBlock,
+  NamespaceLink as Link,
+  ResourceList,
+  ResourceListRow,
+  Button,
+  EmptyState,
+  ErrorState,
+  Input,
+  Label,
+  LoadingState,
+  Textarea,
+} from '@pdlc/ui/ui'
 import { useSearchParams } from 'react-router'
 import {
   CheckCircle2,
@@ -12,7 +25,7 @@ import {
   X,
 } from 'lucide-react'
 import { useCreateTemplate, useCurrentUser, useTemplates } from '@/shared/api/hooks'
-import { Button, EmptyState, ErrorState, Input, Label, LoadingState, Textarea } from '@pdlc/ui/ui'
+
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDocumentType } from '@/shared/lib/wiki-format'
 import type { Template } from '@/api/wiki'
@@ -27,8 +40,6 @@ const typeOptions = [
 ]
 const pageSize = 12
 const searchDebounceMs = 300
-const selectClassName =
-  'min-h-10 w-full rounded-md border border-border-strong bg-surface px-3 text-sm text-text-primary focus-visible:outline-2 focus-visible:outline-accent'
 
 function templateIcon(documentType: string) {
   if (documentType === 'requirements') return ClipboardCheck
@@ -310,19 +321,19 @@ export function TemplatesPage() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="template-type">Тип документа</Label>
-              <select
+              <Select
                 id="template-type"
-                className={selectClassName}
+                className="w-full"
                 value={documentType}
-                onChange={(event) => setDocumentType(event.target.value)}
+                onValueChange={(nextValue) => setDocumentType(nextValue)}
                 disabled={createTemplate.isPending}
-              >
-                {typeOptions.map((type) => (
-                  <option key={type} value={type}>
-                    {formatDocumentType(type)}
-                  </option>
-                ))}
-              </select>
+                options={[
+                  ...(typeOptions.map((type) => ({
+                    value: String(type),
+                    label: String(formatDocumentType(type)),
+                  })) ?? []),
+                ]}
+              />
             </div>
           </div>
           <div className="space-y-1.5">
@@ -402,22 +413,22 @@ export function TemplatesPage() {
                 }}
               />
             </div>
-            <select
+            <Select
               aria-label="Тип шаблона"
-              className={selectClassName}
+              className="w-full"
               value={typeFilter}
-              onChange={(event) => {
-                setTypeFilter(event.target.value)
+              onValueChange={(nextValue) => {
+                setTypeFilter(nextValue)
                 setExpandedId(null)
               }}
-            >
-              <option value="all">Все типы</option>
-              {typeOptions.map((type) => (
-                <option key={type} value={type}>
-                  {formatDocumentType(type)}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: 'all', label: 'Все типы' },
+                ...(typeOptions.map((type) => ({
+                  value: String(type),
+                  label: String(formatDocumentType(type)),
+                })) ?? []),
+              ]}
+            />
           </div>
           <p className="text-xs text-text-muted">
             Показано {visibleTemplates.length} из {filteredTemplates.length} шаблонов
@@ -436,7 +447,8 @@ export function TemplatesPage() {
                     <li key={template.id}>
                       <ResourceListRow asChild>
                         <div className="flex min-w-0 items-center gap-2">
-                          <button
+                          <Button
+                            variant="ghost"
                             type="button"
                             aria-expanded={expanded}
                             aria-controls={`template-body-${template.id}`}
@@ -457,7 +469,7 @@ export function TemplatesPage() {
                               className={`h-4 w-4 shrink-0 text-text-muted transition-transform ${expanded ? 'rotate-180' : ''}`}
                               aria-hidden
                             />
-                          </button>
+                          </Button>
                           <Link
                             to={`/documents/new?template=${encodeURIComponent(template.id)}`}
                             aria-label={`Использовать шаблон ${template.name}`}

@@ -1,6 +1,16 @@
 import { useActiveSpaces } from '@/widgets/active-spaces'
 import { useState } from 'react'
-import { Loader, NamespaceLink as Link, ResourceList, ResourceListRow } from '@pdlc/ui/ui'
+import {
+  Select,
+  Loader,
+  NamespaceLink as Link,
+  ResourceList,
+  ResourceListRow,
+  Button,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from '@pdlc/ui/ui'
 
 import {
   ArrowRight,
@@ -13,14 +23,10 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { usePhaseSummaries, useTaskSummaries, useWikiSearch } from '@/shared/api/hooks'
-import { Button, EmptyState, ErrorState, LoadingState } from '@pdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime } from '@/shared/lib/wiki-format'
 import { resolveSpaceKey } from '@/shared/lib/space-selection'
 import { usePlatformReadiness } from '@pdlc/ui/platform'
-
-const selectClassName =
-  'min-h-10 rounded-md border border-border bg-surface px-3 text-sm text-text-primary focus-visible:outline-2 focus-visible:outline-accent'
 
 interface DashboardMetricProps {
   error?: string
@@ -173,20 +179,20 @@ export function DashboardPage() {
               <label htmlFor="overview-space" className="shrink-0 text-sm text-text-muted">
                 Пространство
               </label>
-              <select
+              <Select
                 id="overview-space"
-                className={`${selectClassName} max-w-64 min-w-0`}
+                className="w-auto max-w-64 min-w-0"
                 value={activeSpaceKey}
-                onChange={(event) => setRequestedSpaceKey(event.target.value)}
+                onValueChange={(nextValue) => setRequestedSpaceKey(nextValue)}
                 disabled={spacesQuery.isLoading || spaces.length === 0}
-              >
-                {spaces.length === 0 && <option value="">Нет пространств</option>}
-                {spaces.map((space) => (
-                  <option key={space.key} value={space.key}>
-                    {space.name}
-                  </option>
-                ))}
-              </select>
+                options={[
+                  ...(spaces.length === 0 ? [{ value: '', label: 'Нет пространств' }] : []),
+                  ...(spaces.map((space) => ({
+                    value: String(space.key),
+                    label: String(space.name),
+                  })) ?? []),
+                ]}
+              />
             </div>
             <Link
               to="/spaces"

@@ -1,0 +1,17 @@
+diff --git a/.base-revision b/.base-revision
+index 3620eda..a7ce7f0 100644
+--- a/.base-revision
++++ b/.base-revision
+@@ -1 +1 @@
+-bff9bfa8b7669ef23bd64dba36e78eb750eb43d4
++0466f36afb28a29dd245c9ff82cbbb2942f5a898
+diff --git a/.gitattributes b/.gitattributes
+index 07fc46f..925386f 100644
+--- a/.gitattributes
++++ b/.gitattributes
+@@ -2,3 +2,5 @@
+ *.sh text eol=lf
+ *.ps1 text eol=crlf
+ backend/migrations/*.sql text eol=lf
++# UI/source evidence must have identical bytes on Windows and Linux.
++frontend/** text=auto eol=lf

@@ -1,0 +1,69 @@
+diff --git a/.base-revision b/.base-revision
+index 54440c9..70dd184 100644
+--- a/.base-revision
++++ b/.base-revision
+@@ -1 +1 @@
+-348abab9889ed10607c93fcebc42bd3b5a992100
++fb7e4a42ba7cc7cff063aa345038bc51bba2f656
+diff --git a/.gitignore b/.gitignore
+index 786d5e5..872d0a9 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -20,3 +20,9 @@ backend/target-stable/
+ frontend/src/api/generated.ts
+ frontend/src/api/generated-exports.ts
+ .pnpm-store/
++
++.local/
++
++__pycache__/
++
++*.py[cod]
+diff --git a/AGENTS.md b/AGENTS.md
+index 1c11268..3cb89fb 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -37,7 +37,7 @@
+ 
+ ### 4. Тестирование
+ 
+-- Backend: `cargo fmt`, `cargo clippy`, `cargo test`, интеграционные тесты с PostgreSQL testcontainer.
++- Backend: `cargo fmt`, `cargo clippy`, `cargo test`, интеграционные тесты с PostgreSQL 17.6 в собственном временном Compose-проекте; выбранный endpoint передаётся через `WIKI_TEST_DATABASE_URL`.
+ - Frontend: Vitest + Playwright.
+ - После UI-изменений — скриншоты full-page (375 / 1920 / 2560).
+ - Все новые endpoint — curl-проверка.
+diff --git a/docs/TESTING.md b/docs/TESTING.md
+index 8febb6f..29ccdd0 100644
+--- a/docs/TESTING.md
++++ b/docs/TESTING.md
+@@ -4,16 +4,17 @@
+ 
+ ### Live Detail Geometry
+ 
+-На уже работающем локальном стенде:
++На собственном временном `sdlc-qa-*` стенде с synthetic данными:
+ 
+ ```powershell
+ $env:SDLC_LIVE_QA = '1'
+-$env:PLAYWRIGHT_BASE_URL = 'http://localhost:7732'
++$env:PLAYWRIGHT_BASE_URL = '<loopback URL из QA manifest>'
++$env:SDLC_QA_SESSION_FILE = '<защищённый synthetic-session.json этого QA проекта>'
+ pnpm --dir frontend exec playwright test e2e/detail-layout-live.spec.ts --project chromium --workers 1 --retries 0
+ ```
+ 
+-Учётка читается из соседнего `services-base/deploy/.local/qa-session.json` либо
+-явного `SDLC_QA_SESSION_FILE`. Секреты и trace не публикуются. Реальные API
++Передавать `SDLC_QA_SESSION_FILE` явно: accepted runtime credentials и рабочие
++standalone snapshots не использовать. Секреты и trace не публикуются. Реальные API
+ создают отдельные QA space/document/evidence и две ревизии; после проверки
+ документ и пространство архивируются штатным API. Evidence и аудит сохраняются
+ как исторические данные в собственном QA-пространстве до удаления изолированного
+@@ -26,7 +27,7 @@ rail/gap/position и intentional wide columns, границы 1023/1024 и 1279/
+ При измерении страниц мутаций нет; fixture setup/cleanup отделены от UI-проверки.
+ На том же образе повторяется существующая live route matrix Wiki из Task Tracker.
+ 
+-Результат 1 октября: 2/2 теста, 252 сочетания, retries=0; выбранные full-page
++Исторический результат 1 октября (не приёмка текущего кандидата): 2/2 теста, 252 сочетания, retries=0; выбранные full-page
+ кадры и fingerprints: [evidence](assets/screens/2026-10-01-detail-layout/README.md).
+ 
+ - Tests cover meaningful user paths and domain invariants.

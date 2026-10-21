@@ -1,3 +1,4 @@
+import { chooseValue } from '../../test/choice'
 import {
   act,
   fireEvent,
@@ -337,7 +338,7 @@ describe('SpacesPage', () => {
     expect(refetchMembers).toHaveBeenCalled()
   })
 
-  it('keeps archived spaces read-only', () => {
+  it('keeps archived spaces read-only', async () => {
     setupSpaces({
       spaceList: [
         {
@@ -356,9 +357,7 @@ describe('SpacesPage', () => {
     })
 
     expect(screen.queryByRole('button', { name: /База знаний Base/ })).toBeNull()
-    fireEvent.change(screen.getByLabelText('Статус пространства'), {
-      target: { value: 'archived' },
-    })
+    await chooseValue(screen.getByRole('combobox', { name: 'Статус пространства' }), 'archived')
     fireEvent.click(screen.getByRole('button', { name: /База знаний Base/ }))
     expect(screen.queryByLabelText('Название пространства')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Архивировать' })).not.toBeInTheDocument()

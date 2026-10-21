@@ -42,7 +42,8 @@ PAT/delegation/machine scopes дополнительно. Public/legacy URL не
 
 Source/tests/publication/images/migration/live — отдельные gates. Прежние 1:1
 планы исторические; новая модель не меняет смысл технических receipts.
-Production, PDLC1/2/3, Hermes и соседи исключены. Не смешивать с прежними Workflow
+Production входит в порученный выпуск после заполненного migration/rollback
+rehearsal, dev-приёмки и согласованного backup. PDLC1/2/3, Hermes и соседи исключены. Не смешивать с прежними Workflow
 исправлениями профессий. Зависимые PR без автоматического merge.
 
 ### Confirmed native role provenance (2026-10-21)

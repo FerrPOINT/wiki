@@ -1,13 +1,21 @@
 import { useProjectRouteRef } from '@/widgets/namespace-context'
 import { type FormEvent, useRef, useState } from 'react'
-import { NamespaceLink as Link, ResourceList, ResourceListRow } from '@pdlc/ui/ui'
+import {
+  Select,
+  NamespaceLink as Link,
+  ResourceList,
+  ResourceListRow,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  Button,
+  Input,
+  Label,
+} from '@pdlc/ui/ui'
 import { useParams, useSearchParams } from 'react-router'
 import { FileCheck2, FileText, Link2, Search } from 'lucide-react'
 import { useLinkPhaseDocument, usePhase, usePhaseSummaries, useSpaces } from '@/shared/api/hooks'
-import { EmptyState, ErrorState, LoadingState } from '@pdlc/ui/ui'
-import { Button } from '@pdlc/ui/ui'
-import { Input } from '@pdlc/ui/ui'
-import { Label } from '@pdlc/ui/ui'
+
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import {
   clearDossierCatalogParams,
@@ -23,9 +31,6 @@ import {
 } from '@/shared/lib/wiki-format'
 
 const pageSize = 12
-
-const selectClassName =
-  'flex min-h-10 w-full rounded-md border border-border-strong bg-surface px-3 py-1 text-sm text-text-primary shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50'
 
 type SpaceOption = {
   key: string
@@ -77,11 +82,11 @@ function SpaceSelector({
   return (
     <div className="w-full space-y-1.5 sm:w-64">
       <Label htmlFor="phase-space-selector">Пространство</Label>
-      <select
+      <Select
         id="phase-space-selector"
-        className={selectClassName}
+        className="w-full"
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onValueChange={(nextValue) => onChange(nextValue)}
         disabled={
           disabled ||
           Boolean(namespace.ref) ||
@@ -89,14 +94,14 @@ function SpaceSelector({
           spacesQuery.isError ||
           options.length === 0
         }
-      >
-        {options.length === 0 && <option value="">Нет пространств</option>}
-        {options.map((space) => (
-          <option key={space.key} value={space.key}>
-            {space.name ? `${space.key} · ${space.name}` : space.key}
-          </option>
-        ))}
-      </select>
+        options={[
+          ...(options.length === 0 ? [{ value: '', label: 'Нет пространств' }] : []),
+          ...(options.map((space) => ({
+            value: String(space.key),
+            label: String(space.name ? `${space.key} · ${space.name}` : space.key),
+          })) ?? []),
+        ]}
+      />
     </div>
   )
 }
