@@ -1,5 +1,15 @@
 import { useState } from 'react'
-import { Select, Loader, NamespaceLink as Link, ResourceList, ResourceListRow } from '@pdlc/ui/ui'
+import {
+  Select,
+  Loader,
+  NamespaceLink as Link,
+  ResourceList,
+  ResourceListRow,
+  Button,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from '@pdlc/ui/ui'
 
 import {
   ArrowRight,
@@ -12,7 +22,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { usePhaseSummaries, useSpaces, useTaskSummaries, useWikiSearch } from '@/shared/api/hooks'
-import { Button, EmptyState, ErrorState, LoadingState } from '@pdlc/ui/ui'
+
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime } from '@/shared/lib/wiki-format'
 import { resolveSpaceKey } from '@/shared/lib/space-selection'
@@ -173,16 +183,16 @@ export function DashboardPage() {
                 id="overview-space"
                 className="w-auto max-w-64 min-w-0"
                 value={activeSpaceKey}
-                onChange={(event) => setRequestedSpaceKey(event.target.value)}
+                onValueChange={(nextValue) => setRequestedSpaceKey(nextValue)}
                 disabled={spacesQuery.isLoading || spaces.length === 0}
-              >
-                {spaces.length === 0 && <option value="">Нет пространств</option>}
-                {spaces.map((space) => (
-                  <option key={space.key} value={space.key}>
-                    {space.name}
-                  </option>
-                ))}
-              </Select>
+                options={[
+                  ...(spaces.length === 0 ? [{ value: '', label: 'Нет пространств' }] : []),
+                  ...(spaces.map((space) => ({
+                    value: String(space.key),
+                    label: String(space.name),
+                  })) ?? []),
+                ]}
+              />
             </div>
             <Link
               to="/spaces"

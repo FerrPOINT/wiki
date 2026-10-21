@@ -120,26 +120,26 @@ export function SpaceProjectsEditor({
             <Select
               id={`${spaceKey}-project`}
               value={selected}
-              onChange={(event) => setSelected(event.target.value)}
+              onValueChange={(nextValue) => setSelected(nextValue)}
               disabled={mutation.isPending || !available.length}
               className="w-full"
-            >
-              <option value="">
-                {catalog.isPending
-                  ? 'Загружаем проекты…'
-                  : available.length
-                    ? 'Выберите проект'
-                    : 'Нет доступных проектов для добавления'}
-              </option>
-              {available.map((project) => (
-                <option
-                  key={projectIdentity(project.namespace)}
-                  value={projectIdentity(project.namespace)}
-                >
-                  {project.name} · {project.project_key}
-                </option>
-              ))}
-            </Select>
+              options={[
+                {
+                  value: '',
+                  label: String(
+                    catalog.isPending
+                      ? 'Загружаем проекты…'
+                      : available.length
+                        ? 'Выберите проект'
+                        : 'Нет доступных проектов для добавления',
+                  ),
+                },
+                ...(available.map((project) => ({
+                  value: String(projectIdentity(project.namespace)),
+                  label: [project.name, ' · ', project.project_key].join(''),
+                })) ?? []),
+              ]}
+            />
           </div>
           <Button disabled={!selected || mutation.isPending}>Добавить</Button>
         </form>

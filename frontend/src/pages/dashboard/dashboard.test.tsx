@@ -1,3 +1,4 @@
+import { chooseValue, findChoiceOption } from '../../test/choice'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
@@ -263,8 +264,8 @@ describe('DashboardPage', () => {
 
     render(wrapper(<DashboardPage />))
     const spaceSelect = await screen.findByLabelText('Пространство')
-    await waitFor(() => expect(screen.getByRole('option', { name: 'Team' })).toBeInTheDocument())
-    fireEvent.change(spaceSelect, { target: { value: 'TEAM' } })
+    expect((await findChoiceOption(spaceSelect, 'Team')).value).toBe('TEAM')
+    await chooseValue(spaceSelect, 'TEAM')
 
     expect(await screen.findByText('Документ команды')).toBeInTheDocument()
     expect(await screen.findByText('Задача команды')).toBeInTheDocument()

@@ -1,3 +1,4 @@
+import { chooseValue } from '../../test/choice'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -56,7 +57,7 @@ it('adds two distinct projects, removes the last association and keeps the docum
   const user = userEvent.setup()
   expect(await screen.findByText('Самостоятельное пространство · проектов нет')).toBeVisible()
   for (const project of projects) {
-    await user.selectOptions(
+    await chooseValue(
       screen.getByLabelText('Добавить проект'),
       `${registry}/${project.namespace.namespace_id}`,
     )

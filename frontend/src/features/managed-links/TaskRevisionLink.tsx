@@ -95,22 +95,19 @@ export function TaskRevisionLink({
           id={`task-project-${documentId}`}
           value={ref ? projectIdentity(ref) : ''}
           className="w-full"
-          onChange={(event) => {
-            setProjectChoice(event.target.value)
+          onValueChange={(nextValue) => {
+            setProjectChoice(nextValue)
             setSelected('')
             setOffset(0)
           }}
-        >
-          <option value="">Выберите проект</option>
-          {available.map((project) => (
-            <option
-              key={projectIdentity(project.namespace)}
-              value={projectIdentity(project.namespace)}
-            >
-              {project.name} · {project.project_key}
-            </option>
-          ))}
-        </Select>
+          options={[
+            { value: '', label: 'Выберите проект' },
+            ...(available.map((project) => ({
+              value: String(projectIdentity(project.namespace)),
+              label: [project.name, ' · ', project.project_key].join(''),
+            })) ?? []),
+          ]}
+        />
       </div>
       {!ref ? (
         <p role="status">Выберите связанный проект, чтобы загрузить задачи.</p>
@@ -125,23 +122,22 @@ export function TaskRevisionLink({
             id={`task-ref-${documentId}`}
             required
             value={selected}
-            onChange={(event) => setSelected(event.target.value)}
+            onValueChange={(nextValue) => setSelected(nextValue)}
             className="w-full"
-          >
-            <option value="">Выберите задачу</option>
-            {selected &&
+            options={[
+              { value: '', label: 'Выберите задачу' },
+              ...(selected &&
               !tasks.data?.some(
                 (item) => `${item.task.tracker_instance_id}/${item.task.task_id}` === selected,
-              ) && <option value={selected}>Задача из ссылки Tracker</option>}
-            {tasks.data?.map((item) => (
-              <option
-                key={item.task.task_id}
-                value={`${item.task.tracker_instance_id}/${item.task.task_id}`}
-              >
-                {item.task_key} · {item.label}
-              </option>
-            ))}
-          </Select>
+              )
+                ? [{ value: String(selected), label: 'Задача из ссылки Tracker' }]
+                : []),
+              ...(tasks.data?.map((item) => ({
+                value: String(`${item.task.tracker_instance_id}/${item.task.task_id}`),
+                label: [item.task_key, ' · ', item.label].join(''),
+              })) ?? []),
+            ]}
+          />
         </div>
       )}
       <div className="flex flex-wrap gap-2">

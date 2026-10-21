@@ -68,32 +68,30 @@ export function ProjectBoundary({ children }: { children: ReactNode }) {
         <label htmlFor="project-space">Пространство</label>
         <Select
           id="project-space"
-          value=""
+          value={''}
           className="w-full"
-          onChange={(event) => {
+          onValueChange={(nextValue) => {
             const next = new URLSearchParams(location.search)
-            next.set('space', event.target.value)
+            next.set('space', nextValue)
             navigate(location.pathname + '?' + next + location.hash)
           }}
-        >
-          <option value="" disabled>
-            Выберите пространство
-          </option>
-          {context.choices.map((choice) => (
-            <option
-              key={choice.id}
-              value={choice.key}
-              disabled={
+          options={[
+            { value: '', label: 'Выберите пространство', disabled: true },
+            ...(context.choices.map((choice) => ({
+              value: String(choice.key),
+              label: [
+                choice.name,
+                ' · ',
+                choice.key,
+                choice.resource_status !== 'connected' ? ' · Недоступно' : '',
+                choice.status === 'archived' ? ' · В архиве' : '',
+              ].join(''),
+              disabled:
                 choice.resource_status !== 'connected' ||
-                (location.pathname === '/documents/new' && choice.status === 'archived')
-              }
-            >
-              {choice.name} · {choice.key}
-              {choice.resource_status !== 'connected' ? ' · Недоступно' : ''}
-              {choice.status === 'archived' ? ' · В архиве' : ''}
-            </option>
-          ))}
-        </Select>
+                (location.pathname === '/documents/new' && choice.status === 'archived'),
+            })) ?? []),
+          ]}
+        />
       </section>
     )
   return children

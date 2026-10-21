@@ -1,13 +1,21 @@
 import { useProjectRouteRef } from '@/widgets/namespace-context'
 import { type FormEvent, useRef, useState } from 'react'
-import { Select, NamespaceLink as Link, ResourceList, ResourceListRow } from '@pdlc/ui/ui'
+import {
+  Select,
+  NamespaceLink as Link,
+  ResourceList,
+  ResourceListRow,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  Button,
+  Input,
+  Label,
+} from '@pdlc/ui/ui'
 import { useParams, useSearchParams } from 'react-router'
 import { FileCheck2, FileText, Link2, Search } from 'lucide-react'
 import { useLinkPhaseDocument, usePhase, usePhaseSummaries, useSpaces } from '@/shared/api/hooks'
-import { EmptyState, ErrorState, LoadingState } from '@pdlc/ui/ui'
-import { Button } from '@pdlc/ui/ui'
-import { Input } from '@pdlc/ui/ui'
-import { Label } from '@pdlc/ui/ui'
+
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import {
   clearDossierCatalogParams,
@@ -78,7 +86,7 @@ function SpaceSelector({
         id="phase-space-selector"
         className="w-full"
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onValueChange={(nextValue) => onChange(nextValue)}
         disabled={
           disabled ||
           Boolean(namespace.ref) ||
@@ -86,14 +94,14 @@ function SpaceSelector({
           spacesQuery.isError ||
           options.length === 0
         }
-      >
-        {options.length === 0 && <option value="">Нет пространств</option>}
-        {options.map((space) => (
-          <option key={space.key} value={space.key}>
-            {space.name ? `${space.key} · ${space.name}` : space.key}
-          </option>
-        ))}
-      </Select>
+        options={[
+          ...(options.length === 0 ? [{ value: '', label: 'Нет пространств' }] : []),
+          ...(options.map((space) => ({
+            value: String(space.key),
+            label: String(space.name ? `${space.key} · ${space.name}` : space.key),
+          })) ?? []),
+        ]}
+      />
     </div>
   )
 }

@@ -1,11 +1,25 @@
-import { AppShell as BaseAppShell } from '@pdlc/ui/ui'
-import { SidebarNavigationGroup, useSidebarDisclosure } from '@pdlc/ui/ui'
-import { SidebarItem } from '@pdlc/ui/ui'
+import {
+  AppShell as BaseAppShell,
+  SidebarNavigationGroup,
+  useSidebarDisclosure,
+  SidebarItem,
+  NamespaceLink as Link,
+  NamespaceNavLink as NavLink,
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  PlatformHeader,
+  PlatformMark,
+  ThemeMenuItems,
+} from '@pdlc/ui/ui'
+
 import { NamespaceShellContext } from './namespace-context'
 import { type ElementType } from 'react'
-import { NamespaceLink as Link } from '@pdlc/ui/ui'
+
 import { Outlet, useLocation } from 'react-router'
-import { NamespaceNavLink as NavLink } from '@pdlc/ui/ui'
+
 import { useProjectDisclosures } from '@pdlc/ui/lib'
 import { WorkspaceNavigation, useDocumentDisclosures } from './workspace-navigation'
 import { ProjectBoundary } from './project-boundary'
@@ -20,16 +34,7 @@ import {
   ShieldCheck,
   User,
 } from 'lucide-react'
-import {
-  Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  PlatformHeader,
-  PlatformMark,
-  ThemeMenuItems,
-} from '@pdlc/ui/ui'
+
 import { useCurrentUser, useLogout } from '@/shared/api/hooks'
 
 type NavItem = {
