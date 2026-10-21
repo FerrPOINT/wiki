@@ -27,6 +27,8 @@ Backend fast lane: `cargo test --locked -p domain --lib` из `backend`.
 если результат совпадает, generator не переписывает `generated-exports.ts` и не
 меняет его mtime. Missing/corrupt output восстанавливается; changed schema с более
 старым timestamp всё равно меняет aliases. Ошибочный input не затирает прежний output.
+Сравнение читает не больше размера ожидаемого output плюс один byte: большой
+повреждённый artifact не загружается в память целиком.
 
 Дублирующий `prebuild` удалён: `build` уже вызывает тот же generator перед tsc/Vite.
 Это работает при включённых и выключенных pnpm pre/post hooks. Команды, версии
