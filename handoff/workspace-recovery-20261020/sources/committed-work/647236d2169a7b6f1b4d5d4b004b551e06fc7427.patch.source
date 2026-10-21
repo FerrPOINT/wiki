@@ -1,0 +1,408 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 9c80030..93f694f 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -6,6 +6,10 @@
+ 
+ ## [Unreleased]
+ 
++- Cold audit views resolve current document titles through bounded existing GETs
++  and shared query keys. Permission/not-found failures hide cached titles;
++  partial label errors preserve events and retry only repeatable reads.
++
+ - Browser fixtures ждут готовый PageFrame после direct open и повторной SSO,
+   а не только первоначальный URL HTML. Проверки layout/геометрии не ослаблены.
+ 
+diff --git a/docs/ARCHITECTURE.md b/docs/ARCHITECTURE.md
+index 2efc3e8..916ad98 100644
+--- a/docs/ARCHITECTURE.md
++++ b/docs/ARCHITECTURE.md
+@@ -14,6 +14,13 @@ Wiki не владеет задачами, фазами, pipeline execution ил
+ 
+ Task/phase dossier catalogs use separate bounded summary reads: the repository selects `limit + 1` keys in `C` collation order, then computes title and counts only for that page. Detail endpoints retain their nested document/evidence payloads. Legacy unbounded list endpoints remain for existing clients until consumers migrate.
+ 
++Audit document labels resolve through existing document GETs and shared query keys,
++limited to 20 distinct objects on the current page. Labels show current titles,
++not a historical title snapshot. Cached titles are not displayed before a fresh
++read on mount or after permission/not-found failures; lookup failures preserve
++audit events and technical IDs, with retry only for repeatable errors. Public
++audit DTOs, document APIs and persistence schemas are unchanged.
++
+ ## 2. Клиенты и API
+ 
+ ```text
+diff --git a/frontend/e2e/smoke.spec.ts b/frontend/e2e/smoke.spec.ts
+index 6e4729b..8d0d40d 100644
+--- a/frontend/e2e/smoke.spec.ts
++++ b/frontend/e2e/smoke.spec.ts
+@@ -1203,6 +1203,95 @@ test.describe('wiki smoke', () => {
+     expect(errors).toEqual([])
+   })
+ 
++  test('resolves cold audit document titles once per object without hiding permission failures', async ({
++    page,
++  }, testInfo) => {
++    await installWikiApiMocks(page)
++    const id = '00000000-0000-4000-8000-000000000099'
++    const title = 'Требования к интеграции Wiki, Workflow и контроля качества (актуальное название)'
++    let rejected = false
++    let reads = 0
++    const errors: string[] = []
++    page.on('pageerror', (error) => errors.push(error.message))
++    await page.route('**/api/v1/audit-log*', (route) =>
++      route.fulfill({
++        status: 200,
++        contentType: 'application/json',
++        body: JSON.stringify({
++          entries: [
++            {
++              id: 'audit-document-1',
++              actor_id: user.id,
++              action: 'document.publish',
++              entity_type: 'document',
++              entity_id: id,
++              request_id: 'request-doc-1',
++              created_at: now,
++            },
++            {
++              id: 'audit-document-2',
++              actor_id: user.id,
++              action: 'document.draft_update',
++              entity_type: 'document',
++              entity_id: id,
++              request_id: 'request-doc-2',
++              created_at: now,
++            },
++          ],
++          next_cursor: null,
++        }),
++      }),
++    )
++    await page.route(`**/api/v1/documents/${id}`, (route) => {
++      expect(route.request().method()).toBe('GET')
++      reads++
++      return route.fulfill({
++        status: rejected ? 403 : 200,
++        contentType: 'application/json',
++        body: JSON.stringify(rejected ? { error: 'Forbidden' } : { ...document, id, title }),
++      })
++    })
++    for (const theme of ['dark', 'gray', 'light']) {
++      await page.addInitScript((value) => localStorage.setItem('theme', value), theme)
++      for (const width of [375, 1440, 1920, 2560]) {
++        await page.setViewportSize({ width, height: 1080 })
++        const before = reads
++        await gotoWiki(page, '/audit-log')
++        const events = page.getByRole('region', { name: 'События аудита' })
++        await expect(
++          events.getByText(title, { exact: true }).filter({ visible: true }).first(),
++        ).toBeVisible()
++        expect(reads - before).toBe(1)
++        expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBe(0)
++        if (width === 375 || width === 1920) {
++          await page.screenshot({
++            path: testInfo.outputPath(`audit-document-title-${theme}-${width}.png`),
++            fullPage: true,
++          })
++        }
++        await page.reload()
++        await expect(page.locator('[data-page-layout]')).toBeVisible()
++        await expect(
++          events.getByText(title, { exact: true }).filter({ visible: true }).first(),
++        ).toBeVisible()
++        expect(reads - before).toBe(2)
++      }
++    }
++    rejected = true
++    await page.getByRole('link', { name: 'Поиск', exact: true }).first().click()
++    await expect(page.locator('[data-page-layout]')).toBeVisible()
++    await page.getByRole('link', { name: 'Аудит', exact: true }).first().click()
++    await expect(
++      page.getByText(
++        'Названия некоторых документов недоступны; события и технические данные сохранены',
++      ),
++    ).toBeVisible()
++    await expect(page.getByText(title, { exact: true })).toHaveCount(0)
++    await expect(page.getByRole('button', { name: 'Повторить', exact: true })).toHaveCount(0)
++    await expect(page.getByText('Опубликован документ', { exact: true }).last()).toBeVisible()
++    expect(errors).toEqual([])
++  })
++
+   test('keeps the platform shell active-route and keyboard drawer contract', async ({ page }) => {
+     await page.setViewportSize({ width: 375, height: 812 })
+     await installWikiApiMocks(page)
+diff --git a/frontend/src/pages/audit-log/audit-log.test.tsx b/frontend/src/pages/audit-log/audit-log.test.tsx
+index 0dac5cc..f08ca82 100644
+--- a/frontend/src/pages/audit-log/audit-log.test.tsx
++++ b/frontend/src/pages/audit-log/audit-log.test.tsx
+@@ -9,9 +9,10 @@ import { AuditLogPage } from './'
+ const useAuditLog = vi.hoisted(() => vi.fn())
+ const useUsers = vi.hoisted(() => vi.fn())
+ const useSpaces = vi.hoisted(() => vi.fn())
++const useAuditDocuments = vi.hoisted(() => vi.fn())
+ const usersRefetch = vi.hoisted(() => vi.fn())
+ 
+-vi.mock('@/shared/api/hooks', () => ({ useAuditLog, useSpaces, useUsers }))
++vi.mock('@/shared/api/hooks', () => ({ useAuditDocuments, useAuditLog, useSpaces, useUsers }))
+ 
+ function RouterState() {
+   const location = useLocation()
+@@ -83,6 +84,7 @@ function queryResult(data: { entries: AuditEntry[]; next_cursor: string | null }
+ 
+ describe('AuditLogPage', () => {
+   beforeEach(() => {
++    useAuditDocuments.mockReturnValue([])
+     useSpaces.mockReturnValue({
+       data: { spaces: [{ id: 'space-1', key: 'BASE', name: 'Платформа' }] },
+       isLoading: false,
+@@ -97,6 +99,74 @@ describe('AuditLogPage', () => {
+   })
+   afterEach(() => vi.clearAllMocks())
+ 
++  it('shows current document titles only after a successful read on this mount', () => {
++    const id = '00000000-0000-4000-8000-000000000099'
++    useAuditLog.mockReturnValue(
++      queryResult({ entries: [{ ...entries[0]!, entity_id: id }], next_cursor: null }),
++    )
++    const query = {
++      isError: false,
++      isFetchedAfterMount: false,
++      data: { id, title: 'Требования продукта' },
++    }
++    useAuditDocuments.mockReturnValue([{ id, query }])
++    const view = renderAuditLog()
++    expect(screen.queryByText('Требования продукта')).not.toBeInTheDocument()
++    query.isFetchedAfterMount = true
++    view.rerender(
++      <MemoryRouter>
++        <AuditLogPage />
++      </MemoryRouter>,
++    )
++    expect(screen.getAllByText('Требования продукта')).toHaveLength(2)
++    expect(useAuditDocuments).toHaveBeenLastCalledWith([id], true)
++  })
++
++  it.each([400, 403, 404, 409, 422])(
++    'does not expose a cached document title or retry on %s',
++    (status) => {
++      const id = '00000000-0000-4000-8000-000000000099'
++      useAuditLog.mockReturnValue(
++        queryResult({ entries: [{ ...entries[0]!, entity_id: id }], next_cursor: null }),
++      )
++      useAuditDocuments.mockReturnValue([
++        {
++          id,
++          query: {
++            isError: true,
++            isFetchedAfterMount: true,
++            data: { id, title: 'Cached restricted title' },
++            error: { status },
++            refetch: vi.fn(),
++          },
++        },
++      ])
++      renderAuditLog()
++      expect(screen.queryByText('Cached restricted title')).not.toBeInTheDocument()
++      expect(screen.getAllByText('Название документа недоступно')).toHaveLength(2)
++      expect(document.querySelector('[data-page-state="partial-error"]')).toHaveTextContent(
++        'Названия некоторых документов недоступны',
++      )
++      expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument()
++      expect(screen.getByText('Событий на странице: 1')).toHaveAttribute('role', 'status')
++    },
++  )
++
++  it('retries failed title reads without replacing audit entries or reloading the audit', () => {
++    const id = '00000000-0000-4000-8000-000000000099'
++    const retry = vi.fn()
++    useAuditLog.mockReturnValue(
++      queryResult({ entries: [{ ...entries[0]!, entity_id: id }], next_cursor: null }),
++    )
++    useAuditDocuments.mockReturnValue([
++      { id, query: { isError: true, error: { status: 503 }, refetch: retry } },
++    ])
++    renderAuditLog()
++    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }))
++    expect(retry).toHaveBeenCalledOnce()
++    expect(screen.getAllByText('Опубликован документ')).toHaveLength(2)
++  })
++
+   it('shows readable events, preserves technical IDs and navigates cursor pages', () => {
+     useAuditLog.mockImplementation(({ cursor }: { cursor?: string }) =>
+       queryResult(
+diff --git a/frontend/src/pages/audit-log/index.tsx b/frontend/src/pages/audit-log/index.tsx
+index 43a7302..ef6614e 100644
+--- a/frontend/src/pages/audit-log/index.tsx
++++ b/frontend/src/pages/audit-log/index.tsx
+@@ -1,7 +1,7 @@
+ import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+ import { useUrlSearchParams } from '@sdlc/ui/lib'
+ import { ChevronLeft, ChevronRight, ListFilter, RefreshCw } from 'lucide-react'
+-import { useAuditLog, useSpaces, useUsers } from '@/shared/api/hooks'
++import { useAuditDocuments, useAuditLog, useSpaces, useUsers } from '@/shared/api/hooks'
+ import {
+   AuditLogView,
+   EmptyState,
+@@ -237,6 +237,18 @@ export function AuditLogPage() {
+   const spacesRetry = spacesError?.kind === 'error' ? spacesError.onRetry : undefined
+   const showEntries =
+     !auditQuery.isLoading && (!auditQuery.isError || partialError) && entries.length > 0
++  const documentQueries = useAuditDocuments(
++    entries
++      .slice(0, PAGE_SIZE)
++      .filter((entry) => entry.entity_type === 'document' && uuidPattern.test(entry.entity_id))
++      .map((entry) => entry.entity_id.toLowerCase()),
++    showEntries,
++  )
++  const failedDocuments = documentQueries.filter(({ query }) => query.isError)
++  const retryableDocuments = failedDocuments.filter(({ query }) => {
++    const state = resourceErrorState(query.error, () => query.refetch())
++    return state.kind === 'error' && Boolean(state.onRetry)
++  })
+ 
+   function actorLabel(id: string) {
+     const user = users.find((candidate) => candidate.id === id)
+@@ -244,6 +256,17 @@ export function AuditLogPage() {
+   }
+ 
+   function entityLabel(entry: AuditEntry) {
++    if (entry.entity_type === 'document') {
++      const document = documentQueries.find(({ id }) => id === entry.entity_id.toLowerCase())
++      if (document?.query.isError) return 'Название документа недоступно'
++      if (
++        document?.query.isFetchedAfterMount &&
++        document.query.data?.id.toLowerCase() === entry.entity_id.toLowerCase()
++      ) {
++        return document.query.data.title.trim() || 'Документ'
++      }
++      return 'Документ'
++    }
+     if (entry.entity_type === 'user') return actorLabel(entry.entity_id)
+     if (entry.entity_type === 'space') {
+       const space = spaces.find(
+@@ -510,6 +533,22 @@ export function AuditLogPage() {
+       }
+     >
+       <section ref={eventsRef} aria-label="События аудита" className="min-w-0 scroll-mt-16">
++        {showEntries && failedDocuments.length > 0 && (
++          <ResourceStateView
++            state={{
++              kind: 'partial-error',
++              message:
++                'Названия некоторых документов недоступны; события и технические данные сохранены',
++              onRetry: retryableDocuments.length
++                ? () => {
++                    retryableDocuments.forEach(({ query }) => {
++                      void query.refetch()
++                    })
++                  }
++                : undefined,
++            }}
++          />
++        )}
+         {showEntries && usersQuery.isError && (
+           <ResourceStateView
+             state={{
+diff --git a/frontend/src/shared/api/hooks.test.tsx b/frontend/src/shared/api/hooks.test.tsx
+index 1a830a3..a0446ea 100644
+--- a/frontend/src/shared/api/hooks.test.tsx
++++ b/frontend/src/shared/api/hooks.test.tsx
+@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
+ 
+ import {
+   useLogout,
++  useAuditDocuments,
+   useArchiveDocument,
+   useCreateDocument,
+   useCreateFileEvidence,
+@@ -29,6 +30,7 @@ const archiveDocument = vi.hoisted(() => vi.fn())
+ const createDocument = vi.hoisted(() => vi.fn())
+ const createEvidence = vi.hoisted(() => vi.fn())
+ const getEvidence = vi.hoisted(() => vi.fn())
++const getDocument = vi.hoisted(() => vi.fn())
+ const linkPhaseDocument = vi.hoisted(() => vi.fn())
+ const linkTaskDocument = vi.hoisted(() => vi.fn())
+ const listDocumentRevisions = vi.hoisted(() => vi.fn())
+@@ -57,7 +59,7 @@ vi.mock('@/api/wiki', () => ({
+   deleteSpaceMember: vi.fn(),
+   downloadAttachment: vi.fn(),
+   getAttachment: vi.fn(),
+-  getDocument: vi.fn(),
++  getDocument,
+   getDocumentRevision: vi.fn(),
+   getEvidence,
+   getPhase: vi.fn(),
+@@ -121,6 +123,43 @@ function documentResponse(overrides: Record<string, unknown> = {}) {
+ }
+ 
+ describe('wiki API hooks', () => {
++  it('loads a cold audit document page with deduplicated shared document keys', async () => {
++    const id = '00000000-0000-4000-8000-000000000099'
++    getDocument.mockResolvedValue(documentResponse({ id }))
++    const { result } = renderHook(() => useAuditDocuments([id, id]), { wrapper })
++    await waitFor(() => expect(result.current[0]?.query.isSuccess).toBe(true))
++    expect(result.current).toHaveLength(1)
++    expect(result.current[0]?.query.isFetchedAfterMount).toBe(true)
++    expect(getDocument).toHaveBeenCalledExactlyOnceWith(id)
++  })
++
++  it('bounds audit document reads to 20 distinct objects and disables them for terminal audit states', async () => {
++    getDocument.mockImplementation(async (id: string) => documentResponse({ id }))
++    const ids = Array.from({ length: 30 }, (_, index) => `document-${index}`)
++    const { result, rerender } = renderHook(({ enabled }) => useAuditDocuments(ids, enabled), {
++      wrapper,
++      initialProps: { enabled: false },
++    })
++    expect(result.current).toHaveLength(0)
++    expect(getDocument).not.toHaveBeenCalled()
++    rerender({ enabled: true })
++    await waitFor(() => expect(result.current.every(({ query }) => query.isSuccess)).toBe(true))
++    expect(result.current).toHaveLength(20)
++    expect(getDocument).toHaveBeenCalledTimes(20)
++  })
++
++  it('revalidates cached audit documents and keeps a rejected permission read as an error without automatic retry', async () => {
++    const id = '00000000-0000-4000-8000-000000000099'
++    const queryClient = new QueryClient()
++    queryClient.setQueryData(wikiKeys.document(id), documentResponse({ id }))
++    getDocument.mockRejectedValue({ status: 403 })
++    const { result } = renderHook(() => useAuditDocuments([id]), {
++      wrapper: wrapperFor(queryClient),
++    })
++    await waitFor(() => expect(result.current[0]?.query.isError).toBe(true))
++    expect(getDocument).toHaveBeenCalledOnce()
++    queryClient.clear()
++  })
+   afterEach(() => {
+     vi.clearAllMocks()
+     useAuthStore.setState({ token: null })
+diff --git a/frontend/src/shared/api/hooks.ts b/frontend/src/shared/api/hooks.ts
+index 2eb4660..7a88315 100644
+--- a/frontend/src/shared/api/hooks.ts
++++ b/frontend/src/shared/api/hooks.ts
+@@ -1,4 +1,4 @@
+-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
++import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+ import { endSso } from '@sdlc/ui/sso'
+ import { getCurrentUser, login, register } from '@/api/auth'
+ import {
+@@ -268,6 +268,19 @@ export function useDocument(documentId: string) {
+   })
+ }
+ 
++export function useAuditDocuments(documentIds: string[], enabled = true) {
++  const ids = enabled ? [...new Set(documentIds)].slice(0, 20) : []
++  const queries = useQueries({
++    queries: ids.map((id) => ({
++      queryKey: wikiKeys.document(id),
++      queryFn: () => getDocument(id),
++      staleTime: 0,
++      retry: false,
++    })),
++  })
++  return ids.map((id, index) => ({ id, query: queries[index]! }))
++}
++
+ export function useDocumentRevisions(
+   documentId: string,
+   params: DocumentRevisionListParams = defaultDocumentRevisionListParams,

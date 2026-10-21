@@ -1,0 +1,114 @@
+diff --git a/AGENTS.md b/AGENTS.md
+index 1c11268..04ac9d6 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -23,8 +23,11 @@
+ - Все публичные API покрыты OpenAPI через `utoipa-axum`.
+ - Rust-хендлеры и DTO — единственный источник правды для схемы; frontend DTO types генерируются из `openapi/openapi.json`, а thin endpoint wrappers остаются временным слоем до полного generated operation client.
+ - Новую Wiki persistence-логику писать на SQLx по ADR-0001. Не возвращать task-tracker domain/app/infra services, routes, DTO или ORM-модули в MVP.
+-- Все endpoint тестируются интеграционно; PostgreSQL smoke запускается через Docker Postgres или изолированную WSL PostgreSQL database.
+-- Frontend: компоненты на `shadcn/ui` + Tailwind.
++- Все endpoint тестируются интеграционно с изолированным PostgreSQL. Контейнерные
++  fixtures используют собственный временный Compose project по Base LOCAL_GROUPS.
++- Frontend: shell, controls, states и композиции страниц из `@sdlc/ui`.
++  Нормативные правила принадлежат [Base UI/UX Standard](../services-base/docs/platform/UI_UX_STANDARD.md);
++  продукт задаёт доменные slots, не поддерживает второй UI-kit.
+ - Состояние: серверное — `@tanstack/react-query`, клиентское — `zustand`.
+ - Формы — native React forms/local validators для MVP; новые form/schema библиотеки добавлять только при явной необходимости.
+ 
+@@ -37,9 +40,11 @@
+ 
+ ### 4. Тестирование
+ 
+-- Backend: `cargo fmt`, `cargo clippy`, `cargo test`, интеграционные тесты с PostgreSQL testcontainer.
++- Backend: `cargo fmt`, `cargo clippy`, `cargo test`, интеграционные тесты
++  с actual PostgreSQL в собственном временном Compose project.
+ - Frontend: Vitest + Playwright.
+-- После UI-изменений — скриншоты full-page (375 / 1920 / 2560).
++- UI QA и desktop-only README evidence следуют Base стандарту; responsive
++  regression сохраняется. Fixture screenshots не заменяют actual-image acceptance.
+ - Все новые endpoint — curl-проверка.
+ 
+ ### 5. Документация
+@@ -57,9 +62,13 @@
+ 
+ ### 7. Docker
+ 
+-- Сборка: `docker compose build`.
+-- Пересоздание контейнера: `docker compose up -d` (не `docker compose restart`).
+-- Проверка: `docker compose ps` и health endpoint.
++- Постоянный workspace запускается только корневым `start-local.ps1`;
++  выбранные images и данные проверяются до изменения защищённого runtime.
++- Compose grouping, владельцы QA и точная очистка принадлежат
++  [Base LOCAL_GROUPS](../services-base/deploy/LOCAL_GROUPS.md).
++  Старые standalone launchers без явного project name не запускать до миграции.
++- Health/fingerprints проверять на выбранном стенде; сохранять чужие контейнеры,
++  snapshots, signing keys, secrets, backups и volumes.
+ 
+ ### 8. Проверка перед завершением
+ 
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 3608898..f5fc622 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -6,6 +6,11 @@
+ 
+ ## [Unreleased]
+ 
++- Действующие AGENTS/TESTING используют Base как владельца UI/UX и Compose QA.
++  Убраны рекомендации второго UI-kit и запуска unprojected PostgreSQL smoke;
++  legacy launcher остаётся явно незавершённой миграцией, а не допустимым gate.
++  Исторические результаты и runtime не изменены.
++
+ - Base notification ownership gate закреплён единым snapshot. OpenAPI alias
+   передаёт явные параметры в Base; без параметров сравнивает с origin/main.
+ 
+diff --git a/docs/TESTING.md b/docs/TESTING.md
+index abde8ae..d320cf2 100644
+--- a/docs/TESTING.md
++++ b/docs/TESTING.md
+@@ -35,6 +35,13 @@ rail/gap/position и intentional wide columns, границы 1023/1024 и 1279/
+ - UI changes should be checked on mobile and desktop widths.
+ - Integration tests must cover auth, permissions and data isolation between spaces.
+ 
++Current UI/UX rules and acceptance belong to
++[Base UI/UX Standard](../../services-base/docs/platform/UI_UX_STANDARD.md).
++Product route/state coverage is recorded in [UI/UX Map](UI_UX_MAP.md), not by
++copying another normative standard into Wiki. README is desktop-only; responsive
++regression remains mandatory. Historical results below are not evidence for a
++different product/Base snapshot.
++
+ ## 2. Backend Tests
+ 
+ ### Unit
+@@ -103,20 +110,22 @@ pnpm test -- --run
+ pnpm test:e2e
+ ```
+ 
+-PostgreSQL-backed API smoke from the repository root:
+-
+-```powershell
+-pwsh -File scripts/postgres-smoke.ps1
+-```
+-
+-The smoke runner starts `backend/docker-compose.test.yml`, waits for `postgres-test`, sets `WIKI_TEST_DATABASE_URL=postgres://wiki@127.0.0.1:3458/wiki_test` and runs:
++PostgreSQL-backed API smoke uses an isolated fixture database, never a permanent
++workspace database. Container ownership, explicit project names and exact
++cleanup follow [Base LOCAL_GROUPS](../../services-base/deploy/LOCAL_GROUPS.md).
++Set `WIKI_TEST_DATABASE_URL` to that fixture before running:
+ 
+ ```bash
+ cd backend
+ cargo test -p api wiki_postgres_ -- --test-threads=1 --nocapture
+ ```
+ 
+-If Docker is managed outside the script, set `WIKI_TEST_DATABASE_URL` manually and run the same filtered Cargo command.
++`scripts/postgres-smoke.ps1` is a legacy launcher: its Compose calls omit an
++explicit project name and its fixture is not yet migrated to the required
++owner/purpose labels. Do not run it until that migration is completed. A green
++filtered Cargo command is insufficient unless the actual database suites ran
++without skips and their fixture resources were cleaned up. Do not reuse its
++fixed host port or credentials for the accepted runtime.
+ 
+ When Docker Desktop is unavailable but WSL has a local PostgreSQL service and the `postgres` system user can create temporary roles/databases, use:
+ 

@@ -1,0 +1,328 @@
+{
+  "schemaVersion": 1,
+  "product": "wiki",
+  "routeSource": "frontend/src/app/router.tsx",
+  "shellSource": "frontend/src/widgets/app-shell.tsx",
+  "acceptanceStatus": "pending",
+  "routes": [
+    {
+      "pattern": "/",
+      "kind": "operational",
+      "layout": "wide",
+      "roles": [
+        "authenticated"
+      ],
+      "fixture": "isolated:/",
+      "states": [
+        "normal",
+        "loading",
+        "empty",
+        "permission-denied",
+        "error",
+        "partial-error"
+      ],
+      "qa": {
+        "status": "not-run"
+      }
+    },
+    {
+      "pattern": "/*",
+      "kind": "redirect"
+    },
+    {
+      "pattern": "/admin",
+      "kind": "operational",
+      "layout": "wide",
+      "roles": [
+        "authenticated"
+      ],
+      "fixture": "isolated:/admin",
+      "states": [
+        "normal",
+        "loading",
+        "empty",
+        "permission-denied",
+        "error",
+        "partial-error"
+      ],
+      "qa": {
+        "status": "not-run"
+      }
+    },
+    {
+      "pattern": "/audit-log",
+      "kind": "operational",
+      "layout": "wide",
+      "roles": [
+        "authenticated"
+      ],
+      "fixture": "isolated:/audit-log",
+      "states": [
+        "normal",
+        "loading",
+        "empty",
+        "permission-denied",
+        "error",
+        "partial-error"
+      ],
+      "qa": {
+        "status": "not-run"
+      }
+    },
+    {
+      "pattern": "/documents/:documentId",
+      "kind": "operational",
+      "layout": "detail-with-aside",
+      "roles": [
+        "authenticated"
+      ],
+      "fixture": "isolated:/documents/:documentId",
+      "states": [
+        "normal",
+        "loading",
+        "empty",
+        "permission-denied",
+        "error",
+        "partial-error",
+        "not-found"
+      ],
+      "qa": {
+        "status": "not-run"
+      }
+    },
+    {
+      "pattern": "/documents/new",
+      "kind": "operational",
+      "layout": "detail-with-aside",
+      "roles": [
+        "authenticated"
+      ],
+      "fixture": "isolated:/documents/new",
+      "states": [
+        "normal",
+        "loading",
+        "empty",
+        "permission-denied",
+        "error",
+        "partial-error"
+      ],
+      "qa": {
+        "status": "not-run"
+      }
+    },
+    {
+      "pattern": "/evidence",
+      "kind": "operational",
+      "layout": "wide",
+      "roles": [
+        "authenticated"
+      ],
+      "fixture": "isolated:/evidence",
+      "states": [
+        "normal",
+        "loading",
+        "empty",
+        "permission-denied",
+        "error",
+        "partial-error"
+      ],
+      "qa": {
+        "status": "not-run"
+      }
+    },
+    {
+      "pattern": "/login",
+      "kind": "public"
+    },
+    {
+      "pattern": "/phases",
+      "kind": "operational",
+      "layout": "wide",
+      "roles": [
+        "authenticated"
+      ],
+      "fixture": "isolated:/phases",
+      "states": [
+        "normal",
+        "loading",
+        "empty",
+        "permission-denied",
+        "error",
+        "partial-error"
+      ],
+      "qa": {
+        "status": "not-run"
+      }
+    },
+    {
+      "pattern": "/phases/:phaseId",
+      "kind": "operational",
+      "layout": "detail-with-aside",
+      "roles": [
+        "authenticated"
+      ],
+      "fixture": "isolated:/phases/:phaseId",
+      "states": [
+        "normal",
+        "loading",
+        "empty",
+        "permission-denied",
+        "error",
+        "partial-error",
+        "not-found"
+      ],
+      "qa": {
+        "status": "not-run"
+      }
+    },
+    {
+      "pattern": "/register",
+      "kind": "redirect"
+    },
+    {
+      "pattern": "/search",
+      "kind": "operational",
+      "layout": "wide",
+      "roles": [
+        "authenticated"
+      ],
+      "fixture": "isolated:/search",
+      "states": [
+        "normal",
+        "loading",
+        "empty",
+        "permission-denied",
+        "error",
+        "partial-error"
+      ],
+      "qa": {
+        "status": "not-run"
+      }
+    },
+    {
+      "pattern": "/settings",
+      "kind": "operational",
+      "layout": "reading",
+      "roles": [
+        "authenticated"
+      ],
+      "fixture": "isolated:/settings",
+      "states": [
+        "normal",
+        "loading",
+        "empty",
+        "permission-denied",
+        "error",
+        "partial-error"
+      ],
+      "qa": {
+        "status": "not-run"
+      }
+    },
+    {
+      "pattern": "/spaces",
+      "kind": "operational",
+      "layout": "wide",
+      "roles": [
+        "authenticated"
+      ],
+      "fixture": "isolated:/spaces",
+      "states": [
+        "normal",
+        "loading",
+        "empty",
+        "permission-denied",
+        "error",
+        "partial-error"
+      ],
+      "qa": {
+        "status": "not-run"
+      }
+    },
+    {
+      "pattern": "/sso/callback",
+      "kind": "public"
+    },
+    {
+      "pattern": "/tasks",
+      "kind": "operational",
+      "layout": "wide",
+      "roles": [
+        "authenticated"
+      ],
+      "fixture": "isolated:/tasks",
+      "states": [
+        "normal",
+        "loading",
+        "empty",
+        "permission-denied",
+        "error",
+        "partial-error"
+      ],
+      "qa": {
+        "status": "not-run"
+      }
+    },
+    {
+      "pattern": "/tasks/:taskKey",
+      "kind": "operational",
+      "layout": "detail-with-aside",
+      "roles": [
+        "authenticated"
+      ],
+      "fixture": "isolated:/tasks/:taskKey",
+      "states": [
+        "normal",
+        "loading",
+        "empty",
+        "permission-denied",
+        "error",
+        "partial-error",
+        "not-found"
+      ],
+      "qa": {
+        "status": "not-run"
+      }
+    },
+    {
+      "pattern": "/templates",
+      "kind": "operational",
+      "layout": "wide",
+      "roles": [
+        "authenticated"
+      ],
+      "fixture": "isolated:/templates",
+      "states": [
+        "normal",
+        "loading",
+        "empty",
+        "permission-denied",
+        "error",
+        "partial-error"
+      ],
+      "qa": {
+        "status": "not-run"
+      }
+    },
+    {
+      "pattern": "/users",
+      "kind": "operational",
+      "layout": "wide",
+      "roles": [
+        "authenticated"
+      ],
+      "fixture": "isolated:/users",
+      "states": [
+        "normal",
+        "loading",
+        "empty",
+        "permission-denied",
+        "error",
+        "partial-error"
+      ],
+      "qa": {
+        "status": "not-run"
+      }
+    }
+  ]
+}

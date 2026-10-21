@@ -1,0 +1,67 @@
+diff --git a/docs/UI_UX_MAP.md b/docs/UI_UX_MAP.md
+index 95a4964..6247b91 100644
+--- a/docs/UI_UX_MAP.md
++++ b/docs/UI_UX_MAP.md
+@@ -5,7 +5,8 @@
+ 
+ Shell, sidebar, account, theme и modal drawer принадлежат Base AppShell.
+ Продукт сохраняет navigation permissions, logout и document context.
+-Глобальное создание сохраняет `space` из URL и не дублируется на форме создания.
++Глобальное создание сохраняет `space` из URL и не дублируется на форме создания,
++обзоре и каталоге пространств: эти страницы владеют своими действиями.
+ Compose и document view с contextual aside используют `detail-with-aside`;
+ settings использует `reading`, списки и независимые dossier sections — `wide`.
+ Task dossier имеет contextual aside и использует `detail-with-aside`.
+@@ -25,7 +26,7 @@ actor/entity IDs, без названия документа. Cold-load назв
+ 
+ Этот checkout создан от сохранённого default `c83ff8c`; исходный dirty checkout
+ не переносился. Base dependency устанавливается frozen/offline из выбранного
+-snapshot `42d5947`. `ui:check` проверяет route coverage, shell и installed bytes.
++snapshot `2a8de7e`. `ui:check` проверяет route coverage, shell и installed bytes.
+ 
+ `qa.status: not-run` означает обязательный, но ещё не принятый сценарий.
+ Полная миграция page compositions, audit readability/cold-cache поведение,
+@@ -86,3 +87,43 @@ deferred PUT с collapse/double-submit/503. Evidence:
+ Полная миграция overview и остальных страниц, cold audit document titles,
+ live SSO/image acceptance, README provenance и default integration остаются
+ незавершёнными. Эти source changes не закрывают release findings автоматически.
++
++## Overview Source Migration
++
++Обзор использует Base DashboardLayout, Select, ResourceStateView и URL helpers.
++`space` восстанавливается при direct open, reload и Back/Forward; default и
++валидный регистр канонизируются через replace. Смена пространства сбрасывает
++page, сохраняя соседние параметры. Неизвестный явный ключ не заменяется BASE:
++показывается not-found без зависимых запросов и действий создания.
++
++Create/search/document/task links сохраняют пространство; document links также
++сохраняют query/hash исходной ссылки. Пустой или архивный каталог, catalog error,
++document 403 и scoped 404 не предлагают создание. Ошибка одного источника не
++скрывает успешно загруженные секции; повторяемый refresh failure сохраняет
++полученные данные с partial-error, а 403/404 скрывает cached content и retry.
++Показатели задач/фаз используют full-source total, не длину bounded page;
++документы всего считаются по полному доступному каталогу пространств.
++
++Runtime source: `6f2bafdd71f93ea8b0deced0bfb9b460dc9da039`.
++Base snapshot: `2a8de7ed2e4e7475bfcfb80e87222af4cc1fbc93`.
++Installed Base fingerprint:
++`44f46615a419570df8e12a7968a3aebd4124c3157c5da095b61e55dcbfa8a744`.
++Product fingerprint:
++`2b1406ff73599dc1b81a9f4ff622d54b1f8c9ef6a9e376877004329654a3cdd7`.
++
++Source gate: 218 unit tests, lint/semantic, typecheck/build, frozen offline
++install, installed UI gate (19 patterns), README validator и diff check прошли.
++16 Chromium smoke tests прошли: 210 captures для семи routes в трёх темах и
++десяти ширинах, шесть missing/partial-error captures (375/1920/2560), три
++expanded-draft captures, URL context/history, независимые 403/404/503 и
++cached 503 → 403, drawer, draft safety, pending writes, focus и conflict.
++Desktop/mobile overview и длинные missing/partial сообщения просмотрены.
++Evidence: `audit-artifacts/base-standard-2026-10-01/wiki-overview-final-browser/`
++и `wiki-overview-final-browser.log` в workspace; unit log:
++`wiki-overview-final-units.log`. Preview остановлен после проверки.
++
++Это source QA с mocked API/OIDC, не actual-image/live SSO или README release
++gallery. Cold document audit titles, остальные page compositions и полная
++route/role/state acceptance остаются в работе. Исторические evidence выше
++не переносятся на новый snapshot автоматически. Node/jsdom localstorage-file
++и browser FORCE_COLOR warnings сохраняются.

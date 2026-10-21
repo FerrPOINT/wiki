@@ -1,0 +1,1235 @@
+diff --git a/.base-revision b/.base-revision
+new file mode 100644
+index 0000000..98978a5
+--- /dev/null
++++ b/.base-revision
+@@ -0,0 +1 @@
++eb5b832ac6dace06ed9777d70ee9c6d5d186b24f
+diff --git a/frontend/e2e/smoke.spec.ts b/frontend/e2e/smoke.spec.ts
+index 5bb1b17..048b8f3 100644
+--- a/frontend/e2e/smoke.spec.ts
++++ b/frontend/e2e/smoke.spec.ts
+@@ -1,4 +1,5 @@
+ import { expect, test, type Page, type Route } from '@playwright/test'
++import AxeBuilder from '@axe-core/playwright'
+ import { exportJWK, generateKeyPair, SignJWT } from 'jose'
+ 
+ const baseURL =
+@@ -575,6 +576,145 @@ async function gotoWiki(
+ }
+ 
+ test.describe('wiki smoke', () => {
++  test('restores search cursor context through SSO, reload, Back and Forward', async ({ page }) => {
++    await installWikiApiMocks(page)
++    const records = Array.from({ length: 41 }, (_, index) => ({
++      id: `search-${index + 1}`,
++      result_type: 'document',
++      title: `Документ поиска ${index + 1}`,
++      space_key: 'BASE',
++      url: `/documents/search-${index + 1}`,
++      snippet: 'Безопасные тестовые данные',
++      updated_at: now,
++    }))
++    await page.route('**/api/v1/search?*', (route) => {
++      const cursor = new URL(route.request().url()).searchParams.get('cursor')
++      const offset = cursor ? Number(cursor.slice(5)) : 0
++      return routeJson(route, {
++        results: records.slice(offset, offset + 20),
++        next_cursor: offset + 20 < records.length ? `page-${offset + 20}` : null,
++      })
++    })
++    const query = '/search?q=Wiki&keep=1&cursor=page-40&previous_cursor=page-20#results'
++    await gotoWiki(page, query)
++    await expect(page.getByText('Страница 3', { exact: true })).toBeVisible()
++    await expect(page.getByRole('link', { name: /Документ поиска 41/ })).toBeVisible()
++    await page.reload()
++    await expect(page).toHaveURL(`${baseURL}${query}`)
++    await expect(page.getByText('Страница 3', { exact: true })).toBeVisible()
++    await page.getByRole('button', { name: 'Назад', exact: true }).click()
++    await expect(page).toHaveURL(`${baseURL}/search?q=Wiki&keep=1&cursor=page-20#results`)
++    await expect(page.getByText('Показано 21–40', { exact: true })).toBeVisible()
++    await page.goBack()
++    await expect(page.getByText('Страница 3', { exact: true })).toBeVisible()
++    await page.goForward()
++    await expect(page.getByText('Страница 2', { exact: true })).toBeVisible()
++    await page.getByRole('searchbox', { name: 'Поисковый запрос' }).fill('релиз')
++    await expect(page).toHaveURL(
++      `${baseURL}/search?q=%D1%80%D0%B5%D0%BB%D0%B8%D0%B7&keep=1#results`,
++    )
++    await expect(page.getByText('Страница 1', { exact: true })).toBeVisible()
++    await page.goBack()
++    await expect(page.getByText('Страница 2', { exact: true })).toBeVisible()
++    await expect(page.getByRole('searchbox', { name: 'Поисковый запрос' })).toHaveValue('Wiki')
++    await page.getByRole('button', { name: 'Документы', exact: true }).click()
++    await expect(page).toHaveURL(`${baseURL}/search?q=Wiki&keep=1&result_type=document#results`)
++  })
++
++  test('uses Base search composition and controls across themes, widths and cached failures', async ({
++    page,
++  }, testInfo) => {
++    test.setTimeout(300_000)
++    await installWikiApiMocks(page)
++    let status = 200
++    await page.route('**/api/v1/search?*', (route) =>
++      status === 0
++        ? route.abort('failed')
++        : status === 200
++          ? route.fallback()
++          : routeJson(route, { message: 'Временный сбой тестового поиска' }, status),
++    )
++    const errors: string[] = []
++    page.on('pageerror', (error) => errors.push(error.message))
++    await gotoWiki(page, '/search')
++    for (const theme of ['dark', 'gray', 'light']) {
++      await page.evaluate((value) => localStorage.setItem('theme', value), theme)
++      await page.reload()
++      for (const width of [375, 767, 768, 1023, 1024, 1279, 1280, 1440, 1920, 2560]) {
++        await page.setViewportSize({ width, height: width < 768 ? 812 : 1080 })
++        await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
++        await expect(page.locator('[data-page-layout]')).toHaveAttribute('data-page-layout', 'wide')
++        await expect(page.getByRole('link', { name: /Требования к Wiki MVP/ })).toBeVisible()
++        await page.getByRole('button', { name: 'Фильтры', exact: true }).click()
++        const targets = await page
++          .locator('main button, main input, main select')
++          .evaluateAll((elements) =>
++            elements
++              .filter((element) => element.getClientRects().length > 0)
++              .map((element) => ({
++                label: element.getAttribute('aria-label') ?? element.textContent,
++                height: element.getBoundingClientRect().height,
++              })),
++          )
++        expect(targets.length).toBeGreaterThan(5)
++        for (const target of targets)
++          expect(target.height, String(target.label)).toBeGreaterThanOrEqual(width < 768 ? 44 : 40)
++        expect(
++          await page.evaluate(
++            () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
++          ),
++        ).toBe(true)
++        if (width === 375 || width === 1920)
++          expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
++        await page.screenshot({
++          path: testInfo.outputPath(`search-${theme}-${width}.png`),
++          fullPage: true,
++        })
++        await page.getByRole('button', { name: 'Фильтры', exact: true }).click()
++      }
++    }
++    for (const failure of [0, 503, 403, 404, 422]) {
++      status = 200
++      await page.getByRole('link', { name: 'Пространства', exact: true }).click()
++      await page.getByRole('link', { name: 'Поиск', exact: true }).click()
++      await expect(page.getByRole('link', { name: /Требования к Wiki MVP/ })).toBeVisible()
++      status = failure
++      await page.getByRole('link', { name: 'Пространства', exact: true }).click()
++      await page.getByRole('link', { name: 'Поиск', exact: true }).click()
++      if (failure === 0 || failure === 503) {
++        await expect(page.locator('[data-page-state="partial-error"]')).toBeVisible({
++          timeout: 15_000,
++        })
++        await expect(page.getByRole('link', { name: /Требования к Wiki MVP/ })).toBeVisible()
++        await expect(page.getByRole('button', { name: 'Повторить', exact: true })).toBeVisible()
++      } else {
++        const error =
++          failure === 422
++            ? page.getByRole('alert')
++            : page.locator(
++                `[data-page-state="${failure === 403 ? 'permission-denied' : 'not-found'}"]`,
++              )
++        await expect(error).toBeVisible({ timeout: 15_000 })
++        await expect(page.getByRole('link', { name: /Требования к Wiki MVP/ })).toHaveCount(0)
++        await expect(page.getByRole('button', { name: 'Повторить', exact: true })).toHaveCount(0)
++      }
++      for (const width of [375, 1920]) {
++        await page.setViewportSize({ width, height: width < 768 ? 812 : 1080 })
++        expect(
++          await page.evaluate(
++            () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
++          ),
++        ).toBe(true)
++        expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
++        await page.screenshot({
++          path: testInfo.outputPath(`search-cached-${failure}-${width}.png`),
++          fullPage: true,
++        })
++      }
++    }
++    expect(errors).toEqual([])
++  })
++
+   test('restores overview space context after direct login, reload and browser history', async ({
+     page,
+   }) => {
+diff --git a/frontend/package.json b/frontend/package.json
+index 088801f..12df0c9 100644
+--- a/frontend/package.json
++++ b/frontend/package.json
+@@ -4,11 +4,13 @@
+   "license": "UNLICENSED",
+   "version": "0.2.0",
+   "type": "module",
++  "packageManager": "pnpm@10.28.1",
+   "scripts": {
++    "base:check": "python ../../services-base/scripts/verify_base_revision.py --base ../../services-base --revision ../.base-revision",
+     "dev": "vite",
+     "build": "node scripts/generate-exports.mjs && tsc --noEmit && vite build",
+     "typecheck": "tsc --noEmit",
+-    "ui:check": "node ../../services-base/frontend/scripts/check-ui-contract.mjs --repo .. --require-installed",
++    "ui:check": "pnpm base:check && node ../../services-base/frontend/scripts/check-ui-contract.mjs --repo .. --require-installed",
+     "test": "vitest run",
+     "test:watch": "vitest",
+     "test:e2e": "playwright test",
+diff --git a/frontend/src/pages/admin/index.tsx b/frontend/src/pages/admin/index.tsx
+index 5587b26..2d6606d 100644
+--- a/frontend/src/pages/admin/index.tsx
++++ b/frontend/src/pages/admin/index.tsx
+@@ -11,7 +11,7 @@ import {
+   type LucideIcon,
+ } from 'lucide-react'
+ import { useAuditLog, useSpaces, useUsers, useWikiSettings } from '@/shared/api/hooks'
+-import { Button } from '@sdlc/ui/ui'
++import { Button, DashboardLayout } from '@sdlc/ui/ui'
+ import { formatApiErrorForUser } from '@/shared/lib/api-error'
+ import { formatBytes, formatDateTime } from '@/shared/lib/wiki-format'
+ 
+@@ -169,14 +169,7 @@ export function AdminPage() {
+   ]
+ 
+   return (
+-    <div className="min-w-0 space-y-6">
+-      <header>
+-        <h1 className="text-2xl font-bold">Администрирование</h1>
+-        <p className="mt-1 max-w-3xl text-sm text-text-muted">
+-          Быстрый доступ к профилям Wiki, настройкам среды выполнения и журналу аудита.
+-        </p>
+-      </header>
+-
++    <DashboardLayout title="Администрирование">
+       <section aria-labelledby="admin-sections-title">
+         <h2 id="admin-sections-title" className="mb-3 text-base font-semibold">
+           Административные разделы
+@@ -219,6 +212,6 @@ export function AdminPage() {
+           ))}
+         </div>
+       </section>
+-    </div>
++    </DashboardLayout>
+   )
+ }
+diff --git a/frontend/src/pages/audit-log/audit-log.test.tsx b/frontend/src/pages/audit-log/audit-log.test.tsx
+index 903f532..cf1cbec 100644
+--- a/frontend/src/pages/audit-log/audit-log.test.tsx
++++ b/frontend/src/pages/audit-log/audit-log.test.tsx
+@@ -176,7 +176,8 @@ describe('AuditLogPage', () => {
+     renderAuditLog()
+ 
+     expect(screen.getByText('Событий аудита пока нет')).toBeInTheDocument()
+-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
++    expect(screen.getByRole('status')).toHaveTextContent('Событий аудита пока нет')
++    expect(screen.queryByText(/Событий на странице:/)).not.toBeInTheDocument()
+     expect(screen.queryByRole('navigation', { name: 'Страницы аудита' })).not.toBeInTheDocument()
+   })
+ 
+diff --git a/frontend/src/pages/audit-log/index.tsx b/frontend/src/pages/audit-log/index.tsx
+index 590dd94..ea76872 100644
+--- a/frontend/src/pages/audit-log/index.tsx
++++ b/frontend/src/pages/audit-log/index.tsx
+@@ -1,5 +1,5 @@
+ import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+-import { useSearchParams } from 'react-router'
++import { useUrlSearchParams } from '@sdlc/ui/lib'
+ import { ChevronLeft, ChevronRight, ListFilter, RefreshCw } from 'lucide-react'
+ import { useAuditLog, useSpaces, useUsers } from '@/shared/api/hooks'
+ import {
+@@ -83,7 +83,7 @@ function setOptionalParam(params: URLSearchParams, name: string, value: string):
+ }
+ 
+ function useAuditLogUrl() {
+-  const [searchParams, setSearchParams] = useSearchParams()
++  const [searchParams, setSearchParams] = useUrlSearchParams()
+   const action = normalized(searchParams.get('action'))
+   const entityType = normalized(searchParams.get('entity_type'))
+   const requestedActorId = normalized(searchParams.get('actor_id'))
+diff --git a/frontend/src/pages/dashboard/index.tsx b/frontend/src/pages/dashboard/index.tsx
+index d0200e9..3a0ac78 100644
+--- a/frontend/src/pages/dashboard/index.tsx
++++ b/frontend/src/pages/dashboard/index.tsx
+@@ -1,5 +1,5 @@
+ import { useEffect } from 'react'
+-import { Link, useSearchParams } from 'react-router'
++import { Link } from 'react-router'
+ import {
+   ArrowRight,
+   FilePlus2,
+@@ -21,7 +21,7 @@ import {
+   resourceErrorState,
+   type ResourceState,
+ } from '@sdlc/ui/ui'
+-import { textQuery, updateQuery } from '@sdlc/ui/lib'
++import { textQuery, updateQuery, useUrlSearchParams } from '@sdlc/ui/lib'
+ import { formatApiErrorForUser } from '@/shared/lib/api-error'
+ import { formatDateTime } from '@/shared/lib/wiki-format'
+ import { resolveSpaceKey } from '@/shared/lib/space-selection'
+@@ -122,7 +122,7 @@ function DashboardMetric({ state, icon: Icon, label, value }: DashboardMetricPro
+ }
+ 
+ export function DashboardPage() {
+-  const [searchParams, setSearchParams] = useSearchParams()
++  const [searchParams, setSearchParams] = useUrlSearchParams()
+   const requestedSpaceKey = spaceQuery.parse(searchParams.get('space')).trim().toUpperCase()
+   const spacesQuery = useSpaces()
+   const spaces = spacesQuery.data?.spaces ?? []
+diff --git a/frontend/src/pages/evidence/index.tsx b/frontend/src/pages/evidence/index.tsx
+index 6abbe96..bfd2d9e 100644
+--- a/frontend/src/pages/evidence/index.tsx
++++ b/frontend/src/pages/evidence/index.tsx
+@@ -1,5 +1,6 @@
+ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+-import { Link, useSearchParams } from 'react-router'
++import { Link } from 'react-router'
++import { useUrlSearchParams } from '@sdlc/ui/lib'
+ import {
+   CheckCircle2,
+   ChevronLeft,
+@@ -187,7 +188,7 @@ function EvidenceTitle({ item, onSelect }: { item: Evidence; onSelect: (id: stri
+ }
+ 
+ export function EvidencePage() {
+-  const [searchParams, setSearchParams] = useSearchParams()
++  const [searchParams, setSearchParams] = useUrlSearchParams()
+   const initialSpace = searchParams.get('space')?.trim().toUpperCase() ?? ''
+   const appliedQuery = searchParams.get('q') ?? ''
+   const appliedSpace = searchParams.get('space') ?? ''
+diff --git a/frontend/src/pages/login/index.tsx b/frontend/src/pages/login/index.tsx
+index 75f08d1..afff02f 100644
+--- a/frontend/src/pages/login/index.tsx
++++ b/frontend/src/pages/login/index.tsx
+@@ -8,9 +8,12 @@ export function LoginPage() {
+   const location = useLocation()
+   const token = useAuthStore((state) => state.token)
+   const [error, setError] = useState<string | null>(null)
+-  const destination = (location.state as { from?: { pathname?: string; search?: string } } | null)
+-    ?.from
+-  const returnTo = destination ? `${destination.pathname ?? '/'}${destination.search ?? ''}` : '/'
++  const destination = (
++    location.state as { from?: { pathname?: string; search?: string; hash?: string } } | null
++  )?.from
++  const returnTo = destination
++    ? `${destination.pathname ?? '/'}${destination.search ?? ''}${destination.hash ?? ''}`
++    : '/'
+   const loggedOut = new URLSearchParams(location.search).has('logged_out')
+   useEffect(() => {
+     if (token || loggedOut) return
+diff --git a/frontend/src/pages/login/login.test.tsx b/frontend/src/pages/login/login.test.tsx
+index 660e8a4..27e0e1d 100644
+--- a/frontend/src/pages/login/login.test.tsx
++++ b/frontend/src/pages/login/login.test.tsx
+@@ -9,7 +9,7 @@ import { useAuthStore } from '@/shared/auth/store'
+ const beginSso = vi.hoisted(() => vi.fn(async () => {}))
+ vi.mock('@sdlc/ui/sso', () => ({ beginSso }))
+ 
+-function renderLogin(path = '/login') {
++function renderLogin(path: string | { pathname: string; state: unknown } = '/login') {
+   return render(
+     <ThemeProvider>
+       <MemoryRouter initialEntries={[path]}>
+@@ -40,4 +40,17 @@ describe('Wiki login', () => {
+     await userEvent.click(screen.getByRole('button', { name: 'Войти через SDLC' }))
+     expect(beginSso).toHaveBeenCalledTimes(1)
+   })
++
++  it('passes the protected pathname, query and fragment to central SSO', async () => {
++    renderLogin({
++      pathname: '/login',
++      state: { from: { pathname: '/search', search: '?space=TEAM&cursor=next', hash: '#results' } },
++    })
++    await waitFor(() =>
++      expect(beginSso).toHaveBeenCalledWith(
++        expect.objectContaining({ clientId: 'wiki' }),
++        '/search?space=TEAM&cursor=next#results',
++      ),
++    )
++  })
+ })
+diff --git a/frontend/src/pages/phase-dossier/index.tsx b/frontend/src/pages/phase-dossier/index.tsx
+index 24ccaa7..2bdb75d 100644
+--- a/frontend/src/pages/phase-dossier/index.tsx
++++ b/frontend/src/pages/phase-dossier/index.tsx
+@@ -1,5 +1,6 @@
+ import { type FormEvent, useRef, useState } from 'react'
+-import { Link, useParams, useSearchParams } from 'react-router'
++import { Link, useParams } from 'react-router'
++import { useUrlSearchParams } from '@sdlc/ui/lib'
+ import { FileCheck2, FileText, Link2, Search } from 'lucide-react'
+ import { useLinkPhaseDocument, usePhase, usePhaseSummaries, useSpaces } from '@/shared/api/hooks'
+ import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
+@@ -31,7 +32,7 @@ type SpaceOption = {
+ }
+ 
+ function useSelectedSpaceKey() {
+-  const [searchParams, setSearchParams] = useSearchParams()
++  const [searchParams, setSearchParams] = useUrlSearchParams()
+   const spacesQuery = useSpaces()
+   const selectedSpaceKey = resolveSpaceKey(
+     searchParams.get('space'),
+diff --git a/frontend/src/pages/spaces/index.tsx b/frontend/src/pages/spaces/index.tsx
+index 1aec8f1..aa5d330 100644
+--- a/frontend/src/pages/spaces/index.tsx
++++ b/frontend/src/pages/spaces/index.tsx
+@@ -1,5 +1,5 @@
+ import { FormEvent, useEffect, useRef, useState, type RefObject } from 'react'
+-import { Link, useSearchParams } from 'react-router'
++import { Link } from 'react-router'
+ import {
+   Archive,
+   BookOpenText,
+@@ -35,7 +35,13 @@ import {
+   type ResourceState,
+   UnsavedChangesGuard,
+ } from '@sdlc/ui/ui'
+-import { enumQuery, positiveIntegerQuery, textQuery, updateQuery } from '@sdlc/ui/lib'
++import {
++  enumQuery,
++  positiveIntegerQuery,
++  textQuery,
++  updateQuery,
++  useUrlSearchParams,
++} from '@sdlc/ui/lib'
+ import { Button } from '@sdlc/ui/ui'
+ import { Input } from '@sdlc/ui/ui'
+ import { Textarea } from '@sdlc/ui/ui'
+@@ -360,7 +366,7 @@ export function SpacesPage() {
+   const spacesQuery = useSpaces()
+   const updateSpace = useUpdateSpace()
+   const archiveSpace = useArchiveSpace()
+-  const [searchParams, setSearchParams] = useSearchParams()
++  const [searchParams, setSearchParams] = useUrlSearchParams()
+   const listFocusRef = useRef<HTMLButtonElement | null>(null)
+   const isSystemAdmin = currentUserQuery.data?.is_system_admin === true
+   const usersQuery = useUsers(isSystemAdmin)
+diff --git a/frontend/src/pages/task-dossier/index.tsx b/frontend/src/pages/task-dossier/index.tsx
+index f8f7fc1..3ae674a 100644
+--- a/frontend/src/pages/task-dossier/index.tsx
++++ b/frontend/src/pages/task-dossier/index.tsx
+@@ -1,5 +1,6 @@
+ import { type FormEvent, useRef, useState } from 'react'
+-import { Link, useParams, useSearchParams } from 'react-router'
++import { Link, useParams } from 'react-router'
++import { useUrlSearchParams } from '@sdlc/ui/lib'
+ import { FileCheck2, FileText, GitBranch, Link2, Search } from 'lucide-react'
+ import {
+   defaultSpaceKey,
+@@ -37,7 +38,7 @@ type SpaceOption = {
+ }
+ 
+ function useSelectedSpaceKey() {
+-  const [searchParams, setSearchParams] = useSearchParams()
++  const [searchParams, setSearchParams] = useUrlSearchParams()
+   const spacesQuery = useSpaces()
+   const selectedSpaceKey = resolveSpaceKey(
+     searchParams.get('space'),
+diff --git a/frontend/src/pages/templates/index.tsx b/frontend/src/pages/templates/index.tsx
+index 9585ce4..d5a5a32 100644
+--- a/frontend/src/pages/templates/index.tsx
++++ b/frontend/src/pages/templates/index.tsx
+@@ -1,5 +1,6 @@
+ import { FormEvent, useEffect, useRef, useState } from 'react'
+-import { Link, useSearchParams } from 'react-router'
++import { Link } from 'react-router'
++import { useUrlSearchParams } from '@sdlc/ui/lib'
+ import {
+   CheckCircle2,
+   ChevronDown,
+@@ -51,7 +52,7 @@ function setOptionalParam(params: URLSearchParams, name: string, value: string):
+ }
+ 
+ function useTemplateCatalogUrl() {
+-  const [searchParams, setSearchParams] = useSearchParams()
++  const [searchParams, setSearchParams] = useUrlSearchParams()
+   const appliedSearch = normalized(searchParams.get('q'))
+   const requestedType = normalized(searchParams.get('type'))
+   const typeFilter = typeOptions.includes(requestedType) ? requestedType : 'all'
+diff --git a/frontend/src/pages/users/index.tsx b/frontend/src/pages/users/index.tsx
+index 218f293..ad7e2b7 100644
+--- a/frontend/src/pages/users/index.tsx
++++ b/frontend/src/pages/users/index.tsx
+@@ -1,6 +1,6 @@
+ import { useEffect, useState } from 'react'
+ import { ChevronLeft, ChevronRight, ExternalLink, Search } from 'lucide-react'
+-import { useSearchParams } from 'react-router'
++import { useUrlSearchParams } from '@sdlc/ui/lib'
+ import {
+   Button,
+   ListPage,
+@@ -37,7 +37,7 @@ function setOptionalParam(params: URLSearchParams, name: string, value: string):
+ }
+ 
+ function useUserDirectoryUrl() {
+-  const [searchParams, setSearchParams] = useSearchParams()
++  const [searchParams, setSearchParams] = useUrlSearchParams()
+   const appliedSearch = normalized(searchParams.get('q'))
+   const requestedPage = parsePage(searchParams.get('page'))
+   const [search, setSearch] = useState(appliedSearch)
+diff --git a/frontend/src/pages/wiki-search/index.tsx b/frontend/src/pages/wiki-search/index.tsx
+index 2451fa7..ab9f043 100644
+--- a/frontend/src/pages/wiki-search/index.tsx
++++ b/frontend/src/pages/wiki-search/index.tsx
+@@ -1,8 +1,26 @@
+ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+-import { Link, useSearchParams } from 'react-router'
+-import { FileCheck2, FileText, GitBranch, ListFilter, Search } from 'lucide-react'
++import { Link } from 'react-router'
++import {
++  ChevronLeft,
++  ChevronRight,
++  FileCheck2,
++  FileText,
++  GitBranch,
++  ListFilter,
++  Search,
++} from 'lucide-react'
+ import { useWikiSearch } from '@/shared/api/hooks'
+-import { Button, EmptyState, ErrorState, Input, Label, LoadingState } from '@sdlc/ui/ui'
++import {
++  Button,
++  EmptyState,
++  Input,
++  Label,
++  ListPage,
++  ResourceStateView,
++  Select,
++  resourceErrorState,
++} from '@sdlc/ui/ui'
++import { enumQuery, updateQuery, useUrlSearchParams } from '@sdlc/ui/lib'
+ import { formatApiErrorForUser } from '@/shared/lib/api-error'
+ import { formatDateTime, formatDocumentType } from '@/shared/lib/wiki-format'
+ import type { SearchParams, SearchResult } from '@/api/wiki'
+@@ -24,8 +42,12 @@ const documentTypes = [
+ type ResultTypeFilter = (typeof resultTypes)[number]['value']
+ type DocumentTypeFilter = (typeof documentTypes)[number]
+ const pageSize = 20
+-const selectClassName =
+-  'min-h-10 w-full rounded-md border border-border-strong bg-surface px-3 text-sm text-text-primary focus-visible:outline-2 focus-visible:outline-accent'
++const resultTypeCodec = enumQuery(
++  resultTypes.map((item) => item.value),
++  'all',
++)
++const documentTypeCodec = enumQuery(documentTypes, 'all')
++const previousCursorParam = 'previous_cursor'
+ 
+ function resultIcon(type: string) {
+   if (type === 'evidence') return FileCheck2
+@@ -45,11 +67,15 @@ function optional(value: string) {
+ }
+ 
+ function resultTypeFrom(value: string | null): ResultTypeFilter {
+-  return resultTypes.some((item) => item.value === value) ? (value as ResultTypeFilter) : 'all'
++  return resultTypeCodec.parse(value)
+ }
+ 
+ function documentTypeFrom(value: string | null): DocumentTypeFilter {
+-  return documentTypes.includes(value as DocumentTypeFilter) ? (value as DocumentTypeFilter) : 'all'
++  return documentTypeCodec.parse(value)
++}
++
++function resetCursor(params: URLSearchParams): URLSearchParams {
++  return updateQuery(params, { cursor: null, [previousCursorParam]: null }, true)
+ }
+ 
+ function setOptionalParam(params: URLSearchParams, key: string, value: string) {
+@@ -59,7 +85,7 @@ function setOptionalParam(params: URLSearchParams, key: string, value: string) {
+ }
+ 
+ export function WikiSearchPage() {
+-  const [searchParams, setSearchParams] = useSearchParams()
++  const [searchParams, setSearchParams] = useUrlSearchParams()
+   const appliedQuery = searchParams.get('q')?.trim() ?? ''
+   const appliedSpace = searchParams.get('space')?.trim().toUpperCase() ?? ''
+   const appliedTask = searchParams.get('task_key')?.trim() ?? ''
+@@ -73,23 +99,16 @@ export function WikiSearchPage() {
+   const [phaseFilter, setPhaseFilter] = useState(appliedPhase)
+   const [documentTypeDraft, setDocumentTypeDraft] = useState<DocumentTypeFilter>(documentTypeFilter)
+   const [showFilters, setShowFilters] = useState(false)
+-  const criteriaKey = JSON.stringify([
+-    appliedQuery,
+-    appliedSpace,
+-    appliedTask,
+-    appliedPhase,
+-    resultTypeFilter,
+-    documentTypeFilter,
+-  ])
+-  const [paging, setPaging] = useState({
+-    criteriaKey,
+-    cursors: [undefined] as (string | undefined)[],
+-  })
+-  const pageCursors = useMemo<(string | undefined)[]>(
+-    () => (paging.criteriaKey === criteriaKey ? paging.cursors : [undefined]),
+-    [criteriaKey, paging.criteriaKey, paging.cursors],
++  const cursor = searchParams.get('cursor')?.trim() || undefined
++  const previousCursors = useMemo(
++    () =>
++      searchParams
++        .getAll(previousCursorParam)
++        .map((value) => value.trim())
++        .filter(Boolean),
++    [searchParams],
+   )
+-  const currentPage = pageCursors.length
++  const currentPage = cursor ? previousCursors.length + 2 : 1
+   const resultsSection = useRef<HTMLElement>(null)
+ 
+   useEffect(() => {
+@@ -104,10 +123,24 @@ export function WikiSearchPage() {
+   }, [appliedSpace, appliedTask, appliedPhase, documentTypeFilter])
+ 
+   useEffect(() => {
+-    if (paging.criteriaKey !== criteriaKey) {
+-      setPaging({ criteriaKey, cursors: [undefined] })
+-    }
+-  }, [criteriaKey, paging.criteriaKey])
++    const history = cursor ? previousCursors : []
++    const rawHistory = searchParams.getAll(previousCursorParam)
++    if (
++      searchParams.getAll('cursor').length === (cursor ? 1 : 0) &&
++      searchParams.get('cursor') === (cursor ?? null) &&
++      rawHistory.length === history.length &&
++      rawHistory.every((value, index) => value === history[index])
++    )
++      return
++    setSearchParams(
++      (current) => {
++        const next = updateQuery(current, { cursor: cursor ?? null, [previousCursorParam]: null })
++        for (const previous of history) next.append(previousCursorParam, previous)
++        return next
++      },
++      { replace: true },
++    )
++  }, [cursor, previousCursors, searchParams, setSearchParams])
+ 
+   useEffect(() => {
+     const rawResultType = searchParams.get('result_type')
+@@ -120,7 +153,7 @@ export function WikiSearchPage() {
+ 
+     setSearchParams(
+       (current) => {
+-        const next = new URLSearchParams(current)
++        const next = resetCursor(current)
+         if (invalidResultType) next.delete('result_type')
+         if (invalidDocumentType || incompatibleDocumentType) next.delete('document_type')
+         return next
+@@ -133,14 +166,11 @@ export function WikiSearchPage() {
+     const normalizedQuery = query.trim()
+     if (normalizedQuery === appliedQuery) return
+     const timeout = window.setTimeout(() => {
+-      setSearchParams(
+-        (current) => {
+-          const next = new URLSearchParams(current)
+-          setOptionalParam(next, 'q', normalizedQuery)
+-          return next
+-        },
+-        { replace: true },
+-      )
++      setSearchParams((current) => {
++        const next = resetCursor(current)
++        setOptionalParam(next, 'q', normalizedQuery)
++        return next
++      })
+     }, 300)
+     return () => window.clearTimeout(timeout)
+   }, [query, appliedQuery, setSearchParams])
+@@ -154,7 +184,7 @@ export function WikiSearchPage() {
+       document_type: documentTypeFilter === 'all' ? undefined : documentTypeFilter,
+       result_type: resultTypeFilter === 'all' ? undefined : resultTypeFilter,
+       limit: pageSize,
+-      cursor: pageCursors[currentPage - 1],
++      cursor,
+     }),
+     [
+       appliedPhase,
+@@ -163,13 +193,21 @@ export function WikiSearchPage() {
+       appliedTask,
+       documentTypeFilter,
+       resultTypeFilter,
+-      pageCursors,
+-      currentPage,
++      cursor,
+     ],
+   )
+   const searchQuery = useWikiSearch(requestParams)
+   const results = searchQuery.data?.results ?? []
+   const nextCursor = searchQuery.data?.next_cursor
++  const errorState = searchQuery.isError
++    ? resourceErrorState(searchQuery.error, () => searchQuery.refetch(), {
++        hasData: Boolean(searchQuery.data),
++        message: formatApiErrorForUser(searchQuery.error, 'Не удалось выполнить поиск'),
++      })
++    : undefined
++  const terminalError = errorState?.kind === 'not-found' || errorState?.kind === 'permission-denied'
++  const showResults =
++    !searchQuery.isLoading && (!searchQuery.isError || errorState?.kind === 'partial-error')
+   const activeFilterCount =
+     [appliedSpace, appliedTask, appliedPhase].filter((value) => value.trim() !== '').length +
+     (documentTypeFilter === 'all' ? 0 : 1)
+@@ -177,7 +215,7 @@ export function WikiSearchPage() {
+   function submitSearch(event: FormEvent<HTMLFormElement>) {
+     event.preventDefault()
+     setSearchParams((current) => {
+-      const next = new URLSearchParams(current)
++      const next = resetCursor(current)
+       setOptionalParam(next, 'q', query)
+       return next
+     })
+@@ -186,7 +224,7 @@ export function WikiSearchPage() {
+   function applyFilters(event: FormEvent<HTMLFormElement>) {
+     event.preventDefault()
+     setSearchParams((current) => {
+-      const next = new URLSearchParams(current)
++      const next = resetCursor(current)
+       setOptionalParam(next, 'q', query)
+       setOptionalParam(next, 'space', spaceFilter.toUpperCase())
+       setOptionalParam(next, 'task_key', taskFilter)
+@@ -200,7 +238,7 @@ export function WikiSearchPage() {
+ 
+   function selectResultType(value: ResultTypeFilter) {
+     setSearchParams((current) => {
+-      const next = new URLSearchParams(current)
++      const next = resetCursor(current)
+       if (value === 'all') next.delete('result_type')
+       else next.set('result_type', value)
+       if (value === 'evidence') next.delete('document_type')
+@@ -209,151 +247,164 @@ export function WikiSearchPage() {
+   }
+ 
+   function changePage(direction: 'previous' | 'next') {
+-    if (direction === 'previous') {
+-      setPaging({ criteriaKey, cursors: pageCursors.slice(0, -1) })
+-    } else if (nextCursor) {
+-      setPaging({ criteriaKey, cursors: [...pageCursors, nextCursor] })
+-    }
++    setSearchParams((current) => {
++      const next = new URLSearchParams(current)
++      const history = next
++        .getAll(previousCursorParam)
++        .map((value) => value.trim())
++        .filter(Boolean)
++      next.delete(previousCursorParam)
++      if (direction === 'next') {
++        if (!nextCursor || searchQuery.isError || searchQuery.isFetching) return current
++        if (cursor) history.push(cursor)
++        next.set('cursor', nextCursor)
++      } else {
++        setOptionalParam(next, 'cursor', history.pop() ?? '')
++      }
++      for (const previous of history) next.append(previousCursorParam, previous)
++      return next
++    })
+     resultsSection.current?.scrollIntoView?.({ block: 'start' })
+   }
+ 
+   return (
+-    <div className="space-y-4">
+-      <h1 className="text-2xl font-bold">Поиск</h1>
+-
+-      <section aria-label="Параметры поиска" className="space-y-3">
+-        <form role="search" onSubmit={submitSearch} className="flex min-w-0 gap-2">
+-          <div className="relative min-w-0 flex-1">
+-            <Search
+-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
+-              aria-hidden
+-            />
+-            <Input
+-              type="search"
+-              aria-label="Поисковый запрос"
+-              className="min-h-10 pl-9"
+-              value={query}
+-              onChange={(event) => {
+-                setQuery(event.target.value)
+-              }}
+-              placeholder="Название, текст или ключ"
+-            />
+-          </div>
+-          <Button
+-            type="button"
+-            size="sm"
+-            variant="outline"
+-            className="min-h-10 shrink-0 sm:min-h-10"
+-            aria-expanded={showFilters}
+-            aria-controls="search-filters"
+-            onClick={() => setShowFilters((value) => !value)}
+-          >
+-            <ListFilter className="h-4 w-4" aria-hidden />
+-            Фильтры{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+-          </Button>
+-        </form>
+-
+-        {showFilters && (
+-          <form
+-            id="search-filters"
+-            onSubmit={applyFilters}
+-            className="grid gap-3 border-y border-border py-3 sm:grid-cols-2 xl:grid-cols-4"
+-          >
+-            <div className="space-y-1.5">
+-              <Label htmlFor="search-space">Пространство</Label>
+-              <Input
+-                id="search-space"
+-                className="min-h-10"
+-                value={spaceFilter}
+-                onChange={(event) => {
+-                  setSpaceFilter(event.target.value.toUpperCase())
+-                }}
+-                placeholder="BASE"
+-              />
+-            </div>
+-            <div className="space-y-1.5">
+-              <Label htmlFor="search-task">Задача</Label>
+-              <Input
+-                id="search-task"
+-                className="min-h-10"
+-                value={taskFilter}
+-                onChange={(event) => {
+-                  setTaskFilter(event.target.value)
+-                }}
+-                placeholder="BASE-42"
++    <ListPage
++      title="Поиск"
++      state={terminalError ? errorState : undefined}
++      filters={
++        <section aria-label="Параметры поиска" className="space-y-3">
++          <form role="search" onSubmit={submitSearch} className="flex min-w-0 gap-2">
++            <div className="relative min-w-0 flex-1">
++              <Search
++                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
++                aria-hidden
+               />
+-            </div>
+-            <div className="space-y-1.5">
+-              <Label htmlFor="search-phase">Фаза</Label>
+               <Input
+-                id="search-phase"
+-                className="min-h-10"
+-                value={phaseFilter}
++                type="search"
++                aria-label="Поисковый запрос"
++                className="min-h-10 pl-9"
++                value={query}
+                 onChange={(event) => {
+-                  setPhaseFilter(event.target.value)
++                  setQuery(event.target.value)
+                 }}
+-                placeholder="implementation"
++                placeholder="Название, текст или ключ"
+               />
+             </div>
+-            <div className="space-y-1.5">
+-              <Label htmlFor="search-document-type">Тип документа</Label>
+-              <select
+-                id="search-document-type"
+-                className={selectClassName}
+-                value={documentTypeDraft}
+-                onChange={(event) => {
+-                  setDocumentTypeDraft(event.target.value as DocumentTypeFilter)
+-                }}
+-              >
+-                {documentTypes.map((type) => (
+-                  <option key={type} value={type}>
+-                    {type === 'all' ? 'Любой тип' : formatDocumentType(type)}
+-                  </option>
+-                ))}
+-              </select>
+-            </div>
+-            <div className="flex flex-wrap justify-end gap-2 sm:col-span-2 xl:col-span-4">
+-              {(activeFilterCount > 0 ||
+-                spaceFilter ||
+-                taskFilter ||
+-                phaseFilter ||
+-                documentTypeDraft !== 'all') && (
+-                <Button
+-                  type="button"
+-                  size="sm"
+-                  variant="ghost"
+-                  className="min-h-10 sm:min-h-10"
+-                  onClick={() => {
+-                    setSpaceFilter('')
+-                    setTaskFilter('')
+-                    setPhaseFilter('')
+-                    setDocumentTypeDraft('all')
+-                    setSearchParams((current) => {
+-                      const next = new URLSearchParams(current)
+-                      for (const key of [
+-                        'space',
+-                        'task_key',
+-                        'phase_key',
+-                        'document_type',
+-                        'result_type',
+-                      ]) {
+-                        next.delete(key)
+-                      }
+-                      return next
+-                    })
++            <Button
++              type="button"
++              size="sm"
++              variant="outline"
++              className="min-h-10 shrink-0 sm:min-h-10"
++              aria-expanded={showFilters}
++              aria-controls="search-filters"
++              onClick={() => setShowFilters((value) => !value)}
++            >
++              <ListFilter className="h-4 w-4" aria-hidden />
++              Фильтры{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
++            </Button>
++          </form>
++
++          {showFilters && (
++            <form
++              id="search-filters"
++              onSubmit={applyFilters}
++              className="grid gap-3 border-y border-border py-3 sm:grid-cols-2 xl:grid-cols-4"
++            >
++              <div className="space-y-1.5">
++                <Label htmlFor="search-space">Пространство</Label>
++                <Input
++                  id="search-space"
++                  className="min-h-10"
++                  value={spaceFilter}
++                  onChange={(event) => {
++                    setSpaceFilter(event.target.value.toUpperCase())
++                  }}
++                  placeholder="BASE"
++                />
++              </div>
++              <div className="space-y-1.5">
++                <Label htmlFor="search-task">Задача</Label>
++                <Input
++                  id="search-task"
++                  className="min-h-10"
++                  value={taskFilter}
++                  onChange={(event) => {
++                    setTaskFilter(event.target.value)
++                  }}
++                  placeholder="BASE-42"
++                />
++              </div>
++              <div className="space-y-1.5">
++                <Label htmlFor="search-phase">Фаза</Label>
++                <Input
++                  id="search-phase"
++                  className="min-h-10"
++                  value={phaseFilter}
++                  onChange={(event) => {
++                    setPhaseFilter(event.target.value)
++                  }}
++                  placeholder="implementation"
++                />
++              </div>
++              <div className="space-y-1.5">
++                <Label htmlFor="search-document-type">Тип документа</Label>
++                <Select
++                  id="search-document-type"
++                  value={documentTypeDraft}
++                  onChange={(event) => {
++                    setDocumentTypeDraft(event.target.value as DocumentTypeFilter)
+                   }}
+                 >
+-                  Сбросить фильтры
++                  {documentTypes.map((type) => (
++                    <option key={type} value={type}>
++                      {type === 'all' ? 'Любой тип' : formatDocumentType(type)}
++                    </option>
++                  ))}
++                </Select>
++              </div>
++              <div className="flex flex-wrap justify-end gap-2 sm:col-span-2 xl:col-span-4">
++                {(activeFilterCount > 0 ||
++                  spaceFilter ||
++                  taskFilter ||
++                  phaseFilter ||
++                  documentTypeDraft !== 'all') && (
++                  <Button
++                    type="button"
++                    size="sm"
++                    variant="ghost"
++                    className="min-h-10 sm:min-h-10"
++                    onClick={() => {
++                      setSpaceFilter('')
++                      setTaskFilter('')
++                      setPhaseFilter('')
++                      setDocumentTypeDraft('all')
++                      setSearchParams((current) => {
++                        const next = resetCursor(current)
++                        for (const key of [
++                          'space',
++                          'task_key',
++                          'phase_key',
++                          'document_type',
++                          'result_type',
++                        ]) {
++                          next.delete(key)
++                        }
++                        return next
++                      })
++                    }}
++                  >
++                    Сбросить фильтры
++                  </Button>
++                )}
++                <Button type="submit" size="sm" className="min-h-10 sm:min-h-10">
++                  Применить
+                 </Button>
+-              )}
+-              <Button type="submit" size="sm" className="min-h-10 sm:min-h-10">
+-                Применить
+-              </Button>
+-            </div>
+-          </form>
+-        )}
+-      </section>
+-
++              </div>
++            </form>
++          )}
++        </section>
++      }
++    >
+       <section
+         ref={resultsSection}
+         aria-labelledby="search-results-title"
+@@ -363,7 +414,7 @@ export function WikiSearchPage() {
+           <h2 id="search-results-title" className="text-base font-semibold">
+             Результаты
+           </h2>
+-          {!searchQuery.isLoading && !searchQuery.isError && (
++          {showResults && (
+             <p role="status" className="text-sm text-text-muted">
+               {results.length === 0
+                 ? '0 результатов'
+@@ -387,17 +438,12 @@ export function WikiSearchPage() {
+           ))}
+         </div>
+ 
+-        {searchQuery.isLoading && <LoadingState message="Ищем" />}
+-        {searchQuery.isError && (
+-          <ErrorState
+-            message={formatApiErrorForUser(searchQuery.error, 'Не удалось выполнить поиск')}
+-            onRetry={() => searchQuery.refetch()}
+-          />
+-        )}
+-        {!searchQuery.isLoading && !searchQuery.isError && results.length === 0 && (
+-          <EmptyState message="Ничего не найдено" />
++        {searchQuery.isLoading && (
++          <ResourceStateView state={{ kind: 'loading', message: 'Ищем' }} />
+         )}
+-        {!searchQuery.isLoading && !searchQuery.isError && results.length > 0 && (
++        {errorState && <ResourceStateView state={errorState} />}
++        {showResults && results.length === 0 && <EmptyState message="Ничего не найдено" />}
++        {showResults && results.length > 0 && (
+           <div className="divide-y divide-border border-y border-border">
+             {results.map((result: SearchResult) => {
+               const Icon = resultIcon(result.result_type)
+@@ -427,7 +473,7 @@ export function WikiSearchPage() {
+             })}
+           </div>
+         )}
+-        {(currentPage > 1 || nextCursor) && !searchQuery.isLoading && !searchQuery.isError && (
++        {(currentPage > 1 || nextCursor) && !searchQuery.isLoading && (
+           <nav aria-label="Страницы результатов" className="flex items-center justify-end gap-2">
+             <Button
+               type="button"
+@@ -437,6 +483,7 @@ export function WikiSearchPage() {
+               disabled={currentPage === 1}
+               onClick={() => changePage('previous')}
+             >
++              <ChevronLeft className="h-4 w-4" aria-hidden />
+               Назад
+             </Button>
+             <span className="text-sm text-text-muted">Страница {currentPage}</span>
+@@ -445,14 +492,15 @@ export function WikiSearchPage() {
+               size="sm"
+               variant="outline"
+               className="min-h-10 sm:min-h-10"
+-              disabled={!nextCursor}
++              disabled={!nextCursor || searchQuery.isError || searchQuery.isFetching}
+               onClick={() => changePage('next')}
+             >
+               Далее
++              <ChevronRight className="h-4 w-4" aria-hidden />
+             </Button>
+           </nav>
+         )}
+       </section>
+-    </div>
++    </ListPage>
+   )
+ }
+diff --git a/frontend/src/pages/wiki-search/wiki-search.test.tsx b/frontend/src/pages/wiki-search/wiki-search.test.tsx
+index 41b3989..4f065b1 100644
+--- a/frontend/src/pages/wiki-search/wiki-search.test.tsx
++++ b/frontend/src/pages/wiki-search/wiki-search.test.tsx
+@@ -1,4 +1,4 @@
+-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
++import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+ import { createMemoryRouter, RouterProvider } from 'react-router'
+ import { afterEach, describe, expect, it, vi } from 'vitest'
+ 
+@@ -244,15 +244,134 @@ describe('WikiSearchPage', () => {
+     )
+   })
+ 
+-  it('renders permission denied search errors with retry', () => {
++  it('renders permission denied without exposing cached results, filters or retry', () => {
+     setupSearch([], {
+-      data: undefined,
++      data: { results: [documentResult], next_cursor: 'page-20' },
+       isError: true,
+-      error: { code: 'FORBIDDEN', message: 'Forbidden' },
++      error: { status: 403, code: 'FORBIDDEN', message: 'Forbidden' },
+     })
+ 
+-    expect(screen.getByRole('alert')).toHaveTextContent('Недостаточно прав для действия')
+-    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }))
+-    expect(searchRefetch).toHaveBeenCalled()
++    expect(screen.getByRole('heading', { name: 'Нет доступа' })).toBeInTheDocument()
++    expect(screen.getByText('Недостаточно прав для действия')).toBeInTheDocument()
++    expect(screen.queryByRole('link', { name: /Требования Wiki/ })).not.toBeInTheDocument()
++    expect(screen.queryByRole('button', { name: 'Фильтры' })).not.toBeInTheDocument()
++    expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument()
++    expect(
++      screen.queryByRole('navigation', { name: 'Страницы результатов' }),
++    ).not.toBeInTheDocument()
++  })
++
++  it('restores the cursor, previous pages and context after direct open and history navigation', async () => {
++    const results = Array.from({ length: 41 }, (_, index) => ({
++      ...documentResult,
++      id: `doc-${index}`,
++      title: `Документ ${index + 1}`,
++    }))
++    const router = setupSearch(
++      results,
++      {},
++      '/search?q=Wiki&keep=1&cursor=page-40&previous_cursor=page-20',
++    )
++    expect(useWikiSearch).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: 'page-40' }))
++    expect(screen.getByText('Страница 3')).toBeInTheDocument()
++    expect(screen.getByText('Показано 41–41')).toBeInTheDocument()
++    fireEvent.click(screen.getByRole('button', { name: 'Назад' }))
++    expect(router.state.location.search).toBe('?q=Wiki&keep=1&cursor=page-20')
++    expect(screen.getByText('Страница 2')).toBeInTheDocument()
++    await act(() => router.navigate(-1))
++    expect(screen.getByText('Страница 3')).toBeInTheDocument()
++    await act(() => router.navigate(1))
++    expect(screen.getByText('Страница 2')).toBeInTheDocument()
++    fireEvent.click(screen.getByRole('button', { name: 'Назад' }))
++    expect(router.state.location.search).toBe('?q=Wiki&keep=1')
++    fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
++    fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
++    expect(router.state.location.search).toBe(
++      '?q=Wiki&keep=1&cursor=page-40&previous_cursor=page-20',
++    )
++  })
++
++  it('resets cursor history on result type, filters, reset and debounced search changes', async () => {
++    const router = setupSearch(
++      undefined,
++      {},
++      '/search?q=Wiki&keep=1&cursor=page-40&previous_cursor=page-20',
++    )
++    fireEvent.click(screen.getByRole('button', { name: 'Документы' }))
++    expect(router.state.location.search).toBe('?q=Wiki&keep=1&result_type=document')
++    await act(() => router.navigate('/search?q=Wiki&keep=1&cursor=page-40&previous_cursor=page-20'))
++    fireEvent.click(screen.getByRole('button', { name: 'Фильтры' }))
++    fireEvent.change(screen.getByLabelText('Пространство'), { target: { value: 'eng' } })
++    fireEvent.click(screen.getByRole('button', { name: 'Применить' }))
++    expect(router.state.location.search).toBe('?q=Wiki&keep=1&space=ENG')
++    await act(() =>
++      router.navigate('/search?q=Wiki&keep=1&space=ENG&cursor=page-40&previous_cursor=page-20'),
++    )
++    fireEvent.click(screen.getByRole('button', { name: 'Сбросить фильтры' }))
++    expect(router.state.location.search).toBe('?q=Wiki&keep=1')
++    await act(() => router.navigate('/search?q=Wiki&keep=1&cursor=page-40&previous_cursor=page-20'))
++    fireEvent.change(screen.getByRole('searchbox', { name: 'Поисковый запрос' }), {
++      target: { value: 'новый' },
++    })
++    await waitFor(() =>
++      expect(router.state.location.search).toBe('?q=%D0%BD%D0%BE%D0%B2%D1%8B%D0%B9&keep=1'),
++    )
++    await act(() => router.navigate(-1))
++    expect(screen.getByRole('searchbox', { name: 'Поисковый запрос' })).toHaveValue('Wiki')
++    expect(useWikiSearch).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: 'page-40' }))
++  })
++
++  it('canonicalizes cursor whitespace, duplicates and orphan history without losing unrelated params', () => {
++    const router = setupSearch(
++      undefined,
++      {},
++      '/search?keep=1&cursor=%20page-20%20&cursor=other&previous_cursor=%20&previous_cursor=%20page-10%20',
++    )
++    expect(router.state.location.search).toBe('?keep=1&cursor=page-20&previous_cursor=page-10')
++    expect(useWikiSearch).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: 'page-20' }))
++  })
++
++  it('removes previous cursor history when there is no current cursor', () => {
++    const router = setupSearch(undefined, {}, '/search?keep=1&previous_cursor=page-20')
++    expect(router.state.location.search).toBe('?keep=1')
++    expect(useWikiSearch).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: undefined }))
++  })
++
++  it.each([0, 408, 429, 503])(
++    'preserves results with a partial warning and retry for status %s',
++    (status) => {
++      setupSearch(undefined, {
++        isError: true,
++        error: { status, message: 'Временный сбой' },
++      })
++      expect(screen.getByRole('link', { name: /Требования Wiki/ })).toBeInTheDocument()
++      expect(screen.getByText('Временный сбой')).toBeInTheDocument()
++      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
++      fireEvent.click(screen.getByRole('button', { name: 'Повторить' }))
++      expect(searchRefetch).toHaveBeenCalledTimes(1)
++    },
++  )
++
++  it.each([404, 422])('hides cached results and retry for non-retryable status %s', (status) => {
++    setupSearch(undefined, { isError: true, error: { status, message: 'Ошибка запроса' } })
++    expect(screen.queryByRole('link', { name: /Требования Wiki/ })).not.toBeInTheDocument()
++    expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument()
++    expect(screen.queryByText('Ничего не найдено')).not.toBeInTheDocument()
++  })
++
++  it('does not retain cached results or offer retry for cancellation', () => {
++    setupSearch(undefined, { isError: true, error: { name: 'AbortError' } })
++    expect(screen.queryByRole('link', { name: /Требования Wiki/ })).not.toBeInTheDocument()
++    expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument()
++  })
++
++  it('keeps previous page available when the next page fails without cached data', () => {
++    setupSearch(
++      [],
++      { data: undefined, isError: true, error: { status: 503 } },
++      '/search?keep=1&cursor=page-20',
++    )
++    expect(screen.getByRole('button', { name: 'Назад' })).toBeEnabled()
++    expect(screen.getByRole('button', { name: 'Далее' })).toBeDisabled()
+   })
+ })
+diff --git a/frontend/src/shared/lib/dossier-catalog-url.ts b/frontend/src/shared/lib/dossier-catalog-url.ts
+index 0cd0543..638d492 100644
+--- a/frontend/src/shared/lib/dossier-catalog-url.ts
++++ b/frontend/src/shared/lib/dossier-catalog-url.ts
+@@ -1,5 +1,5 @@
+ import { useEffect, useMemo, useState } from 'react'
+-import { useSearchParams } from 'react-router'
++import { useUrlSearchParams } from '@sdlc/ui/lib'
+ 
+ const previousCursorParam = 'previous_cursor'
+ 
+@@ -24,7 +24,7 @@ export function pathWithSearchParams(path: string, params: URLSearchParams): str
+ }
+ 
+ export function useDossierCatalogUrl() {
+-  const [searchParams, setSearchParams] = useSearchParams()
++  const [searchParams, setSearchParams] = useUrlSearchParams()
+   const appliedSearch = normalized(searchParams.get('q'))
+   const cursor = normalized(searchParams.get('cursor')) || undefined
+   const previousCursors = useMemo(

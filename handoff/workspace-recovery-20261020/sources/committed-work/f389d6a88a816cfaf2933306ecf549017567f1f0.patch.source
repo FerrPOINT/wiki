@@ -1,0 +1,577 @@
+diff --git a/docs/USER_GUIDE.md b/docs/USER_GUIDE.md
+index a8769d5..d136a34 100644
+--- a/docs/USER_GUIDE.md
++++ b/docs/USER_GUIDE.md
+@@ -69,11 +69,15 @@ Wiki хранит важные материалы вокруг SDLC-задач:
+ - phase dossier по workflow-фазе;
+ - evidence по типу источника или ссылке.
+ 
+-## 8. Права
++## 8. Аудит
++
++На странице `/audit-log` фильтруйте события по действию, типу объекта, участнику и периоду. Время в полях периода вводится по местному часовому поясу; конечная дата не включается. Кнопка «Сбросить» возвращает полную историю. Для расследования доступны исходный код действия, идентификаторы объекта и запроса.
++
++## 9. Права
+ 
+ Viewers видят опубликованный контент. Editors создают черновики, публикуют ревизии и прикрепляют evidence. Space admins управляют участниками и metadata своего пространства. System admins управляют пользователями, шаблонами, настройками и аудитом.
+ 
+-## 9. CLI
++## 10. CLI
+ 
+ `wiki` CLI - второй официальный клиент к тому же публичному API, который использует UI. Он нужен для scripted document creation, task/phase evidence capture, администрирования users/members, чтения audit log и скачивания attachments.
+ 
+diff --git a/frontend/src/api/wiki-audit-filters.test.ts b/frontend/src/api/wiki-audit-filters.test.ts
+new file mode 100644
+index 0000000..4a1185b
+--- /dev/null
++++ b/frontend/src/api/wiki-audit-filters.test.ts
+@@ -0,0 +1,39 @@
++import { describe, expect, it, vi } from 'vitest'
++
++import { listAuditLog } from './wiki'
++
++const apiRequest = vi.hoisted(() => vi.fn())
++
++vi.mock('./client', () => ({ apiRequest, apiBlobRequest: vi.fn() }))
++
++describe('listAuditLog', () => {
++  it('serializes exact server filters before cursor pagination', async () => {
++    await listAuditLog({
++      limit: 20,
++      cursor: 'next page',
++      action: 'document.publish',
++      entity_type: 'document',
++      actor_id: '00000000-0000-4000-8000-000000000001',
++      from: '2026-09-20T07:00:00.000Z',
++      to: '2026-09-21T07:00:00.000Z',
++    })
++
++    const url = new URL(apiRequest.mock.calls[0]![0], 'http://wiki.local')
++    expect(url.pathname).toBe('/api/v1/audit-log')
++    expect(Object.fromEntries(url.searchParams)).toEqual({
++      limit: '20',
++      cursor: 'next page',
++      action: 'document.publish',
++      entity_type: 'document',
++      actor_id: '00000000-0000-4000-8000-000000000001',
++      from: '2026-09-20T07:00:00.000Z',
++      to: '2026-09-21T07:00:00.000Z',
++    })
++  })
++
++  it('omits cleared filters', async () => {
++    await listAuditLog({ limit: 20, action: '', entity_type: '', actor_id: '', from: '', to: '' })
++
++    expect(apiRequest).toHaveBeenLastCalledWith('/api/v1/audit-log?limit=20')
++  })
++})
+diff --git a/frontend/src/api/wiki.ts b/frontend/src/api/wiki.ts
+index 6c94c3c..c7d9deb 100644
+--- a/frontend/src/api/wiki.ts
++++ b/frontend/src/api/wiki.ts
+@@ -91,6 +91,11 @@ export type DocumentRevisionListParams = {
+ export type AuditLogParams = {
+   limit?: number
+   cursor?: string
++  action?: string
++  entity_type?: string
++  actor_id?: string
++  from?: string
++  to?: string
+ }
+ 
+ function queryString(params: Record<string, string | number | boolean | null | undefined>): string {
+diff --git a/frontend/src/pages/audit-log/audit-log.test.tsx b/frontend/src/pages/audit-log/audit-log.test.tsx
+index 2a7e941..9a688b5 100644
+--- a/frontend/src/pages/audit-log/audit-log.test.tsx
++++ b/frontend/src/pages/audit-log/audit-log.test.tsx
+@@ -1,18 +1,22 @@
+ import { fireEvent, render, screen, within } from '@testing-library/react'
+-import { afterEach, describe, expect, it, vi } from 'vitest'
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+ 
+-import type { AuditEntry } from '@/api/wiki'
++import type { AuditEntry, AuditLogParams } from '@/api/wiki'
+ 
+ import { AuditLogPage } from './'
+ 
+ const useAuditLog = vi.hoisted(() => vi.fn())
++const useUsers = vi.hoisted(() => vi.fn())
++const usersRefetch = vi.hoisted(() => vi.fn())
+ 
+-vi.mock('@/shared/api/hooks', () => ({ useAuditLog }))
++vi.mock('@/shared/api/hooks', () => ({ useAuditLog, useUsers }))
++
++const actorId = '00000000-0000-4000-8000-000000000001'
+ 
+ const entries: AuditEntry[] = [
+   {
+     id: 'event-3',
+-    actor_id: 'user-1',
++    actor_id: actorId,
+     action: 'document.publish',
+     entity_type: 'document',
+     entity_id: 'document-1',
+@@ -51,6 +55,14 @@ function queryResult(data: { entries: AuditEntry[]; next_cursor: string | null }
+ }
+ 
+ describe('AuditLogPage', () => {
++  beforeEach(() => {
++    useUsers.mockReturnValue({
++      data: { users: [{ id: actorId, display_name: 'Анна', email: 'anna@example.test' }] },
++      isLoading: false,
++      isError: false,
++      refetch: usersRefetch,
++    })
++  })
+   afterEach(() => vi.clearAllMocks())
+ 
+   it('shows readable events, preserves technical IDs and navigates cursor pages', () => {
+@@ -63,7 +75,9 @@ describe('AuditLogPage', () => {
+     )
+     render(<AuditLogPage />)
+ 
+-    expect(useAuditLog).toHaveBeenCalledWith({ limit: 20, cursor: undefined })
++    expect(useAuditLog).toHaveBeenCalledWith(
++      expect.objectContaining({ limit: 20, cursor: undefined }),
++    )
+     const events = screen.getByRole('region', { name: 'События аудита' })
+     expect(within(events).getByRole('status')).toHaveTextContent('Событий на странице: 3')
+     expect(screen.getAllByText('Опубликован документ')).toHaveLength(2)
+@@ -78,7 +92,9 @@ describe('AuditLogPage', () => {
+     )
+ 
+     fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
+-    expect(useAuditLog).toHaveBeenLastCalledWith({ limit: 20, cursor: 'cursor-1' })
++    expect(useAuditLog).toHaveBeenLastCalledWith(
++      expect.objectContaining({ limit: 20, cursor: 'cursor-1' }),
++    )
+     expect(screen.getByRole('navigation', { name: 'Страницы аудита' })).toHaveTextContent(
+       'Страница 2',
+     )
+@@ -86,7 +102,9 @@ describe('AuditLogPage', () => {
+     expect(within(events).getByRole('status')).toHaveTextContent('Событий на странице: 1')
+ 
+     fireEvent.click(screen.getByRole('button', { name: 'Назад' }))
+-    expect(useAuditLog).toHaveBeenLastCalledWith({ limit: 20, cursor: undefined })
++    expect(useAuditLog).toHaveBeenLastCalledWith(
++      expect.objectContaining({ limit: 20, cursor: undefined }),
++    )
+     expect(screen.getByRole('navigation', { name: 'Страницы аудита' })).toHaveTextContent(
+       'Страница 1',
+     )
+@@ -128,6 +146,19 @@ describe('AuditLogPage', () => {
+     expect(screen.queryByRole('navigation', { name: 'Страницы аудита' })).not.toBeInTheDocument()
+   })
+ 
++  it('keeps back navigation when a later cursor page becomes empty', () => {
++    useAuditLog.mockImplementation(({ cursor }: AuditLogParams) =>
++      queryResult(
++        cursor ? { entries: [], next_cursor: null } : { entries, next_cursor: 'cursor-1' },
++      ),
++    )
++    render(<AuditLogPage />)
++
++    fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
++    expect(screen.getByText('На этой странице событий больше нет')).toBeInTheDocument()
++    expect(screen.getByRole('button', { name: 'Назад' })).toBeEnabled()
++  })
++
+   it('falls back to the original code for an unknown action', () => {
+     useAuditLog.mockReturnValue(
+       queryResult({ entries: [{ ...entries[0]!, action: 'integration.sync' }], next_cursor: null }),
+@@ -137,4 +168,118 @@ describe('AuditLogPage', () => {
+ 
+     expect(screen.getAllByText('integration.sync')).toHaveLength(3)
+   })
++
++  it('applies filters before cursor paging and resets to the first page', () => {
++    useAuditLog.mockImplementation(({ cursor }: AuditLogParams) =>
++      queryResult(
++        cursor
++          ? { entries: [entries[2]!], next_cursor: null }
++          : { entries, next_cursor: 'cursor-1' },
++      ),
++    )
++    render(<AuditLogPage />)
++
++    fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
++    expect(screen.getByRole('navigation', { name: 'Страницы аудита' })).toHaveTextContent(
++      'Страница 2',
++    )
++    fireEvent.click(screen.getByRole('button', { name: 'Фильтры' }))
++    expect(useUsers).toHaveBeenLastCalledWith(true)
++    fireEvent.change(screen.getByLabelText('Действие'), { target: { value: 'document.publish' } })
++    fireEvent.change(screen.getByLabelText('Тип объекта'), { target: { value: 'document' } })
++    fireEvent.change(screen.getByLabelText('Участник'), { target: { value: actorId } })
++    fireEvent.change(screen.getByLabelText('С даты (местное время)'), {
++      target: { value: '2026-09-20T10:00' },
++    })
++    fireEvent.change(screen.getByLabelText('До даты (не включая)'), {
++      target: { value: '2026-09-21T10:00' },
++    })
++    fireEvent.click(screen.getByRole('button', { name: 'Применить' }))
++
++    expect(useAuditLog).toHaveBeenLastCalledWith({
++      limit: 20,
++      cursor: undefined,
++      action: 'document.publish',
++      entity_type: 'document',
++      actor_id: actorId,
++      from: new Date('2026-09-20T10:00').toISOString(),
++      to: new Date('2026-09-21T10:00').toISOString(),
++    })
++    expect(screen.getByRole('button', { name: 'Фильтры (5)' })).toHaveAttribute(
++      'aria-expanded',
++      'false',
++    )
++    expect(screen.getByRole('navigation', { name: 'Страницы аудита' })).toHaveTextContent(
++      'Страница 1',
++    )
++
++    fireEvent.click(screen.getByRole('button', { name: 'Фильтры (5)' }))
++    fireEvent.click(screen.getByRole('button', { name: 'Сбросить' }))
++    expect(useAuditLog).toHaveBeenLastCalledWith({
++      limit: 20,
++      cursor: undefined,
++      action: '',
++      entity_type: '',
++      actor_id: '',
++      from: '',
++      to: '',
++    })
++    expect(screen.getByRole('button', { name: 'Фильтры' })).toBeInTheDocument()
++  })
++
++  it('blocks an inverted date range without changing the audit request', () => {
++    useAuditLog.mockReturnValue(queryResult({ entries, next_cursor: null }))
++    render(<AuditLogPage />)
++
++    fireEvent.click(screen.getByRole('button', { name: 'Фильтры' }))
++    fireEvent.change(screen.getByLabelText('С даты (местное время)'), {
++      target: { value: '2026-09-21T10:00' },
++    })
++    fireEvent.change(screen.getByLabelText('До даты (не включая)'), {
++      target: { value: '2026-09-20T10:00' },
++    })
++    fireEvent.click(screen.getByRole('button', { name: 'Применить' }))
++
++    expect(screen.getByRole('alert')).toHaveTextContent('Дата начала должна быть раньше')
++    expect(useAuditLog.mock.calls.every((call) => !call[0]?.from && !call[0]?.to)).toBe(true)
++  })
++
++  it('offers manual actor ID and retry when the user directory fails', () => {
++    useUsers.mockReturnValue({
++      data: undefined,
++      isLoading: false,
++      isError: true,
++      refetch: usersRefetch,
++    })
++    useAuditLog.mockReturnValue(queryResult({ entries, next_cursor: null }))
++    render(<AuditLogPage />)
++
++    fireEvent.click(screen.getByRole('button', { name: 'Фильтры' }))
++    expect(screen.getByText('Каталог пользователей недоступен; укажите UUID')).toBeInTheDocument()
++    fireEvent.click(screen.getByRole('button', { name: 'Повторить загрузку пользователей' }))
++    expect(usersRefetch).toHaveBeenCalledOnce()
++    fireEvent.change(screen.getByLabelText('Участник'), { target: { value: 'bad-id' } })
++    fireEvent.click(screen.getByRole('button', { name: 'Применить' }))
++    expect(screen.getByRole('alert')).toHaveTextContent('Укажите UUID участника')
++
++    fireEvent.change(screen.getByLabelText('Участник'), { target: { value: actorId } })
++    fireEvent.click(screen.getByRole('button', { name: 'Применить' }))
++    expect(useAuditLog).toHaveBeenLastCalledWith(
++      expect.objectContaining({ actor_id: actorId, cursor: undefined }),
++    )
++  })
++
++  it('keeps filters available after an empty filtered result', () => {
++    useAuditLog.mockImplementation(({ action }: AuditLogParams) =>
++      queryResult({ entries: action ? [] : entries, next_cursor: null }),
++    )
++    render(<AuditLogPage />)
++
++    fireEvent.click(screen.getByRole('button', { name: 'Фильтры' }))
++    fireEvent.change(screen.getByLabelText('Действие'), { target: { value: 'document.publish' } })
++    fireEvent.click(screen.getByRole('button', { name: 'Применить' }))
++
++    expect(screen.getByText('Событий по фильтрам не найдено')).toBeInTheDocument()
++    expect(screen.getByRole('button', { name: 'Фильтры (1)' })).toBeInTheDocument()
++  })
+ })
+diff --git a/frontend/src/pages/audit-log/index.tsx b/frontend/src/pages/audit-log/index.tsx
+index 40fa377..21a648b 100644
+--- a/frontend/src/pages/audit-log/index.tsx
++++ b/frontend/src/pages/audit-log/index.tsx
+@@ -1,8 +1,9 @@
+-import { useRef, useState } from 'react'
+-import { ChevronLeft, ChevronRight } from 'lucide-react'
+-import { useAuditLog } from '@/shared/api/hooks'
++import { type FormEvent, useRef, useState } from 'react'
++import { ChevronLeft, ChevronRight, ListFilter, RefreshCw } from 'lucide-react'
++import { useAuditLog, useUsers } from '@/shared/api/hooks'
+ import { EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
+ import { Button } from '@sdlc/ui/ui'
++import { Input } from '@sdlc/ui/ui'
+ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@sdlc/ui/ui'
+ import { formatApiErrorForUser } from '@/shared/lib/api-error'
+ import { formatDateTime } from '@/shared/lib/wiki-format'
+@@ -33,14 +34,79 @@ const actionLabels: Record<string, string> = {
+ }
+ 
+ const PAGE_SIZE = 20
++const selectClassName =
++  'min-h-10 w-full rounded-md border border-border-strong bg-surface px-3 text-sm text-text-primary focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50'
++const entityTypes = [
++  ['document', 'Документ'],
++  ['space', 'Пространство'],
++  ['user', 'Пользователь'],
++  ['task', 'Задача'],
++  ['phase', 'Фаза'],
++  ['evidence', 'Материал'],
++  ['attachment', 'Файл'],
++  ['template', 'Шаблон'],
++] as const
++const emptyFilters = { action: '', entity_type: '', actor_id: '', from: '', to: '' }
++const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+ 
+ export function AuditLogPage() {
++  const [showFilters, setShowFilters] = useState(false)
++  const [draftFilters, setDraftFilters] = useState(emptyFilters)
++  const [appliedFilters, setAppliedFilters] = useState(emptyFilters)
++  const [filterError, setFilterError] = useState('')
+   const [cursors, setCursors] = useState<(string | null)[]>([null])
+   const eventsRef = useRef<HTMLElement>(null)
+   const cursor = cursors[cursors.length - 1] ?? undefined
+-  const auditQuery = useAuditLog({ limit: PAGE_SIZE, cursor })
++  const auditQuery = useAuditLog({ limit: PAGE_SIZE, cursor, ...appliedFilters })
++  const usersQuery = useUsers(showFilters)
+   const entries = auditQuery.data?.entries ?? []
+   const nextCursor = auditQuery.data?.next_cursor
++  const users = usersQuery.data?.users ?? []
++  const activeFilterCount = Object.values(appliedFilters).filter(Boolean).length
++
++  function updateDraft(name: keyof typeof emptyFilters, value: string) {
++    setDraftFilters((current) => ({ ...current, [name]: value }))
++    setFilterError('')
++  }
++
++  function applyFilters(event: FormEvent<HTMLFormElement>) {
++    event.preventDefault()
++    const actorId = draftFilters.actor_id.trim()
++    if (actorId && !uuidPattern.test(actorId)) {
++      setFilterError('Укажите UUID участника')
++      return
++    }
++    const fromDate = draftFilters.from ? new Date(draftFilters.from) : null
++    const toDate = draftFilters.to ? new Date(draftFilters.to) : null
++    if (
++      (fromDate && Number.isNaN(fromDate.getTime())) ||
++      (toDate && Number.isNaN(toDate.getTime()))
++    ) {
++      setFilterError('Проверьте даты периода')
++      return
++    }
++    if (fromDate && toDate && fromDate.getTime() >= toDate.getTime()) {
++      setFilterError('Дата начала должна быть раньше даты окончания')
++      return
++    }
++    setAppliedFilters({
++      action: draftFilters.action,
++      entity_type: draftFilters.entity_type,
++      actor_id: actorId,
++      from: fromDate?.toISOString() ?? '',
++      to: toDate?.toISOString() ?? '',
++    })
++    setCursors([null])
++    setFilterError('')
++    setShowFilters(false)
++  }
++
++  function clearFilters() {
++    setDraftFilters(emptyFilters)
++    setAppliedFilters(emptyFilters)
++    setCursors([null])
++    setFilterError('')
++  }
+ 
+   function changePage(nextCursors: (string | null)[]) {
+     setCursors(nextCursors)
+@@ -51,6 +117,160 @@ export function AuditLogPage() {
+     <div className="min-w-0 space-y-5">
+       <h1 className="text-2xl font-bold">Аудит</h1>
+ 
++      <div className="space-y-3">
++        <Button
++          type="button"
++          size="sm"
++          variant="outline"
++          className="min-h-10"
++          aria-expanded={showFilters}
++          onClick={() => setShowFilters((value) => !value)}
++        >
++          <ListFilter className="h-4 w-4" />
++          Фильтры{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
++        </Button>
++        {showFilters && (
++          <form
++            aria-label="Фильтры аудита"
++            onSubmit={applyFilters}
++            className="space-y-3 border-y border-border py-3"
++          >
++            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
++              <div className="space-y-1">
++                <label htmlFor="audit-action" className="text-sm font-medium">
++                  Действие
++                </label>
++                <select
++                  id="audit-action"
++                  className={selectClassName}
++                  value={draftFilters.action}
++                  onChange={(event) => updateDraft('action', event.target.value)}
++                >
++                  <option value="">Все действия</option>
++                  {Object.entries(actionLabels).map(([value, label]) => (
++                    <option key={value} value={value}>
++                      {label}
++                    </option>
++                  ))}
++                </select>
++              </div>
++              <div className="space-y-1">
++                <label htmlFor="audit-entity-type" className="text-sm font-medium">
++                  Тип объекта
++                </label>
++                <select
++                  id="audit-entity-type"
++                  className={selectClassName}
++                  value={draftFilters.entity_type}
++                  onChange={(event) => updateDraft('entity_type', event.target.value)}
++                >
++                  <option value="">Все типы</option>
++                  {entityTypes.map(([value, label]) => (
++                    <option key={value} value={value}>
++                      {label}
++                    </option>
++                  ))}
++                </select>
++              </div>
++              <div className="space-y-1">
++                <label htmlFor="audit-actor" className="text-sm font-medium">
++                  Участник
++                </label>
++                {usersQuery.isError || (!usersQuery.isLoading && users.length === 0) ? (
++                  <div className="space-y-1">
++                    <div className="flex gap-2">
++                      <Input
++                        id="audit-actor"
++                        className="min-h-10 min-w-0"
++                        placeholder="UUID участника"
++                        value={draftFilters.actor_id}
++                        onChange={(event) => updateDraft('actor_id', event.target.value)}
++                      />
++                      {usersQuery.isError && (
++                        <Button
++                          type="button"
++                          size="icon"
++                          variant="outline"
++                          className="min-h-10 min-w-10"
++                          title="Повторить загрузку пользователей"
++                          aria-label="Повторить загрузку пользователей"
++                          onClick={() => usersQuery.refetch()}
++                        >
++                          <RefreshCw className="h-4 w-4" />
++                        </Button>
++                      )}
++                    </div>
++                    {usersQuery.isError && (
++                      <p className="text-xs text-text-muted">
++                        Каталог пользователей недоступен; укажите UUID
++                      </p>
++                    )}
++                  </div>
++                ) : (
++                  <select
++                    id="audit-actor"
++                    className={selectClassName}
++                    value={draftFilters.actor_id}
++                    disabled={usersQuery.isLoading}
++                    onChange={(event) => updateDraft('actor_id', event.target.value)}
++                  >
++                    <option value="">
++                      {usersQuery.isLoading ? 'Загружаем пользователей' : 'Все участники'}
++                    </option>
++                    {draftFilters.actor_id &&
++                      !users.some((user) => user.id === draftFilters.actor_id) && (
++                        <option value={draftFilters.actor_id}>{draftFilters.actor_id}</option>
++                      )}
++                    {users.map((user) => (
++                      <option key={user.id} value={user.id}>
++                        {user.display_name ?? user.username ?? user.email} · {user.email}
++                      </option>
++                    ))}
++                  </select>
++                )}
++              </div>
++              <div className="space-y-1">
++                <label htmlFor="audit-from" className="text-sm font-medium">
++                  С даты (местное время)
++                </label>
++                <Input
++                  id="audit-from"
++                  type="datetime-local"
++                  className="min-h-10"
++                  value={draftFilters.from}
++                  onChange={(event) => updateDraft('from', event.target.value)}
++                />
++              </div>
++              <div className="space-y-1">
++                <label htmlFor="audit-to" className="text-sm font-medium">
++                  До даты (не включая)
++                </label>
++                <Input
++                  id="audit-to"
++                  type="datetime-local"
++                  className="min-h-10"
++                  value={draftFilters.to}
++                  onChange={(event) => updateDraft('to', event.target.value)}
++                />
++              </div>
++            </div>
++            {filterError && (
++              <p role="alert" className="text-sm text-danger">
++                {filterError}
++              </p>
++            )}
++            <div className="flex flex-wrap justify-end gap-2">
++              <Button type="button" variant="outline" className="min-h-10" onClick={clearFilters}>
++                Сбросить
++              </Button>
++              <Button type="submit" className="min-h-10">
++                Применить
++              </Button>
++            </div>
++          </form>
++        )}
++      </div>
++
+       <section ref={eventsRef} aria-label="События аудита" className="min-w-0 scroll-mt-16">
+         {!auditQuery.isLoading && !auditQuery.isError && entries.length > 0 && (
+           <p role="status" className="mb-3 text-sm text-text-muted">
+@@ -65,7 +285,15 @@ export function AuditLogPage() {
+           />
+         )}
+         {!auditQuery.isLoading && !auditQuery.isError && entries.length === 0 && (
+-          <EmptyState message="Событий аудита пока нет" />
++          <EmptyState
++            message={
++              cursors.length > 1
++                ? 'На этой странице событий больше нет'
++                : activeFilterCount > 0
++                  ? 'Событий по фильтрам не найдено'
++                  : 'Событий аудита пока нет'
++            }
++          />
+         )}
+         {!auditQuery.isLoading && !auditQuery.isError && entries.length > 0 && (
+           <>

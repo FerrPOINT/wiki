@@ -1,0 +1,74 @@
+diff --git a/frontend/AGENTS.md b/frontend/AGENTS.md
+index 2f99e28..6ca4129 100644
+--- a/frontend/AGENTS.md
++++ b/frontend/AGENTS.md
+@@ -1,4 +1,5 @@
+ <!-- BEGIN BASE FRONTEND RULES -->
++
+ ## Общий UI-контракт Base
+ 
+ - Использовать общий shell, branding и tokens Base. Контент и доменные решения
+diff --git a/frontend/src/pages/document/document.test.tsx b/frontend/src/pages/document/document.test.tsx
+index b8e512a..abe2184 100644
+--- a/frontend/src/pages/document/document.test.tsx
++++ b/frontend/src/pages/document/document.test.tsx
+@@ -173,31 +173,34 @@ describe('DocumentPage', () => {
+     vi.clearAllMocks()
+   })
+ 
+-  it.each([403, 404])('hides cached document and editing controls after HTTP %s', async (status) => {
+-    const page = setupDocument()
+-    const retry = vi.fn()
+-    useDocument.mockReturnValue({
+-      data: baseDocument,
+-      isLoading: true,
+-      isError: true,
+-      error: new ApiError({ status, statusText: 'Synthetic failure' }),
+-      refetch: retry,
+-    })
+-    await act(async () => page.router.navigate('/documents/product-requirements?refresh=1'))
+-    expect(
+-      document.querySelector(
+-        `[data-page-state="${status === 403 ? 'permission-denied' : 'not-found'}"]`,
+-      ),
+-    ).toBeInTheDocument()
+-    expect(screen.queryByText('Требования Wiki')).not.toBeInTheDocument()
+-    expect(document.querySelector('.wiki-rendered')).not.toBeInTheDocument()
+-    expect(
+-      screen.queryByRole('button', { name: /Повторить|Правка|Опубликовать|Архивировать/i }),
+-    ).not.toBeInTheDocument()
+-    expect(retry).not.toHaveBeenCalled()
+-    expect(updateDraftMutate).not.toHaveBeenCalled()
+-    expect(publishMutateAsync).not.toHaveBeenCalled()
+-  })
++  it.each([403, 404])(
++    'hides cached document and editing controls after HTTP %s',
++    async (status) => {
++      const page = setupDocument()
++      const retry = vi.fn()
++      useDocument.mockReturnValue({
++        data: baseDocument,
++        isLoading: true,
++        isError: true,
++        error: new ApiError({ status, statusText: 'Synthetic failure' }),
++        refetch: retry,
++      })
++      await act(async () => page.router.navigate('/documents/product-requirements?refresh=1'))
++      expect(
++        document.querySelector(
++          `[data-page-state="${status === 403 ? 'permission-denied' : 'not-found'}"]`,
++        ),
++      ).toBeInTheDocument()
++      expect(screen.queryByText('Требования Wiki')).not.toBeInTheDocument()
++      expect(document.querySelector('.wiki-rendered')).not.toBeInTheDocument()
++      expect(
++        screen.queryByRole('button', { name: /Повторить|Правка|Опубликовать|Архивировать/i }),
++      ).not.toBeInTheDocument()
++      expect(retry).not.toHaveBeenCalled()
++      expect(updateDraftMutate).not.toHaveBeenCalled()
++      expect(publishMutateAsync).not.toHaveBeenCalled()
++    },
++  )
+ 
+   it('opens published content first, with revisions, linked dossiers and evidence', () => {
+     setupDocument()

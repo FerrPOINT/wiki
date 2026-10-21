@@ -1,0 +1,1386 @@
+diff --git a/AGENTS.md b/AGENTS.md
+index 3cb89fb..497871a 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -5,7 +5,7 @@
+ - **GitHub**: `git@github.com:FerrPOINT/wiki.git`
+ - **Стек**: backend Rust (Axum + SQLx/PostgreSQL), frontend React 19.1.0 + Vite 6.2.0 + Tailwind CSS 4.1.0
+ - **Env prefix**: `WIKI_`
+-- **Публичные порты по умолчанию**: frontend docker `19877`, backend `3456`, PostgreSQL `3457`
++- **Standalone QA defaults**: frontend `19877`, backend `3456`; старый standalone manifest публикует PostgreSQL на `${POSTGRES_PORT:-3457}`. В полном workspace БД внутренняя, адреса и issuer берутся из profile/runtime.
+ 
+ ## Правила работы
+ 
+@@ -57,9 +57,10 @@
+ 
+ ### 7. Docker
+ 
+-- Сборка: `docker compose build`.
+-- Пересоздание контейнера: `docker compose up -d` (не `docker compose restart`).
+-- Проверка: `docker compose ps` и health endpoint.
++- Постоянный workspace запускать из его корня через PowerShell 7: `./start-local.ps1 -Workspace sdlc1` (либо `sdlc2`). Источник конфигурации — profile/runtime snapshot; standalone manifest не создаёт дополнительный постоянный стенд.
++- Candidate images собирать из чистого task checkout. Изменение принятого image/env — через защищённую процедуру `workspace.ps1 Apply` с проверкой миграций, backup/locks и сохранением остальных images/mounts/secrets. Обычный Start не пересобирает runtime.
++- Standalone manifests и контейнерные тесты использовать только в собственном временном `sdlc-qa-*`/`sdlc-build-*` Compose project с явным endpoint, task/purpose и cleanup в finally. Bare `docker compose up` и прямые run/create запрещены.
++- Правила и команды принадлежат Base: `services-base/deploy/LOCAL_GROUPS.md`. Порты, OIDC callbacks и issuer не выводить из первого workspace или текущего каталога.
+ 
+ ### 8. Проверка перед завершением
+ 
+diff --git a/docs/plans/2026-10-05-ui-acceptance-contract.md b/docs/plans/2026-10-05-ui-acceptance-contract.md
+new file mode 100644
+index 0000000..fc80a42
+--- /dev/null
++++ b/docs/plans/2026-10-05-ui-acceptance-contract.md
+@@ -0,0 +1,35 @@
++# Контракт UI-приёмки — 5 октября 2026
++
++Wiki описывает 19 route patterns, включая 15 operational pages, в
++`docs/ui-routes.json` schemaVersion 2. Роль текущего human SSO — `central_user`:
++PostgresWikiAuthRepository связывает immutable central subject с активным
++локальным admin profile. QA сверяет существующий `/api/v1/users/me`, active
++status и эту связь в собственной БД. Источником политики служит PostgreSQL
++adapter, а не исторические space-role fixtures или demo memory store.
++Backend policy, API и доменные схемы не меняются.
++
++Route contract перечисляет действующие layout modes, policy sources и renderers
++состояний. Read-only документ определяется его собственными can_edit/archived
++признаками, а не вымышленной слабой SSO-ролью. Статические settings и каталог
++пользователей также сохраняют своё фактическое поведение. Empty/partial states
++перечислены только для реализующих их страниц и независимых запросов.
++
++Typed 403/404 имеют приоритет перед loader и cached content, скрывают недоступные
++документы, каталоги, dossier и write controls. Recoverable failures сохраняют
++существующую обработку и retry. ApiError сохраняет совместимый constructor,
++business code, validation details и HTTP status. X-Request-Id из ответа имеет
++приоритет перед requestId/request_id тела; новый browser UUID отправляется без
++префикса, который сервер не мог принять как UUID. File/Blob и SSO контракты
++сохраняются.
++
++Source gates: typecheck, 186 Vitest tests в 23 файлах, lint/semantic colors,
++production build, OpenAPI check и 19-route contract прошли. Регрессии проверяют
++403/404/422/503, приоритет correlation header и cached denial/not-found на
++реальной странице документа и списке пространств без write controls.
++
++Порядок дальнейшей приёмки: source commit → candidate image → отдельный browser
++evidence commit. Полная матрица viewport/тем, SSO, direct/reload, keyboard/focus,
++geometry и console/network проверяется на собственных synthetic QA-профилях.
++`acceptanceStatus: pending` сохраняется до browser acceptance. Source gates не
++подтверждают весь эксплуатационный профиль. Рабочие snapshots, images, данные,
++secrets, Hermes desired state и календарь наблюдения не изменяются.
+diff --git a/docs/ui-routes.json b/docs/ui-routes.json
+index 34bad0a..66bffcc 100644
+--- a/docs/ui-routes.json
++++ b/docs/ui-routes.json
+@@ -1,5 +1,5 @@
+ {
+-  "schemaVersion": 1,
++  "schemaVersion": 2,
+   "product": "wiki",
+   "acceptanceStatus": "pending",
+   "routeSource": "frontend/src/app/router.tsx",
+@@ -10,8 +10,7 @@
+       "kind": "operational",
+       "layout": "wide",
+       "roles": [
+-        "authenticated",
+-        "system-admin"
++        "central_user"
+       ],
+       "fixture": "synthetic:wiki:/",
+       "states": [
+@@ -19,11 +18,39 @@
+         "loading",
+         "empty",
+         "permission-denied",
+-        "error"
++        "not-found",
++        "error",
++        "partial-error"
+       ],
+       "qa": {
+         "status": "not-run"
+-      }
++      },
++      "roleSources": [
++        "backend/infra/src/wiki_postgres/identity.rs",
++        "backend/infra/src/wiki_postgres/mapping.rs",
++        "backend/api/src/routes/wiki.rs",
++        "frontend/src/shared/auth/require-auth.tsx",
++        "frontend/src/shared/auth/store.ts",
++        "frontend/src/app/router.tsx"
++      ],
++      "roleStates": {
++        "central_user": [
++          "normal",
++          "loading",
++          "empty",
++          "permission-denied",
++          "not-found",
++          "error",
++          "partial-error"
++        ]
++      },
++      "stateSources": [
++        "frontend/src/pages/dashboard/index.tsx",
++        "frontend/src/app/router.tsx",
++        "frontend/src/api/client.ts",
++        "frontend/src/shared/api/hooks.ts"
++      ],
++      "stateNotes": "Spaces — основной запрос; независимые search/tasks/phases имеют loading/error/empty секции и показатели без выдуманных нулей при отказе. Current Central humans имеют одинаковые эффективные права. Denial — собственный synthetic QA API case; legacy project/space роли не переопределяют SSO actor."
+     },
+     {
+       "pattern": "/*",
+@@ -34,28 +61,52 @@
+       "kind": "operational",
+       "layout": "wide",
+       "roles": [
+-        "authenticated",
+-        "system-admin"
++        "central_user"
+       ],
+       "fixture": "synthetic:wiki:/admin",
+       "states": [
+         "normal",
+         "loading",
+-        "empty",
+         "permission-denied",
+-        "error"
++        "not-found",
++        "error",
++        "partial-error"
+       ],
+       "qa": {
+         "status": "not-run"
+-      }
++      },
++      "roleSources": [
++        "backend/infra/src/wiki_postgres/identity.rs",
++        "backend/infra/src/wiki_postgres/mapping.rs",
++        "backend/api/src/routes/wiki.rs",
++        "frontend/src/shared/auth/require-auth.tsx",
++        "frontend/src/shared/auth/store.ts",
++        "frontend/src/app/router.tsx"
++      ],
++      "roleStates": {
++        "central_user": [
++          "normal",
++          "loading",
++          "permission-denied",
++          "not-found",
++          "error",
++          "partial-error"
++        ]
++      },
++      "stateSources": [
++        "frontend/src/pages/admin/index.tsx",
++        "frontend/src/app/router.tsx",
++        "frontend/src/api/client.ts",
++        "frontend/src/shared/api/hooks.ts"
++      ],
++      "stateNotes": "Четыре independent summaries: users/spaces/audit/settings. Число 0 — успешный показатель, не EmptyState. Partial-error сохраняет доступные summary; terminal primary denial скрывает cache. Current Central humans имеют одинаковые эффективные права. Denial — собственный synthetic QA API case; legacy project/space роли не переопределяют SSO actor."
+     },
+     {
+       "pattern": "/audit-log",
+       "kind": "operational",
+       "layout": "wide",
+       "roles": [
+-        "authenticated",
+-        "system-admin"
++        "central_user"
+       ],
+       "fixture": "synthetic:wiki:/audit-log",
+       "states": [
+@@ -63,19 +114,44 @@
+         "loading",
+         "empty",
+         "permission-denied",
++        "not-found",
+         "error"
+       ],
+       "qa": {
+         "status": "not-run"
+-      }
++      },
++      "roleSources": [
++        "backend/infra/src/wiki_postgres/identity.rs",
++        "backend/infra/src/wiki_postgres/mapping.rs",
++        "backend/api/src/routes/wiki.rs",
++        "frontend/src/shared/auth/require-auth.tsx",
++        "frontend/src/shared/auth/store.ts",
++        "frontend/src/app/router.tsx"
++      ],
++      "roleStates": {
++        "central_user": [
++          "normal",
++          "loading",
++          "empty",
++          "permission-denied",
++          "not-found",
++          "error"
++        ]
++      },
++      "stateSources": [
++        "frontend/src/pages/audit-log/index.tsx",
++        "frontend/src/app/router.tsx",
++        "frontend/src/api/client.ts",
++        "frontend/src/shared/api/hooks.ts"
++      ],
++      "stateNotes": "Успешный список, lazy/query loading, реальная пустота и query/mutation errors. Current Central humans имеют одинаковые эффективные права. Denial — собственный synthetic QA API case; legacy project/space роли не переопределяют SSO actor."
+     },
+     {
+       "pattern": "/documents/:documentId",
+       "kind": "operational",
+       "layout": "detail-with-aside",
+       "roles": [
+-        "authenticated",
+-        "system-admin"
++        "central_user"
+       ],
+       "fixture": "synthetic:wiki:/documents/:documentId",
+       "states": [
+@@ -83,39 +159,93 @@
+         "loading",
+         "empty",
+         "permission-denied",
+-        "error"
++        "not-found",
++        "error",
++        "partial-error",
++        "read-only"
+       ],
+       "qa": {
+         "status": "not-run"
+-      }
++      },
++      "roleSources": [
++        "backend/infra/src/wiki_postgres/identity.rs",
++        "backend/infra/src/wiki_postgres/mapping.rs",
++        "backend/api/src/routes/wiki.rs",
++        "frontend/src/shared/auth/require-auth.tsx",
++        "frontend/src/shared/auth/store.ts",
++        "frontend/src/app/router.tsx"
++      ],
++      "roleStates": {
++        "central_user": [
++          "normal",
++          "loading",
++          "empty",
++          "permission-denied",
++          "not-found",
++          "error",
++          "partial-error",
++          "read-only"
++        ]
++      },
++      "stateSources": [
++        "frontend/src/pages/document/index.tsx",
++        "frontend/src/app/router.tsx",
++        "frontend/src/api/client.ts",
++        "frontend/src/shared/api/hooks.ts"
++      ],
++      "stateNotes": "Primary denial 403/404 имеет terminal marker до loading/cache; ревизии и mutations — независимые ошибки. Empty относится к опубликованному содержимому/связанным секциям. Read-only — can_edit=false или archived, а не выдуманная слабая Central роль. Current Central humans имеют одинаковые эффективные права. Denial — собственный synthetic QA API case; legacy project/space роли не переопределяют SSO actor."
+     },
+     {
+       "pattern": "/documents/new",
+       "kind": "operational",
+       "layout": "reading",
+       "roles": [
+-        "authenticated",
+-        "system-admin"
++        "central_user"
+       ],
+       "fixture": "synthetic:wiki:/documents/new",
+       "states": [
+         "normal",
+         "loading",
+-        "empty",
+         "permission-denied",
+-        "error"
++        "not-found",
++        "error",
++        "partial-error"
+       ],
+       "qa": {
+         "status": "not-run"
+-      }
++      },
++      "roleSources": [
++        "backend/infra/src/wiki_postgres/identity.rs",
++        "backend/infra/src/wiki_postgres/mapping.rs",
++        "backend/api/src/routes/wiki.rs",
++        "frontend/src/shared/auth/require-auth.tsx",
++        "frontend/src/shared/auth/store.ts",
++        "frontend/src/app/router.tsx"
++      ],
++      "roleStates": {
++        "central_user": [
++          "normal",
++          "loading",
++          "permission-denied",
++          "not-found",
++          "error",
++          "partial-error"
++        ]
++      },
++      "stateSources": [
++        "frontend/src/pages/document-compose/index.tsx",
++        "frontend/src/app/router.tsx",
++        "frontend/src/api/client.ts",
++        "frontend/src/shared/api/hooks.ts"
++      ],
++      "stateNotes": "Форма с отдельными spaces/templates prerequisites и mutation errors. Отсутствующий документ не является empty create-страницей; loading включает lazy/Suspense и справочники. Current Central humans имеют одинаковые эффективные права. Denial — собственный synthetic QA API case; legacy project/space роли не переопределяют SSO actor."
+     },
+     {
+       "pattern": "/evidence",
+       "kind": "operational",
+       "layout": "wide",
+       "roles": [
+-        "authenticated",
+-        "system-admin"
++        "central_user"
+       ],
+       "fixture": "synthetic:wiki:/evidence",
+       "states": [
+@@ -123,11 +253,39 @@
+         "loading",
+         "empty",
+         "permission-denied",
+-        "error"
++        "not-found",
++        "error",
++        "partial-error"
+       ],
+       "qa": {
+         "status": "not-run"
+-      }
++      },
++      "roleSources": [
++        "backend/infra/src/wiki_postgres/identity.rs",
++        "backend/infra/src/wiki_postgres/mapping.rs",
++        "backend/api/src/routes/wiki.rs",
++        "frontend/src/shared/auth/require-auth.tsx",
++        "frontend/src/shared/auth/store.ts",
++        "frontend/src/app/router.tsx"
++      ],
++      "roleStates": {
++        "central_user": [
++          "normal",
++          "loading",
++          "empty",
++          "permission-denied",
++          "not-found",
++          "error",
++          "partial-error"
++        ]
++      },
++      "stateSources": [
++        "frontend/src/pages/evidence/index.tsx",
++        "frontend/src/app/router.tsx",
++        "frontend/src/api/client.ts",
++        "frontend/src/shared/api/hooks.ts"
++      ],
++      "stateNotes": "Реестр, выбранный материал, attachment metadata и download имеют отдельные состояния. Empty означает успешный пустой реестр; файлы не преобразуются в JSON. Current Central humans имеют одинаковые эффективные права. Denial — собственный synthetic QA API case; legacy project/space роли не переопределяют SSO actor."
+     },
+     {
+       "pattern": "/login",
+@@ -138,8 +296,7 @@
+       "kind": "operational",
+       "layout": "wide",
+       "roles": [
+-        "authenticated",
+-        "system-admin"
++        "central_user"
+       ],
+       "fixture": "synthetic:wiki:/phases",
+       "states": [
+@@ -147,19 +304,44 @@
+         "loading",
+         "empty",
+         "permission-denied",
++        "not-found",
+         "error"
+       ],
+       "qa": {
+         "status": "not-run"
+-      }
++      },
++      "roleSources": [
++        "backend/infra/src/wiki_postgres/identity.rs",
++        "backend/infra/src/wiki_postgres/mapping.rs",
++        "backend/api/src/routes/wiki.rs",
++        "frontend/src/shared/auth/require-auth.tsx",
++        "frontend/src/shared/auth/store.ts",
++        "frontend/src/app/router.tsx"
++      ],
++      "roleStates": {
++        "central_user": [
++          "normal",
++          "loading",
++          "empty",
++          "permission-denied",
++          "not-found",
++          "error"
++        ]
++      },
++      "stateSources": [
++        "frontend/src/pages/phase-dossier/index.tsx",
++        "frontend/src/app/router.tsx",
++        "frontend/src/api/client.ts",
++        "frontend/src/shared/api/hooks.ts"
++      ],
++      "stateNotes": "Каталог фаз выбранного пространства: cursor/search; отсутствие пространства или успешный пустой каталог имеют явный EmptyState. Current Central humans имеют одинаковые эффективные права. Denial — собственный synthetic QA API case; legacy project/space роли не переопределяют SSO actor."
+     },
+     {
+       "pattern": "/phases/:phaseId",
+       "kind": "operational",
+       "layout": "wide",
+       "roles": [
+-        "authenticated",
+-        "system-admin"
++        "central_user"
+       ],
+       "fixture": "synthetic:wiki:/phases/:phaseId",
+       "states": [
+@@ -167,11 +349,39 @@
+         "loading",
+         "empty",
+         "permission-denied",
+-        "error"
++        "not-found",
++        "error",
++        "partial-error"
+       ],
+       "qa": {
+         "status": "not-run"
+-      }
++      },
++      "roleSources": [
++        "backend/infra/src/wiki_postgres/identity.rs",
++        "backend/infra/src/wiki_postgres/mapping.rs",
++        "backend/api/src/routes/wiki.rs",
++        "frontend/src/shared/auth/require-auth.tsx",
++        "frontend/src/shared/auth/store.ts",
++        "frontend/src/app/router.tsx"
++      ],
++      "roleStates": {
++        "central_user": [
++          "normal",
++          "loading",
++          "empty",
++          "permission-denied",
++          "not-found",
++          "error",
++          "partial-error"
++        ]
++      },
++      "stateSources": [
++        "frontend/src/pages/phase-dossier/index.tsx",
++        "frontend/src/app/router.tsx",
++        "frontend/src/api/client.ts",
++        "frontend/src/shared/api/hooks.ts"
++      ],
++      "stateNotes": "Досье не исполняет процессы. Empty — отсутствие пространства/связанных документов/evidence; linking mutation имеет собственный alert. Primary denial скрывает link form. Current Central humans имеют одинаковые эффективные права. Denial — собственный synthetic QA API case; legacy project/space роли не переопределяют SSO actor."
+     },
+     {
+       "pattern": "/register",
+@@ -182,8 +392,7 @@
+       "kind": "operational",
+       "layout": "wide",
+       "roles": [
+-        "authenticated",
+-        "system-admin"
++        "central_user"
+       ],
+       "fixture": "synthetic:wiki:/search",
+       "states": [
+@@ -191,39 +400,89 @@
+         "loading",
+         "empty",
+         "permission-denied",
++        "not-found",
+         "error"
+       ],
+       "qa": {
+         "status": "not-run"
+-      }
++      },
++      "roleSources": [
++        "backend/infra/src/wiki_postgres/identity.rs",
++        "backend/infra/src/wiki_postgres/mapping.rs",
++        "backend/api/src/routes/wiki.rs",
++        "frontend/src/shared/auth/require-auth.tsx",
++        "frontend/src/shared/auth/store.ts",
++        "frontend/src/app/router.tsx"
++      ],
++      "roleStates": {
++        "central_user": [
++          "normal",
++          "loading",
++          "empty",
++          "permission-denied",
++          "not-found",
++          "error"
++        ]
++      },
++      "stateSources": [
++        "frontend/src/pages/wiki-search/index.tsx",
++        "frontend/src/app/router.tsx",
++        "frontend/src/api/client.ts",
++        "frontend/src/shared/api/hooks.ts"
++      ],
++      "stateNotes": "URL filters/cursor и реальный пустой результат. Loading/ошибка поиска не означают отсутствие совпадений. Current Central humans имеют одинаковые эффективные права. Denial — собственный synthetic QA API case; legacy project/space роли не переопределяют SSO actor."
+     },
+     {
+       "pattern": "/settings",
+       "kind": "operational",
+       "layout": "reading",
+       "roles": [
+-        "authenticated",
+-        "system-admin"
++        "central_user"
+       ],
+       "fixture": "synthetic:wiki:/settings",
+       "states": [
+         "normal",
+         "loading",
+-        "empty",
+         "permission-denied",
+-        "error"
++        "not-found",
++        "error",
++        "read-only"
+       ],
+       "qa": {
+         "status": "not-run"
+-      }
++      },
++      "roleSources": [
++        "backend/infra/src/wiki_postgres/identity.rs",
++        "backend/infra/src/wiki_postgres/mapping.rs",
++        "backend/api/src/routes/wiki.rs",
++        "frontend/src/shared/auth/require-auth.tsx",
++        "frontend/src/shared/auth/store.ts",
++        "frontend/src/app/router.tsx"
++      ],
++      "roleStates": {
++        "central_user": [
++          "normal",
++          "loading",
++          "permission-denied",
++          "not-found",
++          "error",
++          "read-only"
++        ]
++      },
++      "stateSources": [
++        "frontend/src/pages/settings/index.tsx",
++        "frontend/src/app/router.tsx",
++        "frontend/src/api/client.ts",
++        "frontend/src/shared/api/hooks.ts"
++      ],
++      "stateNotes": "Read-only настройки среды выполнения; нет edit form или самостоятельного empty renderer. Current Central humans имеют одинаковые эффективные права. Denial — собственный synthetic QA API case; legacy project/space роли не переопределяют SSO actor."
+     },
+     {
+       "pattern": "/spaces",
+       "kind": "operational",
+       "layout": "wide",
+       "roles": [
+-        "authenticated",
+-        "system-admin"
++        "central_user"
+       ],
+       "fixture": "synthetic:wiki:/spaces",
+       "states": [
+@@ -231,11 +490,39 @@
+         "loading",
+         "empty",
+         "permission-denied",
+-        "error"
++        "not-found",
++        "error",
++        "partial-error"
+       ],
+       "qa": {
+         "status": "not-run"
+-      }
++      },
++      "roleSources": [
++        "backend/infra/src/wiki_postgres/identity.rs",
++        "backend/infra/src/wiki_postgres/mapping.rs",
++        "backend/api/src/routes/wiki.rs",
++        "frontend/src/shared/auth/require-auth.tsx",
++        "frontend/src/shared/auth/store.ts",
++        "frontend/src/app/router.tsx"
++      ],
++      "roleStates": {
++        "central_user": [
++          "normal",
++          "loading",
++          "empty",
++          "permission-denied",
++          "not-found",
++          "error",
++          "partial-error"
++        ]
++      },
++      "stateSources": [
++        "frontend/src/pages/spaces/index.tsx",
++        "frontend/src/app/router.tsx",
++        "frontend/src/api/client.ts",
++        "frontend/src/shared/api/hooks.ts"
++      ],
++      "stateNotes": "Список, current-user projection, tree preview и mutations разделены; primary denial скрывает create/edit controls и сохранённый список. Current Central humans имеют одинаковые эффективные права. Denial — собственный synthetic QA API case; legacy project/space роли не переопределяют SSO actor."
+     },
+     {
+       "pattern": "/sso/callback",
+@@ -246,8 +533,7 @@
+       "kind": "operational",
+       "layout": "wide",
+       "roles": [
+-        "authenticated",
+-        "system-admin"
++        "central_user"
+       ],
+       "fixture": "synthetic:wiki:/tasks",
+       "states": [
+@@ -255,19 +541,44 @@
+         "loading",
+         "empty",
+         "permission-denied",
++        "not-found",
+         "error"
+       ],
+       "qa": {
+         "status": "not-run"
+-      }
++      },
++      "roleSources": [
++        "backend/infra/src/wiki_postgres/identity.rs",
++        "backend/infra/src/wiki_postgres/mapping.rs",
++        "backend/api/src/routes/wiki.rs",
++        "frontend/src/shared/auth/require-auth.tsx",
++        "frontend/src/shared/auth/store.ts",
++        "frontend/src/app/router.tsx"
++      ],
++      "roleStates": {
++        "central_user": [
++          "normal",
++          "loading",
++          "empty",
++          "permission-denied",
++          "not-found",
++          "error"
++        ]
++      },
++      "stateSources": [
++        "frontend/src/pages/task-dossier/index.tsx",
++        "frontend/src/app/router.tsx",
++        "frontend/src/api/client.ts",
++        "frontend/src/shared/api/hooks.ts"
++      ],
++      "stateNotes": "Каталог внешних task keys выбранного пространства: cursor/search, явные пустые списки и отдельная ошибка загрузки. Current Central humans имеют одинаковые эффективные права. Denial — собственный synthetic QA API case; legacy project/space роли не переопределяют SSO actor."
+     },
+     {
+       "pattern": "/tasks/:taskKey",
+       "kind": "operational",
+       "layout": "detail-with-aside",
+       "roles": [
+-        "authenticated",
+-        "system-admin"
++        "central_user"
+       ],
+       "fixture": "synthetic:wiki:/tasks/:taskKey",
+       "states": [
+@@ -275,19 +586,46 @@
+         "loading",
+         "empty",
+         "permission-denied",
+-        "error"
++        "not-found",
++        "error",
++        "partial-error"
+       ],
+       "qa": {
+         "status": "not-run"
+-      }
++      },
++      "roleSources": [
++        "backend/infra/src/wiki_postgres/identity.rs",
++        "backend/infra/src/wiki_postgres/mapping.rs",
++        "backend/api/src/routes/wiki.rs",
++        "frontend/src/shared/auth/require-auth.tsx",
++        "frontend/src/shared/auth/store.ts",
++        "frontend/src/app/router.tsx"
++      ],
++      "roleStates": {
++        "central_user": [
++          "normal",
++          "loading",
++          "empty",
++          "permission-denied",
++          "not-found",
++          "error",
++          "partial-error"
++        ]
++      },
++      "stateSources": [
++        "frontend/src/pages/task-dossier/index.tsx",
++        "frontend/src/app/router.tsx",
++        "frontend/src/api/client.ts",
++        "frontend/src/shared/api/hooks.ts"
++      ],
++      "stateNotes": "Досье не владеет статусами Tracker. Empty — отсутствие пространства/связанных документов/evidence; primary denial скрывает linking controls. Current Central humans имеют одинаковые эффективные права. Denial — собственный synthetic QA API case; legacy project/space роли не переопределяют SSO actor."
+     },
+     {
+       "pattern": "/templates",
+       "kind": "operational",
+       "layout": "wide",
+       "roles": [
+-        "authenticated",
+-        "system-admin"
++        "central_user"
+       ],
+       "fixture": "synthetic:wiki:/templates",
+       "states": [
+@@ -295,19 +633,46 @@
+         "loading",
+         "empty",
+         "permission-denied",
+-        "error"
++        "not-found",
++        "error",
++        "partial-error"
+       ],
+       "qa": {
+         "status": "not-run"
+-      }
++      },
++      "roleSources": [
++        "backend/infra/src/wiki_postgres/identity.rs",
++        "backend/infra/src/wiki_postgres/mapping.rs",
++        "backend/api/src/routes/wiki.rs",
++        "frontend/src/shared/auth/require-auth.tsx",
++        "frontend/src/shared/auth/store.ts",
++        "frontend/src/app/router.tsx"
++      ],
++      "roleStates": {
++        "central_user": [
++          "normal",
++          "loading",
++          "empty",
++          "permission-denied",
++          "not-found",
++          "error",
++          "partial-error"
++        ]
++      },
++      "stateSources": [
++        "frontend/src/pages/templates/index.tsx",
++        "frontend/src/app/router.tsx",
++        "frontend/src/api/client.ts",
++        "frontend/src/shared/api/hooks.ts"
++      ],
++      "stateNotes": "Каталог и current-user projection разделены; право создания определяется существующим DTO. Legacy viewer fixtures остаются unit compatibility, не являются текущей Central ролью. Current Central humans имеют одинаковые эффективные права. Denial — собственный synthetic QA API case; legacy project/space роли не переопределяют SSO actor."
+     },
+     {
+       "pattern": "/users",
+       "kind": "operational",
+       "layout": "wide",
+       "roles": [
+-        "authenticated",
+-        "system-admin"
++        "central_user"
+       ],
+       "fixture": "synthetic:wiki:/users",
+       "states": [
+@@ -315,11 +680,51 @@
+         "loading",
+         "empty",
+         "permission-denied",
+-        "error"
++        "not-found",
++        "error",
++        "read-only"
+       ],
+       "qa": {
+         "status": "not-run"
+-      }
++      },
++      "roleSources": [
++        "backend/infra/src/wiki_postgres/identity.rs",
++        "backend/infra/src/wiki_postgres/mapping.rs",
++        "backend/api/src/routes/wiki.rs",
++        "frontend/src/shared/auth/require-auth.tsx",
++        "frontend/src/shared/auth/store.ts",
++        "frontend/src/app/router.tsx"
++      ],
++      "roleStates": {
++        "central_user": [
++          "normal",
++          "loading",
++          "empty",
++          "permission-denied",
++          "not-found",
++          "error",
++          "read-only"
++        ]
++      },
++      "stateSources": [
++        "frontend/src/pages/users/index.tsx",
++        "frontend/src/app/router.tsx",
++        "frontend/src/api/client.ts",
++        "frontend/src/shared/api/hooks.ts"
++      ],
++      "stateNotes": "Read-only каталог назначений; управление людьми остаётся в Admin. Пустой каталог отличается от фильтра без совпадений. Current Central humans имеют одинаковые эффективные права. Denial — собственный synthetic QA API case; legacy project/space роли не переопределяют SSO actor."
+     }
++  ],
++  "runtimeSources": [
++    "frontend/src",
++    "backend/migrations",
++    "backend/api/src",
++    "backend/app/src",
++    "backend/domain/src",
++    "backend/infra/src",
++    "backend/migration/src",
++    "backend/shared/src",
++    "backend/server/src",
++    "backend/cli/src"
+   ]
+ }
+diff --git a/frontend/src/api/client.test.ts b/frontend/src/api/client.test.ts
+index ad8a53d..1be9f22 100644
+--- a/frontend/src/api/client.test.ts
++++ b/frontend/src/api/client.test.ts
+@@ -39,6 +39,28 @@ describe('apiRequest error handling', () => {
+     })
+   })
+ 
++  it.each([403, 404, 422, 503])(
++    'prefers the response request ID over both legacy body fields for HTTP %s',
++    async (status) => {
++      mockFetchResponse(
++        new Response(
++          JSON.stringify({
++            error: {
++              code: 'SYNTHETIC',
++              message: 'Synthetic error',
++              requestId: 'camel-body-id',
++              request_id: 'snake-body-id',
++            },
++          }),
++          { status, headers: { 'x-request-id': 'header-id' } },
++        ),
++      )
++      const error = await expectApiError(apiRequest('/api/v1/spaces'))
++      expect(error).toMatchObject({ status, code: 'SYNTHETIC', requestId: 'header-id' })
++      expect(error.message).not.toContain('body-id')
++    },
++  )
++
+   it('renders legacy string error envelopes', async () => {
+     mockFetchResponse(
+       new Response(JSON.stringify({ error: 'forbidden' }), {
+@@ -138,7 +160,9 @@ describe('apiRequest error handling', () => {
+ 
+     await apiRequest('/api/v1/spaces')
+ 
+-    expect(requestHeaders(fetchMock).get('X-Request-ID')).toMatch(/^wiki-ui-/)
++    expect(requestHeaders(fetchMock).get('X-Request-ID')).toMatch(
++      /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i,
++    )
+   })
+ 
+   it('preserves caller-provided request id headers', async () => {
+diff --git a/frontend/src/api/client.ts b/frontend/src/api/client.ts
+index 222f964..498fc1d 100644
+--- a/frontend/src/api/client.ts
++++ b/frontend/src/api/client.ts
+@@ -60,7 +60,7 @@ function buildUrl(path: string): string {
+ 
+ function createRequestId(): string {
+   const randomUUID = globalThis.crypto?.randomUUID?.bind(globalThis.crypto)
+-  if (randomUUID) return `wiki-ui-${randomUUID()}`
++  if (randomUUID) return randomUUID()
+   return `wiki-ui-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+ }
+ 
+@@ -113,11 +113,12 @@ function readStructuredError(error: Record<string, unknown>, response: Response)
+   const code = typeof error.code === 'string' ? error.code : undefined
+   const message = typeof error.message === 'string' ? error.message : undefined
+   const requestId =
+-    typeof error.requestId === 'string'
++    responseRequestId(response) ??
++    (typeof error.requestId === 'string'
+       ? error.requestId
+       : typeof error.request_id === 'string'
+         ? error.request_id
+-        : responseRequestId(response)
++        : undefined)
+   const details = readErrorDetails(error.details)
+ 
+   return new ApiError({
+diff --git a/frontend/src/pages/admin/index.tsx b/frontend/src/pages/admin/index.tsx
+index 5587b26..7fdecf0 100644
+--- a/frontend/src/pages/admin/index.tsx
++++ b/frontend/src/pages/admin/index.tsx
+@@ -1,3 +1,5 @@
++import { ApiError } from '@/api/client'
++import { ResourceStateView, resourceErrorState } from '@sdlc/ui/ui'
+ import { Link } from 'react-router'
+ import {
+   ArrowRight,
+@@ -168,6 +170,14 @@ export function AdminPage() {
+     },
+   ]
+ 
++  const terminalError = [
++    usersQuery.error,
++    spacesQuery.error,
++    auditQuery.error,
++    settingsQuery.error,
++  ].find((error) => error instanceof ApiError && [403, 404].includes(error.status))
++  if (terminalError) return <ResourceStateView state={resourceErrorState(terminalError)} />
++
+   return (
+     <div className="min-w-0 space-y-6">
+       <header>
+diff --git a/frontend/src/pages/audit-log/index.tsx b/frontend/src/pages/audit-log/index.tsx
+index 78aa409..23ffac3 100644
+--- a/frontend/src/pages/audit-log/index.tsx
++++ b/frontend/src/pages/audit-log/index.tsx
+@@ -1,3 +1,5 @@
++import { ApiError } from '@/api/client'
++import { ResourceStateView, resourceErrorState } from '@sdlc/ui/ui'
+ import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+ import { useSearchParams } from 'react-router'
+ import { ChevronLeft, ChevronRight, ListFilter, RefreshCw } from 'lucide-react'
+@@ -262,6 +264,11 @@ export function AuditLogPage() {
+     eventsRef.current?.scrollIntoView?.({ block: 'start' })
+   }
+ 
++  const terminalError = [auditQuery.error].find(
++    (error) => error instanceof ApiError && [403, 404].includes(error.status),
++  )
++  if (terminalError) return <ResourceStateView state={resourceErrorState(terminalError)} />
++
+   return (
+     <div className="min-w-0 space-y-5">
+       <h1 className="text-2xl font-bold">Аудит</h1>
+diff --git a/frontend/src/pages/dashboard/index.tsx b/frontend/src/pages/dashboard/index.tsx
+index 0e3b255..cb50c39 100644
+--- a/frontend/src/pages/dashboard/index.tsx
++++ b/frontend/src/pages/dashboard/index.tsx
+@@ -1,3 +1,5 @@
++import { ApiError } from '@/api/client'
++import { ResourceStateView, resourceErrorState } from '@sdlc/ui/ui'
+ import { useState } from 'react'
+ import { Link } from 'react-router'
+ import {
+@@ -124,6 +126,11 @@ export function DashboardPage() {
+     },
+   ]
+ 
++  const terminalError = [spacesQuery.error].find(
++    (error) => error instanceof ApiError && [403, 404].includes(error.status),
++  )
++  if (terminalError) return <ResourceStateView state={resourceErrorState(terminalError)} />
++
+   return (
+     <div className="space-y-5">
+       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+diff --git a/frontend/src/pages/document-compose/index.tsx b/frontend/src/pages/document-compose/index.tsx
+index bfd5812..df759e5 100644
+--- a/frontend/src/pages/document-compose/index.tsx
++++ b/frontend/src/pages/document-compose/index.tsx
+@@ -1,3 +1,5 @@
++import { ApiError } from '@/api/client'
++import { ResourceStateView, resourceErrorState } from '@sdlc/ui/ui'
+ import { FormEvent, useEffect, useState } from 'react'
+ import { Link, useNavigate, useSearchParams } from 'react-router'
+ import { FileText, GitBranch, Save, Tag } from 'lucide-react'
+@@ -98,6 +100,11 @@ export function DocumentComposePage() {
+     )
+   }
+ 
++  const terminalError = [spacesQuery.error].find(
++    (error) => error instanceof ApiError && [403, 404].includes(error.status),
++  )
++  if (terminalError) return <ResourceStateView state={resourceErrorState(terminalError)} />
++
+   return (
+     <form onSubmit={handleSubmit} className="space-y-5">
+       <UnsavedChangesGuard when={hasUnsavedChanges} />
+diff --git a/frontend/src/pages/document/document.test.tsx b/frontend/src/pages/document/document.test.tsx
+index 8bc002c..b8e512a 100644
+--- a/frontend/src/pages/document/document.test.tsx
++++ b/frontend/src/pages/document/document.test.tsx
+@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
+ import type { Document, DocumentRevision } from '@/api/wiki'
+ 
+ import { DocumentPage } from './'
++import { ApiError } from '@/api/client'
+ 
+ const useArchiveDocument = vi.hoisted(() => vi.fn())
+ const useDocument = vi.hoisted(() => vi.fn())
+@@ -172,6 +173,32 @@ describe('DocumentPage', () => {
+     vi.clearAllMocks()
+   })
+ 
++  it.each([403, 404])('hides cached document and editing controls after HTTP %s', async (status) => {
++    const page = setupDocument()
++    const retry = vi.fn()
++    useDocument.mockReturnValue({
++      data: baseDocument,
++      isLoading: true,
++      isError: true,
++      error: new ApiError({ status, statusText: 'Synthetic failure' }),
++      refetch: retry,
++    })
++    await act(async () => page.router.navigate('/documents/product-requirements?refresh=1'))
++    expect(
++      document.querySelector(
++        `[data-page-state="${status === 403 ? 'permission-denied' : 'not-found'}"]`,
++      ),
++    ).toBeInTheDocument()
++    expect(screen.queryByText('Требования Wiki')).not.toBeInTheDocument()
++    expect(document.querySelector('.wiki-rendered')).not.toBeInTheDocument()
++    expect(
++      screen.queryByRole('button', { name: /Повторить|Правка|Опубликовать|Архивировать/i }),
++    ).not.toBeInTheDocument()
++    expect(retry).not.toHaveBeenCalled()
++    expect(updateDraftMutate).not.toHaveBeenCalled()
++    expect(publishMutateAsync).not.toHaveBeenCalled()
++  })
++
+   it('opens published content first, with revisions, linked dossiers and evidence', () => {
+     setupDocument()
+ 
+diff --git a/frontend/src/pages/document/index.tsx b/frontend/src/pages/document/index.tsx
+index 3b8bf2e..24e758e 100644
+--- a/frontend/src/pages/document/index.tsx
++++ b/frontend/src/pages/document/index.tsx
+@@ -24,7 +24,15 @@ import {
+   usePublishDocument,
+   useUpdateDocumentDraft,
+ } from '@/shared/api/hooks'
+-import { ConfirmDialog, EmptyState, ErrorState, LoadingState } from '@sdlc/ui/ui'
++import {
++  ConfirmDialog,
++  EmptyState,
++  ErrorState,
++  LoadingState,
++  ResourceStateView,
++  resourceErrorState,
++} from '@sdlc/ui/ui'
++import { ApiError } from '@/api/client'
+ import { Button } from '@sdlc/ui/ui'
+ import { Card, CardContent, CardHeader, CardTitle } from '@sdlc/ui/ui'
+ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@sdlc/ui/ui'
+@@ -132,6 +140,8 @@ export function DocumentPage() {
+     setLoadedDocumentId(document.id)
+   }, [document, loadedDocumentId])
+ 
++  if (documentQuery.error instanceof ApiError && [403, 404].includes(documentQuery.error.status))
++    return <ResourceStateView state={resourceErrorState(documentQuery.error)} />
+   if (documentQuery.isLoading) return <LoadingState message="Загружаем документ" />
+   if (documentQuery.isError || !document) {
+     return (
+diff --git a/frontend/src/pages/evidence/index.tsx b/frontend/src/pages/evidence/index.tsx
+index 6abbe96..f81d9c7 100644
+--- a/frontend/src/pages/evidence/index.tsx
++++ b/frontend/src/pages/evidence/index.tsx
+@@ -1,3 +1,5 @@
++import { ApiError } from '@/api/client'
++import { ResourceStateView, resourceErrorState } from '@sdlc/ui/ui'
+ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+ import { Link, useSearchParams } from 'react-router'
+ import {
+@@ -348,6 +350,11 @@ export function EvidencePage() {
+     if (file) createFile.mutate({ file, evidence }, { onSuccess: handleSaved })
+   }
+ 
++  const terminalError = [evidenceQuery.error].find(
++    (error) => error instanceof ApiError && [403, 404].includes(error.status),
++  )
++  if (terminalError) return <ResourceStateView state={resourceErrorState(terminalError)} />
++
+   return (
+     <div className="space-y-5">
+       <header className="flex flex-wrap items-center justify-between gap-3">
+diff --git a/frontend/src/pages/phase-dossier/index.tsx b/frontend/src/pages/phase-dossier/index.tsx
+index 24ccaa7..8d00435 100644
+--- a/frontend/src/pages/phase-dossier/index.tsx
++++ b/frontend/src/pages/phase-dossier/index.tsx
+@@ -1,3 +1,5 @@
++import { ApiError } from '@/api/client'
++import { ResourceStateView, resourceErrorState } from '@sdlc/ui/ui'
+ import { type FormEvent, useRef, useState } from 'react'
+ import { Link, useParams, useSearchParams } from 'react-router'
+ import { FileCheck2, FileText, Link2, Search } from 'lucide-react'
+@@ -117,6 +119,11 @@ function PhaseCatalog({ spaceKey }: { spaceKey: string }) {
+     listRef.current?.scrollIntoView?.({ block: 'start' })
+   }
+ 
++  const terminalError = [phasesQuery.error].find(
++    (error) => error instanceof ApiError && [403, 404].includes(error.status),
++  )
++  if (terminalError) return <ResourceStateView state={resourceErrorState(terminalError)} />
++
+   return (
+     <section ref={listRef} aria-label="Список фаз" className="scroll-mt-16 space-y-3">
+       <div className="relative max-w-md">
+@@ -215,6 +222,11 @@ function PhaseCatalog({ spaceKey }: { spaceKey: string }) {
+ export function PhaseDossiersPage() {
+   const [selectedSpaceKey, setSelectedSpaceKey, spacesQuery] = useSelectedSpaceKey()
+ 
++  const terminalError = [spacesQuery.error].find(
++    (error) => error instanceof ApiError && [403, 404].includes(error.status),
++  )
++  if (terminalError) return <ResourceStateView state={resourceErrorState(terminalError)} />
++
+   return (
+     <div className="space-y-5">
+       <section className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+@@ -271,6 +283,11 @@ export function PhaseDossierPage() {
+     )
+   }
+ 
++  const terminalError = [phaseQuery.error, spacesQuery.error].find(
++    (error) => error instanceof ApiError && [403, 404].includes(error.status),
++  )
++  if (terminalError) return <ResourceStateView state={resourceErrorState(terminalError)} />
++
+   if (!selectedSpaceKey) {
+     if (spacesQuery.isLoading) return <LoadingState message="Загружаем пространства" />
+     if (spacesQuery.isError) {
+diff --git a/frontend/src/pages/settings/index.tsx b/frontend/src/pages/settings/index.tsx
+index 4f6a7f8..5d1d1bb 100644
+--- a/frontend/src/pages/settings/index.tsx
++++ b/frontend/src/pages/settings/index.tsx
+@@ -1,3 +1,5 @@
++import { ApiError } from '@/api/client'
++import { ResourceStateView, resourceErrorState } from '@sdlc/ui/ui'
+ import { Check, Database, Globe2, KeyRound, Minus, Settings2 } from 'lucide-react'
+ import { useWikiSettings } from '@/shared/api/hooks'
+ import { ErrorState, LoadingState } from '@sdlc/ui/ui'
+@@ -76,6 +78,11 @@ export function SettingsPage() {
+       ]
+     : []
+ 
++  const terminalError = [settingsQuery.error].find(
++    (error) => error instanceof ApiError && [403, 404].includes(error.status),
++  )
++  if (terminalError) return <ResourceStateView state={resourceErrorState(terminalError)} />
++
+   return (
+     <div className="min-w-0 space-y-5">
+       <h1 className="text-2xl font-bold">Настройки</h1>
+diff --git a/frontend/src/pages/spaces/index.tsx b/frontend/src/pages/spaces/index.tsx
+index 64fa5f0..24d78dc 100644
+--- a/frontend/src/pages/spaces/index.tsx
++++ b/frontend/src/pages/spaces/index.tsx
+@@ -1,3 +1,5 @@
++import { ApiError } from '@/api/client'
++import { ResourceStateView, resourceErrorState } from '@sdlc/ui/ui'
+ import { FormEvent, useState } from 'react'
+ import { Link } from 'react-router'
+ import {
+@@ -341,6 +343,11 @@ export function SpacesPage() {
+     setExpandedKey(space.key)
+   }
+ 
++  const terminalError = [spacesQuery.error, currentUserQuery.error].find(
++    (error) => error instanceof ApiError && [403, 404].includes(error.status),
++  )
++  if (terminalError) return <ResourceStateView state={resourceErrorState(terminalError)} />
++
+   return (
+     <div className="space-y-5">
+       <section className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+diff --git a/frontend/src/pages/spaces/spaces.test.tsx b/frontend/src/pages/spaces/spaces.test.tsx
+index 3b9896c..7fd202f 100644
+--- a/frontend/src/pages/spaces/spaces.test.tsx
++++ b/frontend/src/pages/spaces/spaces.test.tsx
+@@ -3,6 +3,7 @@ import { MemoryRouter } from 'react-router'
+ import { afterEach, describe, expect, it, vi } from 'vitest'
+ 
+ import { SpacesPage } from './'
++import { ApiError } from '@/api/client'
+ 
+ const useArchiveSpace = vi.hoisted(() => vi.fn())
+ const useCreateSpace = vi.hoisted(() => vi.fn())
+@@ -57,11 +58,13 @@ function setupSpaces({
+   membersOverrides = {},
+   userOverrides = {},
+   usersOverrides = {},
++  spacesOverrides = {},
+   spaceList,
+ }: {
+   membersOverrides?: Record<string, unknown>
+   userOverrides?: Record<string, unknown>
+   usersOverrides?: Record<string, unknown>
++  spacesOverrides?: Record<string, unknown>
+   spaceList?: Array<Record<string, unknown>>
+ } = {}) {
+   useCurrentUser.mockReturnValue({
+@@ -96,6 +99,7 @@ function setupSpaces({
+     isLoading: false,
+     isError: false,
+     refetch: refetchSpaces,
++    ...spacesOverrides,
+   })
+   useSpaceTree.mockReturnValue({
+     data: {
+@@ -159,6 +163,27 @@ function setupSpaces({
+ }
+ 
+ describe('SpacesPage', () => {
++  it.each([403, 404])('hides cached spaces and mutation controls after HTTP %s', (status) => {
++    setupSpaces({
++      spacesOverrides: {
++        isLoading: true,
++        isError: true,
++        error: new ApiError({ status, statusText: 'Synthetic denial' }),
++      },
++    })
++    expect(
++      document.querySelector(
++        `[data-page-state="${status === 403 ? 'permission-denied' : 'not-found'}"]`,
++      ),
++    ).toBeInTheDocument()
++    expect(screen.queryByText('База знаний Base')).not.toBeInTheDocument()
++    expect(
++      screen.queryByRole('button', { name: /Создать|Архивировать|Сохранить|Повторить/ }),
++    ).not.toBeInTheDocument()
++    expect(createMutate).not.toHaveBeenCalled()
++    expect(updateMutate).not.toHaveBeenCalled()
++    expect(archiveMutate).not.toHaveBeenCalled()
++  })
+   afterEach(() => {
+     vi.clearAllMocks()
+   })
+diff --git a/frontend/src/pages/task-dossier/index.tsx b/frontend/src/pages/task-dossier/index.tsx
+index f8f7fc1..fd96d08 100644
+--- a/frontend/src/pages/task-dossier/index.tsx
++++ b/frontend/src/pages/task-dossier/index.tsx
+@@ -1,3 +1,5 @@
++import { ApiError } from '@/api/client'
++import { ResourceStateView, resourceErrorState } from '@sdlc/ui/ui'
+ import { type FormEvent, useRef, useState } from 'react'
+ import { Link, useParams, useSearchParams } from 'react-router'
+ import { FileCheck2, FileText, GitBranch, Link2, Search } from 'lucide-react'
+@@ -127,6 +129,11 @@ function TaskCatalog({ spaceKey }: { spaceKey: string }) {
+     listRef.current?.scrollIntoView?.({ block: 'start' })
+   }
+ 
++  const terminalError = [tasksQuery.error].find(
++    (error) => error instanceof ApiError && [403, 404].includes(error.status),
++  )
++  if (terminalError) return <ResourceStateView state={resourceErrorState(terminalError)} />
++
+   return (
+     <section ref={listRef} aria-label="Список задач" className="scroll-mt-16 space-y-3">
+       <div className="relative max-w-md">
+@@ -227,6 +234,11 @@ function TaskCatalog({ spaceKey }: { spaceKey: string }) {
+ export function TaskDossiersPage() {
+   const [selectedSpaceKey, setSelectedSpaceKey, spacesQuery] = useSelectedSpaceKey()
+ 
++  const terminalError = [spacesQuery.error].find(
++    (error) => error instanceof ApiError && [403, 404].includes(error.status),
++  )
++  if (terminalError) return <ResourceStateView state={resourceErrorState(terminalError)} />
++
+   return (
+     <div className="space-y-5">
+       <section className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+@@ -287,6 +299,11 @@ export function TaskDossierPage() {
+     )
+   }
+ 
++  const terminalError = [taskQuery.error, spacesQuery.error].find(
++    (error) => error instanceof ApiError && [403, 404].includes(error.status),
++  )
++  if (terminalError) return <ResourceStateView state={resourceErrorState(terminalError)} />
++
+   if (!selectedSpaceKey) {
+     if (spacesQuery.isLoading) return <LoadingState message="Загружаем пространства" />
+     if (spacesQuery.isError) {
+diff --git a/frontend/src/pages/templates/index.tsx b/frontend/src/pages/templates/index.tsx
+index e673146..4bdad83 100644
+--- a/frontend/src/pages/templates/index.tsx
++++ b/frontend/src/pages/templates/index.tsx
+@@ -1,3 +1,5 @@
++import { ApiError } from '@/api/client'
++import { ResourceStateView, resourceErrorState } from '@sdlc/ui/ui'
+ import { FormEvent, useEffect, useRef, useState } from 'react'
+ import { Link, useSearchParams } from 'react-router'
+ import {
+@@ -207,6 +209,11 @@ export function TemplatesPage() {
+     )
+   }
+ 
++  const terminalError = [templatesQuery.error, currentUserQuery.error].find(
++    (error) => error instanceof ApiError && [403, 404].includes(error.status),
++  )
++  if (terminalError) return <ResourceStateView state={resourceErrorState(terminalError)} />
++
+   return (
+     <div className="space-y-5">
+       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+diff --git a/frontend/src/pages/users/index.tsx b/frontend/src/pages/users/index.tsx
+index ef2e96a..9af0e0e 100644
+--- a/frontend/src/pages/users/index.tsx
++++ b/frontend/src/pages/users/index.tsx
+@@ -1,3 +1,5 @@
++import { ApiError } from '@/api/client'
++import { ResourceStateView, resourceErrorState } from '@sdlc/ui/ui'
+ import { useEffect, useState } from 'react'
+ import { ExternalLink, Search } from 'lucide-react'
+ import { useSearchParams } from 'react-router'
+@@ -122,6 +124,11 @@ export function UsersPage() {
+     setPage(currentPage, true)
+   }, [currentPage, requestedPage, setPage, usersQuery.isError, usersQuery.isLoading])
+ 
++  const terminalError = [usersQuery.error].find(
++    (error) => error instanceof ApiError && [403, 404].includes(error.status),
++  )
++  if (terminalError) return <ResourceStateView state={resourceErrorState(terminalError)} />
++
+   return (
+     <div className="min-w-0 space-y-5">
+       <div className="flex flex-wrap items-center justify-between gap-3">
+diff --git a/frontend/src/pages/wiki-search/index.tsx b/frontend/src/pages/wiki-search/index.tsx
+index 2451fa7..374665a 100644
+--- a/frontend/src/pages/wiki-search/index.tsx
++++ b/frontend/src/pages/wiki-search/index.tsx
+@@ -1,3 +1,5 @@
++import { ApiError } from '@/api/client'
++import { ResourceStateView, resourceErrorState } from '@sdlc/ui/ui'
+ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+ import { Link, useSearchParams } from 'react-router'
+ import { FileCheck2, FileText, GitBranch, ListFilter, Search } from 'lucide-react'
+@@ -217,6 +219,11 @@ export function WikiSearchPage() {
+     resultsSection.current?.scrollIntoView?.({ block: 'start' })
+   }
+ 
++  const terminalError = [searchQuery.error].find(
++    (error) => error instanceof ApiError && [403, 404].includes(error.status),
++  )
++  if (terminalError) return <ResourceStateView state={resourceErrorState(terminalError)} />
++
+   return (
+     <div className="space-y-4">
+       <h1 className="text-2xl font-bold">Поиск</h1>
+diff --git a/frontend/src/shared/auth/require-auth.tsx b/frontend/src/shared/auth/require-auth.tsx
+index 0abcdba..e75aadb 100644
+--- a/frontend/src/shared/auth/require-auth.tsx
++++ b/frontend/src/shared/auth/require-auth.tsx
+@@ -1,7 +1,5 @@
+-// Route guard from @sdlc/ui/auth: one silent refresh, then /login.
+-// Wiki keeps the access token in memory only; on a hard navigation the guard
+-// performs a single silent refresh (cookie/localStorage refresh token) before
+-// redirecting, so full page loads of protected routes stay authenticated.
++// Central SSO guard: the access token remains in memory; a hard navigation
++// returns to /login and the Central session restores it through PKCE.
+ import { RequireAuth as Guard } from '@sdlc/ui/auth'
+ import { useAuthStore } from '@/shared/auth/store'
+ 

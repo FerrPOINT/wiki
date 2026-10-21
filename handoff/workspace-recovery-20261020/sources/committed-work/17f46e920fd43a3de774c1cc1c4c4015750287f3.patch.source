@@ -1,0 +1,1316 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 233d095..4583cd2 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -18,6 +18,12 @@
+ 
+ ### Fixed
+ 
++- Каталог шаблонов использует Base ListPage/filter slot, Select, FormField и
++  PendingForm. Черновик сохраняется при сворачивании, смене фильтров и потере
++  прав; уход и reload защищены. Запись требует свежих данных и прав, повторная
++  отправка блокируется. Cached rows доступны только при повторяемом сбое;
++  403/404/validation не показывают недоступный кеш или бесполезный retry.
++
+ - Wiki использует Base `AppShell`: полноширинный Header, общий branded sidebar,
+   переключатель сервисов, тема и аккаунт. Email не повторяется при отсутствии
+   имени; длинная identity переносится внутри общего меню.
+diff --git a/docs/ARCHITECTURE.md b/docs/ARCHITECTURE.md
+index ee6c35a..6a912c7 100644
+--- a/docs/ARCHITECTURE.md
++++ b/docs/ARCHITECTURE.md
+@@ -250,3 +250,9 @@ CLI returns JSON by default, exits non-zero on API errors and sends `Idempotency
+ ## Общая база
+ 
+ Подключение версий, границы контрактов и проверки описаны в [BASE_INTEGRATION](BASE_INTEGRATION.md).
++
++Каталог шаблонов использует Base page/form/control/state compositions. Запросы
++каталога и текущих прав независимы; temporary cached reads не разрешают writes.
++Draft хранится в памяти страницы, не сбрасывается refetch/collapse/query/hash,
++не записывается в URL или storage. Детали миграции и границы source QA:
++[checkpoint](plans/2026-10-02-base-ui-reconciliation-and-templates.md).
+diff --git a/docs/UI_UX_MAP.md b/docs/UI_UX_MAP.md
+index 6ac9fdf..6fd091e 100644
+--- a/docs/UI_UX_MAP.md
++++ b/docs/UI_UX_MAP.md
+@@ -233,3 +233,23 @@ README release gallery. Live Header/detail tests адаптированы к Bas
+ FormPage/Select и общего resource state policy; document/compose и остальные
+ compositions требуют завершения. Полные routes/roles/states/backend gates,
+ runtime acceptance, default release integration и mirror sync остаются обязательными.
++
++## Templates Source Migration
++
++Текущий pin согласован с Admin/CI/CD: Base `6f63595`. Исторические checkpoints
++выше не аттестуют новый выпуск. Saved default reconciled в task branch, не в
++default ref. [План и границы](plans/2026-10-02-base-ui-reconciliation-and-templates.md).
++
++`/templates` использует Base ListPage/filter slot, FormField, Select, PendingForm,
++ResourceStateView и UnsavedChangesGuard. Search/type/page и соседний space/hash
++сохранены; query/hash/collapse не сбрасывают draft, pathname/reload защищены.
++Writes требуют свежих успешных identity/catalog queries, terminal/cancel/business
++errors скрывают кеш без retry; временный сбой сохраняет readonly rows.
++Утрата прав не удаляет открытый draft. Domain API/DB/auth не изменены.
++
++246 units, lint/semantic, typecheck/build, installed Base/19-pattern и README gates
++прошли. Все 16 PG cases отдельно выполнены на fresh temporary PostgreSQL.
++Focused source Chromium проверил 3 темы/10 widths, 40 PNG, guards/focus и axe.
++Это mocked HTTP/OIDC source evidence, не current image/live SSO/README acceptance.
++Document/compose/phase/evidence/admin compositions, cold audit titles без N+1,
++all-route/role/state image matrix, local default integration и mirror ещё pending.
+diff --git a/docs/plans/2026-10-02-base-ui-reconciliation-and-templates.md b/docs/plans/2026-10-02-base-ui-reconciliation-and-templates.md
+new file mode 100644
+index 0000000..2449d1c
+--- /dev/null
++++ b/docs/plans/2026-10-02-base-ui-reconciliation-and-templates.md
+@@ -0,0 +1,63 @@
++# Base Reconciliation И Templates
++
++## Scope
++
++Продолжение полного UI/UX-плана, не его сокращение до одной страницы. Owned
++checkout: `feat/base-ui-standard`; original dirty checkout не меняется.
++Сохранённые local defaults используются без GitHub/fetch/Actions.
++
++## Source Reconciliation
++
++Merge `910087cb0d1ea410050a06ab6e10465bbdf6b179` объединяет task source
++`66ed175b90615c39bef97f85492d733cad0cb905` и saved default
++`efadcdb71420e46c34b12043783b7e393241972e`. Сохранены incoming SSO recovery,
++Base telemetry/config/OpenAPI/time helpers и locked build tooling. Pin:
++`6f63595a891f78b96b665889f80e6eb5cf34381a`, общий с Admin и CI/CD.
++Конфликты разрешены сохранением strict UI gate и generated-exports typecheck;
++дублированный packageManager удалён. Default refs/runtime не изменены.
++
++## Templates
++
++- Base ListPage владеет header, filter row и spacing; Select/FormField/PendingForm
++  и ResourceStateView заменяют local controls/form/states. Product API не меняется.
++- Independent identity/catalog queries блокируют writes при error/loading/refetch.
++  Temporary cached catalog остаётся readonly; terminal/non-repeatable failure
++  скрывает rows. Не выдавать ошибка загрузки за empty или предлагать retry для 403.
++- Draft не теряется при collapse/query/hash/permission loss; Base guard защищает
++  pathname/reload. Поля и submit handler учитывают pending/freshness, same-tick
++  duplicate submit не создаёт вторую mutation. Space/template context сохранён.
++
++## Verification Boundaries
++
++Frozen offline install, 240 reconciliation frontend tests и OpenAPI check/compat
++прошли до page migration. После migration: 246 units (18 template cases), lint,
++typecheck/build, strict installed Base/19-pattern gate и effective theme contrast.
++Rust fmt/all-target/all-feature strict clippy/workspace tests прошли. Workspace
++reports включают 16 env-gated PG cases с ранним return без URL; они не считаются
++PG evidence. Все 16 отдельно выполнены на fresh temporary PostgreSQL успешно.
++Temporary PG/network удалены, own cache volumes сохранены.
++
++Focused Chromium: 1 passed, 30 theme/width observations, 40 PNG, keyboard/focus,
++cached 0/503/403/404/422, draft guard и axe. Полный Chromium smoke: 21 passed,
++zero skipped/flaky/retries, 322 PNG, включая 210 shared-mode geometry captures.
++HTTP/OIDC synthetic: не actual image acceptance. Release workspace собран,
++OpenAPI release binary совпадает с committed JSON. Offline Swagger input взят
++из debug cache: v5.17.14.zip, SHA256
++`481244d0812097b11fbaeef79f71d942b171617f9c9f9514e63acbe13e71ccdc`.
++Initial offline build без этого input диагностический, не зелёный evidence.
++
++Full format gate прошёл после штатной LF-нормализации 51 файлов: каждый файл
++сверен `git diff --exit-code`, индекс обновлён без content changes. Product FP
++до/после одинаковый:
++`524518ae8702fe1c882a041af7e2dc44c657475526f7c3d6b450c419da53fa39`.
++Frozen install использовал 451 reused / zero downloaded; lock/schema drift нет.
++Source attestation/capture metadata фиксируются отдельно после source commit.
++README gallery и actual image QA этим документом не закрываются.
++
++## Remaining Full Scope
++
++Document/compose/evidence/settings/admin/phase compositions и cold audit titles
++без N+1/API extension требуют отдельной проверки. Затем Task/Fleet/Workflow/Pulse,
++all operational routes/roles/states на согласованных images, launcher/health/SSO,
++current desktop README gallery/provenance, local default integration и mirror.
++Все 14 исходных findings открыты; Pulse вне mirror. Public API/DB/auth не менялись.
+diff --git a/frontend/e2e/smoke.spec.ts b/frontend/e2e/smoke.spec.ts
+index ea21d2e..00681da 100644
+--- a/frontend/e2e/smoke.spec.ts
++++ b/frontend/e2e/smoke.spec.ts
+@@ -1165,6 +1165,155 @@ test.describe('wiki smoke', () => {
+     }
+   })
+ 
++  test('uses Base template controls, states and draft protection across themes and widths', async ({
++    page,
++  }, testInfo) => {
++    test.setTimeout(300_000)
++    const api = await installWikiApiMocks(page)
++    page.setDefaultTimeout(15_000)
++    const geometry: Array<{
++      theme: string
++      width: number
++      controls: Array<{ label: string | null; height: number }>
++    }> = []
++    let status = 200
++    const errors: string[] = []
++    page.on('pageerror', (error) => errors.push(error.message))
++    await page.route('**/api/v1/templates', async (route) => {
++      if (route.request().method() !== 'GET' || status === 200) return route.fallback()
++      if (status === 0) return route.abort('failed')
++      return routeJson(
++        route,
++        {
++          code: status === 403 ? 'FORBIDDEN' : 'SERVICE_UNAVAILABLE',
++          message: 'Catalog unavailable',
++        },
++        status,
++      )
++    })
++    await gotoWiki(page, '/templates?space=BASE&keep=1#catalog')
++    for (const theme of ['light', 'gray', 'dark']) {
++      await page.evaluate((value) => localStorage.setItem('theme', value), theme)
++      await page.reload()
++      await page.getByRole('button', { name: 'Новый шаблон', exact: true }).click()
++      for (const width of [375, 767, 768, 1023, 1024, 1279, 1280, 1440, 1920, 2560]) {
++        await page.setViewportSize({ width, height: width < 768 ? 812 : 1080 })
++        await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
++        await expect(page.locator('[data-page-layout]')).toHaveAttribute('data-page-layout', 'wide')
++        await expect(page.locator('.base-page-title')).toHaveText('Шаблоны')
++        await page
++          .getByRole('textbox', { name: 'Название шаблона', exact: true })
++          .fill('Безопасный черновик')
++        await page
++          .getByRole('textbox', { name: 'Markdown шаблона', exact: true })
++          .fill('# Черновик\n\n' + 'Длинный текст '.repeat(30))
++        const controls = await page
++          .locator('main button, main input, main select, main a')
++          .evaluateAll((elements) =>
++            elements
++              .filter((element) => element.getClientRects().length > 0)
++              .map((element) => ({
++                label: element.getAttribute('aria-label') ?? element.textContent,
++                height: element.getBoundingClientRect().height,
++              })),
++          )
++        expect(controls.length).toBeGreaterThan(5)
++        for (const control of controls)
++          expect(control.height, String(control.label)).toBeGreaterThanOrEqual(
++            width < 768 ? 44 : 40,
++          )
++        geometry.push({ theme, width, controls })
++        expect(
++          await page.evaluate(
++            () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
++          ),
++        ).toBe(true)
++        if (width === 375 || width === 1920)
++          expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
++        await page.screenshot({
++          path: testInfo.outputPath(`templates-${theme}-${width}.png`),
++          fullPage: true,
++        })
++      }
++      await page.getByRole('textbox', { name: 'Название шаблона', exact: true }).fill('')
++      await page.getByRole('textbox', { name: 'Markdown шаблона', exact: true }).fill('')
++      await expect
++        .poll(() =>
++          page.evaluate(() => {
++            const event = new Event('beforeunload', { cancelable: true })
++            window.dispatchEvent(event)
++            return event.defaultPrevented
++          }),
++        )
++        .toBe(false)
++    }
++    await page
++      .getByRole('textbox', { name: 'Название шаблона', exact: true })
++      .fill('Безопасный черновик')
++    await page.getByRole('textbox', { name: 'Markdown шаблона', exact: true }).fill('# Черновик')
++    await page.getByRole('button', { name: 'Свернуть', exact: true }).click()
++    await page.getByRole('searchbox', { name: 'Найти шаблон' }).fill('Требования')
++    await expect(page).toHaveURL(/keep=1.*q=.*#catalog$/)
++    await page.getByRole('button', { name: 'Новый шаблон', exact: true }).click()
++    await expect(page.getByRole('textbox', { name: 'Название шаблона', exact: true })).toHaveValue(
++      'Безопасный черновик',
++    )
++    await page.getByRole('link', { name: 'Создать документ', exact: true }).click()
++    const guard = page.getByRole('alertdialog')
++    await expect(guard).toBeVisible()
++    await guard.getByRole('button', { name: 'Отмена', exact: true }).click()
++    await expect(guard).toBeHidden()
++    await expect(page.getByRole('link', { name: 'Создать документ', exact: true })).toBeFocused()
++    expect(api.templateCreateRequests).toEqual([])
++    await page.getByRole('textbox', { name: 'Название шаблона', exact: true }).fill('')
++    await page.getByRole('textbox', { name: 'Markdown шаблона', exact: true }).fill('')
++    for (const failure of [0, 503, 403, 404, 422]) {
++      status = 200
++      await gotoWiki(page, '/templates?space=BASE')
++      await expect(page.getByRole('link', { name: /^Использовать шаблон/ })).toBeVisible()
++      status = failure
++      await page.getByRole('link', { name: 'Пространства', exact: true }).click()
++      await page.getByRole('link', { name: 'Шаблоны', exact: true }).click()
++      const repeatable = failure === 0 || failure === 503
++      const state = repeatable
++        ? 'partial-error'
++        : failure === 403
++          ? 'permission-denied'
++          : failure === 404
++            ? 'not-found'
++            : 'error'
++      await expect(
++        state === 'error' ? page.getByRole('alert') : page.locator(`[data-page-state="${state}"]`),
++      ).toBeVisible({ timeout: 15_000 })
++      await expect(page.getByRole('button', { name: 'Повторить', exact: true })).toHaveCount(
++        repeatable ? 1 : 0,
++      )
++      await expect(page.getByRole('link', { name: /^Использовать шаблон/ })).toHaveCount(
++        repeatable ? 1 : 0,
++      )
++      if (repeatable)
++        await expect(page.getByRole('button', { name: 'Новый шаблон', exact: true })).toBeDisabled()
++      for (const width of [375, 1920]) {
++        await page.setViewportSize({ width, height: width < 768 ? 812 : 1080 })
++        expect(
++          await page.evaluate(
++            () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
++          ),
++        ).toBe(true)
++        expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
++        await page.screenshot({
++          path: testInfo.outputPath(`templates-cached-${failure}-${width}.png`),
++          fullPage: true,
++        })
++      }
++    }
++    expect(errors).toEqual([])
++    await testInfo.attach('templates-geometry', {
++      body: JSON.stringify(geometry),
++      contentType: 'application/json',
++    })
++  })
++
+   test('previews a new document and protects its unsaved draft during navigation', async ({
+     page,
+   }) => {
+diff --git a/frontend/src/pages/templates/index.tsx b/frontend/src/pages/templates/index.tsx
+index 56ecd95..c9320ed 100644
+--- a/frontend/src/pages/templates/index.tsx
++++ b/frontend/src/pages/templates/index.tsx
+@@ -1,6 +1,6 @@
+ import { FormEvent, useEffect, useRef, useState } from 'react'
+ import { Link } from 'react-router'
+-import { useUrlSearchParams } from '@sdlc/ui/lib'
++import { positiveIntegerQuery, textQuery, useUrlSearchParams } from '@sdlc/ui/lib'
+ import {
+   CheckCircle2,
+   ChevronDown,
+@@ -12,7 +12,19 @@ import {
+   X,
+ } from 'lucide-react'
+ import { useCreateTemplate, useCurrentUser, useTemplates } from '@/shared/api/hooks'
+-import { Button, EmptyState, ErrorState, Input, Label, LoadingState, Textarea } from '@sdlc/ui/ui'
++import {
++  Button,
++  FormField,
++  Input,
++  ListPage,
++  PendingForm,
++  ResourceStateView,
++  Select,
++  Textarea,
++  UnsavedChangesGuard,
++  resourceErrorState,
++  type ResourceState,
++} from '@sdlc/ui/ui'
+ import { formatApiErrorForUser } from '@/shared/lib/api-error'
+ import { formatDocumentType } from '@/shared/lib/wiki-format'
+ import type { Template } from '@/api/wiki'
+@@ -27,8 +39,8 @@ const typeOptions = [
+ ]
+ const pageSize = 12
+ const searchDebounceMs = 300
+-const selectClassName =
+-  'min-h-10 w-full rounded-md border border-border-strong bg-surface px-3 text-sm text-text-primary focus-visible:outline-2 focus-visible:outline-accent'
++const pageQuery = positiveIntegerQuery()
++const searchQuery = textQuery()
+ 
+ function templateIcon(documentType: string) {
+   if (documentType === 'requirements') return ClipboardCheck
+@@ -37,13 +49,7 @@ function templateIcon(documentType: string) {
+ }
+ 
+ function normalized(value: string | null): string {
+-  return value?.trim() ?? ''
+-}
+-
+-function parsePage(value: string | null): number {
+-  if (!value || !/^[1-9]\d*$/.test(value)) return 1
+-  const parsed = Number(value)
+-  return Number.isSafeInteger(parsed) ? parsed : 1
++  return searchQuery.parse(value).trim()
+ }
+ 
+ function setOptionalParam(params: URLSearchParams, name: string, value: string): void {
+@@ -56,7 +62,7 @@ function useTemplateCatalogUrl() {
+   const appliedSearch = normalized(searchParams.get('q'))
+   const requestedType = normalized(searchParams.get('type'))
+   const typeFilter = typeOptions.includes(requestedType) ? requestedType : 'all'
+-  const requestedPage = parsePage(searchParams.get('page'))
++  const requestedPage = pageQuery.parse(searchParams.get('page'))
+   const [search, setSearch] = useState(appliedSearch)
+ 
+   useEffect(() => {
+@@ -141,7 +147,22 @@ export function TemplatesPage() {
+   const currentUserQuery = useCurrentUser()
+   const createTemplate = useCreateTemplate()
+   const isSystemAdmin = !currentUserQuery.isError && currentUserQuery.data?.is_system_admin === true
+-  const templates = templatesQuery.data?.templates ?? []
++  const canCreate =
++    isSystemAdmin &&
++    !currentUserQuery.isLoading &&
++    !currentUserQuery.isFetching &&
++    Boolean(templatesQuery.data) &&
++    !templatesQuery.isLoading &&
++    !templatesQuery.isFetching &&
++    !templatesQuery.isError
++  const catalogError = templatesQuery.isError
++    ? resourceErrorState(templatesQuery.error, () => templatesQuery.refetch(), {
++        hasData: Boolean(templatesQuery.data),
++        message: formatApiErrorForUser(templatesQuery.error, 'Не удалось загрузить шаблоны'),
++      })
++    : undefined
++  const canReadCatalog = !catalogError || catalogError.kind === 'partial-error'
++  const templates = canReadCatalog ? (templatesQuery.data?.templates ?? []) : []
+   const [showCreate, setShowCreate] = useState(false)
+   const [createdTemplate, setCreatedTemplate] = useState<Template | null>(null)
+   const [submitAttempted, setSubmitAttempted] = useState(false)
+@@ -155,6 +176,7 @@ export function TemplatesPage() {
+   const bodyRef = useRef<HTMLTextAreaElement>(null)
+   const nameInvalid = submitAttempted && !name.trim()
+   const bodyInvalid = submitAttempted && !body.trim()
++  const hasDraft = Boolean(name || body || documentType !== 'requirements')
+   const normalizedSearch = search.trim().toLocaleLowerCase('ru')
+   const filteredTemplates = templates
+     .filter((template) => typeFilter === 'all' || template.document_type === typeFilter)
+@@ -172,6 +194,14 @@ export function TemplatesPage() {
+     (currentPage - 1) * pageSize,
+     currentPage * pageSize,
+   )
++  const catalogState: ResourceState = templatesQuery.isLoading
++    ? { kind: 'loading', message: 'Загружаем шаблоны' }
++    : (catalogError ??
++      (templates.length === 0
++        ? { kind: 'empty', message: 'Шаблоны ещё не созданы' }
++        : { kind: 'ready' }))
++  const terminalCatalog =
++    catalogState.kind === 'permission-denied' || catalogState.kind === 'not-found'
+ 
+   useEffect(() => {
+     if (templatesQuery.isLoading || templatesQuery.isError || requestedPage === currentPage) return
+@@ -180,7 +210,7 @@ export function TemplatesPage() {
+ 
+   function handleCreateTemplate(event: FormEvent<HTMLFormElement>) {
+     event.preventDefault()
+-    if (!isSystemAdmin || createTemplate.isPending) return
++    if (!canCreate || createTemplate.isPending) return
+     setSubmitAttempted(true)
+     const normalizedName = name.trim()
+     const normalizedBody = body.trim()
+@@ -217,307 +247,315 @@ export function TemplatesPage() {
+   }
+ 
+   return (
+-    <div className="space-y-5">
+-      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+-        <div>
+-          <h1 className="text-2xl font-bold">Шаблоны</h1>
+-          <p className="mt-1 text-sm text-text-muted">Стартовые структуры документов.</p>
+-        </div>
+-        <div className="flex flex-wrap gap-2">
+-          {isSystemAdmin && (
+-            <Button
+-              type="button"
+-              size="sm"
+-              className="min-h-10 sm:min-h-10"
+-              aria-expanded={showCreate}
+-              aria-controls={showCreate ? 'template-create' : undefined}
+-              disabled={createTemplate.isPending}
+-              onClick={() => {
+-                if (!showCreate) {
+-                  createTemplate.reset()
+-                  setSubmitAttempted(false)
+-                }
+-                setShowCreate((value) => !value)
+-              }}
+-            >
+-              <Plus className="h-4 w-4" aria-hidden />
+-              {showCreate ? 'Свернуть форму' : 'Новый шаблон'}
+-            </Button>
+-          )}
+-          <Button asChild size="sm" variant="secondary">
+-            <Link to={documentCreateHref()}>
+-              <FileText className="h-4 w-4" aria-hidden />
+-              Создать документ
+-            </Link>
+-          </Button>
+-        </div>
+-      </header>
+-
+-      {currentUserQuery.isError && (
+-        <ErrorState
+-          message={`Не удалось проверить права. ${formatApiErrorForUser(currentUserQuery.error, 'Повторите запрос')}`}
+-          onRetry={() => currentUserQuery.refetch()}
+-        />
+-      )}
+-
+-      {createdTemplate && (
+-        <div
+-          role="status"
+-          className="flex flex-wrap items-center gap-2 border-y border-border py-3 text-sm text-text-secondary"
+-        >
+-          <CheckCircle2 className="h-4 w-4 text-success" aria-hidden />
+-          <span className="mr-auto min-w-0 break-words">
+-            Шаблон «{createdTemplate.name}» создан
+-          </span>
+-          <Button asChild size="sm" variant="outline" className="min-h-10 sm:min-h-10">
+-            <Link to={documentCreateHref(createdTemplate.id)}>Использовать</Link>
+-          </Button>
+-          <Button
+-            type="button"
+-            size="icon"
+-            variant="ghost"
+-            className="min-h-10 min-w-10 sm:min-h-10 sm:min-w-10"
+-            aria-label="Закрыть уведомление"
+-            title="Закрыть уведомление"
+-            onClick={() => setCreatedTemplate(null)}
+-          >
+-            <X className="h-4 w-4" aria-hidden />
+-          </Button>
+-        </div>
+-      )}
+-
+-      {isSystemAdmin && showCreate && (
+-        <form
+-          id="template-create"
+-          aria-label="Создание шаблона"
+-          onSubmit={handleCreateTemplate}
+-          noValidate
+-          className="space-y-3 border-y border-border py-4"
+-        >
+-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_14rem]">
+-            <div className="space-y-1.5">
+-              <Label htmlFor="template-name">Название шаблона</Label>
+-              <Input
+-                ref={nameRef}
+-                id="template-name"
+-                className="min-h-10"
+-                value={name}
+-                onChange={(event) => setName(event.target.value)}
+-                disabled={createTemplate.isPending}
+-                aria-invalid={nameInvalid}
+-                aria-describedby={nameInvalid ? 'template-name-error' : undefined}
+-                required
+-              />
+-              {nameInvalid && (
+-                <p id="template-name-error" className="text-sm text-danger">
+-                  Введите название шаблона.
+-                </p>
++    <>
++      <UnsavedChangesGuard when={hasDraft || createTemplate.isPending} allowSearchChanges />
++      <ListPage
++        title="Шаблоны"
++        actions={
++          !terminalCatalog && (
++            <div className="flex flex-wrap gap-2">
++              {isSystemAdmin && (
++                <Button
++                  type="button"
++                  size="sm"
++                  className="min-h-10 sm:min-h-10"
++                  aria-expanded={showCreate}
++                  aria-controls={showCreate ? 'template-create' : undefined}
++                  disabled={!canCreate || createTemplate.isPending}
++                  onClick={() => {
++                    if (!showCreate) {
++                      createTemplate.reset()
++                      setSubmitAttempted(false)
++                    }
++                    setShowCreate((value) => !value)
++                  }}
++                >
++                  <Plus className="h-4 w-4" aria-hidden />
++                  {showCreate ? 'Свернуть форму' : 'Новый шаблон'}
++                </Button>
+               )}
++              <Button asChild size="sm" variant="secondary">
++                <Link to={documentCreateHref()}>
++                  <FileText className="h-4 w-4" aria-hidden />
++                  Создать документ
++                </Link>
++              </Button>
+             </div>
+-            <div className="space-y-1.5">
+-              <Label htmlFor="template-type">Тип документа</Label>
+-              <select
+-                id="template-type"
+-                className={selectClassName}
+-                value={documentType}
+-                onChange={(event) => setDocumentType(event.target.value)}
+-                disabled={createTemplate.isPending}
++          )
++        }
++        filters={
++          !templatesQuery.isLoading &&
++          canReadCatalog &&
++          templates.length > 0 && (
++            <div className="grid w-full gap-2 sm:grid-cols-[minmax(0,1fr)_14rem]">
++              <div className="relative min-w-0">
++                <Search
++                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
++                  aria-hidden
++                />
++                <Input
++                  type="search"
++                  aria-label="Найти шаблон"
++                  placeholder="Название или содержимое"
++                  className="min-h-10 pl-9"
++                  value={search}
++                  onChange={(event) => {
++                    setSearch(event.target.value)
++                    setExpandedId(null)
++                  }}
++                />
++              </div>
++              <Select
++                aria-label="Тип шаблона"
++                value={typeFilter}
++                onChange={(event) => {
++                  setTypeFilter(event.target.value)
++                  setExpandedId(null)
++                }}
+               >
++                <option value="all">Все типы</option>
+                 {typeOptions.map((type) => (
+                   <option key={type} value={type}>
+                     {formatDocumentType(type)}
+                   </option>
+                 ))}
+-              </select>
++              </Select>
+             </div>
+-          </div>
+-          <div className="space-y-1.5">
+-            <Label htmlFor="template-body">Markdown шаблона</Label>
+-            <Textarea
+-              ref={bodyRef}
+-              id="template-body"
+-              className="min-h-32 font-mono text-sm"
+-              value={body}
+-              onChange={(event) => setBody(event.target.value)}
+-              disabled={createTemplate.isPending}
+-              aria-invalid={bodyInvalid}
+-              aria-describedby={bodyInvalid ? 'template-body-error' : undefined}
+-              required
+-            />
+-            {bodyInvalid && (
+-              <p id="template-body-error" className="text-sm text-danger">
+-                Введите содержимое шаблона.
+-              </p>
+-            )}
+-          </div>
+-          {createTemplate.isError && (
+-            <p role="alert" className="text-sm text-danger">
+-              {formatApiErrorForUser(createTemplate.error, 'Не удалось создать шаблон')}
+-            </p>
+-          )}
+-          <div className="flex flex-wrap justify-end gap-2">
+-            <Button
+-              type="button"
+-              size="sm"
+-              variant="outline"
+-              className="min-h-10 sm:min-h-10"
+-              disabled={createTemplate.isPending}
+-              onClick={() => setShowCreate(false)}
+-            >
+-              Свернуть
++          )
++        }
++      >
++        {currentUserQuery.isError && (
++          <ResourceStateView
++            state={resourceErrorState(currentUserQuery.error, () => currentUserQuery.refetch(), {
++              message: `Не удалось проверить права. ${formatApiErrorForUser(currentUserQuery.error, 'Повторите запрос')}`,
++            })}
++          />
++        )}
++
++        {createdTemplate && (
++          <div
++            role="status"
++            className="flex flex-wrap items-center gap-2 border-y border-border py-3 text-sm text-text-secondary"
++          >
++            <CheckCircle2 className="h-4 w-4 text-success" aria-hidden />
++            <span className="mr-auto min-w-0 break-words">
++              Шаблон «{createdTemplate.name}» создан
++            </span>
++            <Button asChild size="sm" variant="outline" className="min-h-10 sm:min-h-10">
++              <Link to={documentCreateHref(createdTemplate.id)}>Использовать</Link>
+             </Button>
+             <Button
+-              type="submit"
+-              size="sm"
+-              className="min-h-10 sm:min-h-10"
+-              disabled={createTemplate.isPending}
++              type="button"
++              size="icon"
++              variant="ghost"
++              className="min-h-10 min-w-10 sm:min-h-10 sm:min-w-10"
++              aria-label="Закрыть уведомление"
++              title="Закрыть уведомление"
++              onClick={() => setCreatedTemplate(null)}
+             >
+-              {createTemplate.isPending ? 'Создаём...' : 'Создать шаблон'}
++              <X className="h-4 w-4" aria-hidden />
+             </Button>
+           </div>
+-        </form>
+-      )}
++        )}
+ 
+-      {templatesQuery.isLoading && <LoadingState message="Загружаем шаблоны" />}
+-      {templatesQuery.isError && (
+-        <ErrorState
+-          message={formatApiErrorForUser(templatesQuery.error, 'Не удалось загрузить шаблоны')}
+-          onRetry={() => templatesQuery.refetch()}
+-        />
+-      )}
+-      {!templatesQuery.isLoading && !templatesQuery.isError && templates.length === 0 && (
+-        <EmptyState message="Шаблоны ещё не созданы" />
+-      )}
+-      {!templatesQuery.isLoading && !templatesQuery.isError && templates.length > 0 && (
+-        <section aria-label="Список шаблонов" className="space-y-3">
+-          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_14rem]">
+-            <div className="relative min-w-0">
+-              <Search
+-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
+-                aria-hidden
+-              />
+-              <Input
+-                type="search"
+-                aria-label="Найти шаблон"
+-                placeholder="Название или содержимое"
+-                className="min-h-10 pl-9"
+-                value={search}
+-                onChange={(event) => {
+-                  setSearch(event.target.value)
+-                  setExpandedId(null)
+-                }}
+-              />
+-            </div>
+-            <select
+-              aria-label="Тип шаблона"
+-              className={selectClassName}
+-              value={typeFilter}
+-              onChange={(event) => {
+-                setTypeFilter(event.target.value)
+-                setExpandedId(null)
+-              }}
++        {showCreate && (
++          <PendingForm
++            id="template-create"
++            aria-label="Создание шаблона"
++            onSubmit={handleCreateTemplate}
++            pending={createTemplate.isPending}
++            noValidate
++            className="border-y border-border py-4"
++          >
++            {!canCreate && !createTemplate.isPending && (
++              <p role="status" className="text-sm text-text-secondary">
++                Черновик сохранён. Для отправки нужны актуальный список и права администратора.
++              </p>
++            )}
++            <fieldset
++              disabled={!canCreate || createTemplate.isPending}
++              className="space-y-3 border-0 p-0"
+             >
+-              <option value="all">Все типы</option>
+-              {typeOptions.map((type) => (
+-                <option key={type} value={type}>
+-                  {formatDocumentType(type)}
+-                </option>
+-              ))}
+-            </select>
+-          </div>
+-          <p className="text-xs text-text-muted">
+-            Показано {visibleTemplates.length} из {filteredTemplates.length} шаблонов
+-          </p>
+-          {filteredTemplates.length === 0 ? (
+-            <p role="status" className="border-y border-border py-6 text-sm text-text-muted">
+-              По заданным условиям шаблоны не найдены.
+-            </p>
+-          ) : (
+-            <ul className="divide-y divide-border border-y border-border">
+-              {visibleTemplates.map((template) => {
+-                const Icon = templateIcon(template.document_type)
+-                const expanded = expandedId === template.id
+-                return (
+-                  <li key={template.id}>
+-                    <div className="flex min-w-0 items-center gap-2">
+-                      <button
+-                        type="button"
+-                        aria-expanded={expanded}
+-                        aria-controls={`template-body-${template.id}`}
+-                        aria-label={`${expanded ? 'Скрыть' : 'Показать'} содержимое шаблона ${template.name}`}
+-                        className="flex min-h-14 min-w-0 flex-1 items-center gap-3 py-2 text-left hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
+-                        onClick={() => setExpandedId(expanded ? null : template.id)}
+-                      >
+-                        <Icon className="h-4 w-4 shrink-0 text-accent" aria-hidden />
+-                        <span className="min-w-0 flex-1">
+-                          <span className="block truncate text-sm font-medium text-text-primary">
+-                            {template.name}
+-                          </span>
+-                          <span className="block truncate text-xs text-text-muted">
+-                            {formatDocumentType(template.document_type)}
+-                          </span>
+-                        </span>
+-                        <ChevronDown
+-                          className={`h-4 w-4 shrink-0 text-text-muted transition-transform ${expanded ? 'rotate-180' : ''}`}
+-                          aria-hidden
+-                        />
+-                      </button>
+-                      <Link
+-                        to={documentCreateHref(template.id)}
+-                        aria-label={`Использовать шаблон ${template.name}`}
+-                        className="inline-flex min-h-10 shrink-0 items-center px-2 text-sm text-accent hover:underline"
+-                      >
+-                        Использовать
+-                      </Link>
+-                    </div>
+-                    {expanded && (
+-                      <pre
+-                        id={`template-body-${template.id}`}
+-                        className="whitespace-pre-wrap break-words border-t border-border bg-surface-raised p-3 font-mono text-xs text-text-secondary"
+-                      >
+-                        {template.body_markdown}
+-                      </pre>
+-                    )}
+-                  </li>
+-                )
+-              })}
+-            </ul>
+-          )}
+-          {filteredTemplates.length > pageSize && (
+-            <nav aria-label="Страницы шаблонов" className="flex items-center justify-end gap-2">
++              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_14rem]">
++                <FormField
++                  id="template-name"
++                  label="Название шаблона"
++                  required
++                  error={nameInvalid ? 'Введите название шаблона.' : undefined}
++                >
++                  {(attrs) => (
++                    <Input
++                      {...attrs}
++                      ref={nameRef}
++                      value={name}
++                      onChange={(event) => setName(event.target.value)}
++                      disabled={createTemplate.isPending}
++                    />
++                  )}
++                </FormField>
++                <FormField id="template-type" label="Тип документа">
++                  {(attrs) => (
++                    <Select
++                      {...attrs}
++                      value={documentType}
++                      onChange={(event) => setDocumentType(event.target.value)}
++                      disabled={createTemplate.isPending}
++                    >
++                      {typeOptions.map((type) => (
++                        <option key={type} value={type}>
++                          {formatDocumentType(type)}
++                        </option>
++                      ))}
++                    </Select>
++                  )}
++                </FormField>
++              </div>
++              <FormField
++                id="template-body"
++                label="Markdown шаблона"
++                required
++                error={bodyInvalid ? 'Введите содержимое шаблона.' : undefined}
++              >
++                {(attrs) => (
++                  <Textarea
++                    {...attrs}
++                    ref={bodyRef}
++                    className="min-h-32 font-mono text-sm"
++                    value={body}
++                    onChange={(event) => setBody(event.target.value)}
++                    disabled={createTemplate.isPending}
++                  />
++                )}
++              </FormField>
++            </fieldset>
++            {createTemplate.isError && (
++              <p role="alert" className="text-sm text-danger">
++                {formatApiErrorForUser(createTemplate.error, 'Не удалось создать шаблон')}
++              </p>
++            )}
++            <div className="flex flex-wrap justify-end gap-2">
+               <Button
+                 type="button"
+                 size="sm"
+                 variant="outline"
+                 className="min-h-10 sm:min-h-10"
+-                disabled={currentPage === 1}
+-                onClick={() => {
+-                  setCatalogPage(currentPage - 1)
+-                  setExpandedId(null)
+-                }}
++                disabled={createTemplate.isPending}
++                onClick={() => setShowCreate(false)}
+               >
+-                Назад
++                Свернуть
+               </Button>
+-              <span className="text-sm text-text-muted">
+-                {currentPage} / {totalPages}
+-              </span>
+               <Button
+-                type="button"
++                type="submit"
+                 size="sm"
+-                variant="outline"
+                 className="min-h-10 sm:min-h-10"
+-                disabled={currentPage === totalPages}
+-                onClick={() => {
+-                  setCatalogPage(currentPage + 1)
+-                  setExpandedId(null)
+-                }}
++                disabled={!canCreate || createTemplate.isPending}
+               >
+-                Далее
++                {createTemplate.isPending ? 'Создаём...' : 'Создать шаблон'}
+               </Button>
+-            </nav>
+-          )}
+-        </section>
+-      )}
+-    </div>
++            </div>
++          </PendingForm>
++        )}
++
++        <ResourceStateView state={catalogState} />
++        {!templatesQuery.isLoading && canReadCatalog && templates.length > 0 && (
++          <section aria-label="Список шаблонов" className="space-y-3">
++            <p className="text-xs text-text-muted">
++              Показано {visibleTemplates.length} из {filteredTemplates.length} шаблонов
++            </p>
++            {filteredTemplates.length === 0 ? (
++              <ResourceStateView
++                state={{ kind: 'empty', message: 'По заданным условиям шаблоны не найдены.' }}
++              />
++            ) : (
++              <ul className="divide-y divide-border border-y border-border">
++                {visibleTemplates.map((template) => {
++                  const Icon = templateIcon(template.document_type)
++                  const expanded = expandedId === template.id
++                  return (
++                    <li key={template.id}>
++                      <div className="flex min-w-0 items-center gap-2">
++                        <button
++                          type="button"
++                          aria-expanded={expanded}
++                          aria-controls={`template-body-${template.id}`}
++                          aria-label={`${expanded ? 'Скрыть' : 'Показать'} содержимое шаблона ${template.name}`}
++                          className="flex min-h-14 min-w-0 flex-1 items-center gap-3 py-2 text-left hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
++                          onClick={() => setExpandedId(expanded ? null : template.id)}
++                        >
++                          <Icon className="h-4 w-4 shrink-0 text-accent" aria-hidden />
++                          <span className="min-w-0 flex-1">
++                            <span className="block truncate text-sm font-medium text-text-primary">
++                              {template.name}
++                            </span>
++                            <span className="block truncate text-xs text-text-muted">
++                              {formatDocumentType(template.document_type)}
++                            </span>
++                          </span>
++                          <ChevronDown
++                            className={`h-4 w-4 shrink-0 text-text-muted transition-transform ${expanded ? 'rotate-180' : ''}`}
++                            aria-hidden
++                          />
++                        </button>
++                        <Link
++                          to={documentCreateHref(template.id)}
++                          aria-label={`Использовать шаблон ${template.name}`}
++                          className="base-control inline-flex shrink-0 items-center px-2 text-sm text-accent hover:underline"
++                        >
++                          Использовать
++                        </Link>
++                      </div>
++                      {expanded && (
++                        <pre
++                          id={`template-body-${template.id}`}
++                          className="whitespace-pre-wrap break-words border-t border-border bg-surface-raised p-3 font-mono text-xs text-text-secondary"
++                        >
++                          {template.body_markdown}
++                        </pre>
++                      )}
++                    </li>
++                  )
++                })}
++              </ul>
++            )}
++            {filteredTemplates.length > pageSize && (
++              <nav
++                aria-label="Страницы шаблонов"
++                className="flex flex-wrap items-center justify-end gap-2"
++              >
++                <Button
++                  type="button"
++                  size="sm"
++                  variant="outline"
++                  className="min-h-10 sm:min-h-10"
++                  disabled={currentPage === 1}
++                  onClick={() => {
++                    setCatalogPage(currentPage - 1)
++                    setExpandedId(null)
++                  }}
++                >
++                  Назад
++                </Button>
++                <span className="text-sm text-text-muted">
++                  {currentPage} / {totalPages}
++                </span>
++                <Button
++                  type="button"
++                  size="sm"
++                  variant="outline"
++                  className="min-h-10 sm:min-h-10"
++                  disabled={currentPage === totalPages}
++                  onClick={() => {
++                    setCatalogPage(currentPage + 1)
++                    setExpandedId(null)
++                  }}
++                >
++                  Далее
++                </Button>
++              </nav>
++            )}
++          </section>
++        )}
++      </ListPage>
++    </>
+   )
+ }
+diff --git a/frontend/src/pages/templates/templates.test.tsx b/frontend/src/pages/templates/templates.test.tsx
+index dc2a000..b2d3b71 100644
+--- a/frontend/src/pages/templates/templates.test.tsx
++++ b/frontend/src/pages/templates/templates.test.tsx
+@@ -1,5 +1,5 @@
+-import { act, fireEvent, render, screen } from '@testing-library/react'
+-import { MemoryRouter, useLocation, useNavigate } from 'react-router'
++import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
++import { createMemoryRouter, Outlet, RouterProvider, useLocation, useNavigate } from 'react-router'
+ import { afterEach, describe, expect, it, vi } from 'vitest'
+ 
+ import { TemplatesPage } from './'
+@@ -28,6 +28,7 @@ const createTemplateMutate = vi.hoisted(() => vi.fn())
+ const createTemplateReset = vi.hoisted(() => vi.fn())
+ const templatesRefetch = vi.hoisted(() => vi.fn())
+ const currentUserRefetch = vi.hoisted(() => vi.fn())
++const routers: ReturnType<typeof createMemoryRouter>[] = []
+ 
+ vi.mock('@/shared/api/hooks', () => ({
+   useCreateTemplate,
+@@ -49,6 +50,7 @@ function setupTemplates({
+   useCurrentUser.mockReturnValue({
+     data: { is_system_admin: true },
+     isLoading: false,
++    isFetching: false,
+     isError: false,
+     refetch: currentUserRefetch,
+     ...currentUserOverrides,
+@@ -65,6 +67,7 @@ function setupTemplates({
+       ],
+     },
+     isLoading: false,
++    isFetching: false,
+     isError: false,
+     refetch: templatesRefetch,
+     ...templatesOverrides,
+@@ -78,16 +81,32 @@ function setupTemplates({
+     ...createOverrides,
+   })
+ 
+-  render(
+-    <MemoryRouter initialEntries={[initialEntry]}>
+-      <TemplatesPage />
+-      <RouterState />
+-    </MemoryRouter>,
++  const router = createMemoryRouter(
++    [
++      {
++        element: (
++          <>
++            <Outlet />
++            <RouterState />
++          </>
++        ),
++        children: [
++          { path: '/templates', element: <TemplatesPage /> },
++          { path: '/documents/new', element: <h1>Новый документ</h1> },
++        ],
++      },
++    ],
++    { initialEntries: [initialEntry] },
+   )
++  routers.push(router)
++  render(<RouterProvider router={router} />)
++  return router
+ }
+ 
+ describe('TemplatesPage', () => {
+   afterEach(() => {
++    cleanup()
++    routers.splice(0).forEach((router) => router.dispose())
+     vi.useRealTimers()
+     vi.resetAllMocks()
+   })
+@@ -102,24 +121,24 @@ describe('TemplatesPage', () => {
+       'href',
+       '/documents/new?template=requirements',
+     )
+-    expect(screen.queryByLabelText('Название шаблона')).not.toBeInTheDocument()
++    expect(screen.queryByRole('textbox', { name: 'Название шаблона' })).not.toBeInTheDocument()
+     expect(screen.queryByText('# Требования')).not.toBeInTheDocument()
+     fireEvent.click(screen.getByRole('button', { name: 'Показать содержимое шаблона Требования' }))
+     expect(screen.getByText(/# Требования/)).toBeInTheDocument()
+     fireEvent.click(screen.getByRole('button', { name: 'Новый шаблон' }))
+-    expect(screen.getByLabelText('Название шаблона')).toHaveValue('')
+-    expect(screen.getByLabelText('Markdown шаблона')).toHaveValue('')
++    expect(screen.getByRole('textbox', { name: 'Название шаблона' })).toHaveValue('')
++    expect(screen.getByRole('textbox', { name: 'Markdown шаблона' })).toHaveValue('')
+ 
+-    fireEvent.change(screen.getByLabelText('Название шаблона'), {
++    fireEvent.change(screen.getByRole('textbox', { name: 'Название шаблона' }), {
+       target: { value: '  План релиза  ' },
+     })
+     fireEvent.change(screen.getByLabelText('Тип документа'), {
+       target: { value: 'release_note' },
+     })
+-    fireEvent.change(screen.getByLabelText('Markdown шаблона'), {
++    fireEvent.change(screen.getByRole('textbox', { name: 'Markdown шаблона' }), {
+       target: { value: '# Релиз\n\n## Проверки\n' },
+     })
+-    fireEvent.submit(screen.getByLabelText('Markdown шаблона').closest('form')!)
++    fireEvent.submit(screen.getByRole('textbox', { name: 'Markdown шаблона' }).closest('form')!)
+ 
+     expect(createTemplateMutate).toHaveBeenCalledWith(
+       {
+@@ -137,7 +156,7 @@ describe('TemplatesPage', () => {
+         body_markdown: '# Релиз',
+       }),
+     )
+-    expect(screen.queryByLabelText('Название шаблона')).not.toBeInTheDocument()
++    expect(screen.queryByRole('textbox', { name: 'Название шаблона' })).not.toBeInTheDocument()
+     expect(screen.getByRole('status')).toHaveTextContent('Шаблон «План релиза» создан')
+     expect(screen.getByRole('link', { name: 'Использовать' })).toHaveAttribute(
+       'href',
+@@ -174,8 +193,10 @@ describe('TemplatesPage', () => {
+       '/documents/new?space=TEAM&template=requirements',
+     )
+     fireEvent.click(screen.getByRole('button', { name: 'Новый шаблон' }))
+-    fireEvent.change(screen.getByLabelText('Название шаблона'), { target: { value: created.name } })
+-    fireEvent.change(screen.getByLabelText('Markdown шаблона'), {
++    fireEvent.change(screen.getByRole('textbox', { name: 'Название шаблона' }), {
++      target: { value: created.name },
++    })
++    fireEvent.change(screen.getByRole('textbox', { name: 'Markdown шаблона' }), {
+       target: { value: created.body_markdown },
+     })
+     fireEvent.submit(screen.getByRole('form', { name: 'Создание шаблона' }))
+@@ -185,16 +206,16 @@ describe('TemplatesPage', () => {
+     )
+   })
+ 
+-  it('rejects whitespace-only required fields before calling the API', () => {
++  it('rejects whitespace-only required fields before calling the API', async () => {
+     setupTemplates()
+     fireEvent.click(screen.getByRole('button', { name: 'Новый шаблон' }))
+     expect(createTemplateReset).toHaveBeenCalledTimes(1)
+ 
+-    const nameInput = screen.getByLabelText('Название шаблона')
+-    const bodyInput = screen.getByLabelText('Markdown шаблона')
++    const nameInput = screen.getByRole('textbox', { name: 'Название шаблона' })
++    const bodyInput = screen.getByRole('textbox', { name: 'Markdown шаблона' })
+     fireEvent.change(nameInput, { target: { value: '   ' } })
+     fireEvent.change(bodyInput, { target: { value: '   ' } })
+-    fireEvent.submit(screen.getByRole('form', { name: 'Создание шаблона' }))
++    await act(async () => fireEvent.submit(screen.getByRole('form', { name: 'Создание шаблона' })))
+ 
+     expect(createTemplateMutate).not.toHaveBeenCalled()
+     expect(nameInput).toHaveAttribute('aria-invalid', 'true')
+@@ -204,12 +225,12 @@ describe('TemplatesPage', () => {
+     expect(nameInput).toHaveFocus()
+ 
+     fireEvent.change(nameInput, { target: { value: 'План релиза' } })
+-    fireEvent.submit(screen.getByRole('form', { name: 'Создание шаблона' }))
++    await act(async () => fireEvent.submit(screen.getByRole('form', { name: 'Создание шаблона' })))
+     expect(screen.queryByText('Введите название шаблона.')).not.toBeInTheDocument()
+     expect(bodyInput).toHaveFocus()
+ 
+     fireEvent.change(bodyInput, { target: { value: '# Релиз' } })
+-    fireEvent.submit(screen.getByRole('form', { name: 'Создание шаблона' }))
++    await act(async () => fireEvent.submit(screen.getByRole('form', { name: 'Создание шаблона' })))
+     expect(createTemplateMutate).toHaveBeenCalledWith(
+       {
+         name: 'План релиза',
+@@ -258,10 +279,10 @@ describe('TemplatesPage', () => {
+       target: { value: 'Непохожее' },
+     })
+     fireEvent.click(screen.getByRole('button', { name: 'Новый шаблон' }))
+-    fireEvent.change(screen.getByLabelText('Название шаблона'), {
++    fireEvent.change(screen.getByRole('textbox', { name: 'Название шаблона' }), {
+       target: { value: created.name },
+     })
+-    fireEvent.change(screen.getByLabelText('Markdown шаблона'), {
++    fireEvent.change(screen.getByRole('textbox', { name: 'Markdown шаблона' }), {
+       target: { value: created.body_markdown },
+     })
+     fireEvent.submit(screen.getByRole('form', { name: 'Создание шаблона' }))
+@@ -277,10 +298,10 @@ describe('TemplatesPage', () => {
+   it('locks the create form while saving and keeps its draft on error', () => {
+     setupTemplates()
+     fireEvent.click(screen.getByRole('button', { name: 'Новый шаблон' }))
+-    fireEvent.change(screen.getByLabelText('Название шаблона'), {
++    fireEvent.change(screen.getByRole('textbox', { name: 'Название шаблона' }), {
+       target: { value: 'Мой шаблон' },
+     })
+-    fireEvent.change(screen.getByLabelText('Markdown шаблона'), {
++    fireEvent.change(screen.getByRole('textbox', { name: 'Markdown шаблона' }), {
+       target: { value: '# Текст' },
+     })
+     useCreateTemplate.mockReturnValue({
+@@ -294,9 +315,9 @@ describe('TemplatesPage', () => {
+     })
+     expect(screen.getByRole('button', { name: 'Свернуть форму' })).toBeDisabled()
+     expect(screen.getByRole('button', { name: 'Свернуть' })).toBeDisabled()
+-    expect(screen.getByLabelText('Название шаблона')).toBeDisabled()
++    expect(screen.getByRole('textbox', { name: 'Название шаблона' })).toBeDisabled()
+     expect(screen.getByLabelText('Тип документа')).toBeDisabled()
+-    expect(screen.getByLabelText('Markdown шаблона')).toBeDisabled()
++    expect(screen.getByRole('textbox', { name: 'Markdown шаблона' })).toBeDisabled()
+     expect(screen.getByRole('button', { name: 'Создаём...' })).toBeDisabled()
+     fireEvent.submit(screen.getByRole('form', { name: 'Создание шаблона' }))
+     expect(createTemplateMutate).not.toHaveBeenCalled()
+@@ -310,8 +331,8 @@ describe('TemplatesPage', () => {
+     fireEvent.change(screen.getByRole('searchbox', { name: 'Найти шаблон' }), {
+       target: { value: 'after error' },
+     })
+-    expect(screen.getByLabelText('Название шаблона')).toHaveValue('Мой шаблон')
+-    expect(screen.getByLabelText('Markdown шаблона')).toHaveValue('# Текст')
++    expect(screen.getByRole('textbox', { name: 'Название шаблона' })).toHaveValue('Мой шаблон')
++    expect(screen.getByRole('textbox', { name: 'Markdown шаблона' })).toHaveValue('# Текст')
+     expect(screen.getByRole('alert')).toBeInTheDocument()
+   })
+ 
+@@ -444,17 +465,96 @@ describe('TemplatesPage', () => {
+     expect(screen.getByRole('combobox', { name: 'Тип шаблона' })).toHaveValue('all')
+   })
+ 
+-  it('renders template query errors with retry', () => {
++  it('renders terminal template query errors without cached rows or retry', () => {
+     setupTemplates({
+       templatesOverrides: {
+-        data: undefined,
+         isError: true,
+-        error: { code: 'FORBIDDEN', message: 'Forbidden' },
++        error: { status: 403, code: 'FORBIDDEN', message: 'Forbidden' },
+       },
+     })
+ 
+-    expect(screen.getByRole('alert')).toHaveTextContent('Недостаточно прав для действия')
++    expect(screen.getByText('Недостаточно прав для действия')).toBeInTheDocument()
++    expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument()
++    expect(
++      screen.queryByRole('link', { name: 'Использовать шаблон Требования' }),
++    ).not.toBeInTheDocument()
++    expect(screen.queryByRole('button', { name: 'Новый шаблон' })).not.toBeInTheDocument()
++    expect(templatesRefetch).not.toHaveBeenCalled()
++  })
++
++  it('keeps cached templates readonly during a retryable failure', () => {
++    setupTemplates({ templatesOverrides: { isError: true, error: { status: 503 } } })
++    expect(screen.getByRole('link', { name: 'Использовать шаблон Требования' })).toBeInTheDocument()
++    expect(screen.getByRole('button', { name: 'Новый шаблон' })).toBeDisabled()
++    expect(document.querySelector('[data-page-state="partial-error"]')).toBeInTheDocument()
+     fireEvent.click(screen.getByRole('button', { name: 'Повторить' }))
+-    expect(templatesRefetch).toHaveBeenCalled()
++    expect(templatesRefetch).toHaveBeenCalledOnce()
++  })
++
++  it.each([404, 422])('hides cached rows after non-repeatable catalog status %s', (status) => {
++    setupTemplates({ templatesOverrides: { isError: true, error: { status } } })
++    expect(
++      screen.queryByRole('link', { name: 'Использовать шаблон Требования' }),
++    ).not.toBeInTheDocument()
++    expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument()
++  })
++
++  it.each(['identity', 'catalog'])(
++    'guards direct submits while %s refetches and retains the draft',
++    async (source) => {
++      const router = setupTemplates()
++      fireEvent.click(screen.getByRole('button', { name: 'Новый шаблон' }))
++      fireEvent.change(screen.getByRole('textbox', { name: 'Название шаблона' }), {
++        target: { value: 'Черновик' },
++      })
++      fireEvent.change(screen.getByRole('textbox', { name: 'Markdown шаблона' }), {
++        target: { value: '# Содержание' },
++      })
++      const query = source === 'identity' ? useCurrentUser : useTemplates
++      const previous = query.mock.results.at(-1)!.value
++      query.mockReturnValue({ ...previous, isFetching: true })
++      await act(() => router.navigate('/templates?keep=1'))
++      expect(screen.getByRole('textbox', { name: 'Название шаблона' })).toBeDisabled()
++      expect(screen.getByRole('button', { name: 'Создать шаблон' })).toBeDisabled()
++      fireEvent.submit(screen.getByRole('form', { name: 'Создание шаблона' }))
++      expect(createTemplateMutate).not.toHaveBeenCalled()
++      query.mockReturnValue({ ...previous, isFetching: false })
++      await act(() => router.navigate('/templates?keep=2'))
++      expect(screen.getByRole('textbox', { name: 'Название шаблона' })).toHaveValue('Черновик')
++      expect(screen.getByRole('textbox', { name: 'Markdown шаблона' })).toHaveValue('# Содержание')
++      fireEvent.submit(screen.getByRole('form', { name: 'Создание шаблона' }))
++      fireEvent.submit(screen.getByRole('form', { name: 'Создание шаблона' }))
++      expect(createTemplateMutate).toHaveBeenCalledOnce()
++    },
++  )
++
++  it('retains and protects the draft after permission loss', async () => {
++    const router = setupTemplates()
++    fireEvent.click(screen.getByRole('button', { name: 'Новый шаблон' }))
++    fireEvent.change(screen.getByRole('textbox', { name: 'Название шаблона' }), {
++      target: { value: 'Мой черновик' },
++    })
++    fireEvent.change(screen.getByRole('textbox', { name: 'Markdown шаблона' }), {
++      target: { value: '# Текст' },
++    })
++    useCurrentUser.mockReturnValue({
++      data: { is_system_admin: false },
++      isLoading: false,
++      isError: false,
++    })
++    await act(() => router.navigate('/templates?keep=1#draft'))
++    expect(screen.getByRole('textbox', { name: 'Название шаблона' })).toHaveValue('Мой черновик')
++    expect(screen.getByRole('textbox', { name: 'Название шаблона' })).toBeDisabled()
++    fireEvent.submit(screen.getByRole('form', { name: 'Создание шаблона' }))
++    expect(createTemplateMutate).not.toHaveBeenCalled()
++    const reload = new Event('beforeunload', { cancelable: true })
++    window.dispatchEvent(reload)
++    expect(reload.defaultPrevented).toBe(true)
++    fireEvent.click(screen.getByRole('link', { name: 'Создать документ' }))
++    expect(await screen.findByRole('alertdialog')).toBeInTheDocument()
++    fireEvent.click(screen.getByRole('button', { name: 'Отмена' }))
++    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
++    expect(router.state.location.pathname).toBe('/templates')
++    expect(screen.getByRole('textbox', { name: 'Markdown шаблона' })).toHaveValue('# Текст')
+   })
+ })

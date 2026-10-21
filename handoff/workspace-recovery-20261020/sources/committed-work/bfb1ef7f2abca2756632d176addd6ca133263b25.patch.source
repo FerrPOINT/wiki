@@ -1,0 +1,182 @@
+diff --git a/frontend/e2e/smoke.spec.ts b/frontend/e2e/smoke.spec.ts
+index 048b8f3..bdcbdd7 100644
+--- a/frontend/e2e/smoke.spec.ts
++++ b/frontend/e2e/smoke.spec.ts
+@@ -978,6 +978,70 @@ test.describe('wiki smoke', () => {
+     }
+   })
+ 
++  test('uses the Base cached audit error policy without hiding repeatable failures', async ({
++    page,
++  }, testInfo) => {
++    test.setTimeout(180_000)
++    await installWikiApiMocks(page)
++    let status = 200
++    await page.route('**/api/v1/audit-log*', async (route) => {
++      if (status === 200) return route.fallback()
++      if (status === 0) return route.abort('failed')
++      return routeJson(
++        route,
++        {
++          code: status === 422 ? 'VALIDATION_ERROR' : 'SERVICE_UNAVAILABLE',
++          message: 'Audit refresh rejected',
++        },
++        status,
++      )
++    })
++    for (const failure of [0, 408, 429, 503, 403, 404, 422]) {
++      status = 200
++      await gotoWiki(page, '/spaces')
++      await page.getByRole('link', { name: 'Аудит', exact: true }).click()
++      const events = page.getByRole('region', { name: 'События аудита' })
++      await expect(events.getByText('Создана начальная структура').last()).toBeVisible()
++      status = failure
++      await page.getByRole('link', { name: 'Пространства', exact: true }).click()
++      await page.getByRole('link', { name: 'Аудит', exact: true }).click()
++      const repeatable = [0, 408, 429, 503].includes(failure)
++      const state = repeatable
++        ? 'partial-error'
++        : failure === 403
++          ? 'permission-denied'
++          : failure === 404
++            ? 'not-found'
++            : 'error'
++      await expect(
++        state === 'error'
++          ? events.getByRole('alert')
++          : events.locator(`[data-page-state="${state}"]`),
++      ).toBeVisible({ timeout: 15_000 })
++      if (repeatable) {
++        await expect(events.getByText('Создана начальная структура').last()).toBeVisible()
++        await expect(events.getByRole('button', { name: 'Повторить', exact: true })).toBeVisible()
++      } else {
++        await expect(events.getByText('Создана начальная структура')).toHaveCount(0)
++        await expect(events.getByRole('button', { name: 'Повторить', exact: true })).toHaveCount(0)
++      }
++      await expect(events.getByText('Событий аудита пока нет')).toHaveCount(0)
++      for (const width of [375, 1920, 2560]) {
++        await page.setViewportSize({ width, height: width < 768 ? 812 : 1080 })
++        expect(
++          await page.evaluate(
++            () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
++          ),
++        ).toBe(true)
++        expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
++        await page.screenshot({
++          path: testInfo.outputPath(`audit-cached-${failure}-${width}.png`),
++          fullPage: true,
++        })
++      }
++    }
++  })
++
+   test('shows cold audit actor and space labels with secondary diagnostic IDs', async ({
+     page,
+   }) => {
+diff --git a/frontend/src/pages/audit-log/audit-log.test.tsx b/frontend/src/pages/audit-log/audit-log.test.tsx
+index cf1cbec..5eb9eef 100644
+--- a/frontend/src/pages/audit-log/audit-log.test.tsx
++++ b/frontend/src/pages/audit-log/audit-log.test.tsx
+@@ -499,21 +499,42 @@ describe('AuditLogPage', () => {
+     },
+   )
+ 
+-  it('retains loaded entries with a partial-error state when background refresh fails', () => {
+-    const refetch = vi.fn()
+-    useAuditLog.mockReturnValue({
+-      ...queryResult({ entries, next_cursor: null }),
+-      isError: true,
+-      error: { status: 503 },
+-      refetch,
+-    })
+-    renderAuditLog()
++  it.each([0, 408, 429, 503])(
++    'retains cached entries for a repeatable %s refresh failure',
++    (status) => {
++      const refetch = vi.fn()
++      useAuditLog.mockReturnValue({
++        ...queryResult({ entries, next_cursor: null }),
++        isError: true,
++        error: { status },
++        refetch,
++      })
++      renderAuditLog()
+ 
+-    expect(document.querySelector('[data-page-state="partial-error"]')).toBeInTheDocument()
+-    expect(screen.getAllByText('Опубликован документ')).toHaveLength(2)
+-    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }))
+-    expect(refetch).toHaveBeenCalledOnce()
+-  })
++      expect(document.querySelector('[data-page-state="partial-error"]')).toBeInTheDocument()
++      expect(screen.getAllByText('Опубликован документ')).toHaveLength(2)
++      fireEvent.click(screen.getByRole('button', { name: 'Повторить' }))
++      expect(refetch).toHaveBeenCalledOnce()
++    },
++  )
++
++  it.each([{ status: 422 }, { kind: 'cancelled', status: 0 }, { name: 'AbortError' }])(
++    'hides cached entries without retry for a non-repeatable refresh failure %j',
++    (error) => {
++      useAuditLog.mockReturnValue({
++        ...queryResult({ entries, next_cursor: null }),
++        isError: true,
++        error,
++      })
++      renderAuditLog()
++
++      expect(screen.getByRole('alert')).toBeInTheDocument()
++      expect(document.querySelector('[data-page-state="partial-error"]')).not.toBeInTheDocument()
++      expect(screen.queryByText('Опубликован документ')).not.toBeInTheDocument()
++      expect(screen.queryByText('Событий аудита пока нет')).not.toBeInTheDocument()
++      expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument()
++    },
++  )
+ 
+   it('does not offer retry for a non-repeatable request error', () => {
+     useAuditLog.mockReturnValue({
+diff --git a/frontend/src/pages/audit-log/index.tsx b/frontend/src/pages/audit-log/index.tsx
+index ea76872..9453cd3 100644
+--- a/frontend/src/pages/audit-log/index.tsx
++++ b/frontend/src/pages/audit-log/index.tsx
+@@ -211,7 +211,10 @@ export function AuditLogPage() {
+   const auditQuery = useAuditLog({ limit: PAGE_SIZE, cursor, ...appliedFilters })
+   const entries = auditQuery.data?.entries ?? []
+   const errorState = auditQuery.isError
+-    ? resourceErrorState(auditQuery.error, () => auditQuery.refetch())
++    ? resourceErrorState(auditQuery.error, () => auditQuery.refetch(), {
++        hasData: Boolean(auditQuery.data),
++        message: formatApiErrorForUser(auditQuery.error, 'Не удалось загрузить аудит'),
++      })
+     : undefined
+   const terminalError = errorState?.kind === 'not-found' || errorState?.kind === 'permission-denied'
+   const usersQuery = useUsers(!terminalError && (showFilters || entries.length > 0))
+@@ -222,7 +225,7 @@ export function AuditLogPage() {
+   const users = usersQuery.data?.users ?? []
+   const spaces = spacesQuery.data?.spaces ?? []
+   const activeFilterCount = Object.values(appliedFilters).filter(Boolean).length
+-  const partialError = errorState?.kind === 'error' && Boolean(auditQuery.data)
++  const partialError = errorState?.kind === 'partial-error'
+   const usersError = usersQuery.isError
+     ? resourceErrorState(usersQuery.error, () => usersQuery.refetch())
+     : undefined
+@@ -544,19 +547,7 @@ export function AuditLogPage() {
+         {auditQuery.isLoading && (
+           <ResourceStateView state={{ kind: 'loading', message: 'Загружаем аудит' }} />
+         )}
+-        {errorState && (
+-          <ResourceStateView
+-            state={
+-              errorState.kind === 'error'
+-                ? {
+-                    ...errorState,
+-                    kind: partialError ? 'partial-error' : 'error',
+-                    message: formatApiErrorForUser(auditQuery.error, 'Не удалось загрузить аудит'),
+-                  }
+-                : errorState
+-            }
+-          />
+-        )}
++        {errorState && <ResourceStateView state={errorState} />}
+         {!auditQuery.isLoading && !auditQuery.isError && entries.length === 0 && (
+           <EmptyState
+             message={
