@@ -59,5 +59,6 @@ http = "1.3"
 # openapi
 utoipa = { version = "5.0", features = ["axum_extras", "chrono"] }
 utoipa-axum = "0.2"
-utoipa-swagger-ui = { version = "9.0", features = ["axum"] }
+# Keep Swagger UI in the locked Cargo download cache, never fetch it in build.rs.
+utoipa-swagger-ui = { version = "9.0", features = ["axum", "vendored"] }
 async-trait = "0.1"

@@ -8,6 +8,7 @@ import json
 import runpy
 import re
 import shlex
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -15,6 +16,20 @@ WORKFLOW = ROOT / ".github/workflows/release.yml"
 
 
 class CiContractChecksTest(unittest.TestCase):
+    def test_swagger_assets_are_locked_cargo_inputs_without_compiler_network(self):
+        manifest = tomllib.loads((ROOT / "backend/Cargo.toml").read_text(encoding="utf-8"))
+        dependency = manifest["workspace"]["dependencies"]["utoipa-swagger-ui"]
+        self.assertIn("axum", dependency["features"])
+        self.assertIn("vendored", dependency["features"])
+        packages = tomllib.loads((ROOT / "backend/Cargo.lock").read_text(encoding="utf-8"))["package"]
+        swagger = next(item for item in packages if item["name"] == "utoipa-swagger-ui")
+        self.assertIn("utoipa-swagger-ui-vendored", swagger["dependencies"])
+        vendored = next(item for item in packages if item["name"] == "utoipa-swagger-ui-vendored")
+        self.assertEqual(vendored["version"], "0.1.2")  # Keeps the original Swagger UI 5.17.14.
+        self.assertRegex(vendored["checksum"], r"^[a-f0-9]{64}$")
+        routes = (ROOT / "backend/api/src/lib.rs").read_text(encoding="utf-8")
+        self.assertIn('SwaggerUi::new("/swagger-ui")', routes)
+
     def test_backend_job_runs_postgres_tests_against_isolated_service(self) -> None:
         workflow = WORKFLOW.read_text(encoding="utf-8")
         backend_job = workflow.split("\n  backend:\n", 1)[1].split("\n  frontend:\n", 1)[0]

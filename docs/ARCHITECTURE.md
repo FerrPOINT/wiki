@@ -1,5 +1,13 @@
 # Архитектура Wiki
 
+## Offline Swagger UI build
+
+`utoipa-swagger-ui` использует `vendored`: Swagger UI 5.17.14 входит в
+`utoipa-swagger-ui-vendored` 0.1.2 с checksum в `Cargo.lock`. Подготовка Cargo
+скачивает пакет один раз; compiler stage не обращается к GitHub. OpenAPI route
+и Swagger UI сохраняются. `CARGO_NET_OFFLINE` не запрещает сеть произвольному
+`build.rs`, поэтому внешние build assets должны быть явными locked inputs.
+
 ## Граница unit и server сборки
 
 Backend Docker recipes отделяют `manifests → unit-dependencies → unit` от
