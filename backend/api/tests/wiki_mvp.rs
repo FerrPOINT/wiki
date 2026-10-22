@@ -5771,6 +5771,32 @@ async fn wiki_postgres_routes_persist_across_router_rebuilds() {
     .await;
     assert_eq!(status, StatusCode::CREATED);
     let archived_space_document_id = archived_space_document["id"].as_str().unwrap();
+    let (reader_token, reader_id) = register_test_user(
+        &app,
+        format!("archive-reader-{short}@example.test"),
+        format!("archive-reader-{short}"),
+        "reader-password",
+        "Archive reader",
+    )
+    .await;
+    let fixture_pool = PgPoolOptions::new()
+        .max_connections(1)
+        .connect(&database_url)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO space_members(space_id,user_id,role) VALUES($1,$2,'viewer')")
+        .bind(
+            archived_space["id"]
+                .as_str()
+                .unwrap()
+                .parse::<Uuid>()
+                .unwrap(),
+        )
+        .bind(reader_id.parse::<Uuid>().unwrap())
+        .execute(&fixture_pool)
+        .await
+        .unwrap();
+    fixture_pool.close().await;
 
     let (status, archived_space) = call(
         &app,
@@ -5849,8 +5875,21 @@ async fn wiki_postgres_routes_persist_across_router_rebuilds() {
             Some(json!({ "document_id": archived_space_document_id })),
         ),
     ] {
+        let (denied, _) = call(
+            &app,
+            method.clone(),
+            &path,
+            Some(&reader_token),
+            body.clone(),
+        )
+        .await;
+        assert_eq!(denied, StatusCode::FORBIDDEN, "read-only member: {path}");
         let (status, error) = call(&app, method, &path, Some(&token), body).await;
-        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            status,
+            StatusCode::BAD_REQUEST,
+            "authorized native writer: {path}"
+        );
         assert_eq!(error["error"]["code"], "VALIDATION_ERROR");
         assert_eq!(
             error["error"]["message"],
@@ -6836,7 +6875,11 @@ async fn wiki_postgres_space_project_migration_preserves_archived_history_and_re
     .unwrap();
     // Build the historical predecessor directly. The current guarded cohort
     // deliberately cannot downgrade to an unguarded schema, even on empty data.
-    let mut migrations = sqlx::migrate::Migrator::default();
+    let mut migrations = sqlx::migrate::Migrator::new(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../migrations"),
+    )
+    .await
+    .unwrap();
     migrations.migrations = std::borrow::Cow::Owned(
         full_migrations
             .iter()
@@ -6844,7 +6887,11 @@ async fn wiki_postgres_space_project_migration_preserves_archived_history_and_re
             .cloned()
             .collect(),
     );
-    let mut predecessor = sqlx::migrate::Migrator::default();
+    let mut predecessor = sqlx::migrate::Migrator::new(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../migrations"),
+    )
+    .await
+    .unwrap();
     predecessor.migrations = std::borrow::Cow::Owned(
         migrations
             .iter()
