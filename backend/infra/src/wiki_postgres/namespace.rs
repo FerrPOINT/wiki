@@ -557,7 +557,7 @@ pub(in crate::wiki_postgres) mod namespace_postgres_tests {
         let command = create_command(owner);
         let space = command.resource.resource_id;
         sqlx::query("INSERT INTO spaces(id,key,name,owner_id,namespace_managed) VALUES($1,$2,'Lost projection',$3,true)")
-            .bind(space).bind(format!("LOST{}", &space.simple().to_string()[..20]))
+            .bind(space).bind(format!("LOST{}", &space.simple().to_string()[..20]).to_ascii_uppercase())
             .bind(owner).execute(&backend.pool).await.unwrap();
         assert!(matches!(
             backend.namespace_binding(space).await,
