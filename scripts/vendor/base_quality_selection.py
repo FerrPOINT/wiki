@@ -104,7 +104,7 @@ def validate_compose_execution(gate):
         return
     value = gate['compose_execution']
     keys = {'schema', 'context', 'working_dir', 'mounts', 'cache_mounts', 'environment', 'network', 'limits'}
-    if (not isinstance(value, dict) or not keys <= set(value) or set(value) - keys - {'proof_outputs', 'resources'}
+    if (not isinstance(value, dict) or not keys <= set(value) or set(value) - keys - {'proof_outputs', 'resources', 'pinned_sdk'}
             or value['schema'] != 'base-quality-compose/v1'
             or gate.get('prepare_frontend') or gate.get('execution_slot') in ('none', 'command')
             or gate.get('artifact_toolchain') != 'pinned-image'
@@ -145,6 +145,17 @@ def validate_compose_execution(gate):
         targets += ['/metrics', '/.__base_observer__']
     if not isinstance(value['mounts'], list) or not value['mounts'] or not isinstance(value['cache_mounts'], list):
         raise ValueError('Compose mounts require explicit lists')
+    if 'pinned_sdk' in value:
+        sdk = value['pinned_sdk']
+        if (not isinstance(sdk, dict) or set(sdk) != {'path', 'provenance_sha256'}
+                or not relative(sdk['path']) or not sdk['path'].startswith('.local/sdk/')
+                or not sdk['path'].endswith('/services-base') or len(sdk['path']) > 1024
+                or not isinstance(sdk['provenance_sha256'], str) or len(sdk['provenance_sha256']) != 64
+                or any(char not in '0123456789abcdef' for char in sdk['provenance_sha256'])
+                or gate.get('sdk_revision') != '.namespace-base-revision'
+                or value['mounts'].count({'root': 'workspace', 'path': sdk['path'],
+                                         'target': '/workspace/services-base'}) != 1):
+            raise ValueError('Pinned Compose SDK requires its exact namespace export, digest and consumed mount')
     for mount in value['mounts']:
         if (not isinstance(mount, dict) or set(mount) != {'root', 'path', 'target'}
                 or mount['root'] not in ('product', 'workspace', 'base') or not relative(mount['path'])
@@ -279,10 +290,127 @@ ADMIN_NATIVE_V3_UNIT_GATE = {
 ADMIN_NATIVE_V3_GATE = {**ADMIN_NATIVE_GATE, 'cacheable': True}
 
 
+
+# Closed Wiki Rust1.88 commands; native dispatch preserves the ordinary gates.
+RUST_NATIVE_UNIT_GATE = {'id': 'backend:unit',
+ 'component': 'backend',
+ 'profiles': ['fast', 'release', 'unit', 'build'],
+ 'argv': ['bash',
+          '{base}/scripts/run_rust_gate.sh',
+          '--',
+          'bash',
+          '-euo',
+          'pipefail',
+          '-c',
+          'cargo fmt --all -- --check; cargo test --locked -p domain --lib'],
+ 'cwd': 'backend',
+ 'inputs': ['backend/**',
+            '.cargo/**',
+            '.base-revision',
+            '.namespace-base-revision',
+            'rust-toolchain*',
+            'rustfmt.toml',
+            '.rustfmt.toml',
+            '.gitattributes',
+            'LICENSE',
+            'NOTICE',
+            'THIRD_PARTY_NOTICES.md'],
+ 'cacheable': True,
+ 'platforms': ['linux'],
+ 'tools': [{'argv': ['rustc', '--version'], 'pattern': '^rustc 1\\.88\\.0\\b'}],
+ 'sdk_revision': '.namespace-base-revision',
+ 'test_tier': 'unit'}
+RUST_NATIVE_BUILD_GATE = {'id': 'backend:build',
+ 'component': 'backend',
+ 'profiles': ['build'],
+ 'argv': ['bash',
+          '{base}/scripts/run_rust_gate.sh',
+          '--',
+          'bash',
+          '-euo',
+          'pipefail',
+          '-c',
+          'cargo build --locked --release -p server --bin server\n'
+          'for binary in server; do\n'
+          '    test -s "$CARGO_TARGET_DIR/release/$binary"\n'
+          '    test -x "$CARGO_TARGET_DIR/release/$binary"\n'
+          '    cp -- "$CARGO_TARGET_DIR/release/$binary" "$BASE_QUALITY_ARTIFACTS/$binary"\n'
+          'done'],
+ 'cwd': 'backend',
+ 'inputs': ['backend/**',
+            '.base-revision',
+            '.namespace-base-revision',
+            '.cargo/**',
+            'rust-toolchain*',
+            '.gitattributes'],
+ 'cacheable': True,
+ 'platforms': ['linux'],
+ 'tools': [{'argv': ['rustc', '--version'], 'pattern': '^rustc 1\\.88\\.0\\b'}],
+ 'sdk_revision': '.namespace-base-revision',
+ 'kind': 'artifact',
+ 'exclude_inputs': ['backend/tests/**',
+                    'backend/**/tests/**',
+                    'backend/domain/src/value_objects/tests.rs',
+                    'backend/domain/src/wiki/tests.rs'],
+ 'artifact_outputs': ['server'],
+ 'artifact_toolchain': 'pinned-image',
+ 'environment_inputs': ['CARGO_*',
+                        'RUST*',
+                        'CC',
+                        'CC_*',
+                        'CFLAGS',
+                        'CFLAGS_*',
+                        'CXX',
+                        'CXX_*',
+                        'CXXFLAGS',
+                        'AR',
+                        'AR_*',
+                        'RANLIB',
+                        'LD',
+                        'LD_*',
+                        'LDFLAGS',
+                        'PKG_CONFIG*',
+                        'OPENSSL*',
+                        'LIBSSL*',
+                        'SQLX_*',
+                        'SQLITE*',
+                        'LIBSQLITE*',
+                        'VCPKG*',
+                        'BINDGEN*',
+                        'LIBCLANG*',
+                        'ZSTD*',
+                        'CMAKE*',
+                        'SOURCE_DATE_EPOCH',
+                        'HOME',
+                        'LIBRARY_PATH',
+                        'LD_LIBRARY_PATH',
+                        'CPATH',
+                        'C_INCLUDE_PATH',
+                        'CPLUS_INCLUDE_PATH'],
+ 'test_tier': 'artifact',
+ 'artifact_input_contract': 'git-source-v1'}
+RUST_NATIVE_REQUEST = {'backend:unit': {'component':'backend','role':'unit'},
+                       'backend:build': {'component':'backend','role':'build'}}
+
 def validate_native_execution(manifest):
     """Closed ordinary gate equivalence; unsupported commands stay unsupported."""
     value = manifest.get('native_execution')
     if value is None:
+        return
+    if isinstance(value, dict) and value.get('adapter') == 'rust-compose-v1':
+        gates = [gate for gate in manifest['gates'] if gate.get('id') in RUST_NATIVE_REQUEST]
+        if (set(value) != {'adapter', 'host_platforms', 'gates', 'runtime'}
+                or manifest.get('product') != 'wiki' or value['host_platforms'] != ['win32']
+                or value['gates'] != RUST_NATIVE_REQUEST
+                or gates != [RUST_NATIVE_UNIT_GATE, RUST_NATIVE_BUILD_GATE]):
+            raise ValueError('Native Rust v1 requires its closed ordinary Wiki unit and named server gates')
+        runtime = value['runtime']
+        if (not isinstance(runtime, dict) or set(runtime) != {'download_cache', 'limits', 'input_transport'}
+                or runtime['input_transport'] != 'operation-snapshot-v1'
+                or not isinstance(runtime['download_cache'], str)
+                or not re.fullmatch('[a-z0-9][a-z0-9-]{0,63}', runtime['download_cache'])):
+            raise ValueError('Native Rust requires one explicit download owner and operation snapshot')
+        validate_resource_limits(runtime['limits'])
         return
     if isinstance(value, dict) and value.get('adapter') in ('admin-compose-v2', 'admin-compose-v3'):
         v3 = value['adapter'] == 'admin-compose-v3'
@@ -371,9 +499,20 @@ def validate_native_execution(manifest):
             raise ValueError('Native Java requires the selected read-only JDK context: ' + identifier)
 
 
-def native_execution_plan(manifest, gates, execution_platform, docker_context=None, *, native_admin_inputs=None):
+def native_execution_plan(manifest, gates, execution_platform, docker_context=None, *, native_admin_inputs=None,
+                          native_rust_inputs=None):
     """Pure dispatch plan. No tool probes, filesystem preparation or Docker calls."""
     value = manifest.get('native_execution')
+    if native_rust_inputs is not None:
+        if (native_admin_inputs is not None or not isinstance(native_rust_inputs, dict)
+                or set(native_rust_inputs) != {'path', 'sha256'}
+                or not isinstance(native_rust_inputs['path'], str) or '\0' in native_rust_inputs['path']
+                or not Path(native_rust_inputs['path']).is_absolute()
+                or not isinstance(native_rust_inputs['sha256'], str)
+                or not re.fullmatch('[a-f0-9]{64}', native_rust_inputs['sha256'])
+                or execution_platform != 'win32'
+                or not isinstance(value, dict) or value.get('adapter') != 'rust-compose-v1'):
+            raise ValueError('Rust native requires its Windows selection and paired absolute SHA256 reference')
     if native_admin_inputs is not None:
         if (not isinstance(native_admin_inputs, dict) or set(native_admin_inputs) != {'path', 'sha256'}
                 or not isinstance(native_admin_inputs['path'], str)
@@ -397,6 +536,19 @@ def native_execution_plan(manifest, gates, execution_platform, docker_context=No
     requests = {gate['id']: value['gates'][gate['id']] for gate in gates if gate['id'] in value['gates']}
     if not requests:
         return None
+    if value['adapter'] == 'rust-compose-v1':
+        if (native_rust_inputs is None
+                or gates not in ([RUST_NATIVE_UNIT_GATE], [RUST_NATIVE_UNIT_GATE, RUST_NATIVE_BUILD_GATE])
+                or docker_context != 'desktop-linux'):
+            raise ValueError('Native Rust requires unit or unit+build, explicit local context and frozen inputs')
+        artifacts = ['backend'] if len(gates) == 2 else []
+        return {'adapter': value['adapter'], 'host_platform': execution_platform,
+                'docker_context': docker_context, 'profile': 'build' if artifacts else 'unit',
+                'components': ['backend'], 'artifact_components': artifacts, 'gates': requests,
+                'input_reference': dict(native_rust_inputs),
+                'runtime': {'download_cache': value['runtime']['download_cache'],
+                            'limits': dict(value['runtime']['limits']),
+                            'input_transport': value['runtime']['input_transport']}}
     if value['adapter'] in ('admin-compose-v2', 'admin-compose-v3'):
         unit, artifact = ((ADMIN_NATIVE_V3_UNIT_GATE, ADMIN_NATIVE_V3_GATE)
                           if value['adapter'] == 'admin-compose-v3' else (ADMIN_NATIVE_UNIT_GATE, ADMIN_NATIVE_GATE))
@@ -804,6 +956,7 @@ def affected_checks(gates, manifest, reasons):
 def plan(
     root, profile="fast", base="HEAD", changed=None, components=None, manifest=None,
     *, only_components=None, execution_platform=None, native_docker_context=None, native_admin_inputs=None,
+    native_rust_inputs=None,
 ):
     manifest = load(root) if manifest is None else manifest
     validate_affected_checks(manifest)
@@ -852,8 +1005,10 @@ def plan(
                 raise ValueError('Admin native v2/v3 inputs require only backend fast, unit or Build selection')
         elif profile != 'build' or selected != ['backend']:
             raise ValueError('Admin native inputs require only the backend Build selection')
+    if native_rust_inputs is not None and (profile not in ('fast', 'unit', 'build') or selected != ['backend']):
+        raise ValueError('Rust native inputs require only the backend fast/unit/Build selection')
     native = native_execution_plan(manifest, gates, execution_platform, native_docker_context,
-                                   native_admin_inputs=native_admin_inputs)
+                                   native_admin_inputs=native_admin_inputs, native_rust_inputs=native_rust_inputs)
     if native:
         # Native adapters retain the ordinary gate identities for certification.
         ordinary = gradle_unit_groups([gate for gate in gates if gate['id'] not in native['gates']],
