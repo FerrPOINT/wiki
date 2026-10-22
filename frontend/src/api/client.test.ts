@@ -235,3 +235,31 @@ describe('response ownership across identity and permission generations', () => 
     expect(await request).toMatchObject({ status: 403, code: 'AUTH_CONTEXT_CHANGED' })
   })
 })
+
+it('does not deliver a late body after the shared application policy changes', async () => {
+  const { clearPlatformPrivateQueries } = await import('@pdlc/ui/platform')
+  useAuthStore
+    .getState()
+    .setAuth({ token: 'same-token', userId: 'owner', email: 'user@example.test' })
+  let source!: ReadableStreamDefaultController<Uint8Array>
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async () =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              source = controller
+            },
+          }),
+        ),
+    ),
+  )
+  const request = apiRequest('/api/v1/documents')
+  const rejection = expect(request).rejects.toMatchObject({ code: 'AUTH_CONTEXT_CHANGED' })
+  await Promise.resolve()
+  clearPlatformPrivateQueries()
+  source.enqueue(new TextEncoder().encode('{"private":"old"}'))
+  source.close()
+  await rejection
+})

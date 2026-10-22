@@ -332,6 +332,11 @@ Tracker остаётся источником identity/name/key/state проек
 SDK, Namespace SDK, skills и Base UI pins не меняются. Оболочки строк, контролы,
 состояния запросов и токены оформления переиспользуются из закреплённого Base UI.
 
+## Глобальные роли и приложения
+
+Исходная интеграция и открытые gates описаны в
+[контракте ролей и приложений](HUMAN_APPLICATION_ACCESS.md).
+Публикация исходников не означает активацию новой политики.
 ## JIT роли и единое пространство: source candidate
 
 JIT и directory projection создают global_role=user. JIT refresh меняет только

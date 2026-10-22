@@ -43,6 +43,7 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
                         .map(|scope| scope.readable_ids())
                         .transpose()?,
                 )
+                .bind(self.backend.active_global_role(user_id).await? == "admin")
                 .fetch_all(&self.backend.pool)
                 .await
                 .map_err(database_error)?;

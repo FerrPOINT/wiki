@@ -290,27 +290,80 @@ pub async fn require_wiki_auth(
         })
         .ok_or(shared::AppError::Unauthorized)?;
 
-    let mut claims = backend.authenticate_access_token(token).await?;
-    if let Some(scope) = claims.admission.as_ref() {
-        if !scope.allows_method(req.method().as_str()) {
+    let verified = match infra::wiki_postgres::central_auth::verified_for_request(token).await {
+        Ok(mut actor) => {
+            if actor.context.role.is_none() {
+                actor.context.role = actor.subject_role.clone();
+            }
+            Some(actor)
+        }
+        Err(
+            pdlc_auth_core::service_bridge::VerifiedBridgeError::NotConfigured
+            | pdlc_auth_core::service_bridge::VerifiedBridgeError::NotOurs,
+        ) if std::env::var_os("WIKI_AUTH__CENTRAL_JWKS_URI").is_none() => None,
+        Err(
+            pdlc_auth_core::service_bridge::VerifiedBridgeError::Unavailable
+            | pdlc_auth_core::service_bridge::VerifiedBridgeError::NotConfigured,
+        ) => {
+            return Err(shared::AppError::Unavailable(
+                "central_confirmation_unavailable".into(),
+            ));
+        }
+        Err(pdlc_auth_core::service_bridge::VerifiedBridgeError::Forbidden) => {
             return Err(shared::AppError::Forbidden);
         }
-    } else if pdlc_auth_core::is_personal_token(token) {
-        let central = infra::wiki_postgres::central_auth::try_central(token)
-            .await?
-            .ok_or(shared::AppError::Unauthorized)?;
-        if !central.allows_service("wiki", req.method().as_str()) {
+        Err(_) => return Err(shared::AppError::Unauthorized),
+    };
+    if let Some(actor) = verified.as_ref() {
+        if actor.subject_role.as_deref() == Some("service_account")
+            || actor.context.role.as_deref() == Some("service_account")
+            || !actor.context.allows_service("wiki", req.method().as_str())
+        {
             return Err(shared::AppError::Forbidden);
         }
     }
+    let mut claims = match verified.as_ref() {
+        Some(actor) => {
+            infra::wiki_postgres::central_auth::with_verified_request(
+                actor.clone(),
+                backend.authenticate_access_token(token),
+            )
+            .await?
+        }
+        None => backend.authenticate_access_token(token).await?,
+    };
+    if claims
+        .admission
+        .as_ref()
+        .is_some_and(|scope| !scope.allows_method(req.method().as_str()))
+    {
+        return Err(shared::AppError::Forbidden);
+    }
     claims.request_id = request_id_from_headers(req.headers());
-
     let actor_id = claims.user_id.clone();
     let scope = claims.admission.clone();
     req.extensions_mut().insert(claims);
-    let response = run_idempotent_request(backend, actor_id, req, next).await?;
+    let work = run_idempotent_request(backend, actor_id.clone(), req, next);
+    let mut response = if let Some(actor) = verified {
+        let local_id = Uuid::parse_str(&actor_id).map_err(|_| shared::AppError::Unauthorized)?;
+        let response = tokio::time::timeout_at(
+            actor.lifetime.monotonic_deadline().into(),
+            pdlc_auth_core::human_request::with_human_request(
+                local_id,
+                &actor.context,
+                actor.application_access.clone(),
+                work,
+            ),
+        )
+        .await
+        .map_err(|_| shared::AppError::Forbidden)?
+        .map_err(|_| shared::AppError::Forbidden)??;
+        super::space_response::guard_identity(response, actor.lifetime)?
+    } else {
+        work.await?
+    };
     if let Some(scope) = scope {
-        return super::space_response::guard(response, scope);
+        response = super::space_response::guard(response, scope)?;
     }
     Ok(response)
 }

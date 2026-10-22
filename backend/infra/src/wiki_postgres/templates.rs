@@ -37,6 +37,7 @@ impl WikiTemplateRepository for PostgresWikiTemplateRepository<'_> {
     ) -> WikiTemplateRepositoryFuture<'_, TemplateResponse> {
         Box::pin(async move {
             let mut tx = self.backend.pool.begin().await.map_err(database_error)?;
+            super::write_authorization::bind_current_clock(&mut tx).await?;
             let id = Uuid::now_v7();
             let row = sqlx::query(
                 r#"

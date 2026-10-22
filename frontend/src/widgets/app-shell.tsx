@@ -1,3 +1,4 @@
+import { useApplicationAccess } from '@pdlc/ui/auth'
 import {
   AppShell as BaseAppShell,
   SidebarNavigationGroup,
@@ -114,7 +115,7 @@ export function AppShell() {
   const navItems = baseItems
   const utilityItems = [
     { to: '/templates', icon: FileText, label: 'Шаблоны' },
-    ...(user?.is_system_admin ? adminNavItems : []),
+    ...(useApplicationAccess()?.permits([], true) ? adminNavItems : []),
   ]
   const utilityActive = ['/templates', '/admin', '/users', '/settings', '/audit-log'].includes(
     location.pathname,

@@ -1,3 +1,4 @@
+import { useApplicationAccess } from '@pdlc/ui/auth'
 import { useActiveSpaces } from '@/widgets/active-spaces'
 import { FormEvent, type RefObject, useRef, useState } from 'react'
 // Spaces own documents independently of their project associations.
@@ -169,7 +170,6 @@ function CreateSpaceForm({ onCreated }: { onCreated: () => void }) {
 }
 
 function SpaceDetails({
-  currentUserId,
   fallbackFocusRef,
   isSystemAdmin,
   onArchived,
@@ -184,12 +184,7 @@ function SpaceDetails({
   const membersQuery = useSpaceMembers(space.key, !isSystemAdmin)
   const updateSpace = useUpdateSpace()
   const archiveSpace = useArchiveSpace()
-  const canManage =
-    space.status !== 'archived' &&
-    (isSystemAdmin ||
-      membersQuery.data?.members.some(
-        (member) => member.user_id === currentUserId && member.role === 'admin',
-      ))
+  const canManage = space.status !== 'archived' && isSystemAdmin
   const [name, setName] = useState(space.name)
   const [description, setDescription] = useState(space.description ?? '')
   const [archiveOpen, setArchiveOpen] = useState(false)
@@ -308,7 +303,7 @@ export function SpacesPage() {
   const currentUserQuery = useCurrentUser()
   const [status, setStatus] = useState('active')
   const spacesQuery = useActiveSpaces(status !== 'active')
-  const isSystemAdmin = currentUserQuery.data?.is_system_admin === true
+  const isSystemAdmin = useApplicationAccess()?.permits([], true) === true
   const usersQuery = useUsers(isSystemAdmin)
   const users = usersQuery.data?.users ?? []
   const [recentlyArchived, setRecentlyArchived] = useState<Space | null>(null)

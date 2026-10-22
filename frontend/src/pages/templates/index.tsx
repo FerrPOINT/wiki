@@ -1,3 +1,4 @@
+import { useApplicationAccess } from '@pdlc/ui/auth'
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import {
   Select,
@@ -24,7 +25,7 @@ import {
   ShieldCheck,
   X,
 } from 'lucide-react'
-import { useCreateTemplate, useCurrentUser, useTemplates } from '@/shared/api/hooks'
+import { useCreateTemplate, useTemplates } from '@/shared/api/hooks'
 
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDocumentType } from '@/shared/lib/wiki-format'
@@ -148,9 +149,8 @@ function useTemplateCatalogUrl() {
 
 export function TemplatesPage() {
   const templatesQuery = useTemplates()
-  const currentUserQuery = useCurrentUser()
   const createTemplate = useCreateTemplate()
-  const isSystemAdmin = !currentUserQuery.isError && currentUserQuery.data?.is_system_admin === true
+  const isSystemAdmin = useApplicationAccess()?.permits([], true) === true
   const templates = templatesQuery.data?.templates ?? []
   const [showCreate, setShowCreate] = useState(false)
   const [createdTemplate, setCreatedTemplate] = useState<Template | null>(null)
@@ -255,13 +255,6 @@ export function TemplatesPage() {
           </Button>
         </div>
       </header>
-
-      {currentUserQuery.isError && (
-        <ErrorState
-          message={`Не удалось проверить права. ${formatApiErrorForUser(currentUserQuery.error, 'Повторите запрос')}`}
-          onRetry={() => currentUserQuery.refetch()}
-        />
-      )}
 
       {createdTemplate && (
         <div

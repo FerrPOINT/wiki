@@ -1,3 +1,4 @@
+import { RequireAdministrator } from '@pdlc/ui/auth'
 import { LoadingState } from '@pdlc/ui/ui'
 import { createProductRouter, PlatformRoute } from '@pdlc/ui/platform'
 import { lazy, Suspense, type ReactElement } from 'react'
@@ -129,11 +130,39 @@ export function createWikiRoutes(namespaceEnabled: boolean): RouteObject[] {
             { path: '/phases/:phaseId', element: withSuspense(<PhaseDossierPage />) },
             { path: '/evidence', element: withSuspense(<EvidencePage />) },
             { path: '/templates', element: withSuspense(<TemplatesPage />) },
-            { path: '/audit-log', element: withSuspense(<AuditLogPage />) },
-            { path: '/users', element: withSuspense(<UsersPage />) },
-            { path: '/settings', element: withSuspense(<SettingsPage />) },
+            {
+              path: '/audit-log',
+              element: withSuspense(
+                <RequireAdministrator>
+                  <AuditLogPage />
+                </RequireAdministrator>,
+              ),
+            },
+            {
+              path: '/users',
+              element: withSuspense(
+                <RequireAdministrator>
+                  <UsersPage />
+                </RequireAdministrator>,
+              ),
+            },
+            {
+              path: '/settings',
+              element: withSuspense(
+                <RequireAdministrator>
+                  <SettingsPage />
+                </RequireAdministrator>,
+              ),
+            },
             { path: '/search', element: withSuspense(<WikiSearchPage />) },
-            { path: '/admin', element: withSuspense(<AdminPage />) },
+            {
+              path: '/admin',
+              element: withSuspense(
+                <RequireAdministrator>
+                  <AdminPage />
+                </RequireAdministrator>,
+              ),
+            },
           ],
         },
       ],

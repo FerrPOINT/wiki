@@ -34,6 +34,15 @@ function render(view: ReactNode) {
   )
 }
 
+const ownerAccess = vi.hoisted(() => ({ admin: true }))
+vi.mock('@pdlc/ui/auth', async (original) => ({
+  ...(await original<typeof import('@pdlc/ui/auth')>()),
+  useApplicationAccess: () => ({
+    permits: (_apps: readonly string[], administrative = false) =>
+      !administrative || ownerAccess.admin,
+  }),
+}))
+
 const useArchiveSpace = vi.hoisted(() => vi.fn())
 const useCreateSpace = vi.hoisted(() => vi.fn())
 const useCurrentUser = vi.hoisted(() => vi.fn())
@@ -84,16 +93,19 @@ const editorUser = {
 }
 
 function setupSpaces({
+  role = 'admin',
   membersOverrides = {},
   userOverrides = {},
   usersOverrides = {},
   spaceList,
 }: {
+  role?: 'user' | 'admin'
   membersOverrides?: Record<string, unknown>
   userOverrides?: Record<string, unknown>
   usersOverrides?: Record<string, unknown>
   spaceList?: Array<Record<string, unknown>>
 } = {}) {
+  ownerAccess.admin = role === 'admin'
   useCurrentUser.mockReturnValue({
     data: adminUser,
     isLoading: false,
@@ -293,8 +305,9 @@ describe('SpacesPage', () => {
     expect(archiveMutate).toHaveBeenCalledWith('BASE', { onSuccess: expect.any(Function) })
   })
 
-  it('preserves legacy space-admin editing without exposing role assignment', () => {
+  it('does not elevate a legacy space-admin to central structure administration', () => {
     setupSpaces({
+      role: 'user',
       userOverrides: {
         data: { ...adminUser, is_system_admin: false },
       },
@@ -306,13 +319,15 @@ describe('SpacesPage', () => {
     expect(screen.queryByRole('button', { name: 'Создать пространство' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /База знаний Base/ }))
     expect(useSpaceMembers).toHaveBeenCalledWith('BASE', true)
-    expect(screen.getByLabelText('Название пространства')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Название пространства')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Архивировать' })).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Роль')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Назначить' })).not.toBeInTheDocument()
   })
 
   it('keeps legacy viewers from editing', () => {
     setupSpaces({
+      role: 'user',
       userOverrides: { data: { ...adminUser, is_system_admin: false } },
       membersOverrides: {
         data: { members: [{ user_id: 'user-admin', role: 'viewer' }] },
@@ -324,6 +339,7 @@ describe('SpacesPage', () => {
 
   it('reports legacy membership lookup errors with retry', () => {
     setupSpaces({
+      role: 'user',
       userOverrides: { data: { ...adminUser, is_system_admin: false } },
       membersOverrides: {
         data: undefined,

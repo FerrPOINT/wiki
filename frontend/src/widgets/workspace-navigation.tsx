@@ -79,7 +79,7 @@ function DocumentNodes({
           open = documents.values[key] ?? contains(node.children, current)
         const to = withNamespaceLocation(documentPath(node.id, search, all), project.namespace)
         return (
-          <li key={node.id}>
+          <li key={node.id} className="base-sidebar-list">
             <div className="flex min-w-0 items-center">
               {node.children.length > 0 && (
                 <Button
@@ -223,7 +223,7 @@ export function WorkspaceNavigation({
                     project.namespace,
                   )
                 return (
-                  <div key={section}>
+                  <div key={section} className="base-sidebar-list">
                     <div className="flex min-w-0 items-center">
                       <SidebarItem asChild compact={compact} active={location.pathname === path}>
                         <NamespaceNavLink
@@ -250,7 +250,7 @@ export function WorkspaceNavigation({
                             (active &&
                               new URLSearchParams(location.search).get('space') === space.key)
                           return (
-                            <div key={space.id} className="ml-3">
+                            <div key={space.id} className="base-sidebar-list ml-3">
                               <div className="flex min-w-0 items-center">
                                 <SidebarItem asChild>
                                   <NamespaceNavLink

@@ -83,7 +83,7 @@ impl PostgresWikiBackend {
             .map_err(|_| shared::AppError::Unavailable("Central Auth is unavailable".into()))?;
         let mut url = reqwest::Url::parse(&jwks)
             .map_err(|_| shared::AppError::Unavailable("Central Auth URL is invalid".into()))?;
-        url.set_path("/auth/users");
+        url.set_path("/auth/directory");
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(5))
             .build()
@@ -307,13 +307,26 @@ impl PostgresWikiAuthRepository<'_> {
         ctx: &pdlc_auth_core::AuthContext,
         display_name: &str,
     ) -> Result<WikiAuthUserRecord, shared::AppError> {
-        let display_name = display_name.trim();
+        self.resolve_central_profile(&WikiCentralProfile {
+            subject: ctx.user_id.clone(),
+            email: ctx.email.clone(),
+            display_name: Some(display_name.into()),
+            session_id: ctx.session_id.clone(),
+        })
+        .await
+    }
+
+    async fn resolve_central_profile(
+        &self,
+        profile: &WikiCentralProfile,
+    ) -> Result<WikiAuthUserRecord, shared::AppError> {
+        let display_name = profile.display_name.as_deref().unwrap_or_default().trim();
         if display_name.is_empty() {
             return Err(shared::AppError::Unavailable(
                 "Central Auth returned no verified display name".into(),
             ));
         }
-        let email = ctx
+        let email = profile
             .email
             .as_deref()
             .unwrap_or_default()
@@ -323,7 +336,7 @@ impl PostgresWikiAuthRepository<'_> {
         if email.is_empty() {
             return Err(shared::AppError::Unauthorized);
         }
-        if ctx.user_id.trim().is_empty() {
+        if profile.subject.trim().is_empty() {
             return Err(shared::AppError::Unauthorized);
         }
         let id = uuid::Uuid::now_v7();
@@ -341,17 +354,17 @@ impl PostgresWikiAuthRepository<'_> {
         .bind(&email)
         .bind(format!("central-{}", id.simple()))
         .bind(display_name)
-        .bind(&ctx.user_id)
+        .bind(&profile.subject)
         .execute(&self.backend.pool)
         .await
         .map_err(database_error)?;
         sqlx::query("UPDATE users SET display_name = $2, updated_at = now() WHERE central_sub = $1 AND display_name IS DISTINCT FROM $2")
-            .bind(&ctx.user_id).bind(display_name).execute(&self.backend.pool).await.map_err(database_error)?;
+            .bind(&profile.subject).bind(display_name).execute(&self.backend.pool).await.map_err(database_error)?;
         let row = sqlx::query(
             "SELECT id, email, username, display_name, password_hash, global_role, is_active \
              FROM users WHERE central_sub = $1",
         )
-        .bind(&ctx.user_id)
+        .bind(&profile.subject)
         .fetch_one(&self.backend.pool)
         .await
         .map_err(database_error)?;
@@ -448,6 +461,7 @@ impl WikiAuthRepository for PostgresWikiAuthRepository<'_> {
     ) -> WikiAuthRepositoryFuture<'_, WikiAuthUserRecord> {
         Box::pin(async move {
             let mut tx = self.backend.pool.begin().await.map_err(database_error)?;
+            super::write_authorization::bind_current_clock(&mut tx).await?;
 
             let row = sqlx::query(
                 r#"
@@ -512,6 +526,7 @@ impl WikiAuthRepository for PostgresWikiAuthRepository<'_> {
     ) -> WikiAuthRepositoryFuture<'_, ()> {
         Box::pin(async move {
             let mut tx = self.backend.pool.begin().await.map_err(database_error)?;
+            super::write_authorization::bind_current_clock(&mut tx).await?;
 
             insert_session(&mut tx, &session).await?;
             self.backend
@@ -589,6 +604,7 @@ impl WikiAuthRepository for PostgresWikiAuthRepository<'_> {
     fn revoke_sessions(&self, command: WikiLogoutCommand) -> WikiAuthRepositoryFuture<'_, ()> {
         Box::pin(async move {
             let mut tx = self.backend.pool.begin().await.map_err(database_error)?;
+            super::write_authorization::bind_current_clock(&mut tx).await?;
 
             if let Some(session_id) = command.session_id {
                 sqlx::query(
@@ -639,19 +655,45 @@ impl WikiAuthRepository for PostgresWikiAuthRepository<'_> {
             .map_err(database_error)?
             .ok_or_else(|| shared::AppError::not_found("user", user_id))?;
 
-            Ok(auth_user_from_row(&row))
+            let mut user = auth_user_from_row(&row);
+            if super::central_mode() {
+                user.global_role = self.backend.active_global_role(user_id).await?;
+            }
+            Ok(user)
         })
     }
 }
 
 impl PostgresWikiBackend {
+    pub(super) async fn resolve_central_profile(
+        &self,
+        profile: WikiCentralProfile,
+    ) -> Result<WikiClaims, shared::AppError> {
+        if super::namespace::registered_machine(&profile.subject) {
+            return Err(shared::AppError::Forbidden);
+        }
+        let repository = PostgresWikiAuthRepository {
+            backend: self,
+            request_id: None,
+        };
+        let record = match profile.display_name {
+            Some(_) => repository.resolve_central_profile(&profile).await?,
+            None => repository.existing_central_user(&profile.subject).await?,
+        };
+        Ok(WikiClaims {
+            user_id: record.id.to_string(),
+            session_id: profile.session_id,
+            request_id: None,
+            admission: None,
+        })
+    }
+
     pub(super) async fn authenticate_access_token(
         &self,
         token: &str,
     ) -> Result<WikiClaims, shared::AppError> {
         if self.admission_active().await? {
-            let verified = super::central_auth::BRIDGE
-                .try_verified_token(token)
+            let verified = super::central_auth::verified_for_request(token)
                 .await
                 .map_err(super::admission::auth_error)?;
             let ctx = &verified.context;
@@ -886,6 +928,247 @@ mod central_directory_tests {
         }
     }
 
+    #[tokio::test]
+    #[ignore = "requires a disposable PostgreSQL database in WIKI_TEST_DATABASE_URL"]
+    async fn current_human_role_controls_admin_writes_without_changing_product_history() {
+        let backend = profile_backend().await;
+        let local = Uuid::now_v7();
+        let space = Uuid::now_v7();
+        sqlx::query("INSERT INTO users(id,email,username,display_name,password_hash,global_role,central_sub) VALUES($1,$2,$3,'Role fixture','!','admin',$4)")
+            .bind(local).bind(format!("{local}@example.test")).bind(local.to_string()).bind(local.to_string())
+            .execute(&backend.pool).await.unwrap();
+        sqlx::query(
+            "INSERT INTO spaces(id,key,name,owner_id) VALUES($1,$2,'Working documents',$3)",
+        )
+        .bind(space)
+        .bind(format!("Q{}", &space.simple().to_string()[..12]).to_uppercase())
+        .bind(local)
+        .execute(&backend.pool)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO space_members(space_id,user_id,role) VALUES($1,$2,'admin')")
+            .bind(space)
+            .bind(local)
+            .execute(&backend.pool)
+            .await
+            .unwrap();
+        let claims = WikiClaims {
+            user_id: local.to_string(),
+            session_id: None,
+            request_id: None,
+            admission: None,
+        };
+        let mut actor = context(&format!("{local}@example.test"));
+        actor.user_id = local.to_string();
+        actor.role = Some("user".into());
+        pdlc_auth_core::human_request::with_human_request(local, &actor, None, async {
+            assert!(matches!(
+                backend.ensure_admin(&claims).await,
+                Err(shared::AppError::Forbidden)
+            ));
+            assert!(matches!(
+                backend
+                    .begin_content_write(local, None, &[space], super::super::SpaceAccess::Admin)
+                    .await,
+                Err(shared::AppError::Forbidden)
+            ));
+            let tx = backend
+                .begin_content_write(local, None, &[space], super::super::SpaceAccess::Edit)
+                .await
+                .unwrap();
+            tx.rollback().await.unwrap();
+        })
+        .await
+        .unwrap();
+        sqlx::query("UPDATE users SET global_role='user' WHERE id=$1")
+            .bind(local)
+            .execute(&backend.pool)
+            .await
+            .unwrap();
+        actor.role = Some("admin".into());
+        pdlc_auth_core::human_request::with_human_request(local, &actor, None, async {
+            assert_eq!(backend.ensure_admin(&claims).await.unwrap(), local);
+            let tx = backend
+                .begin_content_write(local, None, &[space], super::super::SpaceAccess::Admin)
+                .await
+                .unwrap();
+            tx.rollback().await.unwrap();
+        })
+        .await
+        .unwrap();
+        let retained: String = sqlx::query_scalar("SELECT global_role FROM users WHERE id=$1")
+            .bind(local)
+            .fetch_one(&backend.pool)
+            .await
+            .unwrap();
+        assert_eq!(
+            retained, "user",
+            "current permission must not rewrite role history"
+        );
+        backend.pool.close().await;
+    }
+
+    #[tokio::test]
+    #[ignore = "requires a disposable PostgreSQL database in WIKI_TEST_DATABASE_URL"]
+    async fn app_only_clock_rejects_content_and_template_effects_inside_commit() {
+        use pdlc_auth_core::application_access::{
+            ApplicationAccessV1, HumanRole, VerifiedApplicationAccess,
+        };
+        let backend = profile_backend().await;
+        let local = Uuid::now_v7();
+        let space = Uuid::now_v7();
+        let key = format!("C{}", &space.simple().to_string()[..12]).to_uppercase();
+        sqlx::query("INSERT INTO users(id,email,username,display_name,password_hash,global_role,central_sub) VALUES($1,$2,$3,'Clock fixture','!','user',$3)")
+            .bind(local).bind(format!("{local}@example.test")).bind(local.to_string())
+            .execute(&backend.pool).await.unwrap();
+        sqlx::query("INSERT INTO spaces(id,key,name,owner_id) VALUES($1,$2,'Clock documents',$3)")
+            .bind(space)
+            .bind(&key)
+            .bind(local)
+            .execute(&backend.pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO space_members(space_id,user_id,role) VALUES($1,$2,'editor')")
+            .bind(space)
+            .bind(local)
+            .execute(&backend.pool)
+            .await
+            .unwrap();
+        let namespace_active: bool =
+            sqlx::query_scalar("SELECT active FROM wiki_space_admission_state WHERE singleton")
+                .fetch_one(&backend.pool)
+                .await
+                .unwrap();
+        assert!(
+            !namespace_active,
+            "app clock must work independently from space policy"
+        );
+        // This deferred trigger runs only during COMMIT, after the Rust pre-commit check.
+        sqlx::query("CREATE SEQUENCE qa_app_clock_seen")
+            .execute(&backend.pool)
+            .await
+            .unwrap();
+        sqlx::query("CREATE FUNCTION qa_app_clock_delay() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM nextval('qa_app_clock_seen'); PERFORM pg_sleep(0.45); RETURN NEW; END $$")
+            .execute(&backend.pool).await.unwrap();
+        sqlx::query("CREATE CONSTRAINT TRIGGER a_qa_app_clock_delay AFTER INSERT ON wiki_request_commit_fences DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION qa_app_clock_delay()")
+            .execute(&backend.pool).await.unwrap();
+        let claims = WikiClaims {
+            user_id: local.to_string(),
+            session_id: None,
+            request_id: None,
+            admission: None,
+        };
+        let proof = |role, millis| {
+            let now = chrono::Utc::now();
+            VerifiedApplicationAccess::confirm(
+                ApplicationAccessV1 {
+                    schema_version: 1,
+                    issuer: "https://clock.test".into(),
+                    subject: local.to_string(),
+                    role,
+                    applications: vec!["wiki".into()],
+                    revision: 1,
+                    enforced: true,
+                    observed_at: now,
+                    expires_at: now + chrono::Duration::milliseconds(millis),
+                },
+                "https://clock.test",
+                &local.to_string(),
+                std::time::Instant::now(),
+                now,
+            )
+            .unwrap()
+        };
+        let mut actor = context(&format!("{local}@example.test"));
+        actor.user_id = local.to_string();
+        actor.role = Some("user".into());
+        let doc_body = || {
+            serde_json::from_value(
+                serde_json::json!({"title":"Expired app document","slug":"app-clock-document"}),
+            )
+            .unwrap()
+        };
+        let template_body = || {
+            serde_json::from_value(serde_json::json!({"name":"Expired app template","document_type":"requirements","body_markdown":"# Fixture"})).unwrap()
+        };
+        let document = pdlc_auth_core::human_request::with_human_request(
+            local,
+            &actor,
+            Some(proof(HumanRole::User, 300)),
+            backend.create_document(&claims, &key, doc_body()),
+        )
+        .await
+        .unwrap();
+        actor.role = Some("admin".into());
+        let template = pdlc_auth_core::human_request::with_human_request(
+            local,
+            &actor,
+            Some(proof(HumanRole::Admin, 300)),
+            backend.create_template(&claims, template_body()),
+        )
+        .await
+        .unwrap();
+        // Always remove the synthetic delay before assertions so neighboring cases stay isolated.
+        let commit_events: i64 = sqlx::query_scalar(
+            "SELECT CASE WHEN is_called THEN last_value ELSE 0 END FROM qa_app_clock_seen",
+        )
+        .fetch_one(&backend.pool)
+        .await
+        .unwrap();
+        for statement in [
+            "DROP TRIGGER a_qa_app_clock_delay ON wiki_request_commit_fences",
+            "DROP FUNCTION qa_app_clock_delay()",
+            "DROP SEQUENCE qa_app_clock_seen",
+        ] {
+            sqlx::query(statement).execute(&backend.pool).await.unwrap();
+        }
+        assert_eq!(
+            commit_events, 2,
+            "both real ports must reach the deferred COMMIT boundary"
+        );
+        assert!(
+            matches!(document, Err(shared::AppError::Forbidden)),
+            "document commit must be rejected: {document:?}"
+        );
+        assert!(
+            matches!(template, Err(shared::AppError::Forbidden)),
+            "global template commit must be rejected: {template:?}"
+        );
+        let rejected: i64 = sqlx::query_scalar("SELECT (SELECT count(*) FROM documents WHERE space_id=$1)+(SELECT count(*) FROM document_templates WHERE name='Expired app template')")
+            .bind(space).fetch_one(&backend.pool).await.unwrap();
+        assert_eq!(
+            rejected, 0,
+            "neither expired operation may leave a durable effect"
+        );
+        // Same actual ports succeed for a fresh request without the artificial COMMIT wait.
+        actor.role = Some("user".into());
+        pdlc_auth_core::human_request::with_human_request(
+            local,
+            &actor,
+            Some(proof(HumanRole::User, 2000)),
+            backend.create_document(&claims, &key, doc_body()),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        actor.role = Some("admin".into());
+        pdlc_auth_core::human_request::with_human_request(
+            local,
+            &actor,
+            Some(proof(HumanRole::Admin, 2000)),
+            backend.create_template(&claims, template_body()),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let fences: i64 = sqlx::query_scalar("SELECT count(*) FROM wiki_request_commit_fences")
+            .fetch_one(&backend.pool)
+            .await
+            .unwrap();
+        assert_eq!(fences, 0, "fence rows do not accumulate");
+        backend.pool.close().await;
+    }
+
     fn context(email: &str) -> pdlc_auth_core::AuthContext {
         pdlc_auth_core::AuthContext {
             user_id: Uuid::now_v7().to_string(),
@@ -915,6 +1198,7 @@ mod central_directory_tests {
             .find_or_link_central_user(&ctx, "  QA Отображаемое имя  ")
             .await
             .unwrap();
+        assert_eq!(record.global_role, "user");
         assert_ne!(record.id, legacy_id);
         assert_eq!(record.display_name, "QA Отображаемое имя");
         assert_eq!(record.email, email);
@@ -955,6 +1239,20 @@ mod central_directory_tests {
             .find_or_link_central_user(&ctx, "After")
             .await
             .unwrap();
+        assert_eq!(renamed.global_role, "user");
+        sqlx::query("UPDATE users SET global_role='admin' WHERE id=$1")
+            .bind(renamed.id)
+            .execute(&backend.pool)
+            .await
+            .unwrap();
+        let historical_admin = repository
+            .find_or_link_central_user(&ctx, "After")
+            .await
+            .unwrap();
+        assert_eq!(
+            historical_admin.global_role, "admin",
+            "profile refresh preserves history; central authority is request-scoped"
+        );
         assert_eq!(original.id, renamed.id);
         assert_eq!(renamed.display_name, "After");
         let timestamp: chrono::DateTime<chrono::Utc> =

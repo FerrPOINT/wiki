@@ -9,6 +9,7 @@ impl PostgresWikiBackend {
         let expired_staged_attachments_deleted = self.enqueue_expired_staged_attachments().await?;
         let mut file_delete_failures = 0;
         let mut tx = self.pool.begin().await.map_err(database_error)?;
+        super::write_authorization::bind_current_clock(&mut tx).await?;
         let pending = sqlx::query_as::<_, (Uuid, String)>(
             "SELECT attachment_id, storage_key FROM attachment_file_cleanup ORDER BY created_at, attachment_id LIMIT $1 FOR UPDATE SKIP LOCKED"
         ).bind(i64::from(self.maintenance_batch_size)).fetch_all(&mut *tx).await.map_err(database_error)?;

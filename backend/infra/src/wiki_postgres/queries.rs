@@ -15,7 +15,7 @@ pub(super) const SPACE_LIST_SQL: &str = r#"
     FROM spaces s
     JOIN users u ON u.id = $1 AND u.is_active = true
     LEFT JOIN space_members actor_member ON actor_member.space_id = s.id AND actor_member.user_id = u.id
-    WHERE (($2::uuid[] IS NOT NULL AND s.id=ANY($2)) OR ($2::uuid[] IS NULL AND (u.global_role = 'admin' OR actor_member.user_id IS NOT NULL)))
+    WHERE (($2::uuid[] IS NOT NULL AND s.id=ANY($2)) OR ($2::uuid[] IS NULL AND ($3::boolean OR actor_member.user_id IS NOT NULL)))
     ORDER BY s.key
 "#;
 

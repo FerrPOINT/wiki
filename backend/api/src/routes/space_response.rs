@@ -33,8 +33,26 @@ pub(super) fn guard(
         until = until.min(owner.until);
         deadline = deadline.min(owner.deadline);
     }
+    guard_until(response, until, deadline, move || scope.is_current())
+}
+
+pub(super) fn guard_identity(
+    response: Response,
+    lifetime: pdlc_auth_core::service_bridge::VerifiedTokenLifetime,
+) -> Result<Response, AppError> {
+    let until = lifetime.local_valid_until();
+    let deadline = lifetime.monotonic_deadline();
+    guard_until(response, until, deadline, move || lifetime.is_current())
+}
+
+fn guard_until(
+    mut response: Response,
+    until: i64,
+    deadline: Instant,
+    source_current: impl Fn() -> bool + Send + Sync + 'static,
+) -> Result<Response, AppError> {
     let current = move || {
-        scope.is_current() && chrono::Utc::now().timestamp() < until && Instant::now() < deadline
+        source_current() && chrono::Utc::now().timestamp() < until && Instant::now() < deadline
     };
     if !current() {
         return Err(AppError::Forbidden);

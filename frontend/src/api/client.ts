@@ -1,5 +1,5 @@
 import { useAuthStore } from '@/shared/auth/store'
-import { getPlatformProduct } from '@pdlc/ui/platform'
+import { getPlatformProduct, capturePlatformPrivateState } from '@pdlc/ui/platform'
 
 const rawBaseUrl = import.meta.env.VITE_API_BASE_URL ?? import.meta.env.BASE_URL.replace(/\/$/, '')
 export const apiBaseUrl = rawBaseUrl.replace(/\/api\/v1\/?$/, '')
@@ -196,10 +196,11 @@ function defaultCodeForStatus(status: number): string {
 type RequestAuthority = Pick<
   ReturnType<typeof useAuthStore.getState>,
   'token' | 'userId' | 'authVersion'
->
+> & { privateState?: () => boolean }
 function currentAuthority(scope: RequestAuthority): boolean {
   const now = useAuthStore.getState()
   return (
+    (!scope.privateState || scope.privateState()) &&
     now.token === scope.token &&
     now.userId === scope.userId &&
     now.authVersion === scope.authVersion
@@ -259,7 +260,7 @@ async function send(
 }
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
-  const scope = useAuthStore.getState()
+  const scope = { ...useAuthStore.getState(), privateState: capturePlatformPrivateState() }
   const response = await send(path, options, scope)
   requireAuthority(scope, options.skipAuth)
   if (shouldRefresh(path, response)) void refreshAccessToken(scope)
@@ -279,7 +280,7 @@ export async function apiBlobRequest(
   path: string,
   options: ApiRequestOptions = {},
 ): Promise<ApiBlobResponse> {
-  const scope = useAuthStore.getState()
+  const scope = { ...useAuthStore.getState(), privateState: capturePlatformPrivateState() }
   const response = await send(path, options, scope)
   requireAuthority(scope, options.skipAuth)
   if (shouldRefresh(path, response)) void refreshAccessToken(scope)

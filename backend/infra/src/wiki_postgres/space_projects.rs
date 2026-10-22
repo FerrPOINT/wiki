@@ -33,7 +33,7 @@ impl PostgresWikiBackend {
         let rows = sqlx::query(
             "SELECT l.namespace_id,s.id,s.key,s.name,s.namespace_managed,b.command,
              CASE WHEN s.archived_at IS NULL THEN 'active' ELSE 'archived' END AS status,
-             (u.global_role='admin' OR sm.role IN ('admin','editor','viewer')) AS allowed
+             ($4::boolean OR sm.role IN ('admin','editor','viewer')) AS allowed
              FROM wiki_space_projects l JOIN spaces s ON s.id=l.space_id
              JOIN users u ON u.id=$1 AND u.is_active
              LEFT JOIN space_members sm ON sm.space_id=s.id AND sm.user_id=u.id
@@ -44,6 +44,11 @@ impl PostgresWikiBackend {
         .bind(super::mapping::parse_uuid(&claims.user_id, "user")?)
         .bind(registry)
         .bind(projects)
+        .bind(
+            self.active_global_role(super::mapping::parse_uuid(&claims.user_id, "user")?)
+                .await?
+                == "admin",
+        )
         .fetch_all(&self.pool)
         .await
         .map_err(database_error)?;
@@ -187,6 +192,7 @@ impl PostgresWikiBackend {
             Err(error) => return Err(error),
         };
         let mut tx = self.pool.begin().await.map_err(database_error)?;
+        super::write_authorization::bind_current_clock(&mut tx).await?;
         sqlx::query("SELECT singleton FROM wiki_space_admission_state WHERE singleton FOR SHARE")
             .fetch_one(&mut *tx)
             .await
