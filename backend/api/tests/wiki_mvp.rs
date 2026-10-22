@@ -6824,28 +6824,45 @@ async fn wiki_postgres_space_project_migration_preserves_archived_history_and_re
         return;
     };
     reset_postgres(&database_url).await;
-    let (_app, _) = postgres_test_app(
-        database_url.clone(),
-        env::temp_dir().join(format!("wiki-migration-{}", Uuid::now_v7())),
-    )
-    .await;
     let pool = PgPoolOptions::new()
         .max_connections(2)
         .connect(&database_url)
         .await
         .unwrap();
-    let migrations = sqlx::migrate::Migrator::new(
+    let full_migrations = sqlx::migrate::Migrator::new(
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../migrations"),
     )
     .await
     .unwrap();
-    migrations.undo(&pool, 202610120001).await.unwrap();
-    let row = sqlx::query("SELECT id,owner_id FROM spaces WHERE key='SDLC'")
-        .fetch_one(&pool)
+    // Build the historical predecessor directly. The current guarded cohort
+    // deliberately cannot downgrade to an unguarded schema, even on empty data.
+    let mut migrations = sqlx::migrate::Migrator::default();
+    migrations.migrations = std::borrow::Cow::Owned(
+        full_migrations
+            .iter()
+            .filter(|m| m.version <= 202610140001)
+            .cloned()
+            .collect(),
+    );
+    let mut predecessor = sqlx::migrate::Migrator::default();
+    predecessor.migrations = std::borrow::Cow::Owned(
+        migrations
+            .iter()
+            .filter(|m| m.version <= 202610120001)
+            .cloned()
+            .collect(),
+    );
+    predecessor.run(&pool).await.unwrap();
+    let owner = Uuid::now_v7();
+    let space = Uuid::now_v7();
+    sqlx::query("INSERT INTO users(id,email,username,display_name,password_hash) VALUES($1,'migration@example.test','migration-owner','Migration owner','!')")
+        .bind(owner).execute(&pool).await.unwrap();
+    sqlx::query("INSERT INTO spaces(id,key,name,owner_id) VALUES($1,'SDLC','Legacy fixture',$2)")
+        .bind(space)
+        .bind(owner)
+        .execute(&pool)
         .await
         .unwrap();
-    let space: Uuid = row.get("id");
-    let owner: Uuid = row.get("owner_id");
     let registry = Uuid::now_v7();
     let project = Uuid::now_v7();
     let command = shared::resource_context::OwnerCommand {
@@ -6913,5 +6930,19 @@ async fn wiki_postgres_space_project_migration_preserves_archived_history_and_re
             .await
             .unwrap();
     assert_eq!(count, 1);
+    full_migrations.run(&pool).await.unwrap();
+    let guarded_rollback = full_migrations.undo(&pool, 202610120001).await.unwrap_err();
+    assert!(
+        guarded_rollback
+            .to_string()
+            .contains("unified_space_schema_requires_preserving_guarded_cohort_rollback")
+    );
+    let preserved: String =
+        sqlx::query_scalar("SELECT content_checksum FROM document_revisions WHERE id=$1")
+            .bind(revision)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(preserved, "checksum");
     pool.close().await;
 }
