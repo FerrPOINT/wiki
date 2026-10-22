@@ -461,7 +461,7 @@ impl WikiAuthRepository for PostgresWikiAuthRepository<'_> {
     ) -> WikiAuthRepositoryFuture<'_, WikiAuthUserRecord> {
         Box::pin(async move {
             let mut tx = self.backend.pool.begin().await.map_err(database_error)?;
-        super::write_authorization::bind_current_clock(&mut tx).await?;
+            super::write_authorization::bind_current_clock(&mut tx).await?;
 
             let row = sqlx::query(
                 r#"
@@ -526,7 +526,7 @@ impl WikiAuthRepository for PostgresWikiAuthRepository<'_> {
     ) -> WikiAuthRepositoryFuture<'_, ()> {
         Box::pin(async move {
             let mut tx = self.backend.pool.begin().await.map_err(database_error)?;
-        super::write_authorization::bind_current_clock(&mut tx).await?;
+            super::write_authorization::bind_current_clock(&mut tx).await?;
 
             insert_session(&mut tx, &session).await?;
             self.backend
@@ -604,7 +604,7 @@ impl WikiAuthRepository for PostgresWikiAuthRepository<'_> {
     fn revoke_sessions(&self, command: WikiLogoutCommand) -> WikiAuthRepositoryFuture<'_, ()> {
         Box::pin(async move {
             let mut tx = self.backend.pool.begin().await.map_err(database_error)?;
-        super::write_authorization::bind_current_clock(&mut tx).await?;
+            super::write_authorization::bind_current_clock(&mut tx).await?;
 
             if let Some(session_id) = command.session_id {
                 sqlx::query(
