@@ -1,5 +1,13 @@
 # Архитектура Wiki
 
+## Граница unit и server сборки
+
+Backend recipes имеют независимый target `unit`: manifests и test dependencies
+не наследуют компиляцию server dependencies. Полный build расширяет тот же
+immutable слой, сохраняя unit barrier и реальные modular Base paths.
+Runtime composition, SDK и toolchain не меняются; [TESTING](TESTING.md)
+разделяет source graph checks и native qualification нового recipe tuple.
+
 [Проектная навигация](plans/project-navigation.md) использует Base presentation и
 локальный полный снимок Tracker. Reader client и 60-секундное обновление имеют
 server lifecycle; частичный ответ не заменяет подтверждённый снимок.

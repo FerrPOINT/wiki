@@ -1,5 +1,15 @@
 # Testing Strategy - Wiki
 
+Docker target `unit` в обеих backend recipes проходит только через manifests и
+unit dependency layer, без server dependency compilation. Полная сборка расширяет
+тот же immutable слой; обязательный unit marker перед production build сохранён.
+Scoped source checks из root:
+`check-workspace.ps1 -Profile Unit -Repository wiki -Component tooling`.
+Существующий CI docs job уже запускает этот test module; второй запуск не добавлен.
+Modular Base paths, SDK/UI/toolchain pins и registry cache сохранены. Native
+qualification нового recipe tuple и замер времени/CPU/RAM выполняются отдельно;
+source graph checks не объявляются новой проверкой Rust binaries.
+
 Актуальная политика 2026-10-15: unit/static запускаются при обычной сборке;
 integration/slow/full coverage и browser/live — вручную перед релизом.
 Команды быстрых уровней приведены в разделе «Тестовые уровни (2026-10-15)» ниже.

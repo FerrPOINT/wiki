@@ -2,6 +2,9 @@
   "schema": "base-quality-product/v1",
   "product": "wiki",
   "components": {
+    "tooling": [
+      "scripts/tests/test_ci_contract_checks.py"
+    ],
     "docs": [
       "docs/**",
       "*.md",
@@ -27,6 +30,23 @@
     ]
   },
   "gates": [
+    {
+      "id": "tooling:build-contracts",
+      "component": "tooling",
+      "profiles": ["fast", "unit", "build", "integrated", "release"],
+      "argv": ["{python}", "-B", "-m", "unittest", "scripts.tests.test_ci_contract_checks", "-q"],
+      "cwd": ".",
+      "inputs": [
+        "scripts/tests/test_ci_contract_checks.py",
+        ".quality-gate.json",
+        ".github/workflows/ci.yml",
+        ".github/workflows/release.yml",
+        "backend/Dockerfile*",
+        "scripts/vendor/base_quality_selection.py"
+      ],
+      "cacheable": true,
+      "test_tier": "static"
+    },
     {
       "id": "docs:readme",
       "component": "docs",
