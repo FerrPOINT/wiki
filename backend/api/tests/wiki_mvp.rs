@@ -6966,9 +6966,27 @@ async fn wiki_postgres_space_project_migration_preserves_archived_history_and_re
         .await
         .unwrap();
     sqlx::query("INSERT INTO wiki_space_projects(space_id,registry_instance_id,namespace_id) VALUES($1,$2,$3)").bind(independent).bind(registry).bind(project).execute(&pool).await.unwrap();
+    // SQLx retains its session advisory lock when a migration fails. Close the
+    // dedicated connection after each rejected rollback so the next assertion
+    // cannot wait on an earlier pooled connection's lock.
+    async fn rejected_rollback(
+        migrator: &sqlx::migrate::Migrator,
+        pool: &sqlx::PgPool,
+    ) -> sqlx::migrate::MigrateError {
+        let mut connection = pool.acquire().await.unwrap();
+        let error = migrator
+            .undo(&mut *connection, 202610120001)
+            .await
+            .unwrap_err();
+        connection.close().await.unwrap();
+        error
+    }
+    let lossy_rollback = rejected_rollback(&migrations, &pool).await;
     assert!(
-        migrations.undo(&pool, 202610120001).await.is_err(),
-        "downgrade must not delete a new independent association"
+        lossy_rollback
+            .to_string()
+            .contains("space_projects_rollback_would_discard_associations"),
+        "unexpected independent-association rollback error: {lossy_rollback}"
     );
     let count: i64 =
         sqlx::query_scalar("SELECT count(*) FROM wiki_space_projects WHERE space_id=$1")
@@ -6990,17 +7008,15 @@ async fn wiki_postgres_space_project_migration_preserves_archived_history_and_re
             .collect(),
     );
     guarded_migrations.run(&pool).await.unwrap();
-    let guarded_rollback = guarded_migrations
-        .undo(&pool, 202610120001)
-        .await
-        .unwrap_err();
+    let guarded_rollback = rejected_rollback(&guarded_migrations, &pool).await;
     assert!(
         guarded_rollback
             .to_string()
-            .contains("unified_space_schema_requires_preserving_guarded_cohort_rollback")
+            .contains("unified_space_schema_requires_preserving_guarded_cohort_rollback"),
+        "unexpected guarded rollback error: {guarded_rollback}"
     );
     full_migrations.run(&pool).await.unwrap();
-    let clock_rollback = full_migrations.undo(&pool, 202610120001).await.unwrap_err();
+    let clock_rollback = rejected_rollback(&full_migrations, &pool).await;
     assert!(
         clock_rollback
             .to_string()
