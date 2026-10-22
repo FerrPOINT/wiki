@@ -106,3 +106,14 @@ Production/release gates still remain:
 
 - The templates screen now limits creation to system admins in the UI, locks the create form during submission, preserves drafts on error and confirms successful saves even when a search filter hides the new item. Backend authorization remains the source of truth.
 - Local build and browser screenshot checks were deferred because drive C: had about 0.16 GB free. Remote CI and live 375/1920/2560 UI review are required before the draft PR can be marked ready.
+
+
+## Backend build graph, 2026-10-22
+
+Подготовлены стабильные dependency layers и отдельный domain unit graph для
+обоих Docker entrypoints; Shared source и исходный SDK/runtime contract
+сохранены. Context ограничен backend и прежними SDK crates, private/cache
+exclusions сохранены. [План и границы](plans/2026-10-22-backend-dependency-layers.md).
+Native qualification нового tuple пока NOT_RUN: общий Windows host занят
+внешними Cargo/rustc. Source/static checks не заменяют old-timestamp,
+invalidation, units, artifact/runtime и CPU/RAM/wall checks. Runtime не обновлён.

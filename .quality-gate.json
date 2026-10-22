@@ -26,7 +26,14 @@
       "scripts/tests/test_quality_routes.py",
       "scripts/tests/test_ci_contract_checks.py",
       "scripts/vendor/**",
-      ".quality-tooling-revision"
+      ".quality-tooling-revision",
+      "scripts/tests/test_backend_dependency_layers.py",
+      "backend/Dockerfile",
+      "backend/Dockerfile.umbrella",
+      "backend/Dockerfile.dockerignore",
+      "backend/Dockerfile.umbrella.dockerignore",
+      "backend/Cargo.toml",
+      "backend/*/Cargo.toml"
     ]
   },
   "gates": [
@@ -50,6 +57,7 @@
         "unittest",
         "scripts.tests.test_quality_routes",
         "scripts.tests.test_ci_contract_checks",
+        "scripts.tests.test_backend_dependency_layers",
         "-q"
       ],
       "inputs": [
@@ -59,7 +67,14 @@
         ".quality-tooling-revision",
         ".quality-gate.json",
         ".github/**",
-        "frontend/package.json"
+        "frontend/package.json",
+        "scripts/tests/test_backend_dependency_layers.py",
+        "backend/Dockerfile",
+        "backend/Dockerfile.umbrella",
+        "backend/Dockerfile.dockerignore",
+        "backend/Dockerfile.umbrella.dockerignore",
+        "backend/Cargo.toml",
+        "backend/*/Cargo.toml"
       ]
     },
     {
