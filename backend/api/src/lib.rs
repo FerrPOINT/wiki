@@ -341,7 +341,10 @@ pub fn router_with_wiki(
     };
 
     let protected = Router::<Arc<app::WikiAppContext>>::new()
-        .route("/space-admission",get(routes::wiki::human_admission_window))
+        .route(
+            "/space-admission",
+            get(routes::wiki::human_admission_window),
+        )
         .route(
             "/documents/{id}/space-context",
             get(routes::space_projects::document_context),

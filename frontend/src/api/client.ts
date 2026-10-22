@@ -193,18 +193,30 @@ function defaultCodeForStatus(status: number): string {
   }
 }
 
-type RequestAuthority = Pick<ReturnType<typeof useAuthStore.getState>, 'token' | 'userId' | 'authVersion'>
+type RequestAuthority = Pick<
+  ReturnType<typeof useAuthStore.getState>,
+  'token' | 'userId' | 'authVersion'
+>
 function currentAuthority(scope: RequestAuthority): boolean {
   const now = useAuthStore.getState()
-  return now.token === scope.token && now.userId === scope.userId && now.authVersion === scope.authVersion
+  return (
+    now.token === scope.token &&
+    now.userId === scope.userId &&
+    now.authVersion === scope.authVersion
+  )
 }
 function requireAuthority(scope: RequestAuthority, skip = false): void {
-  if (!skip && !currentAuthority(scope)) throw new ApiError({
-    status: 403, statusText: 'Forbidden', code: 'AUTH_CONTEXT_CHANGED',
-    message: 'Контекст доступа изменился; данные нужно получить заново',
-  })
+  if (!skip && !currentAuthority(scope))
+    throw new ApiError({
+      status: 403,
+      statusText: 'Forbidden',
+      code: 'AUTH_CONTEXT_CHANGED',
+      message: 'Контекст доступа изменился; данные нужно получить заново',
+    })
 }
-export async function refreshAccessToken(scope: RequestAuthority = useAuthStore.getState()): Promise<boolean> {
+export async function refreshAccessToken(
+  scope: RequestAuthority = useAuthStore.getState(),
+): Promise<boolean> {
   if (!currentAuthority(scope)) return false
   const product = getPlatformProduct()
   if (product) {
@@ -220,7 +232,11 @@ function shouldRefresh(path: string, response: Response): boolean {
   return response.status === 401 && !path.includes('/api/v1/auth/')
 }
 
-async function send(path: string, options: ApiRequestOptions, scope: RequestAuthority): Promise<Response> {
+async function send(
+  path: string,
+  options: ApiRequestOptions,
+  scope: RequestAuthority,
+): Promise<Response> {
   const { body, headers, skipAuth, ...init } = options
   const requestHeaders = new Headers(headers)
   requireAuthority(scope, skipAuth)

@@ -34,7 +34,14 @@ function Workspace() {
 
 describe('authorization boundary', () => {
   beforeEach(() => {
-    admission.mockReset().mockResolvedValue({ schema_version: 1, enforced: false, remaining_millis: null, scope_revision: null })
+    admission
+      .mockReset()
+      .mockResolvedValue({
+        schema_version: 1,
+        enforced: false,
+        remaining_millis: null,
+        scope_revision: null,
+      })
     clients = new Set()
     readTranscript.mockReset().mockResolvedValue('Owner transcript')
     useAuthStore
