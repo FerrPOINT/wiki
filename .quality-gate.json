@@ -266,7 +266,17 @@
       ],
       "cwd": "backend",
       "inputs": [
-        "**"
+        "backend/**",
+        ".cargo/**",
+        ".base-revision",
+        ".namespace-base-revision",
+        "rust-toolchain*",
+        "rustfmt.toml",
+        ".rustfmt.toml",
+        ".gitattributes",
+        "LICENSE",
+        "NOTICE",
+        "THIRD_PARTY_NOTICES.md"
       ],
       "cacheable": true,
       "platforms": [
@@ -411,7 +421,8 @@
         "C_INCLUDE_PATH",
         "CPLUS_INCLUDE_PATH"
       ],
-      "test_tier": "artifact"
+      "test_tier": "artifact",
+      "artifact_input_contract": "git-source-v1"
     },
     {
       "id": "tooling:build-contracts",
@@ -487,5 +498,30 @@
     "backend/**/tests/**",
     "backend/domain/src/value_objects/tests.rs",
     "backend/domain/src/wiki/tests.rs"
-  ]
+  ],
+  "native_execution": {
+    "adapter": "rust-compose-v1",
+    "host_platforms": [
+      "win32"
+    ],
+    "gates": {
+      "backend:unit": {
+        "component": "backend",
+        "role": "unit"
+      },
+      "backend:build": {
+        "component": "backend",
+        "role": "build"
+      }
+    },
+    "runtime": {
+      "download_cache": "pdlc-cargo-rust188-native-v1",
+      "input_transport": "operation-snapshot-v1",
+      "limits": {
+        "cpus": 2,
+        "memory_mb": 1024,
+        "pids": 256
+      }
+    }
+  }
 }

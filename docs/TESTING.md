@@ -6,6 +6,26 @@ integration/slow/full coverage и browser/live — вручную перед р�
 Прежняя полная матрица и тяжёлые команды этого документа сохранены как
 ручные release checks; они не запускаются автоматически после каждой правки.
 
+Windows backend использует declared Base adapter `rust-compose-v1` и тот же
+`cargo fmt --all -- --check; cargo test --locked -p domain --lib` в pinned Linux
+image. Из root выбирать только Wiki backend:
+
+```powershell
+./check-workspace.ps1 -Profile Unit -Repository wiki -Component backend `
+  -NativeDockerContext desktop-linux `
+  -RustNativeInputs $wikiNativeReference.path `
+  -RustNativeInputsSha256 $wikiNativeReference.sha256
+```
+
+Reference выдаётся tooling owner и связывает original checkout с уже имеющимися
+SDK/tools exports; не создавать второй SDK export ради имени каталога.
+Общий cache/slot/receipt и порядок reuse принадлежат [Base](../../services-base/docs/BUILD_PERFORMANCE.md).
+Backend-only не запускает frontend; Build сначала требует Unit и передаёт один
+проверенный `server` artifact дальше. Лимит 2 CPU / 1024 MiB — исходный профиль
+пилота, не измеренное потребление и не утверждение о самом быстром варианте.
+Native qualification фиксируется отдельно от source controls в Base; release,
+integration, PostgreSQL и live gates остаются ручной вехой.
+
 Docker target `unit` в обеих backend recipes имеет отдельный dependency graph:
 `manifests → unit-dependencies → unit`. Он не наследует компиляцию server.
 Полная сборка расширяет тот же immutable слой до `dependencies`, а `builder`
