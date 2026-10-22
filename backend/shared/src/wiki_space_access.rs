@@ -271,6 +271,19 @@ impl WikiSpaceAdmission {
     }
 }
 
+impl WikiSpaceAdmission {
+    pub fn allows_admin(&self, local: Uuid) -> bool {
+        self.allows(local, true)
+            && self
+                .local_spaces
+                .get(&local)
+                .is_some_and(|mapping| mapping.may_admin)
+    }
+    pub fn confirmed_global_admin(&self) -> bool {
+        self.is_current() && self.subject.global_role == "admin"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -494,18 +507,5 @@ mod tests {
         subject.may_read = false;
         let denied = WikiSpaceAdmission::confirmed(subject, admission, mappings).unwrap();
         assert!(denied.read_delegation().is_err());
-    }
-}
-
-impl WikiSpaceAdmission {
-    pub fn allows_admin(&self, local: Uuid) -> bool {
-        self.allows(local, true)
-            && self
-                .local_spaces
-                .get(&local)
-                .is_some_and(|mapping| mapping.may_admin)
-    }
-    pub fn confirmed_global_admin(&self) -> bool {
-        self.is_current() && self.subject.global_role == "admin"
     }
 }

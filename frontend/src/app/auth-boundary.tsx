@@ -29,7 +29,11 @@ function AuthSession({ version, children }: { version: number | undefined; child
     clearPrevious()
     return useAuthStore.subscribe(clearPrevious)
   }, [client, version])
-  return <QueryClientProvider client={client}><SpaceAdmissionBoundary>{children}</SpaceAdmissionBoundary></QueryClientProvider>
+  return (
+    <QueryClientProvider client={client}>
+      <SpaceAdmissionBoundary>{children}</SpaceAdmissionBoundary>
+    </QueryClientProvider>
+  )
 }
 
 export function AuthBoundary({ children }: { children: ReactNode }) {

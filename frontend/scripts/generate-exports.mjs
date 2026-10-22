@@ -5,6 +5,7 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import * as prettier from 'prettier'
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const frontendRoot = path.resolve(scriptDir, '..')
@@ -52,5 +53,7 @@ const lines = [
 for (const n of names) {
   lines.push(`export type ${n} = components['schemas']['${n}']`)
 }
-writeFileSync(outPath, `${lines.join('\n')}\n`, 'utf8')
+const options = await prettier.resolveConfig(outPath)
+const formatted = await prettier.format(`${lines.join('\n')}\n`, { ...options, filepath: outPath })
+writeFileSync(outPath, formatted, 'utf8')
 console.log(`generated-exports.ts: ${names.length} flat types`)

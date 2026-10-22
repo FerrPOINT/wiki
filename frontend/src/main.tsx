@@ -9,10 +9,7 @@ import { AuthBoundary } from './app/auth-boundary'
 import { ThemeProvider, PlatformProvider, PlatformServicesProvider } from '@pdlc/ui/lib'
 import './index.css'
 import { relaySsoCallback, ssoNamespace } from '@pdlc/ui/sso'
-import {
-  capturePlatformReturn,
-  getPlatformProduct,
-} from '@pdlc/ui/platform'
+import { capturePlatformReturn, getPlatformProduct } from '@pdlc/ui/platform'
 
 capturePlatformReturn(import.meta.env.VITE_PLATFORM_ORIGIN)
 

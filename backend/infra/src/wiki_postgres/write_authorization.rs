@@ -40,6 +40,7 @@ impl PostgresWikiBackend {
         if spaces.iter().any(Uuid::is_nil) {
             return Err(AppError::Forbidden);
         }
+        let mut archived = false;
         // Match lifecycle lock order. Lock all target resources before profile/role:
         // an archive/row wait must not freeze an already obsolete role decision.
         for space in &spaces {
@@ -66,8 +67,10 @@ impl PostgresWikiBackend {
                 .fetch_optional(&mut *tx)
                 .await
                 .map_err(database_error)?;
-            if available != Some(true) {
-                return Err(AppError::Forbidden);
+            match available {
+                Some(true) => {}
+                Some(false) => archived = true,
+                None => return Err(AppError::Forbidden),
             }
         }
         let user = sqlx::query(
@@ -114,6 +117,13 @@ impl PostgresWikiBackend {
         }
         if let Some(scope) = admission {
             scope.require_current()?;
+        }
+        // Native writers retain the public validation error. Unauthorized callers
+        // are rejected above; admitted central writes remain fenced by the scope.
+        if archived {
+            return Err(AppError::invalid_input(
+                "archived space does not accept write commands",
+            ));
         }
         Ok(tx)
     }

@@ -25,7 +25,7 @@ pub(super) async fn verify(
         "WIKI_NAMESPACE__TRACKER_URL",
         "WIKI_NAMESPACE__TRACKER_TOKEN_FILE",
     ];
-    let previous: Vec<_> = names.iter().map(|key| std::env::var_os(key)).collect();
+    let previous: Vec<_> = names.iter().map(std::env::var_os).collect();
     // This fresh isolated native test owns its process; no live configuration is changed.
     unsafe {
         std::env::set_var(names[0], origin);

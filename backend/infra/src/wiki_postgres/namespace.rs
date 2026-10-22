@@ -546,11 +546,23 @@ pub(in crate::wiki_postgres) mod namespace_postgres_tests {
         let command = create_command(owner);
         let space = command.resource.resource_id;
         backend.apply_namespace(&command).await.unwrap();
-        sqlx::query("DELETE FROM wiki_namespace_bindings WHERE resource_id=$1")
+        let deletion = sqlx::query("DELETE FROM wiki_namespace_bindings WHERE resource_id=$1")
             .bind(space)
             .execute(&backend.pool)
             .await
-            .unwrap();
+            .unwrap_err();
+        assert_eq!(
+            deletion.as_database_error().unwrap().code().as_deref(),
+            Some("42501")
+        );
+        assert!(backend.namespace_binding(space).await.unwrap().is_some());
+        // Model retained historical loss directly. The guarded current schema
+        // must reject deletion of a valid projection even in this owned fixture.
+        let command = create_command(owner);
+        let space = command.resource.resource_id;
+        sqlx::query("INSERT INTO spaces(id,key,name,owner_id,namespace_managed) VALUES($1,$2,'Lost projection',$3,true)")
+            .bind(space).bind(format!("LOST{}", &space.simple().to_string()[..20]).to_ascii_uppercase())
+            .bind(owner).execute(&backend.pool).await.unwrap();
         assert!(matches!(
             backend.namespace_binding(space).await,
             Err(AppError::Unavailable(_))
