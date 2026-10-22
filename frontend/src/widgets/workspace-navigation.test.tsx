@@ -263,4 +263,23 @@ describe('Wiki project navigation', () => {
     await screen.findByRole('button', { name: 'Одинаковый проект · P100' })
     expect(screen.getAllByRole('region')).toHaveLength(101)
   })
+  it.each([0, 1])(
+    'excludes archived identity %s while retaining the active neighbor',
+    async (archived) => {
+      const entries = projects.map((project, index) => ({
+        ...project,
+        state: index === archived ? 'archived' : 'active',
+      }))
+      vi.mocked(apiRequest).mockResolvedValue({ items: entries, total: entries.length })
+      mount()
+      const activeKey = archived ? 'A' : 'B',
+        archivedKey = archived ? 'B' : 'A'
+      await screen.findByRole('button', { name: `Одинаковый проект · ${activeKey}` })
+      expect(
+        screen.queryByRole('button', { name: `Одинаковый проект · ${archivedKey}` }),
+      ).toBeNull()
+      await userEvent.setup().click(screen.getByRole('button', { name: 'Namespace' }))
+      expect(screen.getAllByRole('menuitemradio')).toHaveLength(2)
+    },
+  )
 })

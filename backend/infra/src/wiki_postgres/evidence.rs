@@ -1,3 +1,4 @@
+use super::database_error;
 use super::{
     PostgresWikiBackend, ensure_document_accepts_writes_tx,
     mapping::{attachment_response_from_row, evidence_response_from_row, parse_uuid},
@@ -15,6 +16,7 @@ use uuid::Uuid;
 struct PostgresWikiEvidenceRepository<'a> {
     backend: &'a PostgresWikiBackend,
     request_id: Option<&'a str>,
+    admission: Option<std::sync::Arc<shared::wiki_space_access::WikiSpaceAdmission>>,
 }
 
 impl PostgresWikiEvidenceRepository<'_> {
@@ -26,7 +28,7 @@ impl PostgresWikiEvidenceRepository<'_> {
             .bind(evidence_id)
             .fetch_optional(&self.backend.pool)
             .await
-            .map_err(shared::AppError::database)?
+            .map_err(database_error)?
             .ok_or_else(|| shared::AppError::not_found("evidence", evidence_id))?;
         Ok(evidence_response_from_row(&row))
     }
@@ -41,10 +43,13 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
         Box::pin(async move {
             let mut tx = self
                 .backend
-                .pool
-                .begin()
-                .await
-                .map_err(shared::AppError::database)?;
+                .begin_content_write(
+                    actor_id,
+                    self.admission.as_ref(),
+                    &[command.space_id],
+                    SpaceAccess::Edit,
+                )
+                .await?;
             if let Some(document_id) = command.document_id {
                 ensure_document_accepts_writes_tx(&mut tx, document_id).await?;
             }
@@ -86,7 +91,7 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
                 .bind(actor_id)
                 .fetch_optional(&mut *tx)
                 .await
-                .map_err(shared::AppError::database)?
+                .map_err(database_error)?
                 .ok_or_else(|| shared::AppError::not_found("attachment", attachment_id))?;
                 stored_checksum = Some(attachment_row.get::<String, _>("checksum"));
             }
@@ -115,7 +120,7 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
             .bind(actor_id)
             .fetch_one(&mut *tx)
             .await
-            .map_err(shared::AppError::database)?;
+            .map_err(database_error)?;
             let evidence_id: Uuid = row.get("id");
             self.backend
                 .insert_audit(
@@ -127,7 +132,7 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
                     self.request_id,
                 )
                 .await?;
-            tx.commit().await.map_err(shared::AppError::database)?;
+            super::write_authorization::commit(tx, self.admission.as_ref()).await?;
             self.get_evidence_by_id(evidence_id).await
         })
     }
@@ -147,9 +152,18 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
                 .bind(criteria.cursor.as_ref().map(|cursor| cursor.created_at))
                 .bind(criteria.cursor.as_ref().map(|cursor| cursor.id))
                 .bind(criteria.limit)
+                .bind(
+                    self.admission
+                        .as_ref()
+                        .map(|scope| scope.readable_ids())
+                        .transpose()?,
+                )
                 .fetch_all(&self.backend.pool)
                 .await
-                .map_err(shared::AppError::database)?;
+                .map_err(database_error)?;
+            if let Some(scope) = self.admission.as_ref() {
+                scope.require_current()?;
+            }
             Ok(rows.iter().map(evidence_response_from_row).collect())
         })
     }
@@ -173,12 +187,7 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
                 .await?;
 
             let insert_result = async {
-                let mut tx = self
-                    .backend
-                    .pool
-                    .begin()
-                    .await
-                    .map_err(shared::AppError::database)?;
+                let mut tx = self.backend.begin_content_write(actor_id, self.admission.as_ref(), &[], SpaceAccess::Edit).await?;
                 let row = sqlx::query(
                     r#"
                     INSERT INTO attachments (
@@ -198,7 +207,7 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
                 .bind(actor_id)
                 .fetch_one(&mut *tx)
                 .await
-                .map_err(shared::AppError::database)?;
+                .map_err(database_error)?;
                 self.backend
                     .insert_audit(
                         &mut tx,
@@ -209,7 +218,7 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
                         self.request_id,
                     )
                     .await?;
-                tx.commit().await.map_err(shared::AppError::database)?;
+                super::write_authorization::commit(tx, self.admission.as_ref()).await?;
                 Ok::<_, shared::AppError>(row)
             }
             .await;
@@ -235,7 +244,7 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
                 .bind(attachment_id)
                 .fetch_optional(&self.backend.pool)
                 .await
-                .map_err(shared::AppError::database)?
+                .map_err(database_error)?
                 .ok_or_else(|| shared::AppError::not_found("attachment", attachment_id))?;
             Ok(attachment_response_from_row(&row))
         })
@@ -256,7 +265,7 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
             .bind(attachment_id)
             .fetch_optional(&self.backend.pool)
             .await
-            .map_err(shared::AppError::database)?
+            .map_err(database_error)?
             .ok_or_else(|| shared::AppError::not_found("attachment", attachment_id))?;
             let file_name: String = row.get("file_name");
             let content_type: String = row.get("content_type");
@@ -283,6 +292,31 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
 }
 
 impl PostgresWikiBackend {
+    /// Internal snapshot for a document whose owner admission was checked by its caller.
+    /// Filtering uses the exact document FK, never an unscoped public search.
+    pub(super) async fn evidence_for_document_result(
+        &self,
+        document_id: Uuid,
+    ) -> Result<Vec<EvidenceResponse>, shared::AppError> {
+        let repository = PostgresWikiEvidenceRepository {
+            backend: self,
+            request_id: None,
+            admission: None,
+        };
+        let query = EvidenceQuery {
+            space: None,
+            document_id: Some(document_id.to_string()),
+            task_key: None,
+            phase_key: None,
+            q: None,
+            cursor: None,
+            limit: Some(100),
+        };
+        Ok(WikiEvidenceUseCase::new(&repository)
+            .list(query, Some(document_id), None)
+            .await?
+            .evidence)
+    }
     pub(super) async fn create_evidence(
         &self,
         claims: &WikiClaims,
@@ -312,6 +346,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiEvidenceRepository {
             backend: self,
             request_id: claims.request_id.as_deref(),
+            admission: self.read_admission(Some(claims)).await?,
         };
         WikiEvidenceUseCase::new(&repository)
             .create(actor_id, space_id, document_id, body)
@@ -352,6 +387,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiEvidenceRepository {
             backend: self,
             request_id: None,
+            admission: self.read_admission(claims).await?,
         };
         WikiEvidenceUseCase::new(&repository)
             .list(query, document_id, access_user_id)
@@ -369,6 +405,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiEvidenceRepository {
             backend: self,
             request_id: None,
+            admission: self.read_admission(Some(claims)).await?,
         };
         WikiEvidenceUseCase::new(&repository).get(evidence_id).await
     }
@@ -384,6 +421,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiEvidenceRepository {
             backend: self,
             request_id: claims.request_id.as_deref(),
+            admission: self.read_admission(Some(claims)).await?,
         };
         WikiEvidenceUseCase::new(&repository)
             .upload_attachment(
@@ -406,6 +444,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiEvidenceRepository {
             backend: self,
             request_id: None,
+            admission: self.read_admission(Some(claims)).await?,
         };
         WikiEvidenceUseCase::new(&repository)
             .get_attachment(attachment_id)
@@ -422,6 +461,7 @@ impl PostgresWikiBackend {
         let repository = PostgresWikiEvidenceRepository {
             backend: self,
             request_id: None,
+            admission: self.read_admission(Some(claims)).await?,
         };
         WikiEvidenceUseCase::new(&repository)
             .download_attachment(attachment_id)
@@ -443,7 +483,7 @@ impl PostgresWikiBackend {
         .bind(document_id)
         .fetch_optional(&self.pool)
         .await
-        .map_err(shared::AppError::database)?
+        .map_err(database_error)?
         .ok_or_else(|| shared::AppError::not_found("document", document_id))?;
         Ok((row.get("space_id"), row.get("space_key")))
     }
@@ -459,7 +499,7 @@ impl PostgresWikiBackend {
                 .bind(evidence_id)
                 .fetch_optional(&self.pool)
                 .await
-                .map_err(shared::AppError::database)?
+                .map_err(database_error)?
                 .ok_or_else(|| shared::AppError::not_found("evidence", evidence_id))?;
         self.ensure_space_id_access(claims, space_id, required)
             .await?;
@@ -482,7 +522,7 @@ impl PostgresWikiBackend {
         .bind(attachment_id)
         .fetch_optional(&self.pool)
         .await
-        .map_err(shared::AppError::database)?
+        .map_err(database_error)?
         .ok_or_else(|| shared::AppError::not_found("attachment", attachment_id))?;
         let uploaded_by: Uuid = row.get("uploaded_by");
         let space_id: Option<Uuid> = row.get("space_id");
@@ -494,7 +534,13 @@ impl PostgresWikiBackend {
             }
             None => {
                 let role = self.active_global_role(user_id).await?;
-                if role == "admin" || uploaded_by == user_id {
+                let admission = self.read_admission(Some(claims)).await?;
+                if uploaded_by == user_id
+                    || (role == "admin"
+                        && admission
+                            .as_ref()
+                            .is_none_or(|scope| scope.confirmed_global_admin()))
+                {
                     Ok(())
                 } else {
                     Err(shared::AppError::Forbidden)

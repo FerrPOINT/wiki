@@ -1,4 +1,5 @@
 //! Associations never transfer space ownership or grant document permissions.
+use super::database_error;
 use super::{
     PostgresWikiBackend, namespace::validate_projection, workspace_catalog::validate_project,
 };
@@ -14,12 +15,21 @@ pub(super) struct ProjectSpaces {
 }
 
 impl PostgresWikiBackend {
+    /// A legacy NamespaceRef response cannot encode canonical ProjectRef-only rows.
+    pub(super) async fn require_legacy_project_context(&self) -> Result<(), AppError> {
+        let owned:bool=sqlx::query_scalar("SELECT tracker_owned OR (SELECT active FROM wiki_space_admission_state WHERE singleton) FROM wiki_project_projection_state WHERE singleton").fetch_one(&self.pool).await.map_err(database_error)?;
+        if owned {
+            return Err(AppError::invalid_input("project_catalog_v2_required"));
+        }
+        Ok(())
+    }
     pub(super) async fn spaces_for_projects(
         &self,
         claims: &WikiClaims,
         registry: Uuid,
         projects: &[Uuid],
     ) -> Result<ProjectSpaces, AppError> {
+        self.require_legacy_project_context().await?;
         let rows = sqlx::query(
             "SELECT l.namespace_id,s.id,s.key,s.name,s.namespace_managed,b.command,
              CASE WHEN s.archived_at IS NULL THEN 'active' ELSE 'archived' END AS status,
@@ -36,7 +46,7 @@ impl PostgresWikiBackend {
         .bind(projects)
         .fetch_all(&self.pool)
         .await
-        .map_err(AppError::database)?;
+        .map_err(database_error)?;
         let mut result = ProjectSpaces {
             spaces: BTreeMap::new(),
             denied: BTreeSet::new(),
@@ -83,6 +93,7 @@ impl PostgresWikiBackend {
         let space_id = self
             .ensure_space_access(claims, key, WikiSpaceAccess::View)
             .await?;
+        self.require_legacy_project_context().await?;
         self.namespace_binding(space_id).await?;
         let metadata_visible = match self.project_catalog_actor(claims).await {
             Ok(_) => true,
@@ -96,7 +107,7 @@ impl PostgresWikiBackend {
              FROM wiki_space_projects l LEFT JOIN wiki_workspace_projects w
              ON (w.registry_instance_id,w.namespace_id)=(l.registry_instance_id,l.namespace_id)
              WHERE l.space_id=$1 ORDER BY w.name NULLS LAST,l.registry_instance_id,l.namespace_id",
-        ).bind(space_id).fetch_all(&self.pool).await.map_err(AppError::database)?;
+        ).bind(space_id).fetch_all(&self.pool).await.map_err(database_error)?;
         let projects = rows
             .into_iter()
             .map(|row| {
@@ -126,7 +137,7 @@ impl PostgresWikiBackend {
             })
             .collect::<Result<_, AppError>>()?;
         let row = sqlx::query("SELECT id,key,name,CASE WHEN archived_at IS NULL THEN 'active' ELSE 'archived' END AS status FROM spaces WHERE id=$1")
-            .bind(space_id).fetch_one(&self.pool).await.map_err(AppError::database)?;
+            .bind(space_id).fetch_one(&self.pool).await.map_err(database_error)?;
         Ok(SpaceProjectsResponse {
             space: WorkspaceSpace {
                 id: row.get("id"),
@@ -150,7 +161,7 @@ impl PostgresWikiBackend {
         .bind(document)
         .fetch_optional(&self.pool)
         .await
-        .map_err(AppError::database)?
+        .map_err(database_error)?
         .ok_or_else(|| AppError::not_found("document", document))?;
         self.linked_projects(claims, &key).await
     }
@@ -175,7 +186,35 @@ impl PostgresWikiBackend {
             Err(AppError::Forbidden) => false,
             Err(error) => return Err(error),
         };
-        let mut tx = self.pool.begin().await.map_err(AppError::database)?;
+        let mut tx = self.pool.begin().await.map_err(database_error)?;
+        sqlx::query("SELECT singleton FROM wiki_space_admission_state WHERE singleton FOR SHARE")
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(database_error)?;
+        let tracker_owned: bool = sqlx::query_scalar(
+            "SELECT tracker_owned FROM wiki_project_projection_state WHERE singleton FOR SHARE",
+        )
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(database_error)?;
+        let admission_active: bool =
+            sqlx::query_scalar("SELECT active FROM wiki_space_admission_state WHERE singleton")
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(database_error)?;
+        if tracker_owned || admission_active {
+            return Err(AppError::Unavailable(
+                "project_links_owned_by_tracker_use_v2".into(),
+            ));
+        }
+        // Same order as owner-v2: catalog barrier precedes the local space row.
+        sqlx::query(
+            "SELECT local_space_id FROM wiki_space_catalog WHERE local_space_id=$1 FOR SHARE",
+        )
+        .bind(space)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(database_error)?;
         // Serialize link edits with space archive. No document or project row is
         // moved when this association changes.
         let active = sqlx::query_scalar::<_, bool>(
@@ -184,7 +223,7 @@ impl PostgresWikiBackend {
         .bind(space)
         .fetch_one(&mut *tx)
         .await
-        .map_err(AppError::database)?;
+        .map_err(database_error)?;
         if !active {
             return Err(AppError::invalid_input(
                 "archived space does not accept write commands",
@@ -193,8 +232,8 @@ impl PostgresWikiBackend {
         if attach && sqlx::query_scalar::<_, bool>(
             "SELECT EXISTS(SELECT 1 FROM wiki_space_projects WHERE space_id=$1 AND registry_instance_id=$2 AND namespace_id=$3)",
         ).bind(space).bind(project.registry_instance_id).bind(project.namespace_id)
-            .fetch_one(&mut *tx).await.map_err(AppError::database)? {
-            tx.commit().await.map_err(AppError::database)?;
+            .fetch_one(&mut *tx).await.map_err(database_error)? {
+            tx.commit().await.map_err(database_error)?;
             return Ok(());
         }
         let changed = if attach {
@@ -207,7 +246,7 @@ impl PostgresWikiBackend {
                  FROM wiki_workspace_projects w WHERE w.registry_instance_id=$1
                  AND w.namespace_id=$2 AND w.present FOR SHARE OF w",
             ).bind(project.registry_instance_id).bind(project.namespace_id)
-                .fetch_optional(&mut *tx).await.map_err(AppError::database)?
+                .fetch_optional(&mut *tx).await.map_err(database_error)?
                 .ok_or_else(|| AppError::not_found("project", project.namespace_id))?;
             if !row.get::<bool, _>("available") {
                 return Err(AppError::Unavailable(
@@ -232,14 +271,14 @@ impl PostgresWikiBackend {
                 "INSERT INTO wiki_space_projects(space_id,registry_instance_id,namespace_id,created_by)
                  VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING",
             ).bind(space).bind(project.registry_instance_id).bind(project.namespace_id).bind(actor)
-                .execute(&mut *tx).await.map_err(AppError::database)?.rows_affected()
+                .execute(&mut *tx).await.map_err(database_error)?.rows_affected()
         } else {
             // Removing a known association also works when its external project
             // was archived or is temporarily absent from the presentation cache.
             sqlx::query(
                 "DELETE FROM wiki_space_projects WHERE space_id=$1 AND registry_instance_id=$2 AND namespace_id=$3",
             ).bind(space).bind(project.registry_instance_id).bind(project.namespace_id)
-                .execute(&mut *tx).await.map_err(AppError::database)?.rows_affected()
+                .execute(&mut *tx).await.map_err(database_error)?.rows_affected()
         };
         if changed > 0 {
             sqlx::query("INSERT INTO audit_log(id,actor_id,action,entity_type,entity_id,diff,request_id) VALUES($1,$2,$3,'space',$4,$5,$6)")
@@ -247,9 +286,9 @@ impl PostgresWikiBackend {
                 .bind(if attach { "space.project_link" } else { "space.project_unlink" })
                 .bind(space).bind(serde_json::json!({ "project": project }))
                 .bind(super::audit::audit_request_id(claims.request_id.as_deref()))
-                .execute(&mut *tx).await.map_err(AppError::database)?;
+                .execute(&mut *tx).await.map_err(database_error)?;
         }
-        tx.commit().await.map_err(AppError::database)?;
+        tx.commit().await.map_err(database_error)?;
         Ok(())
     }
 }

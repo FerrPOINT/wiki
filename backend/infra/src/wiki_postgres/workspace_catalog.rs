@@ -1,4 +1,5 @@
 //! A complete Tracker snapshot owns presentation only; Wiki bindings and ACLs own content.
+use super::database_error;
 use super::{PostgresWikiBackend, namespace::validate_projection};
 use shared::{AppError, resource_context::*, wiki_contract::*};
 use sqlx::Row;
@@ -42,7 +43,7 @@ impl PostgresWikiBackend {
                 .bind(id)
                 .fetch_optional(&self.pool)
                 .await
-                .map_err(AppError::database)?
+                .map_err(database_error)?
                 .ok_or(AppError::Unauthorized)?;
         // Project metadata visibility is separate from permission to view a Wiki space.
         if actor.get::<String, _>("global_role") != "admin"
@@ -64,7 +65,7 @@ impl PostgresWikiBackend {
             sqlx::query("UPDATE wiki_workspace_catalog_sync SET available=false WHERE id=true")
                 .execute(&self.pool)
                 .await
-                .map_err(AppError::database)?;
+                .map_err(database_error)?;
         }
         result
     }
@@ -74,16 +75,16 @@ impl PostgresWikiBackend {
         source: Result<Vec<ResourceContextSummary>, AppError>,
     ) -> Result<(), AppError> {
         let projects = source?;
-        let mut tx = self.pool.begin().await.map_err(AppError::database)?;
+        let mut tx = self.pool.begin().await.map_err(database_error)?;
         sqlx::query("UPDATE wiki_workspace_projects SET present=false")
             .execute(&mut *tx)
             .await
-            .map_err(AppError::database)?;
+            .map_err(database_error)?;
         for item in projects {
             let b = &item.binding;
             let affected = sqlx::query("INSERT INTO wiki_workspace_projects(registry_instance_id,namespace_id,tracker_instance_id,tracker_project_id,generation,presentation,name,project_key) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(registry_instance_id,namespace_id) DO UPDATE SET generation=EXCLUDED.generation,presentation=EXCLUDED.presentation,name=EXCLUDED.name,project_key=EXCLUDED.project_key,present=true,observed_at=now() WHERE wiki_workspace_projects.tracker_instance_id=EXCLUDED.tracker_instance_id AND wiki_workspace_projects.tracker_project_id=EXCLUDED.tracker_project_id AND wiki_workspace_projects.generation<=EXCLUDED.generation")
                 .bind(b.namespace.registry_instance_id).bind(b.namespace.namespace_id).bind(b.resource.instance_id).bind(b.resource.resource_id).bind(b.generation).bind(serde_json::to_value(&item).map_err(AppError::internal)?).bind(&item.label).bind(&item.resource_key)
-                .execute(&mut *tx).await.map_err(AppError::database)?.rows_affected();
+                .execute(&mut *tx).await.map_err(database_error)?.rows_affected();
             if affected != 1 {
                 return Err(AppError::Unavailable(
                     "tracker_projection_identity_or_generation_conflict".into(),
@@ -91,8 +92,8 @@ impl PostgresWikiBackend {
             }
         }
         sqlx::query("INSERT INTO wiki_workspace_catalog_sync(id,available) VALUES(true,true) ON CONFLICT(id) DO UPDATE SET available=true,observed_at=now()")
-            .execute(&mut *tx).await.map_err(AppError::database)?;
-        tx.commit().await.map_err(AppError::database)
+            .execute(&mut *tx).await.map_err(database_error)?;
+        tx.commit().await.map_err(database_error)
     }
 
     pub(super) async fn list_projects(
@@ -103,6 +104,9 @@ impl PostgresWikiBackend {
         offset: i64,
         search: &str,
     ) -> Result<WorkspaceProjectPage, AppError> {
+        // The legacy namespace catalog identifies exactly one Tracker project per
+        // namespace; it cannot represent a canonical M:N ProjectRef set.
+        self.require_legacy_project_context().await?;
         self.project_catalog_actor(claims).await?;
         if !(1..=100).contains(&limit) || offset < 0 {
             return Err(AppError::invalid_input("invalid_project_page"));
@@ -112,7 +116,7 @@ impl PostgresWikiBackend {
         )
         .fetch_one(&self.pool)
         .await
-        .map_err(AppError::database)?
+        .map_err(database_error)?
         {
             return Err(AppError::Unavailable(
                 "tracker_project_catalog_unavailable".into(),
@@ -127,9 +131,9 @@ impl PostgresWikiBackend {
             .and_then(|v| v.parse().ok())
             .ok_or_else(|| AppError::Unavailable("tracker_reader_not_configured".into()))?;
         let rows = sqlx::query("SELECT w.presentation,w.observed_at::text AS observed_at,(w.observed_at<now()-interval '5 minutes' OR NOT coalesce((SELECT available FROM wiki_workspace_catalog_sync),false)) AS stale,b.command AS wiki_command,s.id AS space_id,s.key AS space_key,(u.global_role='admin' OR sm.role IN ('admin','editor','viewer')) AS allowed FROM wiki_workspace_projects w JOIN users u ON u.id=$1 AND u.is_active LEFT JOIN wiki_namespace_bindings b ON b.registry_instance_id=w.registry_instance_id AND b.namespace_id=w.namespace_id LEFT JOIN spaces s ON s.id=b.resource_id LEFT JOIN space_members sm ON sm.space_id=s.id AND sm.user_id=u.id WHERE w.present AND ($2::uuid IS NULL OR (w.registry_instance_id=$2 AND w.namespace_id=$3)) AND position($4 in lower(w.name||' '||w.project_key))>0 ORDER BY w.name,w.registry_instance_id,w.namespace_id LIMIT $5 OFFSET $6")
-            .bind(super::mapping::parse_uuid(&claims.user_id,"user")?).bind(namespace.map(|n|n.registry_instance_id)).bind(namespace.map(|n|n.namespace_id)).bind(search.trim().to_lowercase()).bind(limit).bind(offset).fetch_all(&self.pool).await.map_err(AppError::database)?;
+            .bind(super::mapping::parse_uuid(&claims.user_id,"user")?).bind(namespace.map(|n|n.registry_instance_id)).bind(namespace.map(|n|n.namespace_id)).bind(search.trim().to_lowercase()).bind(limit).bind(offset).fetch_all(&self.pool).await.map_err(database_error)?;
         let total = sqlx::query_scalar("SELECT count(*) FROM wiki_workspace_projects w WHERE w.present AND ($1::uuid IS NULL OR (w.registry_instance_id=$1 AND w.namespace_id=$2)) AND position($3 in lower(w.name||' '||w.project_key))>0")
-            .bind(namespace.map(|n|n.registry_instance_id)).bind(namespace.map(|n|n.namespace_id)).bind(search.trim().to_lowercase()).fetch_one(&self.pool).await.map_err(AppError::database)?;
+            .bind(namespace.map(|n|n.registry_instance_id)).bind(namespace.map(|n|n.namespace_id)).bind(search.trim().to_lowercase()).fetch_one(&self.pool).await.map_err(database_error)?;
         let mut projections = Vec::with_capacity(rows.len());
         for row in &rows {
             let item: ResourceContextSummary = serde_json::from_value(row.get("presentation"))
@@ -211,7 +215,7 @@ impl PostgresWikiBackend {
             .bind(space)
             .fetch_one(&self.pool)
             .await
-            .map_err(AppError::database)?;
+            .map_err(database_error)?;
         Ok(self
             .namespace_binding(space)
             .await?
@@ -227,7 +231,7 @@ impl PostgresWikiBackend {
         claims: &WikiClaims,
         id: Uuid,
     ) -> Result<Option<ResourceContextSummary>, AppError> {
-        let row=sqlx::query("SELECT d.space_id,s.key,s.name FROM documents d JOIN spaces s ON s.id=d.space_id WHERE d.id=$1").bind(id).fetch_optional(&self.pool).await.map_err(AppError::database)?.ok_or_else(||AppError::not_found("document",id))?;
+        let row=sqlx::query("SELECT d.space_id,s.key,s.name FROM documents d JOIN spaces s ON s.id=d.space_id WHERE d.id=$1").bind(id).fetch_optional(&self.pool).await.map_err(database_error)?.ok_or_else(||AppError::not_found("document",id))?;
         let space = row.get::<Uuid, _>("space_id");
         self.ensure_space_id_access(claims, space, app::wiki::WikiSpaceAccess::View)
             .await?;

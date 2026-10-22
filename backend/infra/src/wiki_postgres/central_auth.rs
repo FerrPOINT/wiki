@@ -45,5 +45,6 @@ pub fn claims_for(ctx: &pdlc_auth_core::AuthContext, wiki_user_id: String) -> Wi
         user_id: wiki_user_id,
         session_id: ctx.session_id.clone(),
         request_id: None,
+        admission: None,
     }
 }

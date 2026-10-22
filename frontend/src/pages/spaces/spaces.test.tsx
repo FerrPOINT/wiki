@@ -1,3 +1,4 @@
+import { chooseValue } from '../../test/choice'
 import {
   act,
   fireEvent,
@@ -337,7 +338,7 @@ describe('SpacesPage', () => {
     expect(refetchMembers).toHaveBeenCalled()
   })
 
-  it('keeps archived spaces read-only', () => {
+  it('keeps archived spaces read-only', async () => {
     setupSpaces({
       spaceList: [
         {
@@ -355,6 +356,8 @@ describe('SpacesPage', () => {
       ],
     })
 
+    expect(screen.queryByRole('button', { name: /База знаний Base/ })).toBeNull()
+    await chooseValue(screen.getByRole('combobox', { name: 'Статус пространства' }), 'archived')
     fireEvent.click(screen.getByRole('button', { name: /База знаний Base/ }))
     expect(screen.queryByLabelText('Название пространства')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Архивировать' })).not.toBeInTheDocument()
@@ -420,7 +423,8 @@ describe('SpacesPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
     expect(screen.getByText('Space 13')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Space 13/ }))
-    expect(useSpaceTree).toHaveBeenCalledTimes(1)
+    expect(useSpaceTree).toHaveBeenCalledWith('S13')
+    expect(useSpaceTree.mock.calls.every(([key]) => key === 'S13')).toBe(true)
     expect(useSpaceMembers).toHaveBeenCalledWith('S13', false)
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'Найти пространство' }), {

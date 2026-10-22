@@ -1607,6 +1607,7 @@ dependencies = [
  "chrono",
  "domain",
  "pdlc-auth-core",
+ "pdlc-shared",
  "reqwest",
  "serde",
  "serde_json",
@@ -2152,6 +2153,7 @@ dependencies = [
  "axum",
  "chrono",
  "jsonwebtoken",
+ "pdlc-shared",
  "reqwest",
  "serde",
  "serde_json",
@@ -4363,7 +4365,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

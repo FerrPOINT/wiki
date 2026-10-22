@@ -1,0 +1,130 @@
+# Проекция связей проектов и пространств
+
+Human admission использует общий confirm_many_read и сохраняет SDK source/token/owner clock в локальном WikiSpaceAdmission. Cache hit не создаёт новое окно. Read-only delegation к Tracker сокращает wire validity по оставшемуся фиксированному сроку; последняя неполная секунда закрывается. Product scopes, роли и проверка immutable identity сохраняются отдельно. Source qualification и installed/serving cohort остаются разными этапами.
+
+Статус: source-кандидат, не установлен. Tracker владеет связями; Wiki сохраняет
+подтверждённое представление без управления жизненным циклом проекта.
+
+`PUT /api/v2/projects/{tracker}/{project}/spaces/projection` принимает строгую
+`ProjectSpacesProjection` из общего SDK. Exact registered Tracker PAT с scope
+`wiki:write` проверяется до вызова порта. Browser admin, незарегистрированная
+машина и read-only PAT не дают этого полномочия. Настройки:
+`WIKI_NAMESPACE__TRACKER_INSTANCE_ID`, `WIKI_PROJECTS__TRACKER_SUBJECTS` и общий
+`WIKI_NAMESPACE__REGISTRY_INSTANCE_ID`. Проекция не является допуском пользователя.
+
+Исходный operation ID, command и readback сохраняются атомарно с current head.
+Один проект сериализуется; новая ревизия должна быть больше текущей. Exact replay
+возвращает исторический ACK без отката current head. Изменение payload под тем же
+ключом, неизвестное представление пространства, конфликт ID или неполная
+подтверждённая legacy-связь откатывают всю операцию.
+
+Legacy NamespaceRef — явное соответствие ID, не имя. До первого перевода нужно
+импортировать объединение прежних подтверждённых связей в канонический Tracker.
+Если старый набор Wiki не входит в первую команду, Wiki отказывает вместо удаления
+валидной связи. Прежние row ID, автор и время существующих связей сохраняются;
+публичные SpaceRef разрешаются в сохранённые локальные UUID.
+
+Метаданные связей можно подтвердить и для архивного пространства. Это не открывает
+запись документов, не меняет локальные роли и не удаляет содержимое при отвязке.
+После первого подтверждённого проекта старый независимый редактор связей закрыт.
+Обычное чтение проектных данных всё равно требует свежего канонического допуска;
+устаревшая проекция не даёт новых прав и не заменяет Tracker как владельца.
+
+Административный owner-v2 archive закрывает SQL-запись в принятом пространстве
+ещё до общей активации политики. Lock порядка admission/catalog сериализует
+переход владельца и архивирование с уже начатыми SQL-записями. Legacy receipt
+и checksum применённых миграций не переписываются.
+
+Native fixtures проверяют union import, исходные row ID/авторство, lost ACK,
+late old ACK, отказ частичного изменения, архивные связи и сохранность документов.
+Полный межсервисный HTTP/SSO, все consumer/query/writer/stream поверхности,
+заполненная миграция и IAB остаются обязательными отдельными gates.
+
+
+Legacy API коллекций после перехода владельца возвращает явный
+`project_catalog_v2_required`, включая период до общей активации admission.
+NamespaceRef не собирается из null/первого/default проекта. Обычные документы
+пространства по-прежнему читаются независимо от наличия проекта. V2 canonical
+read API описан ниже; соответствующий UI и полная cross-service qualification
+остаются открытыми gates.
+
+
+## Каноническое чтение коллекции
+
+`GET /api/v2/spaces/{space_key}/projects?limit=50&offset=0` возвращает новый
+SpaceProjectsV2 с публичным SpaceRef, прежним Wiki UUID/key, catalog revision,
+policy revision, исходной validity, total/has_more и ProjectRef контекстами.
+NamespaceRef ответ старого API не расширяется задним числом.
+
+Wiki сначала проверяет доступ пользователя именно к этому Space и его service
+read scope, затем строит original actor context из server-owned admission. Токен
+пользователя, email и global role не пересылаются. Переиспользуются existing
+`WIKI_NAMESPACE__TRACKER_URL`, `TRACKER_INSTANCE_ID`, `TRACKER_TOKEN_FILE` и HTTP
+pool. Отдельный реестр Tracker instance не создаётся. Получатель требует новую
+регистрацию context-reader до активации cohort.
+
+Коллекция запрашивается в Tracker по SpaceRef целиком с канонической пагинацией;
+список ProjectRef из отстающей проекции не используется. Новая связь не теряется
+из-за задержки projection ACK. Space без Project возвращает подтверждённый total0,
+не выбирает default Project и продолжает поддерживать Wiki. Hidden B не вызывает
+машинного lookup его коллекции. Expired/foreign-actor/mismatched response и
+недоступность Tracker закрывают этот составной read, без старого успешного кеша.
+Обычное чтение Wiki документов не требует выбора Project.
+
+## Чтение рабочих черновиков
+
+Общий read admission не открывает неопубликованный рабочий черновик любому
+читателю. Для него сохраняется подтверждённое локальное назначение редактора
+или администратора и проверяется актуальная роль. Отзыв назначения закрывает
+draft/document search даже при ещё действующем прежнем ceiling.
+
+Read-only PAT редактора сохраняет чтение его доступного черновика и поиск по
+draft-only документам, но не получает can_edit или право записи. Эти два решения
+не вычисляются одной проверкой service write scope. Обычный читатель продолжает
+получать только опубликованное содержимое; hidden Space не открывается через
+проект. Прежнее сокрытие рабочих черновиков архивного документа/пространства
+сохранено отдельно от чтения опубликованной истории.
+
+Native read fixture проверяет read-only редактора, соседнего обычного читателя,
+hidden Space и отзыв роли. Полная write/stream/consumer квалификация и установка
+cohort остаются отдельными незавершёнными gates.
+
+## Публикация в досье задач и фаз
+
+Detail и summary ports используют ту же подтверждённую возможность чтения
+черновиков, что обычный документ. Для читателя без неё неопубликованные документы
+исключаются SQL-запросом до title fallback, поиска, count и cursor pagination.
+Опубликованный документ с новой рабочей редакцией показывает title/status
+опубликованной ревизии, а не новые рабочие metadata. Полный document response
+использует ту же проекцию; прямой read draft-only документа возвращает not found.
+Документ/ревизии/связи не удаляются и не переписываются.
+
+Редактор с read PAT сохраняет чтение рабочих metadata/черновиков, но can_edit
+остаётся false. Текущее назначение роли и исходный подтверждённый ceiling проверяются
+раздельно; новый grant не повышает старый proof. Составные FK document/task/phase
+сохраняют принадлежность одному Wiki Space, включая прямые SQL записи. Их нельзя
+заменять выбором первого проекта из M:N.
+
+Evidence является самостоятельным материалом пространства: привязка к задаче/фазе
+или документу не делает его автоматически private draft. Это правило не расширяет
+допуск к другому Space и требует самостоятельной квалификации download/search.
+
+## Исходный срок составного HTTP-ответа
+
+Wiki сохраняет более короткую validity canonical Tracker результата в typed
+in-process response extension. Входящие response headers не являются proof.
+Внешний auth middleware сужает исходный wall/monotonic deadline; время после
+межсервисного await не запускает новый отсчёт. No-store применяется к защищённому
+ответу. Тело/download прекращается по original deadline даже при idle upstream,
+не ожидая следующего chunk. Это не новый grant и не расширение строгого DTO.
+
+## Identity kind владельцев
+
+Owner-v2 и Tracker projection принимают только зарегистрированный PAT с
+authoritative subject_role=service_account из свежего SDK подтверждения,
+без browser session и с exact wiki:write. role hint admin и human PAT в allowlist
+не являются машинным полномочием. Старые owner-v1 contracts этим не расширяются.
+
+Owner/admission proofs дополнительно ограничиваются исходным monotonic deadline
+VerifiedCentralToken. Clone, поздняя обработка и новый product clock не
+продлевают token ceiling; более поздний deadline может только сохранить прежний.

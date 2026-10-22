@@ -3,6 +3,7 @@ pub mod config;
 pub mod id;
 pub mod managed_links;
 pub mod wiki_contract;
+pub mod wiki_space_access;
 
 #[cfg(feature = "runtime")]
 pub use config::*;
@@ -25,3 +26,5 @@ pub type Timestamp = DateTime<FixedOffset>;
 pub fn now() -> Timestamp {
     Utc::now().into()
 }
+
+pub mod space_owner;

@@ -126,3 +126,22 @@ Dialog и Toaster/toast использовать из публичного @pdlc
 Брендинг применяется общим runtime; draft preview изолируется BrandingScope.
 Канонический контракт — Base docs/platform/DESIGN_SYSTEM.md и docs/BRANDING.md.
 UI/SDK/skills pins независимы; source-изменения не означают установку.
+
+## Единое пространство PDLC
+
+[Согласованный план](docs/plans/unified-spaces-20261019.md) вводит M:N и общий read admission. До полного
+совместимого cohort это цель, не установленное поведение. Строгие V1/V2 и
+applied migrations сохранять; ProjectRef/SpaceRef/V3 отдельны. Полный gate на
+интегрированной вехе, в ходе реализации scoped checks. Runtime не активировать
+по готовности одного продукта; не выбирать первый Project/Space неявно.
+
+Записи Wiki content/member используют existing SQLx begin_content_write и
+write_authorization::commit с immutable исходным proof. Предварительная роль
+до row wait не достаточна. Порядок locks и личный staged upload:
+[PROJECT_CONTENT_AUTHORIZATION_V2](docs/PROJECT_CONTENT_AUTHORIZATION_V2.md).
+Owner lifecycle/Tracker projection/maintenance имеют отдельные узкие ports;
+не переносить их полномочия в обычный human запрос.
+
+SQLx errors внутри wiki_postgres передавать через typed database_error: SQLSTATE
+должен сохраняться до выбора публичного AppError. Не добавлять авто-повтор
+записи при conflict. Правила кодов и private diagnostics — в документе выше.

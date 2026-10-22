@@ -1,3 +1,4 @@
+use super::database_error;
 use super::{PostgresWikiBackend, mapping::audit_entry_from_row};
 use app::wiki::{
     WikiAuditCommand, WikiAuditCursor, WikiAuditFilter, WikiAuditRepository,
@@ -56,7 +57,7 @@ impl WikiAuditRepository for PostgresWikiAuditRepository<'_> {
                 .build()
                 .fetch_all(&self.backend.pool)
                 .await
-                .map_err(shared::AppError::database)?;
+                .map_err(database_error)?;
             Ok(rows.iter().map(audit_entry_from_row).collect())
         })
     }
@@ -79,7 +80,7 @@ impl WikiAuditRepository for PostgresWikiAuditRepository<'_> {
             .bind(audit_request_id(self.request_id))
             .execute(&self.backend.pool)
             .await
-            .map_err(shared::AppError::database)?;
+            .map_err(database_error)?;
             Ok(())
         })
     }
@@ -140,7 +141,7 @@ impl PostgresWikiBackend {
         .bind(audit_request_id(request_id))
         .execute(&mut **tx)
         .await
-        .map_err(shared::AppError::database)?;
+        .map_err(database_error)?;
         Ok(())
     }
 }
