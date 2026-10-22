@@ -6977,12 +6977,34 @@ async fn wiki_postgres_space_project_migration_preserves_archived_history_and_re
             .await
             .unwrap();
     assert_eq!(count, 1);
-    full_migrations.run(&pool).await.unwrap();
-    let guarded_rollback = full_migrations.undo(&pool, 202610120001).await.unwrap_err();
+    let mut guarded_migrations = sqlx::migrate::Migrator::new(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../migrations"),
+    )
+    .await
+    .unwrap();
+    guarded_migrations.migrations = std::borrow::Cow::Owned(
+        full_migrations
+            .iter()
+            .filter(|m| m.version < 202610220002)
+            .cloned()
+            .collect(),
+    );
+    guarded_migrations.run(&pool).await.unwrap();
+    let guarded_rollback = guarded_migrations
+        .undo(&pool, 202610120001)
+        .await
+        .unwrap_err();
     assert!(
         guarded_rollback
             .to_string()
             .contains("unified_space_schema_requires_preserving_guarded_cohort_rollback")
+    );
+    full_migrations.run(&pool).await.unwrap();
+    let clock_rollback = full_migrations.undo(&pool, 202610120001).await.unwrap_err();
+    assert!(
+        clock_rollback
+            .to_string()
+            .contains("compatible_cohort_rollback_required")
     );
     let preserved: String =
         sqlx::query_scalar("SELECT content_checksum FROM document_revisions WHERE id=$1")
