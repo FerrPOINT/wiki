@@ -6,6 +6,7 @@ from __future__ import annotations
 import unittest
 import json
 import runpy
+import re
 import shlex
 from pathlib import Path
 
@@ -37,6 +38,64 @@ class CiContractChecksTest(unittest.TestCase):
 
 class BackendUnitBoundaryTests(unittest.TestCase):
     TEST_FILES = ("backend/domain/src/value_objects/tests.rs", "backend/domain/src/wiki/tests.rs")
+
+    @staticmethod
+    def stages(text):
+        """Follow FROM, COPY and RUN-bind edges of these literal recipes."""
+        result = {}
+        current = None
+        for line in re.sub(r"\\\r?\n", " ", text).splitlines():
+            if line.startswith("FROM "):
+                words = shlex.split(line)
+                current = words[-1] if len(words) == 4 and words[2].upper() == "AS" else "runtime"
+                if current in result:
+                    raise ValueError("Duplicate Docker stage")
+                result[current] = {"parent": words[1], "body": []}
+            elif current is not None:
+                result[current]["body"].append(line)
+        return result
+
+    @classmethod
+    def closure(cls, stages, target):
+        seen = set()
+        def visit(name):
+            if name in seen:
+                return
+            seen.add(name)
+            stage = stages[name]
+            dependencies = {stage["parent"]}
+            for line in stage["body"]:
+                if line.startswith(("COPY ", "RUN ")):
+                    dependencies.update(re.findall(r"(?:--from=|\bfrom=)([a-zA-Z0-9_-]+)", line))
+            for dependency in dependencies & stages.keys():
+                visit(dependency)
+        visit(target)
+        return seen
+
+    def test_unit_target_never_reaches_server_dependency_compilation(self):
+        for name in ("Dockerfile", "Dockerfile.umbrella"):
+            with self.subTest(recipe=name):
+                graph = self.stages((ROOT / "backend" / name).read_text(encoding="utf-8"))
+                reachable = self.closure(graph, "unit")
+                commands = "\n".join(line for stage in reachable for line in graph[stage]["body"])
+                self.assertNotIn("dependencies", reachable)
+                self.assertNotIn("cargo build", commands)
+                self.assertIn("cargo test --locked --release -p domain --lib --no-run", commands)
+                self.assertIn("cargo test --locked --release -p domain --lib &&", commands)
+                self.assertIn("sharing=locked", commands)
+
+    def test_runtime_keeps_server_dependencies_and_the_required_unit_barrier(self):
+        for name in ("Dockerfile", "Dockerfile.umbrella"):
+            with self.subTest(recipe=name):
+                graph = self.stages((ROOT / "backend" / name).read_text(encoding="utf-8"))
+                self.assertTrue({"unit", "dependencies", "builder"} <= self.closure(graph, "runtime"))
+                dependencies = "\n".join(graph["dependencies"]["body"])
+                self.assertIn("cargo build --locked --release --bin server", dependencies)
+                self.assertIn("cargo clean --release", dependencies)
+                builder = "\n".join(graph["builder"]["body"])
+                self.assertIn("from=unit,source=/tmp/rust-unit-check", builder)
+                self.assertIn('test "$(cat /tmp/rust-unit-check)" = passed', builder)
+                self.assertIn("cargo build --locked --release --bin server", builder)
 
     def test_both_recipes_keep_tests_in_unit_and_out_of_production(self):
         for name in ("Dockerfile", "Dockerfile.umbrella"):

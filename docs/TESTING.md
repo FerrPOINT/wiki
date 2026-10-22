@@ -6,6 +6,17 @@ integration/slow/full coverage и browser/live — вручную перед р�
 Прежняя полная матрица и тяжёлые команды этого документа сохранены как
 ручные release checks; они не запускаются автоматически после каждой правки.
 
+Docker target `unit` в обеих backend recipes имеет отдельный dependency graph:
+`manifests → unit-dependencies → unit`. Он не наследует компиляцию server.
+Полная сборка расширяет тот же immutable слой до `dependencies`, а `builder`
+проверяет настоящий unit marker перед production compilation. Registry cache
+и общий RUN slot сохранены; writable compiled target между экспортами не добавлен.
+Source guards графа запускаются без Cargo:
+`check-workspace.ps1 -Profile Unit -Repository wiki -Component tooling` из root.
+Изменение recipes требует отдельной qualification нового tuple на финальной
+вехе; source tests не являются замером CPU/RAM, новым проходом 13 domain units
+или приёмкой готового image. Старый N4 proof остаётся историческим.
+
 ## 1. Principles
 
 ### Live Detail Geometry

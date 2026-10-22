@@ -1,5 +1,13 @@
 # Архитектура Wiki
 
+## Граница unit и server сборки
+
+Backend Docker recipes отделяют `manifests → unit-dependencies → unit` от
+дополнительной server dependency compilation. Полный builder наследует внешний
+dependency cache и требует unit proof; test source не входит в immutable
+preparation layer. Это build graph, без изменения runtime composition или SDK.
+Команды и граница qualification — [TESTING](TESTING.md).
+
 [Проектная навигация](plans/project-navigation.md) использует Base presentation и
 локальный полный снимок Tracker. Reader client и 60-секундное обновление имеют
 server lifecycle; частичный ответ не заменяет подтверждённый снимок.
