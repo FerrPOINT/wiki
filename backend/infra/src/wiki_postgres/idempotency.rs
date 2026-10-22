@@ -1,4 +1,5 @@
 use super::PostgresWikiBackend;
+use super::database_error;
 use super::mapping::parse_uuid;
 use shared::wiki_contract::{WikiIdempotencyReplay, WikiIdempotencyRequest, WikiIdempotencyStatus};
 use sqlx::Row;
@@ -34,7 +35,7 @@ impl PostgresWikiBackend {
         .bind(&request.request_hash)
         .fetch_optional(&self.pool)
         .await
-        .map_err(shared::AppError::database)?;
+        .map_err(database_error)?;
 
         if inserted.is_some() {
             return Ok(WikiIdempotencyStatus::Started);
@@ -52,7 +53,7 @@ impl PostgresWikiBackend {
         .bind(&request.key)
         .fetch_optional(&self.pool)
         .await
-        .map_err(shared::AppError::database)?
+        .map_err(database_error)?
         .ok_or_else(|| {
             shared::AppError::internal("idempotency record disappeared during lookup")
         })?;
@@ -78,16 +79,16 @@ impl PostgresWikiBackend {
 
         let status_code = row
             .try_get::<Option<i32>, _>("response_status")
-            .map_err(shared::AppError::database)?
+            .map_err(database_error)?
             .ok_or_else(|| {
                 shared::AppError::internal("completed idempotency record has no status")
             })?;
         let content_type = row
             .try_get::<Option<String>, _>("response_content_type")
-            .map_err(shared::AppError::database)?;
+            .map_err(database_error)?;
         let body = row
             .try_get::<Option<Vec<u8>>, _>("response_body")
-            .map_err(shared::AppError::database)?
+            .map_err(database_error)?
             .ok_or_else(|| {
                 shared::AppError::internal("completed idempotency record has no body")
             })?;
@@ -131,7 +132,7 @@ impl PostgresWikiBackend {
         .bind(&replay.body)
         .execute(&self.pool)
         .await
-        .map_err(shared::AppError::database)?
+        .map_err(database_error)?
         .rows_affected();
 
         if rows == 0 {
@@ -166,7 +167,7 @@ impl PostgresWikiBackend {
         .bind(&request.request_hash)
         .execute(&self.pool)
         .await
-        .map_err(shared::AppError::database)?;
+        .map_err(database_error)?;
         Ok(())
     }
 
@@ -174,7 +175,7 @@ impl PostgresWikiBackend {
         let rows = sqlx::query("DELETE FROM idempotency_records WHERE expires_at < now()")
             .execute(&self.pool)
             .await
-            .map_err(shared::AppError::database)?
+            .map_err(database_error)?
             .rows_affected();
         Ok(rows)
     }

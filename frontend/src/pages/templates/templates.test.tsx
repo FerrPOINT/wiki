@@ -22,6 +22,15 @@ function RouterState() {
   )
 }
 
+const ownerAccess = vi.hoisted(() => ({ admin: true }))
+vi.mock('@pdlc/ui/auth', async (original) => ({
+  ...(await original<typeof import('@pdlc/ui/auth')>()),
+  useApplicationAccess: () => ({
+    permits: (_apps: readonly string[], administrative = false) =>
+      !administrative || ownerAccess.admin,
+  }),
+}))
+
 const useCreateTemplate = vi.hoisted(() => vi.fn())
 const useCurrentUser = vi.hoisted(() => vi.fn())
 const useTemplates = vi.hoisted(() => vi.fn())
@@ -38,16 +47,19 @@ vi.mock('@/shared/api/hooks', () => ({
 }))
 
 function setupTemplates({
+  role = 'admin',
   createOverrides = {},
   currentUserOverrides = {},
   initialEntry = '/templates',
   templatesOverrides = {},
 }: {
+  role?: 'user' | 'admin' | null
   createOverrides?: Record<string, unknown>
   currentUserOverrides?: Record<string, unknown>
   initialEntry?: string
   templatesOverrides?: Record<string, unknown>
 } = {}) {
+  ownerAccess.admin = role === 'admin'
   useCurrentUser.mockReturnValue({
     data: { is_system_admin: true },
     isLoading: false,
@@ -193,7 +205,7 @@ describe('TemplatesPage', () => {
   })
 
   it('keeps template use available but hides creation for a viewer', () => {
-    setupTemplates({ currentUserOverrides: { data: { is_system_admin: false } } })
+    setupTemplates({ role: 'user', currentUserOverrides: { data: { is_system_admin: true } } })
 
     expect(screen.queryByRole('button', { name: 'Новый шаблон' })).not.toBeInTheDocument()
     expect(screen.queryByRole('form', { name: 'Создание шаблона' })).not.toBeInTheDocument()
@@ -201,8 +213,9 @@ describe('TemplatesPage', () => {
     expect(screen.getByRole('link', { name: 'Создать документ' })).toBeInTheDocument()
   })
 
-  it('shows a retry when checking the current user fails without hiding the template list', () => {
+  it('does not infer administration from an unavailable product profile', () => {
     setupTemplates({
+      role: null,
       currentUserOverrides: {
         data: undefined,
         isError: true,
@@ -211,10 +224,8 @@ describe('TemplatesPage', () => {
     })
 
     expect(screen.queryByRole('button', { name: 'Новый шаблон' })).not.toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent('Не удалось проверить права')
     expect(screen.getByRole('link', { name: 'Использовать шаблон Требования' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }))
-    expect(currentUserRefetch).toHaveBeenCalledTimes(1)
+    expect(currentUserRefetch).not.toHaveBeenCalled()
   })
 
   it('confirms creation even when the current search excludes the new template', () => {
@@ -437,4 +448,9 @@ describe('TemplatesPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Повторить' }))
     expect(templatesRefetch).toHaveBeenCalled()
   })
+})
+
+it('allows a current central admin even when the historical product flag is false', () => {
+  setupTemplates({ role: 'admin', currentUserOverrides: { data: { is_system_admin: false } } })
+  expect(screen.getByRole('button', { name: 'Новый шаблон' })).toBeInTheDocument()
 })

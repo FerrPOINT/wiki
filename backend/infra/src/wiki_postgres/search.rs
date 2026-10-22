@@ -1,3 +1,4 @@
+use super::database_error;
 use super::{
     PostgresWikiBackend,
     mapping::search_result_from_row,
@@ -12,6 +13,8 @@ use uuid::Uuid;
 
 struct PostgresWikiSearchRepository<'a> {
     pool: &'a sqlx::PgPool,
+    admission: Option<std::sync::Arc<shared::wiki_space_access::WikiSpaceAdmission>>,
+    editable_spaces: Option<Vec<Uuid>>,
 }
 
 impl WikiSearchRepository for PostgresWikiSearchRepository<'_> {
@@ -43,9 +46,19 @@ impl WikiSearchRepository for PostgresWikiSearchRepository<'_> {
                         .map(|cursor| cursor.result_type.as_str()),
                 )
                 .bind(criteria.limit + 1)
+                .bind(
+                    self.admission
+                        .as_ref()
+                        .map(|scope| scope.readable_ids())
+                        .transpose()?,
+                )
+                .bind(&self.editable_spaces)
                 .fetch_all(self.pool)
                 .await
-                .map_err(shared::AppError::database)?;
+                .map_err(database_error)?;
+            if let Some(scope) = self.admission.as_ref() {
+                scope.require_current()?;
+            }
             Ok(rows.iter().map(search_result_from_row).collect())
         })
     }
@@ -76,9 +89,18 @@ impl WikiSearchRepository for PostgresWikiSearchRepository<'_> {
                         .map(|cursor| cursor.result_type.as_str()),
                 )
                 .bind(criteria.limit + 1)
+                .bind(
+                    self.admission
+                        .as_ref()
+                        .map(|scope| scope.readable_ids())
+                        .transpose()?,
+                )
                 .fetch_all(self.pool)
                 .await
-                .map_err(shared::AppError::database)?;
+                .map_err(database_error)?;
+            if let Some(scope) = self.admission.as_ref() {
+                scope.require_current()?;
+            }
             Ok(rows.iter().map(search_result_from_row).collect())
         })
     }
@@ -96,7 +118,15 @@ impl PostgresWikiBackend {
                 .await?;
         }
         let access_user_id = self.restricted_user_id(claims).await?;
-        let repository = PostgresWikiSearchRepository { pool: &self.pool };
+        let admission = self.read_admission(Some(claims)).await?;
+        let editable_spaces = self
+            .draft_read_admitted_spaces(claims, admission.as_ref())
+            .await?;
+        let repository = PostgresWikiSearchRepository {
+            pool: &self.pool,
+            admission,
+            editable_spaces,
+        };
         WikiSearchUseCase::new(&repository)
             .execute(criteria, access_user_id)
             .await

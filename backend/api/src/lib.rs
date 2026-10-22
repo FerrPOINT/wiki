@@ -115,6 +115,10 @@ pub use routes::*;
 #[openapi(
     paths(
         routes::namespace::apply,
+        routes::namespace::apply_space_v2,
+        routes::namespace::apply_project_projection,
+        routes::space_projects::canonical_list,
+
         routes::space_projects::list,
         routes::space_projects::document_context,
         routes::space_projects::link,
@@ -139,6 +143,7 @@ pub use routes::*;
         routes::wiki::refresh,
         routes::wiki::logout,
         routes::wiki::get_current_user,
+        routes::wiki::human_admission_window,
         routes::wiki::get_settings,
         routes::wiki::list_users,
         routes::wiki::create_user,
@@ -184,6 +189,7 @@ pub use routes::*;
         routes::wiki::search
     ),
     components(schemas(
+        routes::wiki::HumanAdmissionWindowV1,
         shared::wiki_contract::WorkspaceProject,
         shared::wiki_contract::WorkspaceProjectPage,
         shared::wiki_contract::ProjectResourceStatus,
@@ -303,15 +309,17 @@ pub fn router_with_wiki(
         .finish()
         .expect("valid auth rate limit config");
 
-    let general_limiter = GovernorConfigBuilder::default()
-        .key_extractor(FallbackIpKeyExtractor)
-        .period(replenishment_period(
-            ctx.config.server.general_rate_period_secs,
-            ctx.config.server.general_rate_burst,
-        ))
-        .burst_size(ctx.config.server.general_rate_burst)
-        .finish()
-        .expect("valid general rate limit config");
+    let general_limiter = Arc::new(
+        GovernorConfigBuilder::default()
+            .key_extractor(FallbackIpKeyExtractor)
+            .period(replenishment_period(
+                ctx.config.server.general_rate_period_secs,
+                ctx.config.server.general_rate_burst,
+            ))
+            .burst_size(ctx.config.server.general_rate_burst)
+            .finish()
+            .expect("valid general rate limit config"),
+    );
 
     // Keep operational probes outside the general API rate bucket.
     let public = Router::<Arc<app::WikiAppContext>>::new()
@@ -333,6 +341,10 @@ pub fn router_with_wiki(
     };
 
     let protected = Router::<Arc<app::WikiAppContext>>::new()
+        .route(
+            "/space-admission",
+            get(routes::wiki::human_admission_window),
+        )
         .route(
             "/documents/{id}/space-context",
             get(routes::space_projects::document_context),
@@ -515,6 +527,35 @@ pub fn router_with_wiki(
         ))
         .layer(Extension(wiki_backend.clone()));
 
+    let canonical_project_routes = Router::new()
+        .route(
+            "/spaces/{space_key}/projects",
+            get(routes::space_projects::canonical_list),
+        )
+        .route_layer(from_fn_with_state(
+            wiki_backend.clone(),
+            routes::wiki::require_wiki_auth,
+        ))
+        .layer(Extension(wiki_backend.clone()));
+    let projection_routes = Router::new()
+        .route(
+            "/projects/{tracker}/{project}/spaces/projection",
+            axum::routing::put(routes::namespace::apply_project_projection),
+        )
+        .route_layer(axum::middleware::from_fn(
+            routes::namespace::project_projection_auth,
+        ))
+        .layer(Extension(wiki_backend.clone()));
+    let owner_v2_routes = Router::new()
+        .route(
+            "/spaces/{registry}/{space}/owner-state",
+            axum::routing::put(routes::namespace::apply_space_v2),
+        )
+        .route_layer(axum::middleware::from_fn(routes::namespace::owner_v2_auth))
+        .merge(projection_routes)
+        .merge(canonical_project_routes)
+        .layer(Extension(wiki_backend.clone()));
+
     // Health probes must stay available while the general API bucket is exhausted.
     let owner_routes = Router::new()
         .route(
@@ -551,6 +592,10 @@ pub fn router_with_wiki(
     let app = Router::<Arc<app::WikiAppContext>>::new()
         .route("/metrics", get(move || std::future::ready(handle.render())))
         .merge(public)
+        .nest(
+            "/api/v2",
+            owner_v2_routes.layer(GovernorLayer::new(general_limiter.clone())),
+        )
         .nest("/api/v1", api.layer(GovernorLayer::new(general_limiter)))
         .merge(SwaggerUi::new("/swagger-ui").url("/api/v1/openapi.json", ApiDoc::openapi()));
 

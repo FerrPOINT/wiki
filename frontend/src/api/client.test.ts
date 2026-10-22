@@ -167,3 +167,99 @@ describe('apiRequest error handling', () => {
     expect(assign).toHaveBeenCalledWith('/login')
   })
 })
+
+describe('response ownership across identity and permission generations', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    useAuthStore.getState().logout()
+  })
+  const login = (token: string) =>
+    useAuthStore.getState().setAuth({ token, userId: token, email: 'human@example.test' })
+  it('drops a late success from a previous account', async () => {
+    let reply!: (value: Response) => void
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            reply = resolve
+          }),
+      ),
+    )
+    login('old')
+    const request = apiRequest('/api/v1/spaces').catch((error) => error)
+    login('next')
+    reply(new Response(JSON.stringify({ private: 'old' })))
+    expect(await request).toMatchObject({ status: 403, code: 'AUTH_CONTEXT_CHANGED' })
+    expect(useAuthStore.getState().token).toBe('next')
+  })
+  it('does not log out the current account for an old 401', async () => {
+    let reply!: (value: Response) => void
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            reply = resolve
+          }),
+      ),
+    )
+    login('old')
+    const request = apiRequest('/api/v1/spaces').catch((error) => error)
+    login('next')
+    reply(new Response('{}', { status: 401 }))
+    await request
+    expect(useAuthStore.getState().token).toBe('next')
+  })
+  it('drops a body which finishes after the same account loses its permission generation', async () => {
+    let source!: ReadableStreamDefaultController<Uint8Array>
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                source = controller
+              },
+            }),
+          ),
+      ),
+    )
+    login('same')
+    const request = apiRequest('/api/v1/spaces').catch((error) => error)
+    await Promise.resolve()
+    useAuthStore.setState((state) => ({ authVersion: (state.authVersion ?? 0) + 1 }))
+    source.enqueue(new TextEncoder().encode('{"private":"old"}'))
+    source.close()
+    expect(await request).toMatchObject({ status: 403, code: 'AUTH_CONTEXT_CHANGED' })
+  })
+})
+
+it('does not deliver a late body after the shared application policy changes', async () => {
+  const { clearPlatformPrivateQueries } = await import('@pdlc/ui/platform')
+  useAuthStore
+    .getState()
+    .setAuth({ token: 'same-token', userId: 'owner', email: 'user@example.test' })
+  let source!: ReadableStreamDefaultController<Uint8Array>
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async () =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              source = controller
+            },
+          }),
+        ),
+    ),
+  )
+  const request = apiRequest('/api/v1/documents')
+  const rejection = expect(request).rejects.toMatchObject({ code: 'AUTH_CONTEXT_CHANGED' })
+  await Promise.resolve()
+  clearPlatformPrivateQueries()
+  source.enqueue(new TextEncoder().encode('{"private":"old"}'))
+  source.close()
+  await rejection
+})

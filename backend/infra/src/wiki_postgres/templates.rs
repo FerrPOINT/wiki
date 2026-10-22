@@ -1,3 +1,4 @@
+use super::database_error;
 use super::{PostgresWikiBackend, mapping::template_response_from_row};
 use app::wiki::{
     WikiCreateTemplateCommand, WikiTemplateRepository, WikiTemplateRepositoryFuture,
@@ -24,7 +25,7 @@ impl WikiTemplateRepository for PostgresWikiTemplateRepository<'_> {
             )
             .fetch_all(&self.backend.pool)
             .await
-            .map_err(shared::AppError::database)?;
+            .map_err(database_error)?;
             Ok(rows.iter().map(template_response_from_row).collect())
         })
     }
@@ -35,12 +36,8 @@ impl WikiTemplateRepository for PostgresWikiTemplateRepository<'_> {
         command: WikiCreateTemplateCommand,
     ) -> WikiTemplateRepositoryFuture<'_, TemplateResponse> {
         Box::pin(async move {
-            let mut tx = self
-                .backend
-                .pool
-                .begin()
-                .await
-                .map_err(shared::AppError::database)?;
+            let mut tx = self.backend.pool.begin().await.map_err(database_error)?;
+            super::write_authorization::bind_current_clock(&mut tx).await?;
             let id = Uuid::now_v7();
             let row = sqlx::query(
                 r#"
@@ -57,7 +54,7 @@ impl WikiTemplateRepository for PostgresWikiTemplateRepository<'_> {
             .bind(&command.body_markdown)
             .fetch_one(&mut *tx)
             .await
-            .map_err(shared::AppError::database)?;
+            .map_err(database_error)?;
             self.backend
                 .insert_audit(
                     &mut tx,
@@ -68,7 +65,7 @@ impl WikiTemplateRepository for PostgresWikiTemplateRepository<'_> {
                     self.request_id,
                 )
                 .await?;
-            tx.commit().await.map_err(shared::AppError::database)?;
+            tx.commit().await.map_err(database_error)?;
             Ok(template_response_from_row(&row))
         })
     }

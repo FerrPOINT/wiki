@@ -185,6 +185,7 @@ impl<'a, R: WikiAuthRepository + ?Sized> WikiAuthUseCase<'a, R> {
             user_id: user_id.to_string(),
             session_id: Some(session_id.to_string()),
             request_id: None,
+            admission: None,
         })
     }
 

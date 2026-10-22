@@ -1,4 +1,5 @@
 //! Namespace projection belongs to Wiki; it does not mirror Tracker tasks.
+use super::database_error;
 use super::{PostgresWikiBackend, mapping::parse_uuid};
 use shared::{AppError, resource_context::*};
 use sqlx::Row;
@@ -8,6 +9,7 @@ pub fn registered_machine(subject: &str) -> bool {
     [
         "WIKI_NAMESPACE__OWNER_SUBJECTS",
         "WIKI_NAMESPACE__READER_SUBJECTS",
+        "WIKI_PROJECTS__TRACKER_SUBJECTS",
     ]
     .iter()
     .any(|key| {
@@ -49,6 +51,11 @@ impl PostgresWikiBackend {
         limit: i64,
         offset: i64,
     ) -> Result<Vec<ResourceCatalogItem>, AppError> {
+        let scope = self.read_admission(Some(claims)).await?;
+        let visible = scope
+            .as_ref()
+            .map(|scope| scope.readable_ids())
+            .transpose()?;
         let instance = std::env::var("WIKI_NAMESPACE__INSTANCE_ID")
             .ok()
             .and_then(|value| value.parse::<Uuid>().ok())
@@ -66,7 +73,8 @@ impl PostgresWikiBackend {
               AND NOT EXISTS (
                   SELECT 1 FROM wiki_namespace_bindings b WHERE b.resource_id = s.id
               )
-              AND (u.global_role = 'admin' OR sm.role = 'admin')
+              AND ($5::boolean OR ($6::boolean AND sm.role = 'admin'))
+              AND ($4::uuid[] IS NULL OR s.id=ANY($4))
             ORDER BY s.key, s.id
             LIMIT $1 OFFSET $2
             "#,
@@ -74,9 +82,12 @@ impl PostgresWikiBackend {
         .bind(limit.clamp(1, 100))
         .bind(offset.max(0))
         .bind(user_id)
+        .bind(visible)
+        .bind(self.active_global_role(user_id).await? == "admin")
+        .bind(!super::central_mode())
         .fetch_all(&self.pool)
         .await
-        .map_err(AppError::database)?;
+        .map_err(database_error)?;
         let mut result = Vec::new();
         for row in rows {
             let id: Uuid = row.get("id");
@@ -89,6 +100,9 @@ impl PostgresWikiBackend {
                 label: row.get("name"),
                 resource_key: row.get("key"),
             });
+        }
+        if let Some(scope) = &scope {
+            scope.require_current()?;
         }
         Ok(result)
     }
@@ -105,7 +119,7 @@ impl PostgresWikiBackend {
             .next()
             .ok_or_else(|| AppError::not_found("namespace_binding", namespace.namespace_id))?;
         let id = resource.binding.resource.resource_id;
-        let row=sqlx::query("SELECT (SELECT count(*) FROM documents WHERE space_id=$1) AS documents,(SELECT count(*) FROM document_revisions r JOIN documents d ON d.id=r.document_id WHERE d.space_id=$1) AS revisions").bind(id).fetch_one(&self.pool).await.map_err(AppError::database)?;
+        let row=sqlx::query("SELECT (SELECT count(*) FROM documents WHERE space_id=$1) AS documents,(SELECT count(*) FROM document_revisions r JOIN documents d ON d.id=r.document_id WHERE d.space_id=$1) AS revisions").bind(id).fetch_one(&self.pool).await.map_err(database_error)?;
         Ok(ResourceStats {
             binding: resource.binding,
             counters: std::collections::BTreeMap::from([
@@ -121,6 +135,11 @@ impl PostgresWikiBackend {
         limit: i64,
         offset: i64,
     ) -> Result<Vec<ResourceContextSummary>, AppError> {
+        let scope = self.read_admission(Some(claims)).await?;
+        let visible = scope
+            .as_ref()
+            .map(|scope| scope.readable_ids())
+            .transpose()?;
         let user_id = parse_uuid(&claims.user_id, "user")?;
         let rows = sqlx::query(
             r#"
@@ -130,7 +149,7 @@ impl PostgresWikiBackend {
             JOIN users u ON u.id = $5 AND u.is_active = true
             LEFT JOIN space_members sm ON sm.space_id = s.id AND sm.user_id = u.id
             WHERE ($1::uuid IS NULL OR (b.registry_instance_id = $1 AND b.namespace_id = $2))
-              AND (u.global_role = 'admin' OR sm.role IN ('admin', 'editor', 'viewer'))
+              AND (($6::uuid[] IS NOT NULL AND s.id=ANY($6)) OR ($6::uuid[] IS NULL AND ($7::boolean OR sm.role IN ('admin', 'editor', 'viewer'))))
             ORDER BY s.name, s.id
             LIMIT $3 OFFSET $4
             "#,
@@ -140,9 +159,11 @@ impl PostgresWikiBackend {
         .bind(limit.clamp(1, 100))
         .bind(offset.max(0))
         .bind(user_id)
+        .bind(visible)
+        .bind(self.active_global_role(user_id).await? == "admin")
         .fetch_all(&self.pool)
         .await
-        .map_err(AppError::database)?;
+        .map_err(database_error)?;
         let mut result = Vec::new();
         for row in rows {
             let command: OwnerCommand = serde_json::from_value(row.get("command"))
@@ -153,6 +174,9 @@ impl PostgresWikiBackend {
                 label: row.get("name"),
                 resource_key: row.get("key"),
             });
+        }
+        if let Some(scope) = &scope {
+            scope.require_current()?;
         }
         Ok(result)
     }
@@ -165,13 +189,13 @@ impl PostgresWikiBackend {
                 .bind(space)
                 .fetch_optional(&self.pool)
                 .await
-                .map_err(AppError::database)?;
+                .map_err(database_error)?;
         if value.is_none()
             && sqlx::query_scalar::<_, bool>("SELECT namespace_managed FROM spaces WHERE id=$1")
                 .bind(space)
                 .fetch_optional(&self.pool)
                 .await
-                .map_err(AppError::database)?
+                .map_err(database_error)?
                 .unwrap_or(false)
         {
             return Err(AppError::Unavailable("namespace_projection_missing".into()));
@@ -189,6 +213,14 @@ impl PostgresWikiBackend {
         &self,
         command: &OwnerCommand,
     ) -> Result<OwnerReadback, AppError> {
+        if self.admission_active().await? {
+            return Err(AppError::conflict("space_owner_v2_required"));
+        }
+        let shared:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM wiki_space_catalog c JOIN wiki_space_owner_operations o USING(registry_instance_id,space_id) WHERE c.local_space_id=$1)")
+            .bind(command.resource.resource_id).fetch_one(&self.pool).await.map_err(database_error)?;
+        if shared {
+            return Err(AppError::conflict("space_owner_v2_required"));
+        }
         let instance = std::env::var("WIKI_NAMESPACE__INSTANCE_ID")
             .ok()
             .and_then(|v| v.parse().ok())
@@ -200,12 +232,13 @@ impl PostgresWikiBackend {
         if !command.valid_for(ResourceKind::WikiSpace, instance, registry) {
             return Err(AppError::invalid_input("invalid_namespace_owner_command"));
         }
-        let mut tx = self.pool.begin().await.map_err(AppError::database)?;
+        let mut tx = self.pool.begin().await.map_err(database_error)?;
+        super::write_authorization::bind_current_clock(&mut tx).await?;
         sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))")
             .bind(command.resource.resource_id.to_string())
             .execute(&mut *tx)
             .await
-            .map_err(AppError::database)?;
+            .map_err(database_error)?;
         let mut initial_binding = false;
         if let Some(row) = sqlx::query(
             "SELECT command FROM wiki_namespace_bindings WHERE resource_id=$1 FOR UPDATE",
@@ -213,7 +246,7 @@ impl PostgresWikiBackend {
         .bind(command.resource.resource_id)
         .fetch_optional(&mut *tx)
         .await
-        .map_err(AppError::database)?
+        .map_err(database_error)?
         {
             let old: OwnerCommand = serde_json::from_value(row.get("command"))
                 .map_err(|_| AppError::Unavailable("invalid_namespace_projection".into()))?;
@@ -221,7 +254,7 @@ impl PostgresWikiBackend {
                 return Err(AppError::conflict("namespace_binding_conflict"));
             }
             if command == &old {
-                tx.commit().await.map_err(AppError::database)?;
+                tx.commit().await.map_err(database_error)?;
                 return Ok(old.readback(true));
             }
         } else {
@@ -234,7 +267,7 @@ impl PostgresWikiBackend {
                     .bind(command.resource.resource_id)
                     .fetch_optional(&mut *tx)
                     .await
-                    .map_err(AppError::database)?;
+                    .map_err(database_error)?;
             if existing
                 .as_ref()
                 .is_some_and(|row| row.get::<bool, _>("namespace_managed"))
@@ -260,7 +293,7 @@ impl PostgresWikiBackend {
                     .bind(subject)
                     .fetch_optional(&mut *tx)
                     .await
-                    .map_err(AppError::database)?
+                    .map_err(database_error)?
                     .ok_or_else(|| AppError::conflict("responsible_wiki_profile_required"))?,
                     _ => return Err(AppError::invalid_input("one_resource_owner_required")),
                 };
@@ -270,7 +303,7 @@ impl PostgresWikiBackend {
                 .bind(owner_id)
                 .fetch_one(&mut *tx)
                 .await
-                .map_err(AppError::database)?;
+                .map_err(database_error)?;
                 if !active {
                     return Err(AppError::conflict(
                         "active_responsible_wiki_profile_required",
@@ -279,8 +312,8 @@ impl PostgresWikiBackend {
                 if spec.name.trim().is_empty() || spec.name.chars().count() > 200 {
                     return Err(AppError::invalid_input("invalid_space_name"));
                 }
-                sqlx::query("INSERT INTO spaces(id,key,name,description,owner_id,created_at,updated_at) VALUES($1,$2,$3,$4,$5,now(),now())").bind(command.resource.resource_id).bind(key).bind(spec.name).bind(spec.description.unwrap_or_default()).bind(owner_id).execute(&mut *tx).await.map_err(AppError::database)?;
-                sqlx::query("INSERT INTO space_members(space_id,user_id,role,joined_at) VALUES($1,$2,'admin',now())").bind(command.resource.resource_id).bind(owner_id).execute(&mut *tx).await.map_err(AppError::database)?;
+                sqlx::query("INSERT INTO spaces(id,key,name,description,owner_id,created_at,updated_at) VALUES($1,$2,$3,$4,$5,now(),now())").bind(command.resource.resource_id).bind(key).bind(spec.name).bind(spec.description.unwrap_or_default()).bind(owner_id).execute(&mut *tx).await.map_err(database_error)?;
+                sqlx::query("INSERT INTO space_members(space_id,user_id,role,joined_at) VALUES($1,$2,'admin',now())").bind(command.resource.resource_id).bind(owner_id).execute(&mut *tx).await.map_err(database_error)?;
             }
         }
         sqlx::query("INSERT INTO wiki_namespace_bindings(resource_id,registry_instance_id,namespace_id,generation,state,command) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(resource_id) DO UPDATE SET generation=EXCLUDED.generation,state=EXCLUDED.state,command=EXCLUDED.command")
@@ -291,9 +324,9 @@ impl PostgresWikiBackend {
             // association that a space administrator deliberately removed.
             sqlx::query("INSERT INTO wiki_space_projects(space_id,registry_instance_id,namespace_id) VALUES($1,$2,$3) ON CONFLICT DO NOTHING")
                 .bind(command.resource.resource_id).bind(command.namespace.registry_instance_id)
-                .bind(command.namespace.namespace_id).execute(&mut *tx).await.map_err(AppError::database)?;
+                .bind(command.namespace.namespace_id).execute(&mut *tx).await.map_err(database_error)?;
         }
-        tx.commit().await.map_err(AppError::database)?;
+        tx.commit().await.map_err(database_error)?;
         Ok(command.readback(true))
     }
 }
@@ -513,11 +546,23 @@ pub(in crate::wiki_postgres) mod namespace_postgres_tests {
         let command = create_command(owner);
         let space = command.resource.resource_id;
         backend.apply_namespace(&command).await.unwrap();
-        sqlx::query("DELETE FROM wiki_namespace_bindings WHERE resource_id=$1")
+        let deletion = sqlx::query("DELETE FROM wiki_namespace_bindings WHERE resource_id=$1")
             .bind(space)
             .execute(&backend.pool)
             .await
-            .unwrap();
+            .unwrap_err();
+        assert_eq!(
+            deletion.as_database_error().unwrap().code().as_deref(),
+            Some("42501")
+        );
+        assert!(backend.namespace_binding(space).await.unwrap().is_some());
+        // Model retained historical loss directly. The guarded current schema
+        // must reject deletion of a valid projection even in this owned fixture.
+        let command = create_command(owner);
+        let space = command.resource.resource_id;
+        sqlx::query("INSERT INTO spaces(id,key,name,owner_id,namespace_managed) VALUES($1,$2,'Lost projection',$3,true)")
+            .bind(space).bind(format!("LOST{}", &space.simple().to_string()[..20]).to_ascii_uppercase())
+            .bind(owner).execute(&backend.pool).await.unwrap();
         assert!(matches!(
             backend.namespace_binding(space).await,
             Err(AppError::Unavailable(_))
@@ -544,6 +589,7 @@ pub(in crate::wiki_postgres) mod namespace_postgres_tests {
             user_id: owner.to_string(),
             session_id: None,
             request_id: None,
+            admission: None,
         };
         let resources = backend
             .namespace_available_resources(&claims, 100, 0)
@@ -614,6 +660,7 @@ pub(in crate::wiki_postgres) mod namespace_postgres_tests {
             user_id: reader.to_string(),
             session_id: None,
             request_id: None,
+            admission: None,
         };
         let first_page = backend
             .namespace_contexts(&claims, None, 2, 0)
@@ -678,6 +725,7 @@ pub(in crate::wiki_postgres) mod namespace_postgres_tests {
             user_id: reader.to_string(),
             session_id: None,
             request_id: None,
+            admission: None,
         };
         let resources = backend
             .namespace_available_resources(&claims, 2, 0)

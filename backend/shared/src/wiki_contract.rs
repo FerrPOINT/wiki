@@ -10,6 +10,17 @@ pub struct WikiClaims {
     pub user_id: String,
     pub session_id: Option<String>,
     pub request_id: Option<String>,
+    /// Attached only after central identity and owner admission verification; never request JSON.
+    pub admission: Option<std::sync::Arc<crate::wiki_space_access::WikiSpaceAdmission>>,
+}
+
+/// Verified profile data only; role/app authority stays in the request SDK context.
+#[derive(Clone, Debug)]
+pub struct WikiCentralProfile {
+    pub subject: String,
+    pub email: Option<String>,
+    pub display_name: Option<String>,
+    pub session_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -238,9 +249,46 @@ pub trait WikiBackendPort: Send + Sync {
             "namespace_owner_not_implemented".into(),
         ))
     }
+    async fn apply_space_owner_v2(
+        &self,
+        _command: &crate::space_owner::SpaceOwnerCommandV2,
+        _authority: &crate::space_owner::WikiSpaceOwnerAuthority,
+    ) -> Result<crate::space_owner::SpaceOwnerReadbackV2, AppError> {
+        Err(AppError::Unavailable(
+            "space_owner_v2_not_implemented".into(),
+        ))
+    }
+    async fn canonical_space_projects(
+        &self,
+        _claims: &WikiClaims,
+        _key: &str,
+        _limit: u32,
+        _offset: u32,
+    ) -> Result<SpaceProjectsV2, AppError> {
+        Err(AppError::Unavailable(
+            "canonical_project_context_not_supported".into(),
+        ))
+    }
+    async fn apply_project_spaces_projection(
+        &self,
+        _command: &pdlc_shared::project_spaces::ProjectSpacesProjection,
+        _authority: &pdlc_shared::space_lifecycle::SpaceOwnerAuthority,
+    ) -> Result<pdlc_shared::project_spaces::ProjectSpacesProjectionReadback, AppError> {
+        Err(AppError::Unavailable(
+            "project_projection_not_implemented".into(),
+        ))
+    }
     async fn readiness_check(&self) -> Result<(), AppError>;
     async fn run_maintenance(&self) -> Result<WikiMaintenanceReport, AppError> {
         Ok(WikiMaintenanceReport::default())
+    }
+    async fn resolve_central_profile(
+        &self,
+        _profile: WikiCentralProfile,
+    ) -> Result<WikiClaims, AppError> {
+        Err(AppError::Unavailable(
+            "central_profile_not_supported".into(),
+        ))
     }
     async fn authenticate_access_token(&self, token: &str) -> Result<WikiClaims, AppError>;
     async fn begin_idempotent_request(
@@ -641,6 +689,21 @@ pub struct SpaceProject {
 pub struct SpaceProjectsResponse {
     pub space: WorkspaceSpace,
     pub projects: Vec<SpaceProject>,
+}
+
+/// A Space collection is read at its canonical Tracker owner, not guessed from a projection.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SpaceProjectsV2 {
+    pub schema_version: u32,
+    pub space: pdlc_shared::space_access::SpaceRef,
+    pub wiki: WorkspaceSpace,
+    pub revision: i64,
+    pub policy_revision: i64,
+    pub validity: pdlc_shared::space_access::AdmissionValidity,
+    pub total: u64,
+    pub has_more: bool,
+    pub projects: Vec<pdlc_shared::project_spaces::ProjectSpaceReadContext>,
 }
 
 #[derive(Debug, Clone, Deserialize, ToSchema)]

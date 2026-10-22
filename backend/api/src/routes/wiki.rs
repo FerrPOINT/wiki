@@ -290,20 +290,82 @@ pub async fn require_wiki_auth(
         })
         .ok_or(shared::AppError::Unauthorized)?;
 
-    if pdlc_auth_core::is_personal_token(token) {
-        let central = infra::wiki_postgres::central_auth::try_central(token)
-            .await?
-            .ok_or(shared::AppError::Unauthorized)?;
-        if !central.allows_service("wiki", req.method().as_str()) {
+    let verified = match infra::wiki_postgres::central_auth::verified_for_request(token).await {
+        Ok(mut actor) => {
+            if actor.context.role.is_none() {
+                actor.context.role = actor.subject_role.clone();
+            }
+            Some(actor)
+        }
+        Err(
+            pdlc_auth_core::service_bridge::VerifiedBridgeError::NotConfigured
+            | pdlc_auth_core::service_bridge::VerifiedBridgeError::NotOurs,
+        ) if std::env::var_os("WIKI_AUTH__CENTRAL_JWKS_URI").is_none() => None,
+        Err(
+            pdlc_auth_core::service_bridge::VerifiedBridgeError::Unavailable
+            | pdlc_auth_core::service_bridge::VerifiedBridgeError::NotConfigured,
+        ) => {
+            return Err(shared::AppError::Unavailable(
+                "central_confirmation_unavailable".into(),
+            ));
+        }
+        Err(pdlc_auth_core::service_bridge::VerifiedBridgeError::Forbidden) => {
+            return Err(shared::AppError::Forbidden);
+        }
+        Err(_) => return Err(shared::AppError::Unauthorized),
+    };
+    if let Some(actor) = verified.as_ref() {
+        if actor.subject_role.as_deref() == Some("service_account")
+            || actor.context.role.as_deref() == Some("service_account")
+            || !actor.context.allows_service("wiki", req.method().as_str())
+        {
             return Err(shared::AppError::Forbidden);
         }
     }
-    let mut claims = backend.authenticate_access_token(token).await?;
+    let mut claims = match verified.as_ref() {
+        Some(actor) => {
+            infra::wiki_postgres::central_auth::with_verified_request(
+                actor.clone(),
+                backend.authenticate_access_token(token),
+            )
+            .await?
+        }
+        None => backend.authenticate_access_token(token).await?,
+    };
+    if claims
+        .admission
+        .as_ref()
+        .is_some_and(|scope| !scope.allows_method(req.method().as_str()))
+    {
+        return Err(shared::AppError::Forbidden);
+    }
     claims.request_id = request_id_from_headers(req.headers());
-
     let actor_id = claims.user_id.clone();
+    let scope = claims.admission.clone();
     req.extensions_mut().insert(claims);
-    run_idempotent_request(backend, actor_id, req, next).await
+    let work = run_idempotent_request(backend, actor_id.clone(), req, next);
+    let mut response = if let Some(actor) = verified {
+        let local_id = Uuid::parse_str(&actor_id).map_err(|_| shared::AppError::Unauthorized)?;
+        let response = tokio::time::timeout_at(
+            actor.lifetime.monotonic_deadline().into(),
+            pdlc_auth_core::human_request::with_human_request(
+                local_id,
+                &actor.context,
+                actor.application_access.clone(),
+                work,
+            ),
+        )
+        .await
+        .map_err(|_| shared::AppError::Forbidden)?
+        .map_err(|_| shared::AppError::Forbidden)??;
+        super::space_response::guard_identity(response, actor.lifetime)?
+    } else {
+        work.await?
+    };
+    if let Some(scope) = scope {
+        response = super::space_response::guard(response, scope)?;
+    }
+    Ok(response)
 }
 
 fn request_id_from_headers(headers: &HeaderMap) -> Option<String> {
@@ -337,8 +399,17 @@ async fn run_idempotent_request(
     let request_body = to_bytes(body, idempotency_request_body_limit(&backend))
         .await
         .map_err(|err| shared::AppError::invalid_input(err.to_string()))?;
-    let request_hash =
+    let mut request_hash =
         idempotency_request_hash(parts.headers.get(header::CONTENT_TYPE), &request_body).await?;
+    if let Some(scope) = parts
+        .extensions
+        .get::<WikiClaims>()
+        .and_then(|claims| claims.admission.as_ref())
+    {
+        let mut binding = scope.replay_binding()?;
+        binding.extend_from_slice(request_hash.as_bytes());
+        request_hash = checksum(&binding);
+    }
     let idempotency_request = WikiIdempotencyRequest {
         actor_id,
         key: idempotency_key,
@@ -750,6 +821,7 @@ impl WikiBackend {
             user_id,
             session_id: None,
             request_id: None,
+            admission: None,
         })
     }
 }
@@ -3706,4 +3778,50 @@ mod evidence_cursor_tests {
         assert_eq!(remaining.len(), 1);
         assert_eq!(remaining[0].id, lower_id);
     }
+}
+
+/// Display freshness only; every resource request still needs its own owner proof.
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct HumanAdmissionWindowV1 {
+    pub schema_version: u32,
+    pub enforced: bool,
+    pub remaining_millis: Option<u64>,
+    pub scope_revision: Option<String>,
+}
+#[utoipa::path(get,path="/api/v1/space-admission",tag="spaces",responses((status=200,body=HumanAdmissionWindowV1),(status=403),(status=503)),security(("bearer"=[])))]
+pub async fn human_admission_window(
+    Extension(claims): Extension<WikiClaims>,
+) -> Result<Response, shared::AppError> {
+    let Some(scope) = claims.admission.as_ref() else {
+        return Ok(display_window_response(HumanAdmissionWindowV1 {
+            schema_version: 1,
+            enforced: false,
+            remaining_millis: None,
+            scope_revision: None,
+        }));
+    };
+    let (_, deadline) = scope.response_deadline(i64::MAX)?;
+    let remaining = u64::try_from(
+        deadline
+            .checked_duration_since(Instant::now())
+            .ok_or(shared::AppError::Forbidden)?
+            .as_millis(),
+    )
+    .map_err(|_| shared::AppError::Forbidden)?;
+    if remaining == 0 || remaining > 60_000 {
+        return Err(shared::AppError::Forbidden);
+    }
+    let revision = checksum(&scope.replay_binding()?)
+        .trim_start_matches("sha256:")
+        .to_owned();
+    Ok(display_window_response(HumanAdmissionWindowV1 {
+        schema_version: 1,
+        enforced: true,
+        remaining_millis: Some(remaining),
+        scope_revision: Some(revision),
+    }))
+}
+
+fn display_window_response(window: HumanAdmissionWindowV1) -> Response {
+    ([(header::CACHE_CONTROL, "private, no-store")], Json(window)).into_response()
 }

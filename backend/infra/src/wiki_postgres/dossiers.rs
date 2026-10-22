@@ -1,3 +1,4 @@
+use super::database_error;
 use super::{
     PostgresWikiBackend, ensure_document_accepts_writes_tx,
     mapping::{document_summary_from_row, evidence_response_from_row, parse_uuid},
@@ -16,6 +17,7 @@ struct PostgresWikiDossierRepository<'a> {
     backend: &'a PostgresWikiBackend,
     request_id: Option<&'a str>,
     include_document_drafts: bool,
+    claims: &'a WikiClaims,
 }
 
 impl PostgresWikiDossierRepository<'_> {
@@ -32,7 +34,7 @@ impl PostgresWikiDossierRepository<'_> {
         .bind(task_key)
         .fetch_all(&self.backend.pool)
         .await
-        .map_err(shared::AppError::database)?;
+        .map_err(database_error)?;
         if task_rows.len() > 1 {
             return Err(shared::AppError::conflict(
                 "ambiguous_legacy_task_key_use_task_ref",
@@ -55,17 +57,21 @@ impl PostgresWikiDossierRepository<'_> {
         let task_id: Uuid = task_row.get("id");
         let document_rows = sqlx::query(
             r#"
-            SELECT d.id, d.slug, d.title, d.document_type, d.status, d.updated_at
+            SELECT d.id, d.slug, CASE WHEN $2::boolean THEN d.title ELSE cr.title END AS title,
+                   d.document_type, CASE WHEN $2::boolean THEN d.status ELSE 'published' END AS status, d.updated_at
             FROM document_task_links dtl
             JOIN documents d ON d.id = dtl.document_id
+            LEFT JOIN document_revisions cr ON cr.id = d.current_revision_id
             WHERE dtl.task_dossier_id = $1 AND d.archived_at IS NULL
+              AND ($2::boolean OR cr.id IS NOT NULL)
             ORDER BY d.updated_at DESC
             "#,
         )
         .bind(task_id)
+        .bind(self.include_document_drafts)
         .fetch_all(&self.backend.pool)
         .await
-        .map_err(shared::AppError::database)?;
+        .map_err(database_error)?;
         let documents: Vec<_> = document_rows
             .iter()
             .map(document_summary_from_row)
@@ -108,7 +114,7 @@ impl PostgresWikiDossierRepository<'_> {
         .bind(phase_key)
         .fetch_optional(&self.backend.pool)
         .await
-        .map_err(shared::AppError::database)?;
+        .map_err(database_error)?;
         let Some(phase_row) = phase_row else {
             return Ok(PhasePageResponse {
                 space_key: space_key.to_string(),
@@ -124,17 +130,21 @@ impl PostgresWikiDossierRepository<'_> {
         let phase_id: Uuid = phase_row.get("id");
         let document_rows = sqlx::query(
             r#"
-            SELECT d.id, d.slug, d.title, d.document_type, d.status, d.updated_at
+            SELECT d.id, d.slug, CASE WHEN $2::boolean THEN d.title ELSE cr.title END AS title,
+                   d.document_type, CASE WHEN $2::boolean THEN d.status ELSE 'published' END AS status, d.updated_at
             FROM document_phase_links dpl
             JOIN documents d ON d.id = dpl.document_id
+            LEFT JOIN document_revisions cr ON cr.id = d.current_revision_id
             WHERE dpl.phase_dossier_id = $1 AND d.archived_at IS NULL
+              AND ($2::boolean OR cr.id IS NOT NULL)
             ORDER BY d.updated_at DESC
             "#,
         )
         .bind(phase_id)
+        .bind(self.include_document_drafts)
         .fetch_all(&self.backend.pool)
         .await
-        .map_err(shared::AppError::database)?;
+        .map_err(database_error)?;
         let documents: Vec<_> = document_rows
             .iter()
             .map(document_summary_from_row)
@@ -163,7 +173,7 @@ impl PostgresWikiDossierRepository<'_> {
             .bind(phase_dossier_id)
             .fetch_all(&self.backend.pool)
             .await
-            .map_err(shared::AppError::database)?;
+            .map_err(database_error)?;
         Ok(rows.iter().map(evidence_response_from_row).collect())
     }
 }
@@ -186,7 +196,7 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
             .bind(space_id)
             .fetch_all(&self.backend.pool)
             .await
-            .map_err(shared::AppError::database)?;
+            .map_err(database_error)?;
 
             let mut tasks = Vec::with_capacity(rows.len());
             for row in rows {
@@ -220,9 +230,10 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
                                SELECT 1
                                FROM document_task_links dtl
                                JOIN documents d ON d.id = dtl.document_id
+                               LEFT JOIN document_revisions cr ON cr.id = d.current_revision_id
                                WHERE dtl.task_dossier_id = task_dossiers.id
-                                 AND d.archived_at IS NULL
-                                 AND strpos(lower(d.title), lower($4::text)) > 0
+                                 AND d.archived_at IS NULL AND ($5::boolean OR cr.id IS NOT NULL)
+                                 AND strpos(lower(CASE WHEN $5::boolean THEN d.title ELSE cr.title END), lower($4::text)) > 0
                            ))
                     ORDER BY task_key COLLATE "C"
                     LIMIT $3
@@ -237,24 +248,27 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
                                SELECT 1
                                FROM document_task_links dtl
                                JOIN documents d ON d.id = dtl.document_id
+                               LEFT JOIN document_revisions cr ON cr.id = d.current_revision_id
                                WHERE dtl.task_dossier_id = task_dossiers.id
-                                 AND d.archived_at IS NULL
-                                 AND strpos(lower(d.title), lower($4::text)) > 0
+                                 AND d.archived_at IS NULL AND ($5::boolean OR cr.id IS NOT NULL)
+                                 AND strpos(lower(CASE WHEN $5::boolean THEN d.title ELSE cr.title END), lower($4::text)) > 0
                            ))
                 )
                 SELECT total.total, page.task_key,
                        COALESCE(page.title_snapshot, (
-                           SELECT d.title
+                           SELECT CASE WHEN $5::boolean THEN d.title ELSE cr.title END
                            FROM document_task_links dtl
                            JOIN documents d ON d.id = dtl.document_id
-                           WHERE dtl.task_dossier_id = page.id AND d.archived_at IS NULL
+                               LEFT JOIN document_revisions cr ON cr.id = d.current_revision_id
+                           WHERE dtl.task_dossier_id = page.id AND d.archived_at IS NULL AND ($5::boolean OR cr.id IS NOT NULL)
                            ORDER BY d.updated_at DESC, d.id DESC
                            LIMIT 1
                        )) AS title,
                        (SELECT count(*)
                         FROM document_task_links dtl
                         JOIN documents d ON d.id = dtl.document_id
-                        WHERE dtl.task_dossier_id = page.id AND d.archived_at IS NULL) AS document_count,
+                               LEFT JOIN document_revisions cr ON cr.id = d.current_revision_id
+                        WHERE dtl.task_dossier_id = page.id AND d.archived_at IS NULL AND ($5::boolean OR cr.id IS NOT NULL)) AS document_count,
                        (SELECT count(*) FROM evidence_items e
                         WHERE e.task_dossier_id = page.id) AS evidence_count
                 FROM total LEFT JOIN page ON true
@@ -265,9 +279,10 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
             .bind(cursor)
             .bind(i64::try_from(limit).map_err(|_| shared::AppError::invalid_input("invalid limit"))?)
             .bind(q)
+            .bind(self.include_document_drafts)
             .fetch_all(&self.backend.pool)
             .await
-            .map_err(shared::AppError::database)?;
+            .map_err(database_error)?;
 
             let total = usize::try_from(rows[0].get::<i64, _>("total"))
                 .map_err(|_| shared::AppError::internal("invalid task summary total"))?;
@@ -307,10 +322,13 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
         Box::pin(async move {
             let mut tx = self
                 .backend
-                .pool
-                .begin()
-                .await
-                .map_err(shared::AppError::database)?;
+                .begin_content_write(
+                    actor_id,
+                    self.claims.admission.as_ref(),
+                    &[command.space_id],
+                    SpaceAccess::Edit,
+                )
+                .await?;
             ensure_document_accepts_writes_tx(&mut tx, command.document_id).await?;
             let task_id = self
                 .backend
@@ -330,7 +348,7 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
             .bind(actor_id)
             .execute(&mut *tx)
             .await
-            .map_err(shared::AppError::database)?;
+            .map_err(database_error)?;
             self.backend
                 .insert_audit(
                     &mut tx,
@@ -341,7 +359,7 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
                     self.request_id,
                 )
                 .await?;
-            tx.commit().await.map_err(shared::AppError::database)?;
+            super::write_authorization::commit(tx, self.claims.admission.as_ref()).await?;
 
             self.task_page(command.space_id, &command.space_key, &command.task_key)
                 .await
@@ -402,7 +420,7 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
             .bind(space_id)
             .fetch_all(&self.backend.pool)
             .await
-            .map_err(shared::AppError::database)?;
+            .map_err(database_error)?;
 
             let mut phases = Vec::with_capacity(rows.len());
             for row in rows {
@@ -436,9 +454,10 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
                                SELECT 1
                                FROM document_phase_links dpl
                                JOIN documents d ON d.id = dpl.document_id
+                               LEFT JOIN document_revisions cr ON cr.id = d.current_revision_id
                                WHERE dpl.phase_dossier_id = phase_dossiers.id
-                                 AND d.archived_at IS NULL
-                                 AND strpos(lower(d.title), lower($4::text)) > 0
+                                 AND d.archived_at IS NULL AND ($5::boolean OR cr.id IS NOT NULL)
+                                 AND strpos(lower(CASE WHEN $5::boolean THEN d.title ELSE cr.title END), lower($4::text)) > 0
                            ))
                     ORDER BY phase_key COLLATE "C"
                     LIMIT $3
@@ -453,9 +472,10 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
                                SELECT 1
                                FROM document_phase_links dpl
                                JOIN documents d ON d.id = dpl.document_id
+                               LEFT JOIN document_revisions cr ON cr.id = d.current_revision_id
                                WHERE dpl.phase_dossier_id = phase_dossiers.id
-                                 AND d.archived_at IS NULL
-                                 AND strpos(lower(d.title), lower($4::text)) > 0
+                                 AND d.archived_at IS NULL AND ($5::boolean OR cr.id IS NOT NULL)
+                                 AND strpos(lower(CASE WHEN $5::boolean THEN d.title ELSE cr.title END), lower($4::text)) > 0
                            ))
                 )
                 SELECT total.total, page.phase_key,
@@ -463,7 +483,8 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
                        (SELECT count(*)
                         FROM document_phase_links dpl
                         JOIN documents d ON d.id = dpl.document_id
-                        WHERE dpl.phase_dossier_id = page.id AND d.archived_at IS NULL) AS document_count,
+                               LEFT JOIN document_revisions cr ON cr.id = d.current_revision_id
+                        WHERE dpl.phase_dossier_id = page.id AND d.archived_at IS NULL AND ($5::boolean OR cr.id IS NOT NULL)) AS document_count,
                        (SELECT count(*) FROM evidence_items e
                         WHERE e.phase_dossier_id = page.id) AS evidence_count
                 FROM total LEFT JOIN page ON true
@@ -474,9 +495,10 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
             .bind(cursor)
             .bind(i64::try_from(limit).map_err(|_| shared::AppError::invalid_input("invalid limit"))?)
             .bind(q)
+            .bind(self.include_document_drafts)
             .fetch_all(&self.backend.pool)
             .await
-            .map_err(shared::AppError::database)?;
+            .map_err(database_error)?;
 
             let total = usize::try_from(rows[0].get::<i64, _>("total"))
                 .map_err(|_| shared::AppError::internal("invalid phase summary total"))?;
@@ -516,10 +538,13 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
         Box::pin(async move {
             let mut tx = self
                 .backend
-                .pool
-                .begin()
-                .await
-                .map_err(shared::AppError::database)?;
+                .begin_content_write(
+                    actor_id,
+                    self.claims.admission.as_ref(),
+                    &[command.space_id],
+                    SpaceAccess::Edit,
+                )
+                .await?;
             ensure_document_accepts_writes_tx(&mut tx, command.document_id).await?;
             let phase_id = self
                 .backend
@@ -539,7 +564,7 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
             .bind(actor_id)
             .execute(&mut *tx)
             .await
-            .map_err(shared::AppError::database)?;
+            .map_err(database_error)?;
             self.backend
                 .insert_audit(
                     &mut tx,
@@ -550,7 +575,7 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
                     self.request_id,
                 )
                 .await?;
-            tx.commit().await.map_err(shared::AppError::database)?;
+            super::write_authorization::commit(tx, self.claims.admission.as_ref()).await?;
 
             self.phase_page(command.space_id, &command.space_key, &command.phase_key)
                 .await
@@ -607,8 +632,9 @@ impl PostgresWikiBackend {
             .await?;
         let repository = PostgresWikiDossierRepository {
             backend: self,
+            claims,
             request_id: None,
-            include_document_drafts: false,
+            include_document_drafts: self.may_read_document_drafts(claims, space_id).await?,
         };
         WikiDossierUseCase::new(&repository)
             .list_tasks(space_id, &key)
@@ -627,8 +653,9 @@ impl PostgresWikiBackend {
             .await?;
         let repository = PostgresWikiDossierRepository {
             backend: self,
+            claims,
             request_id: None,
-            include_document_drafts: false,
+            include_document_drafts: self.may_read_document_drafts(claims, space_id).await?,
         };
         WikiDossierUseCase::new(&repository)
             .list_task_summaries(space_id, &key, query)
@@ -647,8 +674,9 @@ impl PostgresWikiBackend {
             .await?;
         let repository = PostgresWikiDossierRepository {
             backend: self,
+            claims,
             request_id: None,
-            include_document_drafts: false,
+            include_document_drafts: self.may_read_document_drafts(claims, space_id).await?,
         };
         WikiDossierUseCase::new(&repository)
             .get_task(space_id, &key, task_key)
@@ -676,6 +704,7 @@ impl PostgresWikiBackend {
 
         let repository = PostgresWikiDossierRepository {
             backend: self,
+            claims,
             request_id: claims.request_id.as_deref(),
             include_document_drafts: true,
         };
@@ -696,15 +725,21 @@ impl PostgresWikiBackend {
             .await?;
         let repository = PostgresWikiDossierRepository {
             backend: self,
+            claims,
             request_id: None,
-            include_document_drafts: self
-                .ensure_space_id_access(claims, space_id, SpaceAccess::Edit)
-                .await
-                .is_ok(),
+            include_document_drafts: self.may_read_document_drafts(claims, space_id).await?,
         };
-        WikiDossierUseCase::new(&repository)
-            .list_task_documents(space_id, &key, task_key)
+        let can_edit = self
+            .ensure_space_id_access(claims, space_id, SpaceAccess::Edit)
             .await
+            .is_ok();
+        let mut response = WikiDossierUseCase::new(&repository)
+            .list_task_documents(space_id, &key, task_key)
+            .await?;
+        for document in &mut response.documents {
+            document.can_edit &= can_edit;
+        }
+        Ok(response)
     }
 
     pub(super) async fn list_task_evidence(
@@ -719,8 +754,9 @@ impl PostgresWikiBackend {
             .await?;
         let repository = PostgresWikiDossierRepository {
             backend: self,
+            claims,
             request_id: None,
-            include_document_drafts: false,
+            include_document_drafts: self.may_read_document_drafts(claims, space_id).await?,
         };
         WikiDossierUseCase::new(&repository)
             .list_task_evidence(space_id, &key, task_key)
@@ -738,8 +774,9 @@ impl PostgresWikiBackend {
             .await?;
         let repository = PostgresWikiDossierRepository {
             backend: self,
+            claims,
             request_id: None,
-            include_document_drafts: false,
+            include_document_drafts: self.may_read_document_drafts(claims, space_id).await?,
         };
         WikiDossierUseCase::new(&repository)
             .list_phases(space_id, &key)
@@ -758,8 +795,9 @@ impl PostgresWikiBackend {
             .await?;
         let repository = PostgresWikiDossierRepository {
             backend: self,
+            claims,
             request_id: None,
-            include_document_drafts: false,
+            include_document_drafts: self.may_read_document_drafts(claims, space_id).await?,
         };
         WikiDossierUseCase::new(&repository)
             .list_phase_summaries(space_id, &key, query)
@@ -778,8 +816,9 @@ impl PostgresWikiBackend {
             .await?;
         let repository = PostgresWikiDossierRepository {
             backend: self,
+            claims,
             request_id: None,
-            include_document_drafts: false,
+            include_document_drafts: self.may_read_document_drafts(claims, space_id).await?,
         };
         WikiDossierUseCase::new(&repository)
             .get_phase(space_id, &key, phase_key)
@@ -807,6 +846,7 @@ impl PostgresWikiBackend {
 
         let repository = PostgresWikiDossierRepository {
             backend: self,
+            claims,
             request_id: claims.request_id.as_deref(),
             include_document_drafts: true,
         };
@@ -827,15 +867,21 @@ impl PostgresWikiBackend {
             .await?;
         let repository = PostgresWikiDossierRepository {
             backend: self,
+            claims,
             request_id: None,
-            include_document_drafts: self
-                .ensure_space_id_access(claims, space_id, SpaceAccess::Edit)
-                .await
-                .is_ok(),
+            include_document_drafts: self.may_read_document_drafts(claims, space_id).await?,
         };
-        WikiDossierUseCase::new(&repository)
-            .list_phase_documents(space_id, &key, phase_key)
+        let can_edit = self
+            .ensure_space_id_access(claims, space_id, SpaceAccess::Edit)
             .await
+            .is_ok();
+        let mut response = WikiDossierUseCase::new(&repository)
+            .list_phase_documents(space_id, &key, phase_key)
+            .await?;
+        for document in &mut response.documents {
+            document.can_edit &= can_edit;
+        }
+        Ok(response)
     }
 
     pub(super) async fn list_phase_evidence(
@@ -850,8 +896,9 @@ impl PostgresWikiBackend {
             .await?;
         let repository = PostgresWikiDossierRepository {
             backend: self,
+            claims,
             request_id: None,
-            include_document_drafts: false,
+            include_document_drafts: self.may_read_document_drafts(claims, space_id).await?,
         };
         WikiDossierUseCase::new(&repository)
             .list_phase_evidence(space_id, &key, phase_key)
@@ -878,7 +925,7 @@ impl PostgresWikiBackend {
         .bind(task_key)
         .fetch_one(&mut **tx)
         .await
-        .map_err(shared::AppError::database)?;
+        .map_err(database_error)?;
         Ok(row.get("id"))
     }
 
@@ -902,7 +949,7 @@ impl PostgresWikiBackend {
         .bind(phase_key)
         .fetch_one(&mut **tx)
         .await
-        .map_err(shared::AppError::database)?;
+        .map_err(database_error)?;
         Ok(row.get("id"))
     }
 }

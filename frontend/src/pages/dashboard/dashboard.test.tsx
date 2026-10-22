@@ -1,4 +1,4 @@
-import { chooseValue, findChoiceOption } from '../../test/choice'
+import { chooseValue, findChoiceOption, choiceOptions } from '../../test/choice'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
@@ -36,6 +36,31 @@ function wrapper(children: React.ReactNode) {
 }
 
 describe('DashboardPage', () => {
+  it.each(['OLD-PROJECT', 'DIFFERENT-PROJECT'])(
+    'excludes archived space %s from overview selection and totals',
+    async (archivedKey) => {
+      listSpaces.mockResolvedValue({
+        spaces: [
+          { key: archivedKey, name: 'Same name', status: 'archived', document_count: 1000 },
+          { key: 'LIVE', name: 'Same name', status: 'active', document_count: 7 },
+        ],
+      })
+      searchWiki.mockResolvedValue({ results: [] })
+      listTaskSummaries.mockResolvedValue({ tasks: [], next_cursor: null, total: 0 })
+      listPhaseSummaries.mockResolvedValue({ phases: [], next_cursor: null, total: 0 })
+
+      render(wrapper(<DashboardPage />))
+      const field = screen.getByRole('combobox', { name: 'Пространство' })
+      expect((await findChoiceOption(field, 'Same name')).value).toBe('LIVE')
+      expect(await choiceOptions(field)).toHaveLength(1)
+      expect(field).toHaveAttribute('data-value', 'LIVE')
+      const stats = within(screen.getByRole('region', { name: 'Показатели Wiki' }))
+      expect(stats.getByText('7')).toBeInTheDocument()
+      expect(stats.queryByText('1007')).not.toBeInTheDocument()
+      expect(searchWiki).toHaveBeenCalledWith(expect.objectContaining({ space: 'LIVE' }))
+    },
+  )
+
   it('renders the wiki overview and API-backed document actions', async () => {
     listSpaces.mockResolvedValueOnce({
       spaces: [
