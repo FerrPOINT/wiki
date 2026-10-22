@@ -76,6 +76,7 @@ describe('authorization boundary', () => {
     expect(original.getQueryData(['transcript'])).toBeUndefined()
     expect(await screen.findByRole('textbox', { name: 'Private draft' })).toHaveValue('')
     expect(clients.size).toBe(2)
+    await waitFor(() => expect(readTranscript).toHaveBeenCalledTimes(2))
     await act(async () => resolve('Current transcript'))
     await screen.findByText('Current transcript')
   })

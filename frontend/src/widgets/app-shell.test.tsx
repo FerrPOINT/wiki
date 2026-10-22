@@ -1,3 +1,9 @@
+import { applicationAccessFixture } from '@/test/application-access'
+const accessActor = vi.hoisted(() => ({ role: 'user' as 'user' | 'admin', applications: ['wiki'] }))
+vi.mock('@pdlc/ui/auth', async (original) => ({
+  ...(await original<object>()),
+  useApplicationAccess: () => applicationAccessFixture(accessActor),
+}))
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -16,11 +22,14 @@ vi.mock('@/shared/api/hooks', () => ({
 
 function mockHooks({
   isSystemAdmin = true,
+  centralRole = 'user',
   logoutMutate = vi.fn(),
 }: {
   isSystemAdmin?: boolean
+  centralRole?: 'user' | 'admin'
   logoutMutate?: ReturnType<typeof vi.fn>
 } = {}) {
+  accessActor.role = centralRole
   vi.stubGlobal(
     'matchMedia',
     vi.fn(() => ({
@@ -55,8 +64,8 @@ function renderShell(initialPath = '/') {
 }
 
 describe('AppShell', () => {
-  it('shows only MVP navigation routes for a system admin', () => {
-    mockHooks({ isSystemAdmin: true })
+  it('uses the current central administrator independently of the historical user flag', () => {
+    mockHooks({ isSystemAdmin: false, centralRole: 'admin' })
 
     renderShell()
 
@@ -78,16 +87,19 @@ describe('AppShell', () => {
     )
   })
 
-  it('hides admin navigation for regular users', () => {
-    mockHooks({ isSystemAdmin: false })
+  it.each([false, true])(
+    'hides admin navigation for a user with historical flag %s',
+    (legacyAdmin) => {
+      mockHooks({ isSystemAdmin: legacyAdmin, centralRole: 'user' })
 
-    renderShell()
+      renderShell()
 
-    expect(screen.queryByRole('link', { name: /аудит/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /пользователи/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /настройки/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /администрирование/i })).not.toBeInTheDocument()
-  })
+      expect(screen.queryByRole('link', { name: /аудит/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: /пользователи/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: /настройки/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: /администрирование/i })).not.toBeInTheDocument()
+    },
+  )
 
   it('opens account menu and invokes logout', () => {
     const logoutMutate = vi.fn()
