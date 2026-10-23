@@ -471,16 +471,16 @@ export function SpacesPage() {
               ]}
             />
             {currentUserQuery.data && (
-              <label className="flex min-h-10 cursor-pointer items-center gap-2 whitespace-nowrap text-sm text-text-secondary">
-                <Checkbox
-                  checked={mineOnly}
-                  onCheckedChange={(checked) => {
-                    setMineOnly(checked === true)
-                    resetListPosition()
-                  }}
-                />
+              <Checkbox
+                className="whitespace-nowrap text-text-secondary"
+                checked={mineOnly}
+                onCheckedChange={(checked) => {
+                  setMineOnly(checked === true)
+                  resetListPosition()
+                }}
+              >
                 Только мои
-              </label>
+              </Checkbox>
             )}
           </div>
           <p className="text-xs text-text-muted">

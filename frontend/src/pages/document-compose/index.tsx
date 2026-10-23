@@ -348,8 +348,8 @@ export function DocumentComposePage() {
               <TabsContent value="preview">
                 <Card className="min-h-96">
                   <CardContent>
-                    <h2 className="text-xl font-semibold">{title}</h2>
-                    <Prose className="mt-4">
+                    <Prose>
+                      <h2>{title}</h2>
                       <Markdown
                         skipHtml
                         components={{
