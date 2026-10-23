@@ -1,5 +1,14 @@
 # Testing Strategy - Wiki
 
+Known Python helper tests (`test_build_pin`, `test_verify_readme`,
+`test_tooling_ownership`) select only `tooling:python-helpers` in Fast/Unit/Build.
+The existing CI-contract test keeps `tooling:build-contracts`; unknown scripts
+retain full product fallback. Root preview:
+`check-workspace.ps1 -Profile Unit -Repository wiki -Component tooling -PlanOnly`.
+Explicit tooling selects both lightweight gates. From Wiki, run helpers with
+`python -B -m unittest scripts.tests.test_build_pin scripts.tests.test_verify_readme scripts.tests.test_tooling_ownership -q`.
+See [source qualification](plans/python-tooling-test-selection-20261024.md).
+
 Актуальная политика 2026-10-15: unit/static запускаются при обычной сборке;
 integration/slow/full coverage и browser/live — вручную перед релизом.
 Команды быстрых уровней приведены в разделе «Тестовые уровни (2026-10-15)» ниже.
