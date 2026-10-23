@@ -209,7 +209,9 @@ describe('UsersPage', () => {
     }))
     setupUsers({ data: { users } })
 
-    expect(screen.getByRole('button', { name: 'Назад' })).toHaveClass('min-h-10', 'sm:min-h-10')
-    expect(screen.getByRole('button', { name: 'Далее' })).toHaveClass('min-h-10', 'sm:min-h-10')
+    expect(screen.getByRole('button', { name: 'Назад' })).toHaveClass('base-control', 'min-h-10')
+    expect(screen.getByRole('button', { name: 'Далее' })).toHaveClass('base-control', 'min-h-10')
+    expect(screen.getByRole('button', { name: 'Назад' })).not.toHaveClass('sm:min-h-10')
+    expect(screen.getByRole('button', { name: 'Далее' })).not.toHaveClass('sm:min-h-10')
   })
 })

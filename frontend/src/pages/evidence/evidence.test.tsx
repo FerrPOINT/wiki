@@ -156,7 +156,7 @@ describe('EvidencePage', () => {
     })
   })
 
-  it('keeps evidence controls at the platform target size', () => {
+  it('uses Base target sizing without product-specific control geometry', () => {
     setupEvidence()
 
     for (const label of [
@@ -166,7 +166,7 @@ describe('EvidencePage', () => {
       'Фильтр задачи',
       'Фильтр фазы',
     ]) {
-      expect(screen.getByLabelText(label)).toHaveClass('min-h-10')
+      expect(screen.getByLabelText(label)).toHaveClass('base-control')
     }
     for (const name of ['Добавить материал', 'Найти', 'Сбросить']) {
       expect(screen.getByRole('button', { name })).toHaveClass('min-h-10')
@@ -178,7 +178,8 @@ describe('EvidencePage', () => {
       expect(link).toHaveClass('min-h-10')
     }
     for (const button of screen.getAllByRole('button', { name: 'Открыть материал Лог сборки' })) {
-      expect(button).toHaveClass('h-10', 'w-10', 'shrink-0', 'sm:min-w-10')
+      expect(button).toHaveClass('base-icon-control', 'h-10', 'w-10', 'min-w-10', 'shrink-0')
+      expect(button).not.toHaveClass('sm:min-w-10')
     }
 
     openCreateForm()
@@ -190,7 +191,7 @@ describe('EvidencePage', () => {
       'Фаза',
       'URL материала',
     ]) {
-      expect(screen.getByLabelText(label)).toHaveClass('min-h-10')
+      expect(screen.getByLabelText(label)).toHaveClass('base-control')
     }
     for (const name of ['Ссылка', 'Файл', 'Сохранить материал']) {
       expect(screen.getByRole('button', { name })).toHaveClass('min-h-10')
