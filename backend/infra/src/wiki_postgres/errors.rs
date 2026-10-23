@@ -4,6 +4,18 @@ use shared::AppError;
 pub(super) fn database_error(error: sqlx::Error) -> AppError {
     match error
         .as_database_error()
+        .and_then(|value| value.constraint())
+    {
+        Some("wiki_identity_deletion_fenced") => {
+            return AppError::conflict("identity_deletion_fenced");
+        }
+        Some("wiki_identity_reference_unknown") => {
+            return AppError::Unavailable("identity_binding_unknown".into());
+        }
+        _ => (),
+    }
+    match error
+        .as_database_error()
         .and_then(|value| value.code())
         .as_deref()
     {

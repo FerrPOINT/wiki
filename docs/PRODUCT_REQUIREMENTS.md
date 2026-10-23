@@ -395,3 +395,11 @@ CLI requirements:
 Ссылка на конкретный Document/Revision UUID остаётся читаемой после отвязки:
 устаревший проектный контекст URL снимается, без выбора другого проекта или
 пространства. Доступ проверяется по самому документу и его пространству.
+
+
+## Безопасное удаление неиспользованной identity
+
+Wiki реализует private owner protocol через общий storage port; полный inventory,
+неизменяемая issuer/alias привязка, правила shared/exclusive lock и квалификация
+описаны в [Identity deletion](IDENTITY_DELETION.md). Наличие source не означает
+установленный или квалифицированный runtime. UI и прежний admission не меняются.
