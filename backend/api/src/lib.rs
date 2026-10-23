@@ -114,6 +114,9 @@ pub use routes::*;
 #[derive(OpenApi)]
 #[openapi(
     paths(
+        routes::identity_deletion::check,
+        routes::identity_deletion::freeze,
+        routes::identity_deletion::release,
         routes::namespace::apply,
         routes::namespace::apply_space_v2,
         routes::namespace::apply_project_projection,
@@ -557,6 +560,8 @@ pub fn router_with_wiki(
         .layer(Extension(wiki_backend.clone()));
 
     // Health probes must stay available while the general API bucket is exhausted.
+    let identity_deletion_routes =
+        routes::identity_deletion::router().layer(Extension(wiki_backend.clone()));
     let owner_routes = Router::new()
         .route(
             "/namespace-resources/wiki_space/{id}",
@@ -592,6 +597,7 @@ pub fn router_with_wiki(
     let app = Router::<Arc<app::WikiAppContext>>::new()
         .route("/metrics", get(move || std::future::ready(handle.render())))
         .merge(public)
+        .merge(identity_deletion_routes)
         .nest(
             "/api/v2",
             owner_v2_routes.layer(GovernorLayer::new(general_limiter.clone())),

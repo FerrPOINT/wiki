@@ -305,3 +305,11 @@ WikiClaims admission. It never grants a subsequent operation. The client anchors
 the remaining clock before I/O, closes retired generations and clears caches and
 forms on source/role changes. An unavailable renewal cannot extend the old clock.
 Activated storage still checks each resource's actual owning namespace.
+
+
+## Private identity lifecycle API
+
+Wiki реализует private owner protocol через общий storage port; полный inventory,
+неизменяемая issuer/alias привязка, правила shared/exclusive lock и квалификация
+описаны в [Identity deletion](IDENTITY_DELETION.md). Наличие source не означает
+установленный или квалифицированный runtime. UI и прежний admission не меняются.

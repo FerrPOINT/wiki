@@ -433,3 +433,11 @@ Source candidate создаёт global_role=user в JIT и directory sync. По�
 сохраняет role/is_active, обновляя только проверенное имя. Explicit admin rows
 не изменяются. Миграция unknown historical privileges и общий Space admission
 ещё требуют cohort QA; текущие SQL history/checksums не переписываются.
+
+
+## Durable identity fences и aliases
+
+Wiki реализует private owner protocol через общий storage port; полный inventory,
+неизменяемая issuer/alias привязка, правила shared/exclusive lock и квалификация
+описаны в [Identity deletion](IDENTITY_DELETION.md). Наличие source не означает
+установленный или квалифицированный runtime. UI и прежний admission не меняются.
