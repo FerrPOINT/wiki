@@ -170,3 +170,14 @@ Owner lifecycle/Tracker projection/maintenance имеют отдельные у�
 SQLx errors внутри wiki_postgres передавать через typed database_error: SQLSTATE
 должен сохраняться до выбора публичного AppError. Не добавлять авто-повтор
 записи при conflict. Правила кодов и private diagnostics — в документе выше.
+
+## Подписи и карточки вариантов выбора
+
+После проверки API в принятом UI pin используйте label или children Checkbox/Radio
+для обычной подписи, appearance="card" — для варианта с рамкой и описанием.
+Не копируйте label с border/rounded/padding и не оборачивайте такой выбор в
+Card asChild. Base владеет hit target, focus, checked/disabled и нативной формой;
+продукт — данными, правами и обработчиком. Внешняя grid/flex-компоновка допустима.
+SSR использует checkbox_control/radio_control с appearance='card'; отдельный
+click-handler или повторное input/change для оформления не нужен.
+Контракт и пример: Base docs/platform/CHOICE_CONTROLS.md, pdlc-ui example Checkbox --case cards.
