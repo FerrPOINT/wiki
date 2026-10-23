@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -155,6 +155,51 @@ describe('EvidencePage', () => {
       onSuccess: expect.any(Function),
     })
   })
+
+  it.each([
+    ['снимок.csv', 'снимок.csv'],
+    [null, 'build.log'],
+  ])(
+    'downloads the returned Blob with its server filename or metadata fallback (%s)',
+    async (fileName, expectedName) => {
+      const blob = new Blob(['fixture bytes'], { type: 'text/plain' })
+      const create = vi.fn(() => 'blob:wiki-evidence')
+      const revoke = vi.fn()
+      vi.stubGlobal(
+        'URL',
+        class extends URL {
+          static createObjectURL = create
+          static revokeObjectURL = revoke
+        },
+      )
+      const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+        this: HTMLAnchorElement,
+      ) {
+        expect(this.download).toBe(expectedName)
+        expect(this.href).toBe('blob:wiki-evidence')
+      })
+      try {
+        setupEvidence()
+        fireEvent.click(
+          within(screen.getByRole('table')).getByRole('button', {
+            name: 'Открыть материал Лог сборки',
+          }),
+        )
+        fireEvent.click(screen.getByRole('button', { name: 'Скачать Лог сборки' }))
+        expect(create).not.toHaveBeenCalled()
+        const onSuccess = downloadAttachmentMutate.mock.calls[0]?.[1].onSuccess
+        expect(onSuccess).toBeTypeOf('function')
+        onSuccess({ blob, fileName })
+        expect(create).toHaveBeenCalledExactlyOnceWith(blob)
+        expect(click).toHaveBeenCalledOnce()
+        expect(document.querySelector('a[download]')).toBeNull()
+        await waitFor(() => expect(revoke).toHaveBeenCalledExactlyOnceWith('blob:wiki-evidence'))
+      } finally {
+        click.mockRestore()
+        vi.unstubAllGlobals()
+      }
+    },
+  )
 
   it('uses Base target sizing without product-specific control geometry', () => {
     setupEvidence()

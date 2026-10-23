@@ -1,3 +1,4 @@
+import { downloadBlob } from '@pdlc/ui/lib'
 import { useProjectRouteRef } from '@/widgets/namespace-context'
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import {
@@ -51,7 +52,7 @@ import {
 import { formatApiErrorForUser, formatFirstApiErrorForUser } from '@/shared/lib/api-error'
 import { formatBytes, formatDateTime, formatEvidenceType } from '@/shared/lib/wiki-format'
 import { defaultSpaceKey, resolveSpaceKey } from '@/shared/lib/space-selection'
-import type { AttachmentDownload, Evidence } from '@/api/wiki'
+import type { Evidence } from '@/api/wiki'
 
 type EvidenceMode = 'external_url' | 'uploaded_file'
 const PAGE_SIZE = 20
@@ -60,15 +61,6 @@ const FILTER_KEYS = ['q', 'space', 'document_id', 'task_key', 'phase_key'] as co
 function optional(value: string) {
   const trimmed = value.trim()
   return trimmed.length > 0 ? trimmed : null
-}
-
-function browserDownload(download: AttachmentDownload, fallbackFileName: string) {
-  const href = URL.createObjectURL(download.blob)
-  const anchor = window.document.createElement('a')
-  anchor.href = href
-  anchor.download = download.fileName ?? fallbackFileName
-  anchor.click()
-  URL.revokeObjectURL(href)
 }
 
 function scopedDossierPath(path: string, spaceKey: string): string {
@@ -88,7 +80,7 @@ function AttachmentMetadata({ item }: { item: Evidence }) {
   function handleDownload() {
     if (!item.attachment_id) return
     downloadAttachment.mutate(item.attachment_id, {
-      onSuccess: (download) => browserDownload(download, fileName),
+      onSuccess: (download) => downloadBlob(download.blob, download.fileName ?? fileName),
     })
   }
 
