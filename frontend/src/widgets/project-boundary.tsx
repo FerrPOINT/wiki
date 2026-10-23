@@ -1,4 +1,4 @@
-import { Select } from '@pdlc/ui/ui'
+import { PageHeader, Select, ErrorState, Notice, LoadingState } from '@pdlc/ui/ui'
 import { useEffect, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { parseNamespaceLocation, withNamespaceLocation } from '@pdlc/ui/lib'
@@ -49,22 +49,28 @@ export function ProjectBoundary({ children }: { children: ReactNode }) {
   if (import.meta.env.VITE_NAMESPACE_ENABLED !== 'true') return children
   if (context.malformed || conflict)
     return (
-      <p role="alert">
-        Некорректный или противоречивый контекст проекта. Другое пространство не выбрано.
-      </p>
+      <ErrorState message="Некорректный или противоречивый контекст проекта. Другое пространство не выбрано." />
     )
   if (scoped && context.workspace.data && context.workspace.data.resource_status !== 'connected')
-    return <p role="status">{projectResourceLabel(context.workspace.data)}</p>
+    return (
+      <Notice role="status" appearance="inline" tone="neutral">
+        {projectResourceLabel(context.workspace.data)}
+      </Notice>
+    )
   if (((scoped || document || explicitSpace) && context.query.isPending) || target)
-    return <p role="status">Разрешаем пространство проекта…</p>
+    return <LoadingState message="Разрешаем пространство проекта…" />
   if ((scoped || document || explicitSpace) && context.query.isError)
-    return <p role="alert">Пространство проекта недоступно. Другое пространство не выбрано.</p>
+    return <ErrorState message="Пространство проекта недоступно. Другое пространство не выбрано." />
   if (location.pathname === '/documents/new' && context.query.data?.status === 'archived')
-    return <p role="status">Архивное пространство доступно только для чтения.</p>
+    return (
+      <Notice role="status" appearance="inline" tone="neutral">
+        Архивное пространство доступно только для чтения.
+      </Notice>
+    )
   if (scoped && !space && context.choices.length > 1)
     return (
       <section className="max-w-xl space-y-3">
-        <h1 className="text-xl font-semibold">Выберите пространство проекта</h1>
+        <PageHeader title={'Выберите пространство проекта'} />
         <label htmlFor="project-space">Пространство</label>
         <Select
           id="project-space"

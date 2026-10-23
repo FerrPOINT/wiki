@@ -1,4 +1,5 @@
 import {
+  PageHeader,
   Disclosure,
   Select,
   EmptyState,
@@ -14,6 +15,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  Notice,
 } from '@pdlc/ui/ui'
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
@@ -277,14 +279,14 @@ export function AuditLogPage() {
 
   return (
     <div className="min-w-0 space-y-5">
-      <h1 className="text-2xl font-bold">Аудит</h1>
+      <PageHeader title={'Аудит'} />
 
       <div className="space-y-3">
         <Button
           type="button"
           size="sm"
           variant="outline"
-          className="h-10"
+
           aria-expanded={showFilters}
           onClick={() => setShowFilters((value) => !value)}
         >
@@ -357,7 +359,7 @@ export function AuditLogPage() {
                     <div className="flex gap-2">
                       <Input
                         id="audit-actor"
-                        className="min-h-10 min-w-0"
+                        className="min-w-0"
                         placeholder="UUID участника"
                         value={draftFilters.actor_id}
                         onChange={(event) => updateDraft('actor_id', event.target.value)}
@@ -367,7 +369,7 @@ export function AuditLogPage() {
                           type="button"
                           size="icon"
                           variant="outline"
-                          className="h-10 w-10"
+
                           title="Повторить загрузку пользователей"
                           aria-label="Повторить загрузку пользователей"
                           onClick={() => usersQuery.refetch()}
@@ -386,7 +388,7 @@ export function AuditLogPage() {
                         type="button"
                         size="sm"
                         variant="ghost"
-                        className="h-10 px-0"
+                        className="px-0"
                         onClick={() => setManualActorId(false)}
                       >
                         Выбрать из списка
@@ -431,7 +433,7 @@ export function AuditLogPage() {
                       type="button"
                       size="sm"
                       variant="ghost"
-                      className="h-10 px-0"
+                      className="px-0"
                       onClick={() => setManualActorId(true)}
                     >
                       Ввести UUID
@@ -446,7 +448,7 @@ export function AuditLogPage() {
                 <Input
                   id="audit-from"
                   type="datetime-local"
-                  className="min-h-10"
+
                   value={draftFilters.from}
                   onChange={(event) => updateDraft('from', event.target.value)}
                 />
@@ -458,24 +460,22 @@ export function AuditLogPage() {
                 <Input
                   id="audit-to"
                   type="datetime-local"
-                  className="min-h-10"
+
                   value={draftFilters.to}
                   onChange={(event) => updateDraft('to', event.target.value)}
                 />
               </div>
             </div>
             {filterError && (
-              <p role="alert" className="text-sm text-danger">
+              <Notice role="alert" appearance="inline" tone="danger">
                 {filterError}
-              </p>
+              </Notice>
             )}
             <div className="flex flex-wrap justify-end gap-2">
-              <Button type="button" variant="outline" className="h-10" onClick={clearFilters}>
+              <Button type="button" variant="outline" onClick={clearFilters}>
                 Сбросить
               </Button>
-              <Button type="submit" className="h-10">
-                Применить
-              </Button>
+              <Button type="submit">Применить</Button>
             </div>
           </form>
         )}
@@ -590,7 +590,7 @@ export function AuditLogPage() {
             <Button
               type="button"
               variant="outline"
-              className="h-10"
+
               disabled={!hasPreviousPage || auditQuery.isLoading || auditQuery.isFetching}
               onClick={() => changePage('previous')}
             >
@@ -600,7 +600,7 @@ export function AuditLogPage() {
             <Button
               type="button"
               variant="outline"
-              className="h-10"
+
               disabled={
                 !nextCursor || auditQuery.isLoading || auditQuery.isFetching || auditQuery.isError
               }

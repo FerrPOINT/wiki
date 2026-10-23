@@ -1,6 +1,6 @@
 import { Check, Database, Globe2, KeyRound, Minus, Settings2 } from 'lucide-react'
 import { useWikiSettings } from '@/shared/api/hooks'
-import { ErrorState, LoadingState } from '@pdlc/ui/ui'
+import { PageHeader, SectionHeader, ErrorState, LoadingState } from '@pdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatBytes } from '@/shared/lib/wiki-format'
 
@@ -78,7 +78,7 @@ export function SettingsPage() {
 
   return (
     <div className="min-w-0 space-y-5">
-      <h1 className="text-2xl font-bold">Настройки</h1>
+      <PageHeader title={'Настройки'} />
 
       {settingsQuery.isLoading && <LoadingState message="Загружаем настройки" />}
       {settingsQuery.isError && (
@@ -98,10 +98,15 @@ export function SettingsPage() {
                 aria-labelledby={group.id}
                 className="min-w-0 border-t border-border pt-3"
               >
-                <h2 id={group.id} className="flex items-center gap-2 text-base font-semibold">
-                  <Icon aria-hidden className="h-4 w-4 shrink-0 text-accent" />
-                  {group.title}
-                </h2>
+                <SectionHeader
+                  headingId={group.id}
+                  title={
+                    <>
+                      <Icon aria-hidden className="h-4 w-4 shrink-0 text-accent" />
+                      {group.title}
+                    </>
+                  }
+                />
                 <dl className="mt-2 divide-y divide-border">
                   {group.fields.map((field) => (
                     <div

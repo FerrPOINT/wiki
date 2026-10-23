@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router'
-import { Select, Button, Label } from '@pdlc/ui/ui'
+import { SectionHeader, Card, CardContent, Select, Button, Label, Notice } from '@pdlc/ui/ui'
 import { useQuery } from '@tanstack/react-query'
 import { apiRequest } from '@/api/client'
 import { useNamespaceContext } from '@/widgets/namespace-context'
@@ -87,88 +87,94 @@ export function TaskRevisionLink({
     }
   }
   return (
-    <form onSubmit={submit} className="max-w-xl space-y-3 rounded-lg border border-border p-4">
-      <h2 className="font-semibold">Связать эту ревизию с задачей</h2>
-      <div className="space-y-2">
-        <Label htmlFor={`task-project-${documentId}`}>Проект задачи</Label>
-        <Select
-          id={`task-project-${documentId}`}
-          value={ref ? projectIdentity(ref) : ''}
-          className="w-full"
-          onValueChange={(nextValue) => {
-            setProjectChoice(nextValue)
-            setSelected('')
-            setOffset(0)
-          }}
-          options={[
-            { value: '', label: 'Выберите проект' },
-            ...(available.map((project) => ({
-              value: String(projectIdentity(project.namespace)),
-              label: [project.name, ' · ', project.project_key].join(''),
-            })) ?? []),
-          ]}
-        />
-      </div>
-      {!ref ? (
-        <p role="status">Выберите связанный проект, чтобы загрузить задачи.</p>
-      ) : tasks.isError ? (
-        <p role="alert" className="text-danger">
-          Каталог задач недоступен. Повторите загрузку.
-        </p>
-      ) : (
-        <div className="space-y-2">
-          <Label htmlFor={`task-ref-${documentId}`}>Задача проекта</Label>
-          <Select
-            id={`task-ref-${documentId}`}
-            required
-            value={selected}
-            onValueChange={(nextValue) => setSelected(nextValue)}
-            className="w-full"
-            options={[
-              { value: '', label: 'Выберите задачу' },
-              ...(selected &&
-              !tasks.data?.some(
-                (item) => `${item.task.tracker_instance_id}/${item.task.task_id}` === selected,
-              )
-                ? [{ value: String(selected), label: 'Задача из ссылки Tracker' }]
-                : []),
-              ...(tasks.data?.map((item) => ({
-                value: String(`${item.task.tracker_instance_id}/${item.task.task_id}`),
-                label: [item.task_key, ' · ', item.label].join(''),
-              })) ?? []),
-            ]}
-          />
-        </div>
-      )}
-      <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          disabled={offset === 0}
-          onClick={() => setOffset(Math.max(0, offset - 50))}
-        >
-          Назад
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={(tasks.data?.length ?? 0) < 50}
-          onClick={() => setOffset(offset + 50)}
-        >
-          Далее
-        </Button>
-        <Button type="button" variant="outline" onClick={() => void tasks.refetch()}>
-          Обновить
-        </Button>
-      </div>
-      {message && (
-        <p role="status" className="text-sm">
-          {message}
-        </p>
-      )}
-      <Button disabled={busy || !selected || !ref}>
-        {busy ? 'Проверяем задачу…' : 'Связать ревизию'}
-      </Button>
-    </form>
+    <Card asChild>
+      <form onSubmit={submit} className="max-w-xl">
+        <CardContent className="space-y-3">
+          <SectionHeader title={<>Связать эту ревизию с задачей</>} />
+          <div className="space-y-2">
+            <Label htmlFor={`task-project-${documentId}`}>Проект задачи</Label>
+            <Select
+              id={`task-project-${documentId}`}
+              value={ref ? projectIdentity(ref) : ''}
+              className="w-full"
+              onValueChange={(nextValue) => {
+                setProjectChoice(nextValue)
+                setSelected('')
+                setOffset(0)
+              }}
+              options={[
+                { value: '', label: 'Выберите проект' },
+                ...(available.map((project) => ({
+                  value: String(projectIdentity(project.namespace)),
+                  label: [project.name, ' · ', project.project_key].join(''),
+                })) ?? []),
+              ]}
+            />
+          </div>
+          {!ref ? (
+            <Notice role="status" appearance="inline" tone="neutral">
+              Выберите связанный проект, чтобы загрузить задачи.
+            </Notice>
+          ) : tasks.isError ? (
+            <Notice role="alert" appearance="inline" tone="danger">
+              Каталог задач недоступен. Повторите загрузку.
+            </Notice>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor={`task-ref-${documentId}`}>Задача проекта</Label>
+              <Select
+                id={`task-ref-${documentId}`}
+                required
+                value={selected}
+                onValueChange={(nextValue) => setSelected(nextValue)}
+                className="w-full"
+                options={[
+                  { value: '', label: 'Выберите задачу' },
+                  ...(selected &&
+                  !tasks.data?.some(
+                    (item) => `${item.task.tracker_instance_id}/${item.task.task_id}` === selected,
+                  )
+                    ? [{ value: String(selected), label: 'Задача из ссылки Tracker' }]
+                    : []),
+                  ...(tasks.data?.map((item) => ({
+                    value: String(`${item.task.tracker_instance_id}/${item.task.task_id}`),
+                    label: [item.task_key, ' · ', item.label].join(''),
+                  })) ?? []),
+                ]}
+              />
+            </div>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={offset === 0}
+              onClick={() => setOffset(Math.max(0, offset - 50))}
+            >
+              Назад
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={(tasks.data?.length ?? 0) < 50}
+              onClick={() => setOffset(offset + 50)}
+            >
+              Далее
+            </Button>
+            <Button type="button" variant="outline" onClick={() => void tasks.refetch()}>
+              Обновить
+            </Button>
+          </div>
+          {message && (
+            <Notice role="status" appearance="inline" tone="neutral">
+              {message}
+            </Notice>
+          )}
+          <Button disabled={busy || !selected || !ref}>
+            {busy ? 'Проверяем задачу…' : 'Связать ревизию'}
+          </Button>
+        </CardContent>
+      </form>
+    </Card>
   )
 }

@@ -1,7 +1,7 @@
-import { useProjectRouteRef } from '@/widgets/namespace-context'
+import { SpaceSelector, useSelectedSpaceKey } from '@/widgets/dossier-space'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
 import {
-  Select,
+  SectionHeader,
   NamespaceLink as Link,
   ResourceList,
   ResourceListRow,
@@ -11,24 +11,17 @@ import {
   Button,
   Input,
   Label,
+  SearchInput,
+  PageNavigation,
+  PageHeader,
+  Notice,
 } from '@pdlc/ui/ui'
-import { useNavigate, useParams, useSearchParams } from 'react-router'
-import { FileCheck2, FileText, GitBranch, Link2, Search } from 'lucide-react'
-import {
-  defaultSpaceKey,
-  useLinkTaskDocument,
-  useSpaces,
-  useTask,
-  useTaskSummaries,
-} from '@/shared/api/hooks'
+import { useNavigate, useParams } from 'react-router'
+import { FileCheck2, FileText, GitBranch, Link2 } from 'lucide-react'
+import { defaultSpaceKey, useLinkTaskDocument, useTask, useTaskSummaries } from '@/shared/api/hooks'
 
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
-import {
-  clearDossierCatalogParams,
-  pathWithSearchParams,
-  useDossierCatalogUrl,
-} from '@/shared/lib/dossier-catalog-url'
-import { resolveSpaceKey } from '@/shared/lib/space-selection'
+import { pathWithSearchParams, useDossierCatalogUrl } from '@/shared/lib/dossier-catalog-url'
 import {
   formatDateTime,
   formatDocumentStatus,
@@ -38,33 +31,6 @@ import {
 
 const pageSize = 12
 
-type SpaceOption = {
-  key: string
-  name: string
-}
-
-function useSelectedSpaceKey() {
-  const [searchParams, setSearchParams] = useSearchParams()
-  const spacesQuery = useSpaces()
-  const selectedSpaceKey = resolveSpaceKey(
-    searchParams.get('space'),
-    spacesQuery.data?.spaces ?? [],
-  )
-
-  function setSelectedSpaceKey(spaceKey: string) {
-    const normalized = spaceKey.trim().toUpperCase()
-    setSearchParams((current) => {
-      const nextParams = new URLSearchParams(current)
-      if (normalized) nextParams.set('space', normalized)
-      else nextParams.delete('space')
-      clearDossierCatalogParams(nextParams)
-      return nextParams
-    })
-  }
-
-  return [selectedSpaceKey, setSelectedSpaceKey, spacesQuery, searchParams] as const
-}
-
 function scopedPath(path: string, spaceKey: string): string {
   return spaceKey === defaultSpaceKey ? path : `${path}?space=${encodeURIComponent(spaceKey)}`
 }
@@ -72,48 +38,6 @@ function scopedPath(path: string, spaceKey: string): string {
 function evidenceTaskPath(spaceKey: string, taskKey: string, evidenceId: string): string {
   const params = new URLSearchParams({ space: spaceKey, task_key: taskKey, id: evidenceId })
   return `/evidence?${params.toString()}`
-}
-
-function SpaceSelector({
-  value,
-  onChange,
-  disabled = false,
-}: {
-  value: string
-  onChange: (spaceKey: string) => void
-  disabled?: boolean
-}) {
-  const namespace = useProjectRouteRef()
-  const spacesQuery = useSpaces()
-  const spaces: SpaceOption[] = spacesQuery.data?.spaces ?? []
-  const hasSelected = spaces.some((space) => space.key === value)
-  const options = value && !hasSelected ? [{ key: value, name: value }, ...spaces] : spaces
-
-  return (
-    <div className="w-full space-y-1.5 sm:w-64">
-      <Label htmlFor="task-space-selector">Пространство</Label>
-      <Select
-        id="task-space-selector"
-        className="w-full"
-        value={value}
-        onValueChange={(nextValue) => onChange(nextValue)}
-        disabled={
-          disabled ||
-          Boolean(namespace.ref) ||
-          spacesQuery.isLoading ||
-          spacesQuery.isError ||
-          options.length === 0
-        }
-        options={[
-          ...(options.length === 0 ? [{ value: '', label: 'Нет пространств' }] : []),
-          ...(options.map((space) => ({
-            value: String(space.key),
-            label: String(space.name ? `${space.key} · ${space.name}` : space.key),
-          })) ?? []),
-        ]}
-      />
-    </div>
-  )
 }
 
 function TaskCatalog({ spaceKey }: { spaceKey: string }) {
@@ -143,15 +67,9 @@ function TaskCatalog({ spaceKey }: { spaceKey: string }) {
 
   return (
     <section ref={listRef} aria-label="Список задач" className="scroll-mt-16 space-y-3">
-      <div className="relative max-w-md">
-        <Search
-          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
-          aria-hidden
-        />
-        <Input
-          type="search"
+      <div className="max-w-md">
+        <SearchInput
           aria-label="Найти задачу"
-          className="min-h-10 pl-9"
           placeholder="Ключ, название или документ"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
@@ -212,31 +130,16 @@ function TaskCatalog({ spaceKey }: { spaceKey: string }) {
         </>
       )}
       {(hasPreviousPage || nextCursor) && (
-        <nav aria-label="Страницы задач" className="flex items-center justify-end gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="min-h-10 sm:min-h-10"
-            disabled={!hasPreviousPage || tasksQuery.isLoading || tasksQuery.isFetching}
-            onClick={() => navigatePage('previous')}
-          >
-            Назад
-          </Button>
-          <span className="text-sm text-text-muted">Страница {currentPage}</span>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="min-h-10 sm:min-h-10"
-            disabled={
-              !nextCursor || tasksQuery.isLoading || tasksQuery.isFetching || tasksQuery.isError
-            }
-            onClick={() => navigatePage('next')}
-          >
-            Далее
-          </Button>
-        </nav>
+        <PageNavigation
+          label="Страницы задач"
+          page={currentPage}
+          hasNext={Boolean(nextCursor) && !tasksQuery.isError}
+          pending={tasksQuery.isLoading || tasksQuery.isFetching}
+          previousLabel="Назад"
+          nextLabel="Далее"
+          summary={`Страница ${currentPage}`}
+          onPageChange={(page) => navigatePage(page < currentPage ? 'previous' : 'next')}
+        />
       )}
     </section>
   )
@@ -247,16 +150,17 @@ export function TaskDossiersPage() {
 
   return (
     <div className="space-y-5">
-      <section className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Задачи</h1>
-          <p className="mt-1 max-w-3xl text-sm text-text-muted">
-            Wiki собирает документы и материалы вокруг внешнего ключа задачи, но не владеет её
-            статусом в трекере.
-          </p>
-        </div>
-        <SpaceSelector value={selectedSpaceKey} onChange={setSelectedSpaceKey} />
-      </section>
+      <PageHeader
+        title="Задачи"
+        context="Wiki собирает документы и материалы вокруг внешнего ключа задачи, но не владеет её статусом в трекере."
+        actions={
+          <SpaceSelector
+            id="task-space-selector"
+            value={selectedSpaceKey}
+            onChange={setSelectedSpaceKey}
+          />
+        }
+      />
 
       {spacesQuery.isLoading && <LoadingState message="Загружаем пространства" />}
       {spacesQuery.isError && (
@@ -339,27 +243,34 @@ export function TaskDossierPage() {
   return (
     <div className="space-y-5">
       <section className="space-y-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <Link
-              to={pathWithSearchParams('/tasks', searchParams)}
-              className="inline-flex min-h-10 items-center text-sm text-accent hover:text-accent-hover"
-            >
-              К задачам
-            </Link>
-            <h1 className="mt-2 break-words text-2xl font-bold">{task.task_key}</h1>
-            {task.title && (
-              <p className="mt-1 break-words text-sm text-text-secondary">{task.title}</p>
-            )}
-          </div>
-          <SpaceSelector
-            value={selectedSpaceKey}
-            disabled={linkDocument.isPending}
-            onChange={(spaceKey) => {
-              setSelectedSpaceKey(spaceKey)
-              setDocumentId('')
-              setLinkMessage('')
-            }}
+        <div className="space-y-2">
+          <Link
+            to={pathWithSearchParams('/tasks', searchParams)}
+            className="inline-flex min-h-10 items-center text-sm text-accent hover:text-accent-hover"
+          >
+            К задачам
+          </Link>
+          <PageHeader
+            title={task.task_key}
+            context={
+              task.title && (
+                <p className="mt-1 break-words text-sm text-text-secondary">{task.title}</p>
+              )
+            }
+            actions={
+              <>
+                <SpaceSelector
+                  id="task-space-selector"
+                  value={selectedSpaceKey}
+                  disabled={linkDocument.isPending}
+                  onChange={(spaceKey) => {
+                    setSelectedSpaceKey(spaceKey)
+                    setDocumentId('')
+                    setLinkMessage('')
+                  }}
+                />
+              </>
+            }
           />
         </div>
         <div className="flex flex-wrap gap-x-5 gap-y-1 border-y border-border py-2 text-sm text-text-muted">
@@ -378,9 +289,7 @@ export function TaskDossierPage() {
 
       <div className="page-split items-start">
         <section className="min-w-0 space-y-3" aria-labelledby="task-documents-title">
-          <h2 id="task-documents-title" className="text-base font-semibold">
-            Документы задачи
-          </h2>
+          <SectionHeader headingId="task-documents-title" title={<>Документы задачи</>} />
           <form
             onSubmit={handleLinkDocument}
             className="border-y border-border bg-surface-raised p-3"
@@ -391,7 +300,7 @@ export function TaskDossierPage() {
                 <Label htmlFor="task-document-link">Документ для задачи</Label>
                 <Input
                   id="task-document-link"
-                  className="min-h-10"
+
                   value={documentId}
                   onChange={(event) => setDocumentId(event.target.value)}
                   placeholder="product-requirements"
@@ -400,7 +309,7 @@ export function TaskDossierPage() {
               </div>
               <Button
                 type="submit"
-                className="min-h-10 sm:min-h-10"
+
                 disabled={linkDocument.isPending || !documentId.trim()}
               >
                 <Link2 className="h-4 w-4" />
@@ -408,9 +317,9 @@ export function TaskDossierPage() {
               </Button>
             </div>
             {linkDocument.isError && (
-              <p className="mt-2 text-sm text-danger" role="alert">
+              <Notice className="mt-2" role="alert" appearance="inline" tone="danger">
                 {formatApiErrorForUser(linkDocument.error, 'Не удалось привязать документ')}
-              </p>
+              </Notice>
             )}
             {linkMessage && !linkDocument.isError && (
               <p className="mt-2 text-sm text-success">{linkMessage}</p>
@@ -448,9 +357,7 @@ export function TaskDossierPage() {
         </section>
 
         <aside className="min-w-0 space-y-3" aria-labelledby="task-phases-title">
-          <h2 id="task-phases-title" className="text-base font-semibold">
-            Фазы материалов
-          </h2>
+          <SectionHeader headingId="task-phases-title" title={<>Фазы материалов</>} />
           {phaseKeys.length === 0 ? (
             <EmptyState message="Материалы задачи пока не привязаны к фазам" />
           ) : (
@@ -476,9 +383,7 @@ export function TaskDossierPage() {
       </div>
 
       <section className="space-y-3" aria-labelledby="task-evidence-title">
-        <h2 id="task-evidence-title" className="text-base font-semibold">
-          Материалы задачи
-        </h2>
+        <SectionHeader headingId="task-evidence-title" title={<>Материалы задачи</>} />
         {task.evidence.length === 0 ? (
           <EmptyState message="Материалы пока не прикреплены" />
         ) : (

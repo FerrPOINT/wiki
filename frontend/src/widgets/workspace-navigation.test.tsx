@@ -135,7 +135,9 @@ describe('Wiki project navigation', () => {
     mount()
     const first = await screen.findByRole('region', { name: 'Одинаковый проект · A' })
     await userEvent.setup().click(within(first).getByRole('link', { name: 'Материалы' }))
-    expect(await screen.findByLabelText('Content URL')).toHaveTextContent('space=WIKI1')
+    await waitFor(() =>
+      expect(screen.getByLabelText('Content URL')).toHaveTextContent('space=WIKI1'),
+    )
     expect(screen.getByLabelText('Content URL')).toHaveTextContent('project_scope=all')
     expect(screen.getByRole('region', { name: 'Одинаковый проект · B' })).toBeInTheDocument()
   })

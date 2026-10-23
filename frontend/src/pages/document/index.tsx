@@ -2,6 +2,9 @@ import { useNamespaceContext } from '@/widgets/namespace-context'
 import { TaskRevisionLink } from '@/features/managed-links/TaskRevisionLink'
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import {
+  RadioGroup,
+  PageHeader,
+  Prose,
   NamespaceLink as Link,
   Button,
   ConfirmDialog,
@@ -14,12 +17,14 @@ import {
   CardTitle,
   Dialog,
   DialogContent,
+  DialogBody,
   DialogHeader,
   DialogTitle,
   Input,
   Label,
   Textarea,
   UnsavedChangesGuard,
+  Notice,
 } from '@pdlc/ui/ui'
 import { useParams } from 'react-router'
 import {
@@ -89,13 +94,10 @@ function RenderedDocumentBody({
   if (html.trim().length === 0) return <EmptyState message={emptyMessage} />
 
   return (
-    <div
+    <Prose
       ref={containerRef}
-      className={
-        compact
-          ? 'wiki-rendered wiki-rendered-compact page-readable'
-          : 'wiki-rendered page-readable'
-      }
+      compact={compact}
+      className="page-readable"
       dangerouslySetInnerHTML={{ __html: html }}
     />
   )
@@ -301,90 +303,76 @@ export function DocumentPage() {
   return (
     <article className="space-y-5">
       <UnsavedChangesGuard when={draftChanged} />
-      <section className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
-          <div className="break-words text-sm text-text-muted">
-            {document.space_key} / {formatDocumentType(document.document_type)} / {document.slug}
-          </div>
-          <h1
-            ref={documentHeadingRef}
-            tabIndex={-1}
-            className="mt-2 break-words text-2xl font-bold"
-          >
-            {document.title}
-          </h1>
-          <div className="mt-3 flex flex-wrap gap-2 text-xs text-text-secondary">
-            <span className="inline-flex items-center gap-1 rounded bg-surface-raised px-2 py-1">
-              <CheckCircle2 className="h-3.5 w-3.5 text-success" />
-              {formatDocumentStatus(document.status)}
-            </span>
-            <span className="inline-flex items-center gap-1 rounded bg-surface-raised px-2 py-1">
-              <Clock3 className="h-3.5 w-3.5" />
-              ревизия {document.current_revision?.version ?? 0}
-            </span>
-            <span className="rounded bg-surface-raised px-2 py-1">
-              обновлено {formatDateTime(document.updated_at)}
-            </span>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button asChild size="sm" variant="secondary" className="min-h-11 md:hidden">
-            <Link to="/documents/new">
-              <FilePenLine className="h-4 w-4" />
-              Новый документ
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline" className="h-10">
-            <Link to="/evidence">
-              <FileCheck2 className="h-4 w-4" />
-              Материалы
-            </Link>
-          </Button>
-          {isEditing && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-10 border-danger"
-              disabled={archiveDocument.isPending}
-              onClick={() => {
-                archiveDocument.reset()
-                setArchiveOpen(true)
-              }}
-            >
-              <Archive className="h-4 w-4 text-danger" />
-              Архивировать
+      <PageHeader
+        title={document.title}
+        headingRef={documentHeadingRef}
+        headingTabIndex={-1}
+        context={
+          <>
+            <div className="break-words text-sm text-text-muted">
+              {document.space_key} / {formatDocumentType(document.document_type)} / {document.slug}
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2 text-xs text-text-secondary">
+              <span className="inline-flex items-center gap-1 rounded bg-surface-raised px-2 py-1">
+                <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                {formatDocumentStatus(document.status)}
+              </span>
+              <span className="inline-flex items-center gap-1 rounded bg-surface-raised px-2 py-1">
+                <Clock3 className="h-3.5 w-3.5" />
+                ревизия {document.current_revision?.version ?? 0}
+              </span>
+              <span className="rounded bg-surface-raised px-2 py-1">
+                обновлено {formatDateTime(document.updated_at)}
+              </span>
+            </div>
+          </>
+        }
+        actions={
+          <>
+            <Button asChild size="sm" variant="secondary" className="md:hidden">
+              <Link to="/documents/new">
+                <FilePenLine className="h-4 w-4" />
+                Новый документ
+              </Link>
             </Button>
-          )}
-        </div>
-      </section>
+            <Button asChild size="sm" variant="outline">
+              <Link to="/evidence">
+                <FileCheck2 className="h-4 w-4" />
+                Материалы
+              </Link>
+            </Button>
+            {isEditing && (
+              <Button
+                type="button"
+                size="sm"
+                variant="destructive-outline"
+
+                disabled={archiveDocument.isPending}
+                onClick={() => {
+                  archiveDocument.reset()
+                  setArchiveOpen(true)
+                }}
+              >
+                <Archive className="h-4 w-4 text-danger" />
+                Архивировать
+              </Button>
+            )}
+          </>
+        }
+      />
 
       {canEdit && (
         <div className="flex flex-wrap items-center gap-3">
-          <div
-            role="group"
-            aria-label="Режим документа"
-            className="inline-grid grid-cols-2 rounded-md border border-border bg-surface p-1"
-          >
-            <Button
-              variant="ghost"
-              type="button"
-              aria-pressed={!isEditing}
-              className={`inline-flex min-h-10 items-center justify-center gap-2 rounded px-3 text-sm ${!isEditing ? 'bg-surface-raised font-medium text-text-primary' : 'text-text-muted'}`}
-              onClick={() => setSelectedMode('read')}
-            >
-              <Eye className="h-4 w-4" /> Просмотр
-            </Button>
-            <Button
-              variant="ghost"
-              type="button"
-              aria-pressed={isEditing}
-              className={`inline-flex min-h-10 items-center justify-center gap-2 rounded px-3 text-sm ${isEditing ? 'bg-surface-raised font-medium text-text-primary' : 'text-text-muted'}`}
-              onClick={() => setSelectedMode('edit')}
-            >
-              <FilePenLine className="h-4 w-4" /> Правка
-            </Button>
-          </div>
+          <RadioGroup
+            appearance="segmented"
+            label="Режим документа"
+            value={isEditing ? 'edit' : 'read'}
+            onValueChange={(value) => setSelectedMode(value as 'read' | 'edit')}
+            options={[
+              { value: 'read', label: 'Просмотр' },
+              { value: 'edit', label: 'Правка' },
+            ]}
+          />
           {draftChanged && (
             <span role="status" className="text-xs text-warning">
               Несохранённые изменения в черновике
@@ -415,20 +403,21 @@ export function DocumentPage() {
         }}
       >
         <DialogContent
-          className="max-w-4xl gap-0 p-0 sm:p-0"
+          layout="sectioned"
+          className="max-w-4xl"
           aria-describedby="revision-snapshot-description"
           onCloseAutoFocus={(event) => {
             event.preventDefault()
             revisionTriggerRef.current?.focus()
           }}
         >
-          <DialogHeader className="border-b border-border p-4 pr-14 sm:p-6 sm:pr-14">
+          <DialogHeader>
             <DialogTitle>Снимок ревизии</DialogTitle>
             <p id="revision-snapshot-description" className="text-sm text-text-secondary">
               Неизменяемая опубликованная версия документа.
             </p>
           </DialogHeader>
-          <div className="space-y-4 p-4 sm:p-6">
+          <DialogBody className="space-y-4">
             {selectedRevisionQuery.isLoading && <LoadingState message="Загружаем снимок ревизии" />}
             {selectedRevisionQuery.isError && (
               <ErrorState
@@ -453,45 +442,50 @@ export function DocumentPage() {
                     {shortText(selectedRevision.summary, 'Без описания изменений')}
                   </p>
                 </div>
-                <div className="rounded-md border border-border bg-surface p-3">
-                  <RenderedDocumentBody
-                    html={selectedRevision.body_html}
-                    emptyMessage="В ревизии нет опубликованного содержания"
-                    compact
-                  />
-                </div>
+                <Card>
+                  <CardContent>
+                    <RenderedDocumentBody
+                      html={selectedRevision.body_html}
+                      emptyMessage="В ревизии нет опубликованного содержания"
+                      compact
+                    />
+                  </CardContent>
+                </Card>
               </>
             )}
-          </div>
+          </DialogBody>
         </DialogContent>
       </Dialog>
 
       {(statusMessage || mutationError) && (
-        <section className="rounded-md border border-border bg-surface p-3 text-sm">
+        <section className="space-y-2">
           {statusMessage && (
-            <p role="status" className="text-success">
+            <Notice role="status" appearance="inline" tone="success">
               {statusMessage}
-            </p>
+            </Notice>
           )}
           {mutationError && (
-            <div
+            <Notice
               role="alert"
-              className="flex flex-col gap-2 text-danger sm:flex-row sm:items-center sm:justify-between"
+              tone="danger"
+              appearance="inline"
+              actions={
+                hasPublishConflict &&
+                isEditing && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setSelectedMode('read')}
+                  >
+                    <Eye className="h-4 w-4" />
+                    Показать актуальную версию
+                  </Button>
+                )
+              }
             >
-              <p>{mutationError}</p>
-              {hasPublishConflict && isEditing && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="min-h-10 shrink-0 text-text-primary"
-                  onClick={() => setSelectedMode('read')}
-                >
-                  <Eye className="h-4 w-4" />
-                  Показать актуальную версию
-                </Button>
-              )}
-            </div>
+              {mutationError}
+            </Notice>
           )}
         </section>
       )}
@@ -509,7 +503,7 @@ export function DocumentPage() {
                     <Label htmlFor="document-edit-title">Название</Label>
                     <Input
                       id="document-edit-title"
-                      className="h-10"
+
                       value={draftTitle}
                       onChange={(event) => setDraftTitle(event.target.value)}
                       required
@@ -528,7 +522,7 @@ export function DocumentPage() {
                   <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto]">
                     <Input
                       value={publishSummary}
-                      className="h-10"
+
                       onChange={(event) => setPublishSummary(event.target.value)}
                       placeholder="Комментарий к публикации"
                       aria-label="Комментарий к публикации"
@@ -536,7 +530,7 @@ export function DocumentPage() {
                     <Button
                       type="submit"
                       variant="secondary"
-                      className="h-10"
+
                       disabled={
                         updateDraft.isPending || isPublishingFlow || draftTitle.trim().length === 0
                       }
@@ -546,7 +540,7 @@ export function DocumentPage() {
                     </Button>
                     <Button
                       type="button"
-                      className="h-10"
+
                       disabled={
                         updateDraft.isPending ||
                         publishDocument.isPending ||
@@ -614,7 +608,7 @@ export function DocumentPage() {
                     <Label htmlFor="document-parent">Родительский документ</Label>
                     <Input
                       id="document-parent"
-                      className="h-10"
+
                       value={parentId}
                       onChange={(event) => setParentId(event.target.value)}
                       placeholder="корень пространства"
@@ -624,7 +618,7 @@ export function DocumentPage() {
                     type="submit"
                     size="sm"
                     variant="secondary"
-                    className="h-10"
+
                     disabled={moveDocument.isPending || !parentChanged}
                   >
                     <MoveRight className="h-4 w-4" />
@@ -644,30 +638,34 @@ export function DocumentPage() {
                 <EmptyState message="Документ пока не связан с задачей или фазой" />
               )}
               {document.task_keys.map((taskKey) => (
-                <Link
-                  key={taskKey}
-                  to={{
-                    pathname: `/tasks/${encodeURIComponent(taskKey)}`,
-                    search: new URLSearchParams({ space: document.space_key }).toString(),
-                  }}
-                  className="flex min-w-0 items-start gap-2 rounded-md border border-border p-3 hover:bg-surface-raised"
-                >
-                  <FileText className="h-4 w-4 shrink-0 text-accent" />
-                  <span className="min-w-0 break-words">{taskKey}</span>
-                </Link>
+                <Card asChild interactive key={taskKey}>
+                  <Link
+                    to={{
+                      pathname: `/tasks/${encodeURIComponent(taskKey)}`,
+                      search: new URLSearchParams({ space: document.space_key }).toString(),
+                    }}
+                  >
+                    <CardContent className="flex min-w-0 items-start gap-2">
+                      <FileText className="h-4 w-4 shrink-0 text-accent" />
+                      <span className="min-w-0 break-words">{taskKey}</span>
+                    </CardContent>
+                  </Link>
+                </Card>
               ))}
               {document.phase_keys.map((phaseKey) => (
-                <Link
-                  key={phaseKey}
-                  to={{
-                    pathname: `/phases/${encodeURIComponent(phaseKey)}`,
-                    search: new URLSearchParams({ space: document.space_key }).toString(),
-                  }}
-                  className="flex min-w-0 items-start gap-2 rounded-md border border-border p-3 hover:bg-surface-raised"
-                >
-                  <GitBranch className="h-4 w-4 shrink-0 text-accent" />
-                  <span className="min-w-0 break-words">{phaseKey}</span>
-                </Link>
+                <Card asChild interactive key={phaseKey}>
+                  <Link
+                    to={{
+                      pathname: `/phases/${encodeURIComponent(phaseKey)}`,
+                      search: new URLSearchParams({ space: document.space_key }).toString(),
+                    }}
+                  >
+                    <CardContent className="flex min-w-0 items-start gap-2">
+                      <GitBranch className="h-4 w-4 shrink-0 text-accent" />
+                      <span className="min-w-0 break-words">{phaseKey}</span>
+                    </CardContent>
+                  </Link>
+                </Card>
               ))}
             </CardContent>
           </Card>
@@ -717,7 +715,7 @@ export function DocumentPage() {
                   <Button
                     type="button"
                     size="icon"
-                    className="h-10 w-10 shrink-0"
+                    className="shrink-0"
                     variant="outline"
                     aria-label={`Открыть ревизию ${revision.version}`}
                     title={`Открыть ревизию ${revision.version}`}
@@ -742,7 +740,7 @@ export function DocumentPage() {
                     <Button
                       type="button"
                       variant="outline"
-                      className="h-10"
+
                       disabled={revisionPage === 0}
                       onClick={() => {
                         setSelectedRevisionId(null)
@@ -754,7 +752,7 @@ export function DocumentPage() {
                     <Button
                       type="button"
                       variant="outline"
-                      className="h-10"
+
                       disabled={
                         !hasNextRevisionPage || revisionsQuery.isLoading || revisionsQuery.isError
                       }
@@ -780,19 +778,19 @@ export function DocumentPage() {
         <CardContent className="grid gap-3 lg:grid-cols-3">
           {document.evidence.length === 0 && <EmptyState message="Материалы пока не прикреплены" />}
           {document.evidence.map((item) => (
-            <Link
-              key={item.id}
-              to="/evidence"
-              className="min-w-0 rounded-md border border-border p-3 hover:bg-surface-raised"
-            >
-              <div className="flex min-w-0 items-start gap-2 text-sm font-medium">
-                <Link2 className="h-4 w-4 shrink-0 text-accent" />
-                <span className="min-w-0 break-words">{item.title}</span>
-              </div>
-              <div className="mt-2 text-xs text-text-muted">
-                {formatEvidenceType(item.evidence_type)}
-              </div>
-            </Link>
+            <Card asChild interactive key={item.id}>
+              <Link to="/evidence">
+                <CardContent className="min-w-0">
+                  <div className="flex min-w-0 items-start gap-2 text-sm font-medium">
+                    <Link2 className="h-4 w-4 shrink-0 text-accent" />
+                    <span className="min-w-0 break-words">{item.title}</span>
+                  </div>
+                  <div className="mt-2 text-xs text-text-muted">
+                    {formatEvidenceType(item.evidence_type)}
+                  </div>
+                </CardContent>
+              </Link>
+            </Card>
           ))}
         </CardContent>
       </Card>

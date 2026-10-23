@@ -12,7 +12,7 @@ Frontend - React SPA on Vite, TypeScript and Tailwind. The UI is an operational 
 | Build        | Vite                                             |
 | Language     | TypeScript                                       |
 | Styling      | Tailwind CSS with CSS variables                  |
-| Components   | Radix primitives / local shadcn-style components |
+| Components   | Public `@pdlc/ui`; shared implementation owned by Base |
 | Icons        | lucide-react                                     |
 | Server state | TanStack Query                                   |
 | Client state | Zustand                                          |
@@ -150,3 +150,17 @@ The frontend contains only the approved Wiki MVP pages. Deferred reporting, noti
 - `docs/PAGE_DESIGN.md`
 - `docs/API.md`
 - `docs/FRONTEND_STANDARDS.md`
+
+
+## Общие размеры Base
+
+Действия применения шаблона в document-compose используют Button outline/sm
+без собственного border/padding/hover-скина. Выбранный template ID, правила
+сохранения набранного текста и состояние запроса принадлежат Wiki.
+
+Dashboard, редактор, dossier/evidence, поиск, пользователи и shell используют
+размеры Button/Input из Base. Локальные h-10/min-h-10 и копии мобильного предела
+удалены; доступность действий, формы, URL и данные сохраняются у Wiki. Ширина
+редактора/панелей, перенос длинных данных и responsive visibility остаются
+компоновкой продукта. Реальный минимум 40/44 px проверяется в браузере, а не
+наличием прежнего CSS-класса в unit-тесте.

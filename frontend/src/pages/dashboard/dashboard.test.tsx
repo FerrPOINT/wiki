@@ -22,6 +22,10 @@ vi.mock('@/api/wiki', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // A failed render must not leave one-shot API answers for the next test.
+  for (const api of [listSpaces, listTaskSummaries, listPhaseSummaries, listEvidence, searchWiki]) {
+    api.mockReset()
+  }
 })
 
 function wrapper(children: React.ReactNode) {
@@ -128,7 +132,8 @@ describe('DashboardPage', () => {
     )
     expect(screen.getByRole('link', { name: /новый документ/i })).toHaveClass(
       'md:hidden',
-      'min-h-11',
+      'base-control',
+      'base-button',
     )
     expect(await screen.findAllByText('Требования к Wiki')).toHaveLength(2)
     expect(screen.getByRole('link', { name: /BASE-42/ })).toHaveAttribute(
@@ -140,6 +145,17 @@ describe('DashboardPage', () => {
     expect(stats.getByText('3')).toBeInTheDocument()
     expect(listTaskSummaries).toHaveBeenCalledWith('BASE', { limit: 4 })
     expect(listPhaseSummaries).toHaveBeenCalledWith('BASE', { limit: 1 })
+    for (const href of ['/spaces', '/search', '/tasks?space=BASE']) {
+      const action = screen
+        .getAllByRole('link')
+        .find(
+          (link) =>
+            link.getAttribute('href') === href && link.getAttribute('data-variant') === 'link',
+        )
+      expect(action).toBeDefined()
+      expect(action?.tagName).toBe('A')
+      expect(action?.querySelector('button, a')).toBeNull()
+    }
   })
 
   it('renders overview API errors with a retry action', async () => {
@@ -207,13 +223,12 @@ describe('DashboardPage', () => {
     render(wrapper(<DashboardPage />))
 
     const stats = within(await screen.findByRole('region', { name: 'Показатели Wiki' }))
-    expect(await stats.findByRole('alert', { name: 'Phases unavailable' })).toHaveTextContent(
-      'Не загружено',
-    )
+    const phases = within(stats.getByRole('group', { name: 'Фазы в пространстве' }))
+    expect(await phases.findByRole('alert')).toHaveTextContent('Phases unavailable')
     expect(screen.getByText('План релиза')).toBeInTheDocument()
     expect(screen.getByText('Проверить релиз')).toBeInTheDocument()
 
-    fireEvent.click(stats.getByRole('button', { name: 'Повторить загрузку: Фазы в пространстве' }))
+    fireEvent.click(phases.getByRole('button', { name: /повторить/i }))
     await waitFor(() => expect(listPhaseSummaries).toHaveBeenCalledTimes(2))
     expect(listSpaces).toHaveBeenCalledTimes(1)
     expect(searchWiki).toHaveBeenCalledTimes(1)
@@ -243,9 +258,9 @@ describe('DashboardPage', () => {
 
     expect(await screen.findByText('План релиза')).toBeInTheDocument()
     const stats = within(screen.getByRole('region', { name: 'Показатели Wiki' }))
-    expect(stats.getByRole('alert', { name: 'Tasks unavailable' })).toHaveTextContent(
-      'Не загружено',
-    )
+    const taskCount = within(stats.getByRole('group', { name: 'Задачи в пространстве' }))
+    expect(taskCount.getByRole('alert')).toHaveTextContent('Tasks unavailable')
+    expect(taskCount.queryByText('0')).not.toBeInTheDocument()
     const tasks = within(screen.getByRole('region', { name: 'Задачи в Wiki' }))
     expect(tasks.getByText('Tasks unavailable')).toBeInTheDocument()
 

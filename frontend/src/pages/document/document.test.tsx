@@ -161,7 +161,7 @@ function setupDocument(document: Document = baseDocument, revisionHistory?: Docu
 describe('DocumentPage', () => {
   it('shows an explicitly empty saved draft without restoring published content', () => {
     setupDocument({ ...baseDocument, draft_markdown: '' })
-    fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Правка' }))
     expect(screen.getByLabelText('Markdown черновика')).toHaveValue('')
     expect(screen.getByRole('button', { name: 'Опубликовать' })).toBeDisabled()
     expect(screen.queryByText('Несохранённые изменения в черновике')).not.toBeInTheDocument()
@@ -169,7 +169,7 @@ describe('DocumentPage', () => {
 
   it('allows saving an empty draft while keeping publication disabled', async () => {
     setupDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Правка' }))
     const editor = screen.getByLabelText('Markdown черновика')
     fireEvent.change(editor, { target: { value: '' } })
     expect(editor).toBeValid()
@@ -192,7 +192,7 @@ describe('DocumentPage', () => {
   it('returns focus to the document heading after archive makes it read-only', async () => {
     const user = userEvent.setup()
     setupDocument()
-    await user.click(screen.getByRole('button', { name: 'Правка' }))
+    await user.click(screen.getByRole('radio', { name: 'Правка' }))
     await user.click(screen.getByRole('button', { name: 'Архивировать' }))
     await user.click(screen.getByRole('button', { name: 'Подтвердить' }))
     useDocument.mockReturnValue({
@@ -207,13 +207,13 @@ describe('DocumentPage', () => {
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: 'Требования Wiki' })).toHaveFocus(),
     )
-    expect(screen.queryByRole('group', { name: 'Режим документа' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('radiogroup', { name: 'Режим документа' })).not.toBeInTheDocument()
   })
 
   it.each(['cancel', 'escape'])('returns focus to the archive initiator on %s', async (action) => {
     const user = userEvent.setup()
     setupDocument()
-    await user.click(screen.getByRole('button', { name: 'Правка' }))
+    await user.click(screen.getByRole('radio', { name: 'Правка' }))
     const trigger = screen.getByRole('button', { name: 'Архивировать' })
     await user.click(trigger)
     if (action === 'cancel') await user.click(screen.getByRole('button', { name: 'Отмена' }))
@@ -243,7 +243,7 @@ describe('DocumentPage', () => {
     expect(
       within(layout.firstElementChild as HTMLElement).getByText('Опубликованное содержание'),
     ).toBeInTheDocument()
-    expect(layout.querySelector('.wiki-rendered')).toHaveClass('page-readable')
+    expect(layout.querySelector('.base-prose')).toHaveClass('page-readable')
     expect(within(rail).getByText('Ревизии')).toBeInTheDocument()
   })
 
@@ -255,12 +255,11 @@ describe('DocumentPage', () => {
     setupDocument()
 
     expect(screen.getByRole('heading', { name: 'Требования Wiki' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Новый документ' })).toHaveClass(
-      'md:hidden',
-      'min-h-11',
-    )
-    expect(screen.getByRole('button', { name: 'Просмотр' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('button', { name: 'Правка' })).toHaveAttribute('aria-pressed', 'false')
+    const createDocument = screen.getByRole('link', { name: 'Новый документ' })
+    expect(createDocument).toHaveClass('md:hidden')
+    expect(createDocument).toHaveAttribute('data-size', 'sm')
+    expect(screen.getByRole('radio', { name: 'Просмотр' })).toBeChecked()
+    expect(screen.getByRole('radio', { name: 'Правка' })).not.toBeChecked()
     expect(screen.queryByLabelText('Markdown черновика')).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Published' })).toBeInTheDocument()
     expect(screen.getByText('Approved body')).toBeInTheDocument()
@@ -276,7 +275,7 @@ describe('DocumentPage', () => {
     )
     expect(screen.getByRole('link', { name: /Smoke proof/ })).toHaveAttribute('href', '/evidence')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Правка' }))
     expect(screen.getByLabelText('Название')).toHaveValue('Требования Wiki')
     expect(screen.getByLabelText('Markdown черновика')).toHaveValue('# Draft\n\nUpdated body')
     expect(screen.queryByRole('heading', { name: 'Published' })).not.toBeInTheDocument()
@@ -304,25 +303,25 @@ describe('DocumentPage', () => {
       status: 'draft',
     })
 
-    expect(screen.getByRole('button', { name: 'Правка' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('radio', { name: 'Правка' })).toBeChecked()
     expect(screen.getByLabelText('Markdown черновика')).toHaveValue('# Draft\n\nUpdated body')
   })
 
   it('preserves unsaved draft text when switching between edit and read modes', () => {
     setupDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Правка' }))
     fireEvent.change(screen.getByLabelText('Markdown черновика'), {
       target: { value: '# Unsent change' },
     })
     expect(screen.getByRole('status')).toHaveTextContent('Несохранённые изменения в черновике')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Просмотр' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Просмотр' }))
     expect(screen.getByText('Approved body')).toBeInTheDocument()
     expect(screen.queryByLabelText('Markdown черновика')).not.toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('Несохранённые изменения в черновике')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Правка' }))
     expect(screen.getByLabelText('Markdown черновика')).toHaveValue('# Unsent change')
     expect(updateDraftMutate).not.toHaveBeenCalled()
     expect(updateDraftMutateAsync).not.toHaveBeenCalled()
@@ -331,7 +330,7 @@ describe('DocumentPage', () => {
 
   it('blocks navigation until the editor confirms losing an unsaved draft', async () => {
     const view = setupDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Правка' }))
     fireEvent.change(screen.getByLabelText('Название'), {
       target: { value: 'Несохранённый заголовок' },
     })
@@ -360,7 +359,7 @@ describe('DocumentPage', () => {
     expect(screen.queryByLabelText('Markdown черновика')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Родительский документ')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Архивировать' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('group', { name: 'Режим документа' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('radiogroup', { name: 'Режим документа' })).not.toBeInTheDocument()
   })
 
   it('opens a specific immutable revision in a dialog', async () => {
@@ -371,6 +370,8 @@ describe('DocumentPage', () => {
 
     expect(useDocumentRevision).toHaveBeenLastCalledWith('product-requirements', 'revision-2', true)
     const dialog = screen.getByRole('dialog', { name: 'Снимок ревизии' })
+    expect(dialog).toHaveAttribute('data-layout', 'sectioned')
+    expect(dialog.querySelector('.base-dialog-body')).not.toBeNull()
     expect(within(dialog).getByText('Ревизия 2: Требования Wiki')).toBeInTheDocument()
     expect(within(dialog).getByRole('heading', { name: 'Published' })).toBeInTheDocument()
     expect(within(dialog).getByText('Approved body')).toBeInTheDocument()
@@ -418,7 +419,7 @@ describe('DocumentPage', () => {
 
   it('sends draft and tree move mutations from visible form state', () => {
     setupDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Правка' }))
 
     fireEvent.change(screen.getByLabelText('Название'), {
       target: { value: 'Требования Wiki v2' },
@@ -455,7 +456,7 @@ describe('DocumentPage', () => {
 
   it('keeps archive confirmation open until the server confirms success', () => {
     setupDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Правка' }))
 
     fireEvent.click(screen.getByRole('button', { name: 'Архивировать' }))
     expect(archiveReset).toHaveBeenCalledOnce()
@@ -475,7 +476,7 @@ describe('DocumentPage', () => {
 
   it('shows archive errors inside the confirmation without closing it', () => {
     setupDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Правка' }))
     fireEvent.click(screen.getByRole('button', { name: 'Архивировать' }))
     fireEvent.click(screen.getByRole('button', { name: 'Подтвердить' }))
 
@@ -506,7 +507,7 @@ describe('DocumentPage', () => {
       version: 3,
     })
     setupDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Правка' }))
 
     fireEvent.change(screen.getByLabelText('Название'), {
       target: { value: 'Требования Wiki v2' },
@@ -547,7 +548,7 @@ describe('DocumentPage', () => {
       }),
     )
     setupDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Правка' }))
     fireEvent.click(screen.getByRole('button', { name: 'Опубликовать' }))
     await waitFor(() => expect(publishMutateAsync).toHaveBeenCalledOnce())
     fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Next draft title' } })
@@ -584,7 +585,7 @@ describe('DocumentPage', () => {
       message: 'document draft is based on a stale revision',
     })
     setupDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Правка' }))
     fireEvent.change(screen.getByLabelText('Markdown черновика'), {
       target: { value: '# Local draft' },
     })
@@ -608,7 +609,7 @@ describe('DocumentPage', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'Показать актуальную версию' }))
     expect(screen.getByText('Approved body')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Правка' }))
     expect(screen.getByLabelText('Markdown черновика')).toHaveValue('# Local draft')
   })
 
@@ -621,7 +622,7 @@ describe('DocumentPage', () => {
         draft_checksum: failure === 'missing checksum' ? undefined : 'sha256:foreign',
       })
       setupDocument()
-      fireEvent.click(screen.getByRole('button', { name: 'Правка' }))
+      fireEvent.click(screen.getByRole('radio', { name: 'Правка' }))
       fireEvent.change(screen.getByLabelText('Markdown черновика'), {
         target: { value: '# My draft' },
       })
@@ -658,7 +659,7 @@ describe('DocumentPage', () => {
     expect(screen.queryByLabelText('Название')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Markdown черновика')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Родительский документ')).not.toBeInTheDocument()
-    expect(screen.queryByRole('group', { name: 'Режим документа' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('radiogroup', { name: 'Режим документа' })).not.toBeInTheDocument()
     expect(screen.getByText('Документ пока не связан с задачей или фазой')).toBeInTheDocument()
     expect(screen.getByText('Материалы пока не прикреплены')).toBeInTheDocument()
   })

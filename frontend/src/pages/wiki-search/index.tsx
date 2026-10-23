@@ -3,9 +3,11 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router'
 import { wikiSearchScope } from '@/shared/lib/search-scope'
 import { SearchResultLink } from '@/widgets/search-result-link'
-import { FileCheck2, FileText, GitBranch, ListFilter, Search } from 'lucide-react'
+import { FileCheck2, FileText, GitBranch, ListFilter } from 'lucide-react'
 import { useWikiSearch } from '@/shared/api/hooks'
 import {
+  PageHeader,
+  SectionHeader,
   Select,
   Button,
   EmptyState,
@@ -14,6 +16,7 @@ import {
   Label,
   LoadingState,
   ResourceList,
+  SearchInput,
 } from '@pdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime, formatDocumentType } from '@/shared/lib/wiki-format'
@@ -248,7 +251,7 @@ export function WikiSearchPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Поиск</h1>
+      <PageHeader title={'Поиск'} />
       <div className="space-y-1">
         <Label htmlFor="search-scope">Область поиска</Label>
         <Select
@@ -265,15 +268,9 @@ export function WikiSearchPage() {
 
       <section aria-label="Параметры поиска" className="space-y-3">
         <form role="search" onSubmit={submitSearch} className="flex min-w-0 gap-2">
-          <div className="relative min-w-0 flex-1">
-            <Search
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
-              aria-hidden
-            />
-            <Input
-              type="search"
+          <div className="min-w-0 flex-1">
+            <SearchInput
               aria-label="Поисковый запрос"
-              className="min-h-10 pl-9"
               value={query}
               onChange={(event) => {
                 setQuery(event.target.value)
@@ -285,7 +282,7 @@ export function WikiSearchPage() {
             type="button"
             size="sm"
             variant="outline"
-            className="min-h-10 shrink-0 sm:min-h-10"
+            className="shrink-0"
             aria-expanded={showFilters}
             aria-controls="search-filters"
             onClick={() => setShowFilters((value) => !value)}
@@ -306,7 +303,7 @@ export function WikiSearchPage() {
               <Input
                 id="search-space"
                 readOnly={projectSearch}
-                className="min-h-10"
+
                 value={spaceFilter}
                 onChange={(event) => {
                   setSpaceFilter(event.target.value.toUpperCase())
@@ -318,7 +315,7 @@ export function WikiSearchPage() {
               <Label htmlFor="search-task">Задача</Label>
               <Input
                 id="search-task"
-                className="min-h-10"
+
                 value={taskFilter}
                 onChange={(event) => {
                   setTaskFilter(event.target.value)
@@ -330,7 +327,7 @@ export function WikiSearchPage() {
               <Label htmlFor="search-phase">Фаза</Label>
               <Input
                 id="search-phase"
-                className="min-h-10"
+
                 value={phaseFilter}
                 onChange={(event) => {
                   setPhaseFilter(event.target.value)
@@ -365,7 +362,7 @@ export function WikiSearchPage() {
                   type="button"
                   size="sm"
                   variant="ghost"
-                  className="min-h-10 sm:min-h-10"
+
                   onClick={() => {
                     setSpaceFilter('')
                     setTaskFilter('')
@@ -389,7 +386,7 @@ export function WikiSearchPage() {
                   Сбросить фильтры
                 </Button>
               )}
-              <Button type="submit" size="sm" className="min-h-10 sm:min-h-10">
+              <Button type="submit" size="sm">
                 Применить
               </Button>
             </div>
@@ -402,18 +399,21 @@ export function WikiSearchPage() {
         aria-labelledby="search-results-title"
         className="scroll-mt-16 space-y-3"
       >
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 id="search-results-title" className="text-base font-semibold">
-            Результаты
-          </h2>
-          {!searchQuery.isLoading && !searchQuery.isError && (
-            <p role="status" className="text-sm text-text-muted">
-              {results.length === 0
-                ? '0 результатов'
-                : `Показано ${(currentPage - 1) * pageSize + 1}–${(currentPage - 1) * pageSize + results.length}`}
-            </p>
-          )}
-        </div>
+        <SectionHeader
+          headingId="search-results-title"
+          title={<>Результаты</>}
+          context={
+            <>
+              {!searchQuery.isLoading && !searchQuery.isError && (
+                <p role="status" className="text-sm text-text-muted">
+                  {results.length === 0
+                    ? '0 результатов'
+                    : `Показано ${(currentPage - 1) * pageSize + 1}–${(currentPage - 1) * pageSize + results.length}`}
+                </p>
+              )}
+            </>
+          }
+        />
         <div role="group" aria-label="Тип результата" className="flex flex-wrap gap-2">
           {resultTypes.map((item) => (
             <Button
@@ -421,7 +421,7 @@ export function WikiSearchPage() {
               type="button"
               size="sm"
               variant={resultTypeFilter === item.value ? 'secondary' : 'outline'}
-              className="min-h-10 sm:min-h-10"
+
               aria-pressed={resultTypeFilter === item.value}
               onClick={() => selectResultType(item.value)}
             >
@@ -478,7 +478,7 @@ export function WikiSearchPage() {
               type="button"
               size="sm"
               variant="outline"
-              className="min-h-10 sm:min-h-10"
+
               disabled={currentPage === 1}
               onClick={() => changePage('previous')}
             >
@@ -489,7 +489,7 @@ export function WikiSearchPage() {
               type="button"
               size="sm"
               variant="outline"
-              className="min-h-10 sm:min-h-10"
+
               disabled={!nextCursor}
               onClick={() => changePage('next')}
             >

@@ -4,6 +4,10 @@ import { documentPath } from '@/api/workspaces'
 import { FormEvent, useEffect, useState } from 'react'
 import Markdown from 'react-markdown'
 import {
+  PageHeader,
+  Badge,
+  Prose,
+  CodeBlock,
   NamespaceLink as Link,
   Button,
   useNamespaceNavigate as useNavigate,
@@ -23,6 +27,7 @@ import {
   TabsTrigger,
   Textarea,
   UnsavedChangesGuard,
+  Notice,
 } from '@pdlc/ui/ui'
 
 import { useSearchParams } from 'react-router'
@@ -175,29 +180,33 @@ export function DocumentComposePage() {
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <UnsavedChangesGuard when={hasUnsavedChanges} />
-      <section className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Новый документ</h1>
-          <p className="mt-1 max-w-3xl text-sm text-text-muted">
-            Черновик можно связать с задачей, фазой процесса и материалами проверки.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            onClick={() => setEditorTab('preview')}
-          >
-            <FileText className="h-4 w-4" />
-            Предпросмотр
-          </Button>
-          <Button size="sm" disabled={createDocument.isPending || !canSave}>
-            <Save className="h-4 w-4" />
-            {createDocument.isPending ? 'Сохраняем...' : 'Сохранить черновик'}
-          </Button>
-        </div>
-      </section>
+      <PageHeader
+        title={'Новый документ'}
+        context={
+          <>
+            <p className="mt-1 max-w-3xl text-sm text-text-muted">
+              Черновик можно связать с задачей, фазой процесса и материалами проверки.
+            </p>
+          </>
+        }
+        actions={
+          <>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => setEditorTab('preview')}
+            >
+              <FileText className="h-4 w-4" />
+              Предпросмотр
+            </Button>
+            <Button size="sm" disabled={createDocument.isPending || !canSave}>
+              <Save className="h-4 w-4" />
+              {createDocument.isPending ? 'Сохраняем...' : 'Сохранить черновик'}
+            </Button>
+          </>
+        }
+      />
 
       {createDocument.isError && (
         <ErrorState
@@ -279,19 +288,21 @@ export function DocumentComposePage() {
                   }
                 </FormField>
                 {namespace.ref && !canSave && (
-                  <p role="status">Привязка пространства не подтверждена.</p>
+                  <Notice role="status" appearance="inline" tone="neutral">
+                    Привязка пространства не подтверждена.
+                  </Notice>
                 )}
                 {!namespace.ref &&
                   !spacesQuery.isLoading &&
                   !spacesQuery.isError &&
                   !selectedSpace &&
                   !spaceProblem && (
-                    <p role="status">
+                    <Notice role="status" appearance="inline" tone="neutral">
                       {availableSpaces.length
                         ? 'Выбранное пространство недоступно. Выберите доступное пространство.'
                         : 'Нет доступных пространств. Создайте пространство или получите доступ.'}{' '}
                       <Link to="/spaces">К пространствам</Link>
-                    </p>
+                    </Notice>
                   )}
               </div>
             </div>
@@ -304,7 +315,7 @@ export function DocumentComposePage() {
                   key={template.id}
                   type="button"
                   disabled={createDocument.isPending}
-                  className="min-h-10 rounded-md border border-border px-2.5 py-1.5 text-xs text-text-secondary hover:bg-surface-raised hover:text-text-primary"
+                  size="sm"
                   onClick={() => applyTemplate(template.id)}
                 >
                   {template.name}
@@ -335,17 +346,25 @@ export function DocumentComposePage() {
                 />
               </TabsContent>
               <TabsContent value="preview">
-                <div className="min-h-96 rounded-md border border-border bg-background p-4">
-                  <h2 className="text-xl font-semibold">{title}</h2>
-                  <div className="wiki-rendered mt-4">
-                    <Markdown
-                      skipHtml
-                      components={{ pre: ({ children }) => <pre tabIndex={0}>{children}</pre> }}
-                    >
-                      {body}
-                    </Markdown>
-                  </div>
-                </div>
+                <Card className="min-h-96">
+                  <CardContent>
+                    <h2 className="text-xl font-semibold">{title}</h2>
+                    <Prose className="mt-4">
+                      <Markdown
+                        skipHtml
+                        components={{
+                          pre: ({ children }) => (
+                            <CodeBlock tabIndex={0} wrap={false}>
+                              {children}
+                            </CodeBlock>
+                          ),
+                        }}
+                      >
+                        {body}
+                      </Markdown>
+                    </Prose>
+                  </CardContent>
+                </Card>
               </TabsContent>
             </Tabs>
           </CardContent>
@@ -378,22 +397,24 @@ export function DocumentComposePage() {
                 />
               </div>
               {taskKey && (
-                <Link
-                  to={`/tasks/${taskKey}`}
-                  className="flex items-center gap-2 rounded-md border border-border p-3 hover:bg-surface-raised"
-                >
-                  <FileText className="h-4 w-4 text-accent" />
-                  Задача {taskKey}
-                </Link>
+                <Card asChild interactive>
+                  <Link to={`/tasks/${taskKey}`}>
+                    <CardContent className="flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-accent" />
+                      Задача {taskKey}
+                    </CardContent>
+                  </Link>
+                </Card>
               )}
               {phaseKey && (
-                <Link
-                  to={`/phases/${phaseKey}`}
-                  className="flex items-center gap-2 rounded-md border border-border p-3 hover:bg-surface-raised"
-                >
-                  <GitBranch className="h-4 w-4 text-accent" />
-                  Фаза {phaseKey}
-                </Link>
+                <Card asChild interactive>
+                  <Link to={`/phases/${phaseKey}`}>
+                    <CardContent className="flex items-center gap-2">
+                      <GitBranch className="h-4 w-4 text-accent" />
+                      Фаза {phaseKey}
+                    </CardContent>
+                  </Link>
+                </Card>
               )}
             </CardContent>
           </Card>
@@ -433,10 +454,10 @@ export function DocumentComposePage() {
                   placeholder="создастся автоматически"
                 />
               </div>
-              <div className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-text-secondary">
-                <Tag className="h-4 w-4 text-accent" />
+              <Badge tone="info">
+                <Tag aria-hidden="true" className="h-4 w-4" />
                 Markdown, ревизии, связи
-              </div>
+              </Badge>
             </CardContent>
           </Card>
         </div>

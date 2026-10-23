@@ -1,8 +1,11 @@
 import { useActiveSpaces } from '@/widgets/active-spaces'
 import { useState } from 'react'
 import {
+  PageHeader,
+  SectionHeader,
+  Metric,
+  type MetricProps,
   Select,
-  Loader,
   NamespaceLink as Link,
   ResourceList,
   ResourceListRow,
@@ -12,83 +15,12 @@ import {
   LoadingState,
 } from '@pdlc/ui/ui'
 
-import {
-  ArrowRight,
-  FilePlus2,
-  FileText,
-  GitBranch,
-  Library,
-  RotateCcw,
-  Search,
-  type LucideIcon,
-} from 'lucide-react'
+import { ArrowRight, FilePlus2, FileText, GitBranch, Library, Search } from 'lucide-react'
 import { usePhaseSummaries, useTaskSummaries, useWikiSearch } from '@/shared/api/hooks'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime } from '@/shared/lib/wiki-format'
 import { resolveSpaceKey } from '@/shared/lib/space-selection'
 import { usePlatformReadiness } from '@pdlc/ui/platform'
-
-interface DashboardMetricProps {
-  error?: string
-  icon: LucideIcon
-  isLoading?: boolean
-  label: string
-  onRetry?: () => void
-  value: number
-}
-
-function DashboardMetric({
-  error,
-  icon: Icon,
-  isLoading = false,
-  label,
-  onRetry,
-  value,
-}: DashboardMetricProps) {
-  return (
-    <div className="flex min-w-0 items-center gap-3">
-      <Icon className="h-5 w-5 shrink-0 text-accent" aria-hidden />
-      <div className="min-w-0">
-        <div className="flex min-h-7 items-center gap-1">
-          {isLoading ? (
-            <Loader
-              size="sm"
-              className="h-4 w-4 text-text-muted"
-              aria-label={`Загружаем показатель «${label}»`}
-            />
-          ) : error ? (
-            <>
-              <span
-                role="alert"
-                aria-label={error}
-                title={error}
-                className="text-xs font-medium text-danger"
-              >
-                Не загружено
-              </span>
-              {onRetry && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0"
-                  aria-label={`Повторить загрузку: ${label}`}
-                  title="Повторить"
-                  onClick={onRetry}
-                >
-                  <RotateCcw className="h-4 w-4" aria-hidden />
-                </Button>
-              )}
-            </>
-          ) : (
-            <span className="text-lg font-semibold">{value}</span>
-          )}
-        </div>
-        <div className="text-xs text-text-muted">{label}</div>
-      </div>
-    </div>
-  )
-}
 
 export function DashboardPage() {
   const [requestedSpaceKey, setRequestedSpaceKey] = useState('')
@@ -120,52 +52,76 @@ export function DashboardPage() {
     .slice(0, 4)
   const focusTasks = tasksQuery.data?.tasks ?? []
   const documentCount = spaces.reduce((sum, space) => sum + space.document_count, 0)
-  const stats: DashboardMetricProps[] = [
-    { label: 'Пространства', value: spaces.length, icon: Library },
-    { label: 'Документы всего', value: documentCount, icon: FileText },
+  const stats = [
+    { label: 'Пространства', value: spaces.length, icon: <Library className="h-5 w-5" /> },
+    { label: 'Документы всего', value: documentCount, icon: <FileText className="h-5 w-5" /> },
     {
       label: 'Задачи в пространстве',
       value: tasksQuery.data?.total ?? 0,
-      icon: FileText,
-      isLoading: tasksQuery.isLoading,
-      error: tasksQuery.isError
-        ? formatApiErrorForUser(tasksQuery.error, 'Не удалось загрузить задачи')
-        : undefined,
+      icon: <FileText className="h-5 w-5" />,
+      state: tasksQuery.isLoading
+        ? { kind: 'loading' }
+        : (
+              tasksQuery.isError
+                ? formatApiErrorForUser(tasksQuery.error, 'Не удалось загрузить задачи')
+                : undefined
+            )
+          ? {
+              kind: 'error',
+              message: tasksQuery.isError
+                ? formatApiErrorForUser(tasksQuery.error, 'Не удалось загрузить задачи')
+                : undefined,
+            }
+          : { kind: 'ready' },
     },
     {
       label: 'Фазы в пространстве',
       value: phasesQuery.data?.total ?? 0,
-      icon: GitBranch,
-      isLoading: phasesQuery.isLoading,
-      error: phasesQuery.isError
-        ? formatApiErrorForUser(phasesQuery.error, 'Не удалось загрузить фазы')
-        : undefined,
-      onRetry: phasesQuery.isError ? () => void phasesQuery.refetch() : undefined,
+      icon: <GitBranch className="h-5 w-5" />,
+      state: phasesQuery.isLoading
+        ? { kind: 'loading' }
+        : (
+              phasesQuery.isError
+                ? formatApiErrorForUser(phasesQuery.error, 'Не удалось загрузить фазы')
+                : undefined
+            )
+          ? {
+              kind: 'error',
+              message: phasesQuery.isError
+                ? formatApiErrorForUser(phasesQuery.error, 'Не удалось загрузить фазы')
+                : undefined,
+              onRetry: phasesQuery.isError ? () => void phasesQuery.refetch() : undefined,
+            }
+          : { kind: 'ready' },
     },
-  ]
+  ] satisfies MetricProps[]
 
   return (
     <div className="space-y-5">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Wiki</h1>
-          <p className="mt-1 text-sm text-text-muted">Документы, задачи и фазы процесса.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button asChild size="sm" className="min-h-11 md:hidden">
-            <Link to="/documents/new">
-              <FilePlus2 className="h-4 w-4" />
-              Новый документ
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="secondary" className="min-h-10">
-            <Link to="/search">
-              <Search className="h-4 w-4" />
-              Найти
-            </Link>
-          </Button>
-        </div>
-      </header>
+      <PageHeader
+        title={'Wiki'}
+        context={
+          <>
+            <p className="mt-1 text-sm text-text-muted">Документы, задачи и фазы процесса.</p>
+          </>
+        }
+        actions={
+          <>
+            <Button asChild size="sm" className="md:hidden">
+              <Link to="/documents/new">
+                <FilePlus2 className="h-4 w-4" />
+                Новый документ
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="secondary">
+              <Link to="/search">
+                <Search className="h-4 w-4" />
+                Найти
+              </Link>
+            </Button>
+          </>
+        }
+      />
 
       {spacesQuery.isError ? (
         <ErrorState
@@ -194,12 +150,11 @@ export function DashboardPage() {
                 ]}
               />
             </div>
-            <Link
-              to="/spaces"
-              className="inline-flex min-h-10 items-center gap-1 text-sm text-accent hover:underline"
-            >
-              Все пространства <ArrowRight className="h-4 w-4" aria-hidden />
-            </Link>
+            <Button asChild variant="link">
+              <Link to="/spaces">
+                Все пространства <ArrowRight className="h-4 w-4" aria-hidden />
+              </Link>
+            </Button>
           </div>
 
           {spacesQuery.isLoading ? (
@@ -213,23 +168,26 @@ export function DashboardPage() {
                 className="grid grid-cols-2 gap-x-5 gap-y-3 border-b border-border pb-4 lg:grid-cols-4"
               >
                 {stats.map((metric) => (
-                  <DashboardMetric key={metric.label} {...metric} />
+                  <Metric key={metric.label} {...metric} appearance="inline" />
                 ))}
               </section>
 
               <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
                 <section aria-labelledby="recent-documents" className="min-w-0">
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <h2 id="recent-documents" className="text-base font-semibold">
-                      Последние документы
-                    </h2>
-                    <Link
-                      to="/search"
-                      className="inline-flex min-h-10 items-center gap-1 text-sm text-accent hover:underline"
-                    >
-                      Все <ArrowRight className="h-4 w-4" aria-hidden />
-                    </Link>
-                  </div>
+                  <SectionHeader
+                    headingId="recent-documents"
+                    className="mb-2"
+                    title={<>Последние документы</>}
+                    actions={
+                      <>
+                        <Button asChild variant="link">
+                          <Link to="/search">
+                            Все <ArrowRight className="h-4 w-4" aria-hidden />
+                          </Link>
+                        </Button>
+                      </>
+                    }
+                  />
                   {searchQuery.isLoading ? (
                     <LoadingState message="Загружаем документы" />
                   ) : searchQuery.isError ? (
@@ -287,17 +245,20 @@ export function DashboardPage() {
                 </section>
 
                 <section aria-labelledby="focus-tasks" className="min-w-0">
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <h2 id="focus-tasks" className="text-base font-semibold">
-                      Задачи в Wiki
-                    </h2>
-                    <Link
-                      to={`/tasks?space=${encodeURIComponent(activeSpaceKey)}`}
-                      className="inline-flex min-h-10 items-center gap-1 text-sm text-accent hover:underline"
-                    >
-                      Все <ArrowRight className="h-4 w-4" aria-hidden />
-                    </Link>
-                  </div>
+                  <SectionHeader
+                    headingId="focus-tasks"
+                    className="mb-2"
+                    title={<>Задачи в Wiki</>}
+                    actions={
+                      <>
+                        <Button asChild variant="link">
+                          <Link to={`/tasks?space=${encodeURIComponent(activeSpaceKey)}`}>
+                            Все <ArrowRight className="h-4 w-4" aria-hidden />
+                          </Link>
+                        </Button>
+                      </>
+                    }
+                  />
                   {tasksQuery.isLoading ? (
                     <LoadingState message="Загружаем задачи" />
                   ) : tasksQuery.isError ? (
