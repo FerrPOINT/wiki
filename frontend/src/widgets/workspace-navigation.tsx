@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router'
 import { ChevronRight, FileCheck2, FileText, LayoutDashboard } from 'lucide-react'
-import { Button, NamespaceNavLink, ProjectNavigationGroup, SidebarItem } from '@pdlc/ui/ui'
+import {
+  Button,
+  NamespaceNavLink,
+  ProjectNavigationGroup,
+  SidebarItem,
+  LoadingState,
+  Notice,
+} from '@pdlc/ui/ui'
 import { projectIdentity, withNamespaceLocation, type useProjectDisclosures } from '@pdlc/ui/lib'
 import {
   documentPath,
@@ -133,23 +140,23 @@ function DocumentTree({
   const current = location.pathname.match(/^\/documents\/([^/]+)/)?.[1] ?? ''
   const prefix = space.id
   if (!open) return null
-  if (tree.isPending)
-    return (
-      <p role="status" className="px-3 text-sm">
-        Загружаем документы…
-      </p>
-    )
+  if (tree.isPending) return <LoadingState message="Загружаем документы…" />
   if (tree.isError)
     return (
-      <div role="alert" className="px-3 text-sm">
-        Дерево документов недоступно.{' '}
-        <Button variant="ghost" onClick={() => tree.refetch()}>
-          Повторить
-        </Button>
-      </div>
+      <Notice
+        role="alert"
+        tone="danger"
+        appearance="inline"
+        actions={
+          <Button variant="ghost" onClick={() => tree.refetch()}>
+            Повторить
+          </Button>
+        }
+      >
+        Дерево документов недоступно.
+      </Notice>
     )
-  if (!tree.data.documents.length)
-    return <p className="px-3 text-sm text-text-muted">Документов пока нет</p>
+  if (!tree.data.documents.length) return <Notice appearance="inline">Документов пока нет</Notice>
   return (
     <DocumentNodes
       nodes={tree.data.documents}
@@ -174,19 +181,20 @@ export function WorkspaceNavigation({
     location = useLocation()
   if (context.malformed || catalog.isError)
     return (
-      <div role="alert" className="p-3 text-sm">
-        Проекты недоступны.{' '}
-        <Button variant="ghost" onClick={() => catalog.refetch()}>
-          Повторить
-        </Button>
-      </div>
+      <Notice
+        role="alert"
+        tone="danger"
+        appearance="inline"
+        actions={
+          <Button variant="ghost" onClick={() => catalog.refetch()}>
+            Повторить
+          </Button>
+        }
+      >
+        Проекты недоступны.
+      </Notice>
     )
-  if (catalog.isPending)
-    return (
-      <p role="status" className="p-3 text-sm">
-        Загружаем проекты…
-      </p>
-    )
+  if (catalog.isPending) return <LoadingState message="Загружаем проекты…" />
   const projects = catalog.data.filter(
     (project) =>
       context.all ||

@@ -1,5 +1,6 @@
-import { createMemoryRouter } from 'react-router'
-import { describe, expect, it } from 'vitest'
+import { createMemoryRouter, RouterProvider } from 'react-router'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, describe, expect, it } from 'vitest'
 import { createWikiRoutes } from './router'
 
 const namespacePaths = [
@@ -7,6 +8,38 @@ const namespacePaths = [
   '/documents/:documentId/revisions/:revisionId',
   '/managed-tasks/:trackerInstance/:taskId',
 ]
+
+afterEach(cleanup)
+
+it.each([false, true])(
+  'replaces legacy registration with central login (namespace=%s)',
+  async (enabled) => {
+    // Keep the real redirect and avoid starting SSO at its destination.
+    const router = createMemoryRouter(
+      [
+        { path: '/previous', element: <h1>Previous page</h1> },
+        ...createWikiRoutes(enabled).map((route) =>
+          route.path === '/login' ? { ...route, element: <h1>Central login</h1> } : route,
+        ),
+      ],
+      { initialEntries: ['/previous', '/register'], initialIndex: 1 },
+    )
+    try {
+      render(<RouterProvider router={router} />)
+      expect(await screen.findByRole('heading', { name: 'Central login' })).toBeInTheDocument()
+      expect(router.state.location.pathname).toBe('/login')
+      expect(router.state.historyAction).toBe('REPLACE')
+      expect(screen.queryByRole('textbox')).toBeNull()
+      await act(async () => {
+        await router.navigate(-1)
+      })
+      await waitFor(() => expect(router.state.location.pathname).toBe('/previous'))
+      expect(screen.getByRole('heading', { name: 'Previous page' })).toBeInTheDocument()
+    } finally {
+      router.dispose()
+    }
+  },
+)
 
 function matchedPaths(pathname: string, namespaceEnabled: boolean) {
   const router = createMemoryRouter(createWikiRoutes(namespaceEnabled), {

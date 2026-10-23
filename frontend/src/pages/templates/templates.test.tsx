@@ -110,10 +110,9 @@ describe('TemplatesPage', () => {
     setupTemplates()
 
     expect(screen.getByRole('heading', { name: 'Шаблоны' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Создать документ' })).toHaveClass(
-      'md:hidden',
-      'min-h-11',
-    )
+    const createDocument = screen.getByRole('link', { name: 'Создать документ' })
+    expect(createDocument).toHaveClass('md:hidden')
+    expect(createDocument).toHaveAttribute('data-size', 'sm')
     expect(screen.getByRole('link', { name: 'Использовать шаблон Требования' })).toHaveAttribute(
       'href',
       '/documents/new?template=requirements',
@@ -157,16 +156,13 @@ describe('TemplatesPage', () => {
       'href',
       '/documents/new?template=release-plan',
     )
-    expect(screen.getByRole('link', { name: 'Использовать' })).toHaveClass(
-      'min-h-10',
-      'sm:min-h-10',
+    expect(screen.getByRole('link', { name: 'Использовать' })).toHaveAttribute('data-size', 'sm')
+    expect(screen.getByRole('button', { name: 'Закрыть уведомление' })).toHaveAttribute(
+      'data-size',
+      'icon',
     )
-    expect(screen.getByRole('button', { name: 'Закрыть уведомление' })).toHaveClass(
-      'min-h-10',
-      'min-w-10',
-      'sm:min-h-10',
-      'sm:min-w-10',
-    )
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть уведомление' }))
+    expect(screen.queryByText('Шаблон «План релиза» создан')).not.toBeInTheDocument()
   })
 
   it('rejects whitespace-only required fields before calling the API', () => {

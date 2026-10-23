@@ -1,4 +1,11 @@
-import { ResourceList, ResourceListRow, LoadingState, usePlatformServices } from '@pdlc/ui/ui'
+import {
+  PageHeader,
+  ResourceList,
+  ResourceListRow,
+  LoadingState,
+  usePlatformServices,
+  ErrorState,
+} from '@pdlc/ui/ui'
 import type { components } from '@/api/generated'
 import { Link, useLocation, useParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
@@ -38,17 +45,11 @@ export function ManagedTaskPage() {
           link.namespace.registry_instance_id !== ref.registry_instance_id,
       ))
   )
-    return (
-      <p role="alert" className="text-danger">
-        Досье недоступно в выбранном проекте.
-      </p>
-    )
+    return <ErrorState message="Досье недоступно в выбранном проекте." />
   const tracker = services.find((service) => service.key === 'task-tracker')?.ui_url
   return (
     <div className="space-y-5">
-      <h1 className="text-xl font-semibold">
-        Документы задачи {query.data[0]?.task_key ?? taskId}
-      </h1>
+      <PageHeader title={`Документы задачи ${query.data[0]?.task_key ?? taskId}`} />
       {tracker && (
         <a
           className="text-accent"

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -112,7 +112,8 @@ describe('AdminPage', () => {
 
     const usersLink = screen.getByRole('link', { name: /Пользователи.*Admin Panel/ })
     expect(usersLink).toHaveAttribute('href', '/users')
-    expect(usersLink).toHaveClass('min-h-20')
+    expect(usersLink).toHaveAttribute('data-interactive', 'true')
+    expect(usersLink).toHaveClass('base-card')
     expect(screen.queryByRole('link', { name: 'Открыть' })).not.toBeInTheDocument()
   })
 
@@ -180,10 +181,11 @@ describe('AdminPage', () => {
     expect(screen.getByText('Первая страница, лимит 50; событий пока нет')).toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent('Не удалось загрузить настройки')
 
-    const retry = screen.getByRole('button', {
-      name: 'Повторить загрузку: Локальная регистрация',
-    })
-    expect(retry).toHaveClass('h-10', 'w-10', 'sm:min-h-10', 'sm:min-w-10')
+    const registration = within(screen.getByRole('group', { name: 'Локальная регистрация' }))
+    const retry = registration.getByRole('button', { name: /повторить/i })
+    retry.focus()
+    expect(document.activeElement).toBe(retry)
+    expect(retry).toHaveAttribute('type', 'button')
     fireEvent.click(retry)
 
     expect(settingsRefetch).toHaveBeenCalledOnce()

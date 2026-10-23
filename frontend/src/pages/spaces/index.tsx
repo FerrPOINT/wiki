@@ -4,16 +4,7 @@ import { FormEvent, type RefObject, useRef, useState } from 'react'
 // Spaces own documents independently of their project associations.
 import { Link } from 'react-router'
 
-import {
-  Archive,
-  BookOpenText,
-  ChevronDown,
-  FileText,
-  FolderOpen,
-  Plus,
-  Save,
-  Search,
-} from 'lucide-react'
+import { Archive, BookOpenText, ChevronDown, FileText, FolderOpen, Plus, Save } from 'lucide-react'
 import {
   useArchiveSpace,
   useCreateSpace,
@@ -24,6 +15,9 @@ import {
   useUsers,
 } from '@/shared/api/hooks'
 import {
+  CardContent,
+  Card,
+  PageHeader,
   Select,
   ConfirmDialog,
   EmptyState,
@@ -36,6 +30,8 @@ import {
   Input,
   Label,
   Textarea,
+  SearchInput,
+  Notice,
 } from '@pdlc/ui/ui'
 
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
@@ -125,47 +121,51 @@ function CreateSpaceForm({ onCreated }: { onCreated: () => void }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-md border border-border bg-surface p-3">
-      <div className="grid gap-3 lg:grid-cols-[10rem_1fr_1.5fr_auto] lg:items-end">
-        <div className="space-y-1.5">
-          <Label htmlFor="space-key">Ключ</Label>
-          <Input
-            id="space-key"
-            value={key}
-            onChange={(event) => setKey(event.target.value)}
-            placeholder="KEY"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="space-name">Название</Label>
-          <Input
-            id="space-name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="Название пространства"
-            required
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="space-description">Описание</Label>
-          <Input
-            id="space-description"
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            placeholder="Описание пространства"
-          />
-        </div>
-        <Button disabled={createSpace.isPending || !key.trim() || !name.trim()}>
-          <Plus className="h-4 w-4" />
-          {createSpace.isPending ? 'Создаём...' : 'Создать пространство'}
-        </Button>
-      </div>
-      {createSpace.isError && (
-        <p className="mt-2 text-sm text-danger">
-          {formatApiErrorForUser(createSpace.error, 'Не удалось создать пространство')}
-        </p>
-      )}
-    </form>
+    <Card asChild>
+      <form onSubmit={handleSubmit}>
+        <CardContent>
+          <div className="grid gap-3 lg:grid-cols-[10rem_1fr_1.5fr_auto] lg:items-end">
+            <div className="space-y-1.5">
+              <Label htmlFor="space-key">Ключ</Label>
+              <Input
+                id="space-key"
+                value={key}
+                onChange={(event) => setKey(event.target.value)}
+                placeholder="KEY"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="space-name">Название</Label>
+              <Input
+                id="space-name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Название пространства"
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="space-description">Описание</Label>
+              <Input
+                id="space-description"
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                placeholder="Описание пространства"
+              />
+            </div>
+            <Button disabled={createSpace.isPending || !key.trim() || !name.trim()}>
+              <Plus className="h-4 w-4" />
+              {createSpace.isPending ? 'Создаём...' : 'Создать пространство'}
+            </Button>
+          </div>
+          {createSpace.isError && (
+            <p className="mt-2 text-sm text-danger">
+              {formatApiErrorForUser(createSpace.error, 'Не удалось создать пространство')}
+            </p>
+          )}
+        </CardContent>
+      </form>
+    </Card>
   )
 }
 
@@ -205,51 +205,55 @@ function SpaceDetails({
   return (
     <div className="space-y-4 border-t border-border bg-surface-raised/40 p-3">
       {canManage && (
-        <form onSubmit={handleUpdate} className="space-y-3 rounded-md border border-border p-3">
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor={`${space.key}-name`}>Название пространства</Label>
-              <Input
-                id={`${space.key}-name`}
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor={`${space.key}-description`}>Описание</Label>
-              <Textarea
-                id={`${space.key}-description`}
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-              />
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" disabled={updateSpace.isPending || !changed || !name.trim()}>
-              <Save className="h-3.5 w-3.5" />
-              {updateSpace.isPending ? 'Сохраняем...' : 'Сохранить'}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="destructive"
-              onClick={() => {
-                archiveSpace.reset()
-                setArchiveOpen(true)
-              }}
-              disabled={archiveSpace.isPending}
-            >
-              <Archive className="h-3.5 w-3.5" />
-              Архивировать
-            </Button>
-          </div>
-          {updateSpace.isError && (
-            <p className="text-sm text-danger">
-              {formatApiErrorForUser(updateSpace.error, 'Не удалось обновить пространство')}
-            </p>
-          )}
-        </form>
+        <Card asChild>
+          <form onSubmit={handleUpdate}>
+            <CardContent className="space-y-3">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor={`${space.key}-name`}>Название пространства</Label>
+                  <Input
+                    id={`${space.key}-name`}
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor={`${space.key}-description`}>Описание</Label>
+                  <Textarea
+                    id={`${space.key}-description`}
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" disabled={updateSpace.isPending || !changed || !name.trim()}>
+                  <Save className="h-3.5 w-3.5" />
+                  {updateSpace.isPending ? 'Сохраняем...' : 'Сохранить'}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => {
+                    archiveSpace.reset()
+                    setArchiveOpen(true)
+                  }}
+                  disabled={archiveSpace.isPending}
+                >
+                  <Archive className="h-3.5 w-3.5" />
+                  Архивировать
+                </Button>
+              </div>
+              {updateSpace.isError && (
+                <p className="text-sm text-danger">
+                  {formatApiErrorForUser(updateSpace.error, 'Не удалось обновить пространство')}
+                </p>
+              )}
+            </CardContent>
+          </form>
+        </Card>
       )}
 
       <SpaceProjectsEditor spaceKey={space.key} canManage={Boolean(canManage)} />
@@ -277,14 +281,16 @@ function SpaceDetails({
         }
       />
 
-      <div className="space-y-2 rounded-md border border-border p-3">
-        <DossierMenu spaceKey={space.key} />
-        <div className="flex items-center gap-2 text-xs font-medium uppercase text-text-muted">
-          <BookOpenText className="h-3.5 w-3.5" />
-          Дерево
-        </div>
-        <SpaceTreePreview spaceKey={space.key} />
-      </div>
+      <Card>
+        <CardContent className="space-y-2">
+          <DossierMenu spaceKey={space.key} />
+          <div className="flex items-center gap-2 text-xs font-medium uppercase text-text-muted">
+            <BookOpenText className="h-3.5 w-3.5" />
+            Дерево
+          </div>
+          <SpaceTreePreview spaceKey={space.key} />
+        </CardContent>
+      </Card>
       {!isSystemAdmin && membersQuery.isError && (
         <ErrorState
           message={formatApiErrorForUser(
@@ -355,40 +361,44 @@ export function SpacesPage() {
 
   return (
     <div className="space-y-5">
-      <section className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Пространства</h1>
-          <p className="max-w-3xl text-sm text-text-muted">
-            Пространства группируют документы по продуктам, командам и контекстам процесса.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {isSystemAdmin && spacesQuery.unfilteredCount > 0 && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="min-h-10"
-              aria-expanded={showCreate}
-              onClick={() => setShowCreate((value) => !value)}
-            >
-              <Plus className="h-4 w-4" /> Создать пространство
-            </Button>
-          )}
-          {spaces.some((space) => space.status === 'active') && (
-            <Button asChild size="sm" className="min-h-11 md:hidden">
-              <Link to="/documents/new">Новый документ</Link>
-            </Button>
-          )}
-        </div>
-      </section>
+      <PageHeader
+        title={'Пространства'}
+        context={
+          <>
+            <p className="max-w-3xl text-sm text-text-muted">
+              Пространства группируют документы по продуктам, командам и контекстам процесса.
+            </p>
+          </>
+        }
+        actions={
+          <>
+            {isSystemAdmin && spacesQuery.unfilteredCount > 0 && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+
+                aria-expanded={showCreate}
+                onClick={() => setShowCreate((value) => !value)}
+              >
+                <Plus className="h-4 w-4" /> Создать пространство
+              </Button>
+            )}
+            {spaces.some((space) => space.status === 'active') && (
+              <Button asChild size="sm" className="md:hidden">
+                <Link to="/documents/new">Новый документ</Link>
+              </Button>
+            )}
+          </>
+        }
+      />
 
       {isSystemAdmin && showCreate && <CreateSpaceForm onCreated={() => setShowCreate(false)} />}
 
       {recentlyArchived && (
-        <p role="status" className="border-l-2 border-success bg-surface-raised px-3 py-2 text-sm">
+        <Notice role="status" appearance="inline" tone="success">
           Пространство «{recentlyArchived.name}» архивировано и остаётся доступным для чтения.
-        </p>
+        </Notice>
       )}
 
       {spacesQuery.isLoading && <LoadingState message="Загружаем пространства" />}
@@ -422,13 +432,8 @@ export function SpacesPage() {
       {!spacesQuery.isLoading && !spacesQuery.isError && spacesQuery.unfilteredCount > 0 && (
         <section aria-label="Список пространств" className="space-y-3">
           <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_11rem_11rem_auto]">
-            <div className="relative min-w-0">
-              <Search
-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
-                aria-hidden
-              />
-              <Input
-                type="search"
+            <div className="min-w-0">
+              <SearchInput
                 aria-label="Найти пространство"
                 placeholder="Название, ключ или описание"
                 value={search}
@@ -436,7 +441,6 @@ export function SpacesPage() {
                   setSearch(event.target.value)
                   resetListPosition()
                 }}
-                className="min-h-10 pl-9"
               />
             </div>
             <Select
@@ -483,9 +487,9 @@ export function SpacesPage() {
             Показано {visibleSpaces.length} из {filteredSpaces.length} пространств
           </p>
           {filteredSpaces.length === 0 ? (
-            <p role="status" className="border-y border-border py-6 text-sm text-text-muted">
-              По заданным условиям пространства не найдены.
-            </p>
+            <div role="status">
+              <EmptyState message="По заданным условиям пространства не найдены." />
+            </div>
           ) : (
             <ResourceList asChild>
               <ul>
@@ -558,7 +562,7 @@ export function SpacesPage() {
                 type="button"
                 size="sm"
                 variant="outline"
-                className="min-h-10"
+
                 disabled={currentPage === 1}
                 onClick={() => {
                   setPage(currentPage - 1)
@@ -574,7 +578,7 @@ export function SpacesPage() {
                 type="button"
                 size="sm"
                 variant="outline"
-                className="min-h-10"
+
                 disabled={currentPage === pageCount}
                 onClick={() => {
                   setPage(currentPage + 1)

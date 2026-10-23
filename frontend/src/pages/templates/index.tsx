@@ -1,6 +1,7 @@
 import { useApplicationAccess } from '@pdlc/ui/auth'
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import {
+  PageHeader,
   Select,
   CodeBlock,
   NamespaceLink as Link,
@@ -13,18 +14,11 @@ import {
   Label,
   LoadingState,
   Textarea,
+  SearchInput,
+  Notice,
 } from '@pdlc/ui/ui'
 import { useSearchParams } from 'react-router'
-import {
-  CheckCircle2,
-  ChevronDown,
-  ClipboardCheck,
-  FileText,
-  Plus,
-  Search,
-  ShieldCheck,
-  X,
-} from 'lucide-react'
+import { ChevronDown, ClipboardCheck, FileText, Plus, ShieldCheck, X } from 'lucide-react'
 import { useCreateTemplate, useTemplates } from '@/shared/api/hooks'
 
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
@@ -221,67 +215,71 @@ export function TemplatesPage() {
 
   return (
     <div className="space-y-5">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Шаблоны</h1>
-          <p className="mt-1 text-sm text-text-muted">Стартовые структуры документов.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {isSystemAdmin && (
-            <Button
-              type="button"
-              size="sm"
-              className="min-h-10 sm:min-h-10"
-              aria-expanded={showCreate}
-              aria-controls={showCreate ? 'template-create' : undefined}
-              disabled={createTemplate.isPending}
-              onClick={() => {
-                if (!showCreate) {
-                  createTemplate.reset()
-                  setSubmitAttempted(false)
-                }
-                setShowCreate((value) => !value)
-              }}
-            >
-              <Plus className="h-4 w-4" aria-hidden />
-              {showCreate ? 'Свернуть форму' : 'Новый шаблон'}
+      <PageHeader
+        title={'Шаблоны'}
+        context={
+          <>
+            <p className="mt-1 text-sm text-text-muted">Стартовые структуры документов.</p>
+          </>
+        }
+        actions={
+          <>
+            {isSystemAdmin && (
+              <Button
+                type="button"
+                size="sm"
+
+                aria-expanded={showCreate}
+                aria-controls={showCreate ? 'template-create' : undefined}
+                disabled={createTemplate.isPending}
+                onClick={() => {
+                  if (!showCreate) {
+                    createTemplate.reset()
+                    setSubmitAttempted(false)
+                  }
+                  setShowCreate((value) => !value)
+                }}
+              >
+                <Plus className="h-4 w-4" aria-hidden />
+                {showCreate ? 'Свернуть форму' : 'Новый шаблон'}
+              </Button>
+            )}
+            <Button asChild size="sm" variant="secondary" className="md:hidden">
+              <Link to="/documents/new">
+                <FileText className="h-4 w-4" aria-hidden />
+                Создать документ
+              </Link>
             </Button>
-          )}
-          <Button asChild size="sm" variant="secondary" className="min-h-11 md:hidden">
-            <Link to="/documents/new">
-              <FileText className="h-4 w-4" aria-hidden />
-              Создать документ
-            </Link>
-          </Button>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       {createdTemplate && (
-        <div
+        <Notice
           role="status"
-          className="flex flex-wrap items-center gap-2 border-y border-border py-3 text-sm text-text-secondary"
+          tone="success"
+          actions={
+            <>
+              <Button asChild size="sm" variant="outline">
+                <Link to={`/documents/new?template=${encodeURIComponent(createdTemplate.id)}`}>
+                  Использовать
+                </Link>
+              </Button>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                aria-label="Закрыть уведомление"
+                title="Закрыть уведомление"
+                onClick={() => setCreatedTemplate(null)}
+              >
+                <X className="h-4 w-4" aria-hidden />
+              </Button>
+            </>
+          }
         >
-          <CheckCircle2 className="h-4 w-4 text-success" aria-hidden />
-          <span className="mr-auto min-w-0 break-words">
-            Шаблон «{createdTemplate.name}» создан
-          </span>
-          <Button asChild size="sm" variant="outline" className="min-h-10 sm:min-h-10">
-            <Link to={`/documents/new?template=${encodeURIComponent(createdTemplate.id)}`}>
-              Использовать
-            </Link>
-          </Button>
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="min-h-10 min-w-10 sm:min-h-10 sm:min-w-10"
-            aria-label="Закрыть уведомление"
-            title="Закрыть уведомление"
-            onClick={() => setCreatedTemplate(null)}
-          >
-            <X className="h-4 w-4" aria-hidden />
-          </Button>
-        </div>
+          Шаблон «{createdTemplate.name}» создан
+        </Notice>
       )}
 
       {isSystemAdmin && showCreate && (
@@ -298,7 +296,7 @@ export function TemplatesPage() {
               <Input
                 ref={nameRef}
                 id="template-name"
-                className="min-h-10"
+
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 disabled={createTemplate.isPending}
@@ -349,16 +347,16 @@ export function TemplatesPage() {
             )}
           </div>
           {createTemplate.isError && (
-            <p role="alert" className="text-sm text-danger">
+            <Notice role="alert" appearance="inline" tone="danger">
               {formatApiErrorForUser(createTemplate.error, 'Не удалось создать шаблон')}
-            </p>
+            </Notice>
           )}
           <div className="flex flex-wrap justify-end gap-2">
             <Button
               type="button"
               size="sm"
               variant="outline"
-              className="min-h-10 sm:min-h-10"
+
               disabled={createTemplate.isPending}
               onClick={() => setShowCreate(false)}
             >
@@ -367,7 +365,7 @@ export function TemplatesPage() {
             <Button
               type="submit"
               size="sm"
-              className="min-h-10 sm:min-h-10"
+
               disabled={createTemplate.isPending}
             >
               {createTemplate.isPending ? 'Создаём...' : 'Создать шаблон'}
@@ -389,16 +387,10 @@ export function TemplatesPage() {
       {!templatesQuery.isLoading && !templatesQuery.isError && templates.length > 0 && (
         <section aria-label="Список шаблонов" className="space-y-3">
           <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_14rem]">
-            <div className="relative min-w-0">
-              <Search
-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
-                aria-hidden
-              />
-              <Input
-                type="search"
+            <div className="min-w-0">
+              <SearchInput
                 aria-label="Найти шаблон"
                 placeholder="Название или содержимое"
-                className="min-h-10 pl-9"
                 value={search}
                 onChange={(event) => {
                   setSearch(event.target.value)
@@ -427,9 +419,9 @@ export function TemplatesPage() {
             Показано {visibleTemplates.length} из {filteredTemplates.length} шаблонов
           </p>
           {filteredTemplates.length === 0 ? (
-            <p role="status" className="border-y border-border py-6 text-sm text-text-muted">
-              По заданным условиям шаблоны не найдены.
-            </p>
+            <div role="status">
+              <EmptyState message="По заданным условиям шаблоны не найдены." />
+            </div>
           ) : (
             <ResourceList asChild>
               <ul>
@@ -493,7 +485,7 @@ export function TemplatesPage() {
                 type="button"
                 size="sm"
                 variant="outline"
-                className="min-h-10 sm:min-h-10"
+
                 disabled={currentPage === 1}
                 onClick={() => {
                   setCatalogPage(currentPage - 1)
@@ -509,7 +501,7 @@ export function TemplatesPage() {
                 type="button"
                 size="sm"
                 variant="outline"
-                className="min-h-10 sm:min-h-10"
+
                 disabled={currentPage === totalPages}
                 onClick={() => {
                   setCatalogPage(currentPage + 1)

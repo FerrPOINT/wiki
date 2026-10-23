@@ -1,5 +1,16 @@
 import { useLocation } from 'react-router'
-import { NamespaceLink as Link, ProjectAvatar, ResourceList, ResourceListRow } from '@pdlc/ui/ui'
+import {
+  PageHeader,
+  SectionHeader,
+  NamespaceLink as Link,
+  ProjectAvatar,
+  ResourceList,
+  ResourceListRow,
+  LoadingState,
+  ErrorState,
+  Notice,
+  EmptyState,
+} from '@pdlc/ui/ui'
 import { projectIdentity, withNamespaceLocation } from '@pdlc/ui/lib'
 import { documentPath, useWorkspaceCatalog, workspacePath } from '@/api/workspaces'
 import { useNamespaceContext } from '@/widgets/namespace-context'
@@ -28,11 +39,11 @@ function Documents({ nodes, search }: { nodes: SpaceTreeNode[]; search: string }
 }
 export function ProjectsPage() {
   const catalog = useWorkspaceCatalog()
-  if (catalog.isPending) return <p role="status">Загружаем проекты…</p>
-  if (catalog.isError) return <p role="alert">Каталог проектов недоступен.</p>
+  if (catalog.isPending) return <LoadingState message="Загружаем проекты…" />
+  if (catalog.isError) return <ErrorState message="Каталог проектов недоступен." />
   return (
     <div className="space-y-5">
-      <h1 className="text-2xl font-semibold">Проекты</h1>
+      <PageHeader title={'Проекты'} />
       <ResourceList asChild>
         <ul>
           {catalog.data.map((project) => (
@@ -56,7 +67,7 @@ export function ProjectsPage() {
           ))}
         </ul>
       </ResourceList>
-      {!catalog.data.length && <p>Нет доступных проектов</p>}
+      {!catalog.data.length && <EmptyState message="Нет доступных проектов" />}
     </div>
   )
 }
@@ -66,43 +77,47 @@ export function WorkspacePage({ documents = false }: { documents?: boolean }) {
   const project = context.workspace.data
   const resource = context.query.isError ? undefined : context.query.data
   const tree = useSpaceTree(resource?.resource_key ?? '', documents && !!resource)
-  if (context.malformed) return <p role="alert">Некорректный контекст проекта.</p>
-  if (context.workspace.isPending) return <p role="status">Загружаем проект…</p>
+  if (context.malformed) return <ErrorState message="Некорректный контекст проекта." />
+  if (context.workspace.isPending) return <LoadingState message="Загружаем проект…" />
   if (documents && context.query.isError)
-    return <p role="alert">Документы проекта недоступны. Другое пространство не выбрано.</p>
+    return <ErrorState message="Документы проекта недоступны. Другое пространство не выбрано." />
   if (context.workspace.isError && documents && resource)
     return (
       <section className="space-y-3">
-        <h1 className="text-2xl font-semibold">Документы проекта</h1>
+        <PageHeader title={'Документы проекта'} />
         <DossierMenu spaceKey={resource.resource_key} namespace={context.ref} />
-        <p role="status">
+        <Notice role="status" appearance="inline" tone="neutral">
           Сведения о проекте временно недоступны. Подтверждённое пространство сохранено.
-        </p>
+        </Notice>
         {tree.isPending ? (
-          <p role="status">Загружаем документы…</p>
+          <LoadingState message="Загружаем документы…" />
         ) : tree.isError ? (
-          <p role="alert">Документы недоступны.</p>
+          <ErrorState message="Документы недоступны." />
         ) : (
           <Documents nodes={tree.data.documents} search={location.search} />
         )}
       </section>
     )
   if (context.workspace.isError || !project)
-    return <p role="alert">Проект недоступен. Другой проект не выбран.</p>
+    return <ErrorState message="Проект недоступен. Другой проект не выбран." />
   return (
     <div className="space-y-5">
-      <h1 className="flex items-center gap-3 text-2xl font-semibold">
-        <ProjectAvatar projectKey={project.project_key} />
-        {project.name}
-      </h1>
-      <p>
-        {project.project_key}
-        {project.state === 'archived' ? ' · В архиве' : ''}
-        {project.stale ? ' · Метаданные устарели' : ''}
-      </p>
+      <PageHeader
+        title={project.name}
+        leading={<ProjectAvatar projectKey={project.project_key} />}
+        context={
+          <>
+            {project.project_key}
+            {project.state === 'archived' ? ' · В архиве' : ''}
+            {project.stale ? ' · Метаданные устарели' : ''}
+          </>
+        }
+      />
       {project.resource_status !== 'connected' ? (
         <div>
-          <p role="status">{projectResourceLabel(project)}</p>
+          <Notice role="status" appearance="inline" tone="neutral">
+            {projectResourceLabel(project)}
+          </Notice>
           {project.resource_status === 'not_connected' && (
             <Link className="text-accent" to="/spaces?project_scope=all">
               Связать пространство в каталоге Wiki
@@ -111,23 +126,23 @@ export function WorkspacePage({ documents = false }: { documents?: boolean }) {
         </div>
       ) : documents ? (
         <section>
-          <h2 className="text-lg font-semibold">Документы</h2>
+          <SectionHeader title={<>Документы</>} />
           {resource && (
             <DossierMenu spaceKey={resource.resource_key} namespace={project.namespace} />
           )}
           {tree.isPending ? (
-            <p role="status">Загружаем документы…</p>
+            <LoadingState message="Загружаем документы…" />
           ) : tree.isError ? (
-            <p role="alert">Документы недоступны.</p>
+            <ErrorState message="Документы недоступны." />
           ) : tree.data?.documents.length ? (
             <Documents nodes={tree.data.documents} search={location.search} />
           ) : (
-            <p>Документов пока нет.</p>
+            <EmptyState message="Документов пока нет." />
           )}
         </section>
       ) : (
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold">Пространства проекта</h2>
+          <SectionHeader title={<>Пространства проекта</>} />
           <ResourceList asChild>
             <ul>
               {project.spaces.map((space) => (

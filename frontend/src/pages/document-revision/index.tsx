@@ -1,4 +1,4 @@
-import { LoadingState, NamespaceLink as Link } from '@pdlc/ui/ui'
+import { PageHeader, Prose, LoadingState, NamespaceLink as Link, ErrorState } from '@pdlc/ui/ui'
 import { useParams } from 'react-router'
 import { withNamespaceLocation } from '@pdlc/ui/lib'
 import { useDocument, useDocumentRevision } from '@/shared/api/hooks'
@@ -20,22 +20,23 @@ export function DocumentRevisionPage() {
     !revision.data ||
     (ref && (context.isError || context.data?.resource_key !== document.data.space_key))
   )
-    return (
-      <p role="alert" className="text-danger">
-        Ревизия недоступна в выбранном проекте.
-      </p>
-    )
+    return <ErrorState message="Ревизия недоступна в выбранном проекте." />
   return (
     <article className="space-y-5">
       <Link className="text-accent" to={withNamespaceLocation(`/documents/${documentId}`, ref)}>
         Все версии документа
       </Link>
-      <h1 className="text-xl font-semibold">{revision.data.title}</h1>
-      <p className="text-sm text-text-muted">
-        Опубликованная ревизия {revision.data.version} · {revision.data.published_at}
-      </p>
-      <div
-        className="wiki-rendered page-readable"
+      <PageHeader
+        title={revision.data.title}
+        context={
+          <>
+            Опубликованная ревизия
+            {revision.data.version}·{revision.data.published_at}
+          </>
+        }
+      />
+      <Prose
+        className="page-readable"
         dangerouslySetInnerHTML={{ __html: revision.data.body_html }}
       />
       <TaskRevisionLink

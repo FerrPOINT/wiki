@@ -80,7 +80,10 @@ describe('UsersPage', () => {
     expect(screen.getAllByText('Профиль доступен')).toHaveLength(2)
     expect(screen.queryByLabelText(/пароль|роль/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /создать|сохранить/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Поиск пользователей' })).toHaveClass('h-10')
+    expect(screen.getByRole('searchbox', { name: 'Поиск пользователей' })).toHaveAttribute(
+      'placeholder',
+      'Имя или email',
+    )
   })
 
   it('uses the exact Admin origin supplied by the runtime catalog', async () => {
@@ -113,13 +116,13 @@ describe('UsersPage', () => {
 
   it('filters users by name and email without losing the directory', () => {
     setupUsers()
-    fireEvent.change(screen.getByRole('textbox', { name: 'Поиск пользователей' }), {
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Поиск пользователей' }), {
       target: { value: 'editor@' },
     })
     expect(screen.getAllByText('Редактор')).toHaveLength(2)
     expect(screen.queryByText('Анна')).not.toBeInTheDocument()
     expect(screen.getByText('Найдено: 1 из 2')).toBeInTheDocument()
-    fireEvent.change(screen.getByRole('textbox', { name: 'Поиск пользователей' }), {
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Поиск пользователей' }), {
       target: { value: 'missing' },
     })
     expect(screen.getByText('По вашему запросу ничего не найдено')).toBeInTheDocument()
@@ -134,13 +137,13 @@ describe('UsersPage', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Недостаточно прав для действия')
     fireEvent.click(screen.getByRole('button', { name: 'Повторить' }))
     expect(usersRefetch).toHaveBeenCalled()
-    expect(screen.getByRole('textbox', { name: 'Поиск пользователей' })).toBeInTheDocument()
+    expect(screen.getByRole('searchbox', { name: 'Поиск пользователей' })).toBeInTheDocument()
   })
 
   it('restores search from a direct URL and preserves neighboring parameters', () => {
     setupUsers({}, '/users?keep=1&q=%20editor%40%20')
 
-    expect(screen.getByRole('textbox', { name: 'Поиск пользователей' })).toHaveValue('editor@')
+    expect(screen.getByRole('searchbox', { name: 'Поиск пользователей' })).toHaveValue('editor@')
     expect(screen.getAllByText('Редактор')).toHaveLength(2)
     expect(screen.queryByText('Анна')).not.toBeInTheDocument()
     expect(screen.getByTestId('router-location')).toHaveTextContent('/users?keep=1&q=editor%40')
@@ -186,7 +189,7 @@ describe('UsersPage', () => {
     expect(screen.getByTestId('router-location')).toHaveTextContent('/users?keep=1')
     fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
     expect(screen.getByTestId('router-location')).toHaveTextContent('/users?keep=1&page=2')
-    fireEvent.change(screen.getByRole('textbox', { name: 'Поиск пользователей' }), {
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Поиск пользователей' }), {
       target: { value: 'Пользователь 29' },
     })
     act(() => vi.advanceTimersByTime(300))

@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { ExternalLink, Search } from 'lucide-react'
+import { ExternalLink } from 'lucide-react'
 import { useSearchParams } from 'react-router'
 import {
+  PageHeader,
   Button,
   EmptyState,
   ErrorState,
-  Input,
   LoadingState,
   Table,
   TableBody,
@@ -16,6 +16,7 @@ import {
   usePlatformServices,
   ResourceList,
   ResourceListRow,
+  SearchInput,
 } from '@pdlc/ui/ui'
 import { useUsers } from '@/shared/api/hooks'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
@@ -126,36 +127,34 @@ export function UsersPage() {
 
   return (
     <div className="min-w-0 space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">Профили Wiki</h1>
-          {!usersQuery.isLoading && !usersQuery.isError && (
+      <PageHeader
+        title={'Профили Wiki'}
+        context={
+          !usersQuery.isLoading &&
+          !usersQuery.isError && (
             <p className="text-sm text-text-muted" aria-live="polite">
               {query ? `Найдено: ${filtered.length} из ${users.length}` : `Всего: ${users.length}`}
             </p>
-          )}
-        </div>
-        {adminUrl && (
-          <Button asChild variant="secondary" className="h-10">
-            <a href={`${adminUrl.replace(/\/$/, '')}/users`}>
-              <ExternalLink className="h-4 w-4" aria-hidden />
-              Учётные записи
-            </a>
-          </Button>
-        )}
-      </div>
+          )
+        }
+        actions={
+          adminUrl && (
+            <Button asChild variant="secondary">
+              <a href={`${adminUrl.replace(/\/$/, '')}/users`}>
+                <ExternalLink className="h-4 w-4" aria-hidden />
+                Учётные записи
+              </a>
+            </Button>
+          )
+        }
+      />
 
-      <div className="relative max-w-xl">
-        <Search
-          aria-hidden
-          className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
-        />
-        <Input
+      <div className="max-w-xl">
+        <SearchInput
           aria-label="Поиск пользователей"
           placeholder="Имя или email"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          className="h-10 pl-9"
         />
       </div>
 
@@ -226,7 +225,7 @@ export function UsersPage() {
                 type="button"
                 size="sm"
                 variant="outline"
-                className="min-h-10 sm:min-h-10"
+
                 disabled={currentPage === 1}
                 onClick={() => setPage(currentPage - 1)}
               >
@@ -239,7 +238,7 @@ export function UsersPage() {
                 type="button"
                 size="sm"
                 variant="outline"
-                className="min-h-10 sm:min-h-10"
+
                 disabled={currentPage === totalPages}
                 onClick={() => setPage(currentPage + 1)}
               >

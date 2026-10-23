@@ -236,10 +236,9 @@ describe('SpacesPage', () => {
     setupSpaces()
 
     expect(screen.getByRole('heading', { name: 'Пространства' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Новый документ' })).toHaveClass(
-      'md:hidden',
-      'min-h-11',
-    )
+    const createDocument = screen.getByRole('link', { name: 'Новый документ' })
+    expect(createDocument).toHaveClass('md:hidden')
+    expect(createDocument).toHaveAttribute('data-size', 'sm')
     expect(screen.getByText('База знаний Base')).toBeInTheDocument()
     expect(useSpaceTree).not.toHaveBeenCalled()
     expect(useSpaceMembers).not.toHaveBeenCalled()

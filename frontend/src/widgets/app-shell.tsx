@@ -148,7 +148,7 @@ export function AppShell() {
       renderNavigation={({ compact, mobile, onNavigate }) => (
         <>
           {mobile && (
-            <Button asChild className="mb-3 min-h-11 w-full gap-2">
+            <Button asChild className="mb-3 w-full gap-2">
               <Link to="/documents/new" onClick={onNavigate}>
                 <FilePlus2 className="h-4 w-4" aria-hidden />
                 Новый документ
@@ -179,18 +179,16 @@ export function AppShell() {
             <>
               {navigationTrigger}
 
-              <Link
-                to="/"
-                className="hidden h-11 min-w-11 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus min-[360px]:flex md:h-10 md:min-w-10"
-                aria-label="Wiki"
-              >
-                <PlatformMark size="shell" withName={false} />
-              </Link>
+              <Button asChild variant="ghost" size="icon">
+                <Link to="/" className="hidden min-[360px]:flex" aria-label="Wiki">
+                  <PlatformMark size="shell" withName={false} />
+                </Link>
+              </Button>
             </>
           }
           actions={
             <>
-              <Button asChild size="sm" className="hidden h-10 min-w-10 gap-2 px-3 md:inline-flex">
+              <Button asChild size="sm" className="hidden min-w-10 gap-2 px-3 md:inline-flex">
                 <Link to="/documents/new" aria-label="Новый документ">
                   <FilePlus2 className="h-4 w-4" aria-hidden />
                   <span>Новый документ</span>
@@ -201,7 +199,7 @@ export function AppShell() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-11 w-11 md:h-10 md:w-10"
+
                     aria-label="Аккаунт"
                   >
                     <User className="h-5 w-5" aria-hidden />

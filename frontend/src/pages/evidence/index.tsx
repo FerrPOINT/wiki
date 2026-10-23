@@ -1,6 +1,7 @@
 import { useProjectRouteRef } from '@/widgets/namespace-context'
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  PageHeader,
   NamespaceLink as Link,
   ResourceList,
   ResourceListRow,
@@ -20,10 +21,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  Notice,
 } from '@pdlc/ui/ui'
 import { useSearchParams } from 'react-router'
 import {
-  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -106,7 +107,7 @@ function AttachmentMetadata({ item }: { item: Evidence }) {
           type="button"
           size="sm"
           variant="outline"
-          className="min-h-10 sm:min-h-10"
+
           onClick={() => attachmentQuery.refetch()}
         >
           Повторить загрузку метаданных
@@ -119,7 +120,7 @@ function AttachmentMetadata({ item }: { item: Evidence }) {
         type="button"
         size="sm"
         variant="outline"
-        className="min-h-10 sm:min-h-10"
+
         onClick={handleDownload}
         disabled={downloadAttachment.isPending}
         aria-label={`Скачать ${item.title}`}
@@ -185,7 +186,7 @@ function EvidenceTitle({ item, onSelect }: { item: Evidence; onSelect: (id: stri
       variant="ghost"
       type="button"
       onClick={() => onSelect(item.id)}
-      className="min-h-10 min-w-0 break-words text-left font-medium text-accent hover:text-accent-hover"
+      className="min-w-0 break-words text-left font-medium text-accent hover:text-accent-hover"
     >
       {item.title}
     </Button>
@@ -357,51 +358,54 @@ export function EvidencePage() {
 
   return (
     <div className="space-y-5">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Материалы</h1>
-        <Button
-          type="button"
-          className="min-h-10 sm:min-h-10"
-          onClick={() => setCreateOpen((open) => !open)}
-          disabled={isSaving}
-          aria-expanded={isCreateOpen}
-          aria-controls={isCreateOpen ? 'evidence-create-form' : undefined}
-        >
-          <Plus className="h-4 w-4" />
-          {isCreateOpen ? 'Закрыть форму' : 'Добавить материал'}
-        </Button>
-      </header>
+      <PageHeader
+        title={'Материалы'}
+        actions={
+          <>
+            <Button
+              type="button"
+
+              onClick={() => setCreateOpen((open) => !open)}
+              disabled={isSaving}
+              aria-expanded={isCreateOpen}
+              aria-controls={isCreateOpen ? 'evidence-create-form' : undefined}
+            >
+              <Plus className="h-4 w-4" />
+              {isCreateOpen ? 'Закрыть форму' : 'Добавить материал'}
+            </Button>
+          </>
+        }
+      />
 
       {createdEvidence && (
-        <div
+        <Notice
           role="status"
-          className="flex flex-wrap items-center gap-2 border-y border-border py-3 text-sm text-text-secondary"
+          tone="success"
+          actions={
+            <>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => selectEvidence(createdEvidence.id)}
+              >
+                Открыть
+              </Button>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                aria-label="Закрыть уведомление"
+                title="Закрыть уведомление"
+                onClick={() => setCreatedEvidence(null)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </>
+          }
         >
-          <CheckCircle2 className="h-4 w-4 text-success" />
-          <span className="mr-auto min-w-0 break-words">
-            Материал «{createdEvidence.title}» добавлен
-          </span>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="min-h-10 sm:min-h-10"
-            onClick={() => selectEvidence(createdEvidence.id)}
-          >
-            Открыть
-          </Button>
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="h-10 w-10"
-            aria-label="Закрыть уведомление"
-            title="Закрыть уведомление"
-            onClick={() => setCreatedEvidence(null)}
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
+          Материал «{createdEvidence.title}» добавлен
+        </Notice>
       )}
 
       {isCreateOpen && (
@@ -414,7 +418,7 @@ export function EvidencePage() {
             <Button
               type="button"
               size="sm"
-              className="min-h-10 sm:min-h-10"
+
               variant={mode === 'external_url' ? 'default' : 'secondary'}
               onClick={() => setMode('external_url')}
               disabled={isSaving}
@@ -426,7 +430,7 @@ export function EvidencePage() {
             <Button
               type="button"
               size="sm"
-              className="min-h-10 sm:min-h-10"
+
               variant={mode === 'uploaded_file' ? 'default' : 'secondary'}
               onClick={() => setMode('uploaded_file')}
               disabled={isSaving}
@@ -442,7 +446,7 @@ export function EvidencePage() {
               <Input
                 id="evidence-space"
                 readOnly={Boolean(namespace.ref)}
-                className="min-h-10"
+
                 value={space}
                 onChange={(event) => setSpace(event.target.value.toUpperCase())}
                 disabled={isSaving}
@@ -453,7 +457,7 @@ export function EvidencePage() {
               <Label htmlFor="evidence-document">Документ</Label>
               <Input
                 id="evidence-document"
-                className="min-h-10"
+
                 value={documentId}
                 onChange={(event) => {
                   setDocumentId(event.target.value)
@@ -467,7 +471,7 @@ export function EvidencePage() {
               <Label htmlFor="evidence-title">Название</Label>
               <Input
                 id="evidence-title"
-                className="min-h-10"
+
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
                 disabled={isSaving}
@@ -478,7 +482,7 @@ export function EvidencePage() {
               <Label htmlFor="evidence-task">Задача</Label>
               <Input
                 id="evidence-task"
-                className="min-h-10"
+
                 value={task}
                 onChange={(event) => {
                   setTask(event.target.value)
@@ -491,7 +495,7 @@ export function EvidencePage() {
               <Label htmlFor="evidence-phase">Фаза</Label>
               <Input
                 id="evidence-phase"
-                className="min-h-10"
+
                 value={phase}
                 onChange={(event) => {
                   setPhase(event.target.value)
@@ -505,7 +509,7 @@ export function EvidencePage() {
             {mode === 'external_url' ? (
               <Input
                 type="url"
-                className="min-h-10"
+
                 value={url}
                 onChange={(event) => setUrl(event.target.value)}
                 disabled={isSaving}
@@ -517,26 +521,24 @@ export function EvidencePage() {
               <Input
                 ref={fileInputRef}
                 type="file"
-                className="min-h-10"
+
                 aria-label="Файл материала"
                 onChange={(event) => setFile(event.target.files?.[0] ?? null)}
                 disabled={isSaving}
                 required
               />
             )}
-            <Button className="min-h-10 sm:min-h-10" disabled={isSaving}>
-              {isSaving ? 'Сохраняем...' : 'Сохранить материал'}
-            </Button>
+            <Button disabled={isSaving}>{isSaving ? 'Сохраняем...' : 'Сохранить материал'}</Button>
           </div>
           {targetError && (
-            <p role="alert" className="text-sm text-danger">
+            <Notice role="alert" appearance="inline" tone="danger">
               {targetError}
-            </p>
+            </Notice>
           )}
           {saveError && (
-            <p role="alert" className="text-sm text-danger">
+            <Notice role="alert" appearance="inline" tone="danger">
               {saveError}
-            </p>
+            </Notice>
           )}
         </form>
       )}
@@ -547,7 +549,6 @@ export function EvidencePage() {
         className="grid gap-2 border-y border-border py-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-[minmax(12rem,1fr)_8rem_12rem_10rem_10rem_auto_auto]"
       >
         <Input
-          className="min-h-10"
           value={filterQuery}
           onChange={(event) => setFilterQuery(event.target.value)}
           maxLength={200}
@@ -555,7 +556,6 @@ export function EvidencePage() {
           aria-label="Поиск материалов"
         />
         <Input
-          className="min-h-10"
           value={filterSpace}
           readOnly={Boolean(namespace.ref)}
           onChange={(event) => {
@@ -567,27 +567,24 @@ export function EvidencePage() {
           aria-label="Фильтр пространства"
         />
         <Input
-          className="min-h-10"
           value={filterDocument}
           onChange={(event) => setFilterDocument(event.target.value)}
           placeholder="Документ"
           aria-label="Фильтр документа"
         />
         <Input
-          className="min-h-10"
           value={filterTask}
           onChange={(event) => setFilterTask(event.target.value)}
           placeholder="Задача"
           aria-label="Фильтр задачи"
         />
         <Input
-          className="min-h-10"
           value={filterPhase}
           onChange={(event) => setFilterPhase(event.target.value)}
           placeholder="Фаза"
           aria-label="Фильтр фазы"
         />
-        <Button type="submit" size="sm" className="min-h-10 sm:min-h-10">
+        <Button type="submit" size="sm">
           <Search className="h-4 w-4" />
           Найти
         </Button>
@@ -595,16 +592,16 @@ export function EvidencePage() {
           type="button"
           size="sm"
           variant="outline"
-          className="min-h-10 sm:min-h-10"
+
           onClick={resetFilters}
         >
           <RotateCcw className="h-4 w-4" />
           Сбросить
         </Button>
         {filterError && (
-          <p role="alert" className="text-sm text-danger 2xl:col-span-full">
+          <Notice role="alert" className="2xl:col-span-full" appearance="inline" tone="danger">
             {filterError}
-          </p>
+          </Notice>
         )}
       </form>
 
@@ -669,7 +666,7 @@ export function EvidencePage() {
               type="button"
               size="sm"
               variant="outline"
-              className="min-h-10 sm:min-h-10"
+
               onClick={() => selectEvidence(null)}
             >
               Снять выделение
@@ -719,7 +716,7 @@ export function EvidencePage() {
                             type="button"
                             size="icon"
                             variant="ghost"
-                            className="h-10 w-10 shrink-0 sm:min-h-10 sm:min-w-10"
+                            className="shrink-0"
                             aria-label={`Открыть материал ${item.title}`}
                             title="Открыть материал"
                             onClick={() => selectEvidence(item.id)}
@@ -775,7 +772,7 @@ export function EvidencePage() {
                             type="button"
                             size="icon"
                             variant="ghost"
-                            className="h-10 w-10 shrink-0 sm:min-h-10 sm:min-w-10"
+                            className="shrink-0"
                             aria-label={`Открыть материал ${item.title}`}
                             title="Открыть материал"
                             onClick={() => selectEvidence(item.id)}
@@ -799,7 +796,7 @@ export function EvidencePage() {
               <Button
                 type="button"
                 variant="outline"
-                className="h-10"
+
                 disabled={
                   cursors.length === 1 || evidenceQuery.isLoading || evidenceQuery.isFetching
                 }
@@ -811,7 +808,7 @@ export function EvidencePage() {
               <Button
                 type="button"
                 variant="outline"
-                className="h-10"
+
                 disabled={
                   !nextCursor ||
                   evidenceQuery.isLoading ||

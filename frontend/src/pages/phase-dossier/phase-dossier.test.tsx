@@ -321,8 +321,8 @@ describe('PhaseDossiersPage', () => {
     const pagination = screen.getByRole('navigation', { name: 'Страницы фаз' })
     const previousButton = within(pagination).getByRole('button', { name: 'Назад' })
     const nextButton = within(pagination).getByRole('button', { name: 'Далее' })
-    expect(previousButton).toHaveClass('min-h-10', 'sm:min-h-10')
-    expect(nextButton).toHaveClass('min-h-10', 'sm:min-h-10')
+    expect(previousButton).toHaveClass('base-control', 'base-button', 'min-h-10')
+    expect(nextButton).toHaveClass('base-control', 'base-button', 'min-h-10')
     fireEvent.click(nextButton)
     expect(screen.getByText('Страница 2')).toBeInTheDocument()
     expect(usePhaseSummaries).toHaveBeenLastCalledWith('DOCS', {
