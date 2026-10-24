@@ -1,4 +1,5 @@
 import {
+  Label,
   PageHeader,
   Disclosure,
   Select,
@@ -301,9 +302,7 @@ export function AuditLogPage() {
           >
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               <div className="space-y-1">
-                <label htmlFor="audit-action" className="text-sm font-medium">
-                  Действие
-                </label>
+                <Label htmlFor="audit-action">Действие</Label>
                 <Select
                   id="audit-action"
                   className="w-full"
@@ -322,9 +321,7 @@ export function AuditLogPage() {
                 />
               </div>
               <div className="space-y-1">
-                <label htmlFor="audit-entity-type" className="text-sm font-medium">
-                  Тип объекта
-                </label>
+                <Label htmlFor="audit-entity-type">Тип объекта</Label>
                 <Select
                   id="audit-entity-type"
                   className="w-full"
@@ -349,9 +346,7 @@ export function AuditLogPage() {
                 />
               </div>
               <div className="space-y-1">
-                <label htmlFor="audit-actor" className="text-sm font-medium">
-                  Участник
-                </label>
+                <Label htmlFor="audit-actor">Участник</Label>
                 {manualActorId ||
                 usersQuery.isError ||
                 (!usersQuery.isLoading && users.length === 0) ? (
@@ -442,9 +437,7 @@ export function AuditLogPage() {
                 )}
               </div>
               <div className="space-y-1">
-                <label htmlFor="audit-from" className="text-sm font-medium">
-                  С даты (местное время)
-                </label>
+                <Label htmlFor="audit-from">С даты (местное время)</Label>
                 <Input
                   id="audit-from"
                   type="datetime-local"
@@ -454,9 +447,7 @@ export function AuditLogPage() {
                 />
               </div>
               <div className="space-y-1">
-                <label htmlFor="audit-to" className="text-sm font-medium">
-                  До даты (не включая)
-                </label>
+                <Label htmlFor="audit-to">До даты (не включая)</Label>
                 <Input
                   id="audit-to"
                   type="datetime-local"

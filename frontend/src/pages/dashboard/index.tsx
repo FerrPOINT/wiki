@@ -1,6 +1,7 @@
 import { useActiveSpaces } from '@/widgets/active-spaces'
 import { useState } from 'react'
 import {
+  Label,
   PageHeader,
   SectionHeader,
   Metric,
@@ -132,9 +133,9 @@ export function DashboardPage() {
         <>
           <div className="flex flex-wrap items-center justify-between gap-3 border-y border-border py-3">
             <div className="flex min-w-0 items-center gap-3">
-              <label htmlFor="overview-space" className="shrink-0 text-sm text-text-muted">
+              <Label htmlFor="overview-space" className="shrink-0">
                 Пространство
-              </label>
+              </Label>
               <Select
                 id="overview-space"
                 className="w-auto max-w-64 min-w-0"
