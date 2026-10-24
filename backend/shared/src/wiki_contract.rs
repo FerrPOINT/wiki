@@ -105,6 +105,34 @@ impl WikiMaintenanceReport {
 
 #[async_trait::async_trait]
 pub trait WikiBackendPort: Send + Sync {
+    async fn identity_deletion_check(
+        &self,
+        _request: &crate::identity_deletion::DeletionRequest,
+        _window: &crate::identity_deletion::IdentityDeletionWindow,
+    ) -> Result<crate::identity_deletion::OwnerReferenceSummary, AppError> {
+        Err(AppError::Unavailable(
+            "identity_deletion_not_supported".into(),
+        ))
+    }
+    async fn identity_deletion_freeze(
+        &self,
+        _request: &crate::identity_deletion::DeletionRequest,
+        _window: &crate::identity_deletion::IdentityDeletionWindow,
+    ) -> Result<crate::identity_deletion::OwnerFreezeReceipt, AppError> {
+        Err(AppError::Unavailable(
+            "identity_deletion_not_supported".into(),
+        ))
+    }
+    async fn identity_deletion_release(
+        &self,
+        _request: &crate::identity_deletion::DeletionRequest,
+        _window: &crate::identity_deletion::IdentityDeletionWindow,
+    ) -> Result<crate::identity_deletion::OwnerReleaseReceipt, AppError> {
+        Err(AppError::Unavailable(
+            "identity_deletion_not_supported".into(),
+        ))
+    }
+
     async fn space_projects(
         &self,
         _claims: &WikiClaims,

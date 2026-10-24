@@ -55,6 +55,13 @@ impl PostgresWikiBackend {
             maintenance_batch_size: config.maintenance.batch_size,
             settings: WikiSettingsSnapshot::from_config(config),
         };
+        if let Ok(issuer) = std::env::var("WIKI_IDENTITY_DELETION_LEGACY_ISSUER") {
+            backend
+                .deletion_store()
+                .bind_legacy_issuer(&issuer)
+                .await
+                .map_err(AppError::from)?;
+        }
         backend.bootstrap(&config.bootstrap).await?;
         Ok(backend)
     }
