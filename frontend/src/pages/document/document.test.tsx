@@ -378,6 +378,7 @@ describe('DocumentPage', () => {
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Закрыть' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(trigger).toHaveFocus())
   })
 
   it('pages through the complete revision history without showing the sentinel item', () => {

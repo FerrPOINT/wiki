@@ -437,7 +437,7 @@ export function TemplatesPage() {
                             aria-expanded={expanded}
                             aria-controls={`template-body-${template.id}`}
                             aria-label={`${expanded ? 'Скрыть' : 'Показать'} содержимое шаблона ${template.name}`}
-                            className="flex min-h-14 min-w-0 flex-1 items-center gap-3 py-2 text-left hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
+                            className="min-w-0 flex-1 gap-3 text-left"
                             onClick={() => setExpandedId(expanded ? null : template.id)}
                           >
                             <Icon className="h-4 w-4 shrink-0 text-accent" aria-hidden />
@@ -466,11 +466,7 @@ export function TemplatesPage() {
                         </div>
                       </ResourceListRow>
                       {expanded && (
-                        <CodeBlock
-                          id={`template-body-${template.id}`}
-                          aria-label={template.name}
-                          className="rounded-none border-0 border-t bg-surface-raised"
-                        >
+                        <CodeBlock id={`template-body-${template.id}`} aria-label={template.name}>
                           {template.body_markdown}
                         </CodeBlock>
                       )}

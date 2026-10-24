@@ -181,10 +181,10 @@ function EvidenceTitle({ item, onSelect }: { item: Evidence; onSelect: (id: stri
   }
   return (
     <Button
-      variant="ghost"
+      variant="link"
       type="button"
       onClick={() => onSelect(item.id)}
-      className="min-w-0 break-words text-left font-medium text-accent hover:text-accent-hover"
+      className="min-w-0 break-words text-left"
     >
       {item.title}
     </Button>

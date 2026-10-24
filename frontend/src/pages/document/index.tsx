@@ -407,10 +407,7 @@ export function DocumentPage() {
           layout="sectioned"
           className="max-w-4xl"
           aria-describedby="revision-snapshot-description"
-          onCloseAutoFocus={(event) => {
-            event.preventDefault()
-            revisionTriggerRef.current?.focus()
-          }}
+          returnFocusRef={revisionTriggerRef}
         >
           <DialogHeader>
             <DialogTitle>Снимок ревизии</DialogTitle>
