@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router'
-import { SectionHeader, Card, CardContent, Select, Button, Label, Notice } from '@pdlc/ui/ui'
+import { SectionHeader, Card, CardContent, Select, Button, Notice, FormField } from '@pdlc/ui/ui'
 import { useQuery } from '@tanstack/react-query'
 import { apiRequest } from '@/api/client'
 import { useNamespaceContext } from '@/widgets/namespace-context'
@@ -91,26 +91,27 @@ export function TaskRevisionLink({
       <form onSubmit={submit} className="max-w-xl">
         <CardContent className="space-y-3">
           <SectionHeader title={<>Связать эту ревизию с задачей</>} />
-          <div className="space-y-2">
-            <Label htmlFor={`task-project-${documentId}`}>Проект задачи</Label>
-            <Select
-              id={`task-project-${documentId}`}
-              value={ref ? projectIdentity(ref) : ''}
-              className="w-full"
-              onValueChange={(nextValue) => {
-                setProjectChoice(nextValue)
-                setSelected('')
-                setOffset(0)
-              }}
-              options={[
-                { value: '', label: 'Выберите проект' },
-                ...(available.map((project) => ({
-                  value: String(projectIdentity(project.namespace)),
-                  label: [project.name, ' · ', project.project_key].join(''),
-                })) ?? []),
-              ]}
-            />
-          </div>
+          <FormField id={`task-project-${documentId}`} label={'Проект задачи'}>
+            {(baseFieldAttrs) => (
+              <Select
+                {...baseFieldAttrs}
+                value={ref ? projectIdentity(ref) : ''}
+                className="w-full"
+                onValueChange={(nextValue) => {
+                  setProjectChoice(nextValue)
+                  setSelected('')
+                  setOffset(0)
+                }}
+                options={[
+                  { value: '', label: 'Выберите проект' },
+                  ...(available.map((project) => ({
+                    value: String(projectIdentity(project.namespace)),
+                    label: [project.name, ' · ', project.project_key].join(''),
+                  })) ?? []),
+                ]}
+              />
+            )}
+          </FormField>
           {!ref ? (
             <Notice role="status" appearance="inline" tone="neutral">
               Выберите связанный проект, чтобы загрузить задачи.
@@ -120,29 +121,31 @@ export function TaskRevisionLink({
               Каталог задач недоступен. Повторите загрузку.
             </Notice>
           ) : (
-            <div className="space-y-2">
-              <Label htmlFor={`task-ref-${documentId}`}>Задача проекта</Label>
-              <Select
-                id={`task-ref-${documentId}`}
-                required
-                value={selected}
-                onValueChange={(nextValue) => setSelected(nextValue)}
-                className="w-full"
-                options={[
-                  { value: '', label: 'Выберите задачу' },
-                  ...(selected &&
-                  !tasks.data?.some(
-                    (item) => `${item.task.tracker_instance_id}/${item.task.task_id}` === selected,
-                  )
-                    ? [{ value: String(selected), label: 'Задача из ссылки Tracker' }]
-                    : []),
-                  ...(tasks.data?.map((item) => ({
-                    value: String(`${item.task.tracker_instance_id}/${item.task.task_id}`),
-                    label: [item.task_key, ' · ', item.label].join(''),
-                  })) ?? []),
-                ]}
-              />
-            </div>
+            <FormField id={`task-ref-${documentId}`} label={'Задача проекта'}>
+              {(baseFieldAttrs) => (
+                <Select
+                  {...baseFieldAttrs}
+                  required
+                  value={selected}
+                  onValueChange={(nextValue) => setSelected(nextValue)}
+                  className="w-full"
+                  options={[
+                    { value: '', label: 'Выберите задачу' },
+                    ...(selected &&
+                    !tasks.data?.some(
+                      (item) =>
+                        `${item.task.tracker_instance_id}/${item.task.task_id}` === selected,
+                    )
+                      ? [{ value: String(selected), label: 'Задача из ссылки Tracker' }]
+                      : []),
+                    ...(tasks.data?.map((item) => ({
+                      value: String(`${item.task.tracker_instance_id}/${item.task.task_id}`),
+                      label: [item.task_key, ' · ', item.label].join(''),
+                    })) ?? []),
+                  ]}
+                />
+              )}
+            </FormField>
           )}
           <div className="flex flex-wrap gap-2">
             <Button

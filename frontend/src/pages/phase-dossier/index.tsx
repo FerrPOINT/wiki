@@ -10,12 +10,12 @@ import {
   LoadingState,
   Button,
   Input,
-  Label,
   SearchInput,
   PageNavigation,
   PageHeader,
   Notice,
   TextLink,
+  FormField,
 } from '@pdlc/ui/ui'
 import { useParams } from 'react-router'
 import { FileCheck2, FileText, Link2 } from 'lucide-react'
@@ -284,17 +284,17 @@ export function PhaseDossierPage() {
             aria-label="Привязать документ к фазе"
           >
             <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-              <div className="space-y-1.5">
-                <Label htmlFor="phase-document-link">Документ для фазы</Label>
-                <Input
-                  id="phase-document-link"
-
-                  value={documentId}
-                  onChange={(event) => setDocumentId(event.target.value)}
-                  placeholder="product-requirements"
-                  disabled={linkDocument.isPending}
-                />
-              </div>
+              <FormField id="phase-document-link" label={'Документ для фазы'}>
+                {(baseFieldAttrs) => (
+                  <Input
+                    {...baseFieldAttrs}
+                    value={documentId}
+                    onChange={(event) => setDocumentId(event.target.value)}
+                    placeholder="product-requirements"
+                    disabled={linkDocument.isPending}
+                  />
+                )}
+              </FormField>
               <Button
                 type="submit"
 

@@ -17,6 +17,7 @@ import {
   TableHeader,
   TableRow,
   Notice,
+  FormField,
 } from '@pdlc/ui/ui'
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
@@ -301,50 +302,57 @@ export function AuditLogPage() {
             className="space-y-3 border-y border-border py-3"
           >
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              <div className="space-y-1">
-                <Label htmlFor="audit-action">Действие</Label>
-                <Select
-                  id="audit-action"
-                  className="w-full"
-                  value={draftFilters.action}
-                  onValueChange={(nextValue) => updateDraft('action', nextValue)}
-                  options={[
-                    { value: '', label: 'Все действия' },
-                    ...(draftFilters.action && !actionLabels[draftFilters.action]
-                      ? [{ value: String(draftFilters.action), label: String(draftFilters.action) }]
-                      : []),
-                    ...(Object.entries(actionLabels).map(([value, label]) => ({
-                      value: String(value),
-                      label: String(label),
-                    })) ?? []),
-                  ]}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="audit-entity-type">Тип объекта</Label>
-                <Select
-                  id="audit-entity-type"
-                  className="w-full"
-                  value={draftFilters.entity_type}
-                  onValueChange={(nextValue) => updateDraft('entity_type', nextValue)}
-                  options={[
-                    { value: '', label: 'Все типы' },
-                    ...(draftFilters.entity_type &&
-                    !entityTypes.some(([value]) => value === draftFilters.entity_type)
-                      ? [
-                          {
-                            value: String(draftFilters.entity_type),
-                            label: String(draftFilters.entity_type),
-                          },
-                        ]
-                      : []),
-                    ...(entityTypes.map(([value, label]) => ({
-                      value: String(value),
-                      label: String(label),
-                    })) ?? []),
-                  ]}
-                />
-              </div>
+              <FormField id="audit-action" label={'Действие'}>
+                {(baseFieldAttrs) => (
+                  <Select
+                    {...baseFieldAttrs}
+                    className="w-full"
+                    value={draftFilters.action}
+                    onValueChange={(nextValue) => updateDraft('action', nextValue)}
+                    options={[
+                      { value: '', label: 'Все действия' },
+                      ...(draftFilters.action && !actionLabels[draftFilters.action]
+                        ? [
+                            {
+                              value: String(draftFilters.action),
+                              label: String(draftFilters.action),
+                            },
+                          ]
+                        : []),
+                      ...(Object.entries(actionLabels).map(([value, label]) => ({
+                        value: String(value),
+                        label: String(label),
+                      })) ?? []),
+                    ]}
+                  />
+                )}
+              </FormField>
+              <FormField id="audit-entity-type" label={'Тип объекта'}>
+                {(baseFieldAttrs) => (
+                  <Select
+                    {...baseFieldAttrs}
+                    className="w-full"
+                    value={draftFilters.entity_type}
+                    onValueChange={(nextValue) => updateDraft('entity_type', nextValue)}
+                    options={[
+                      { value: '', label: 'Все типы' },
+                      ...(draftFilters.entity_type &&
+                      !entityTypes.some(([value]) => value === draftFilters.entity_type)
+                        ? [
+                            {
+                              value: String(draftFilters.entity_type),
+                              label: String(draftFilters.entity_type),
+                            },
+                          ]
+                        : []),
+                      ...(entityTypes.map(([value, label]) => ({
+                        value: String(value),
+                        label: String(label),
+                      })) ?? []),
+                    ]}
+                  />
+                )}
+              </FormField>
               <div className="space-y-1">
                 <Label htmlFor="audit-actor">Участник</Label>
                 {manualActorId ||
@@ -436,26 +444,28 @@ export function AuditLogPage() {
                   </div>
                 )}
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="audit-from">С даты (местное время)</Label>
-                <Input
-                  id="audit-from"
-                  type="datetime-local"
+              <FormField id="audit-from" label={'С даты (местное время)'}>
+                {(baseFieldAttrs) => (
+                  <Input
+                    {...baseFieldAttrs}
+                    type="datetime-local"
 
-                  value={draftFilters.from}
-                  onChange={(event) => updateDraft('from', event.target.value)}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="audit-to">До даты (не включая)</Label>
-                <Input
-                  id="audit-to"
-                  type="datetime-local"
+                    value={draftFilters.from}
+                    onChange={(event) => updateDraft('from', event.target.value)}
+                  />
+                )}
+              </FormField>
+              <FormField id="audit-to" label={'До даты (не включая)'}>
+                {(baseFieldAttrs) => (
+                  <Input
+                    {...baseFieldAttrs}
+                    type="datetime-local"
 
-                  value={draftFilters.to}
-                  onChange={(event) => updateDraft('to', event.target.value)}
-                />
-              </div>
+                    value={draftFilters.to}
+                    onChange={(event) => updateDraft('to', event.target.value)}
+                  />
+                )}
+              </FormField>
             </div>
             {filterError && (
               <Notice role="alert" appearance="inline" tone="danger">

@@ -221,17 +221,18 @@ export function DocumentComposePage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 md:grid-cols-[1fr_12rem]">
-              <div className="space-y-1.5">
-                <Label htmlFor="document-title">Название</Label>
-                <Input
-                  id="document-title"
-                  value={title}
-                  disabled={createDocument.isPending}
-                  onChange={(event) => setTitle(event.target.value)}
-                  placeholder="Название документа"
-                  required
-                />
-              </div>
+              <FormField id="document-title" label={'Название'}>
+                {(baseFieldAttrs) => (
+                  <Input
+                    {...baseFieldAttrs}
+                    value={title}
+                    disabled={createDocument.isPending}
+                    onChange={(event) => setTitle(event.target.value)}
+                    placeholder="Название документа"
+                    required
+                  />
+                )}
+              </FormField>
               <div className="space-y-1.5">
                 <FormField id="document-space" label="Пространство" error={spaceProblem}>
                   {(field) =>
@@ -376,26 +377,28 @@ export function DocumentComposePage() {
               <CardTitle className="text-base">Связи</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
-              <div className="space-y-1.5">
-                <Label htmlFor="document-task">Задача</Label>
-                <Input
-                  id="document-task"
-                  value={taskKey}
-                  disabled={createDocument.isPending}
-                  onChange={(event) => setTaskKey(event.target.value)}
-                  placeholder="Ключ задачи"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="document-phase">Фаза</Label>
-                <Input
-                  id="document-phase"
-                  value={phaseKey}
-                  disabled={createDocument.isPending}
-                  onChange={(event) => setPhaseKey(event.target.value)}
-                  placeholder="Ключ фазы"
-                />
-              </div>
+              <FormField id="document-task" label={'Задача'}>
+                {(baseFieldAttrs) => (
+                  <Input
+                    {...baseFieldAttrs}
+                    value={taskKey}
+                    disabled={createDocument.isPending}
+                    onChange={(event) => setTaskKey(event.target.value)}
+                    placeholder="Ключ задачи"
+                  />
+                )}
+              </FormField>
+              <FormField id="document-phase" label={'Фаза'}>
+                {(baseFieldAttrs) => (
+                  <Input
+                    {...baseFieldAttrs}
+                    value={phaseKey}
+                    disabled={createDocument.isPending}
+                    onChange={(event) => setPhaseKey(event.target.value)}
+                    placeholder="Ключ фазы"
+                  />
+                )}
+              </FormField>
               {taskKey && (
                 <Card asChild interactive>
                   <Link to={`/tasks/${taskKey}`}>
@@ -444,16 +447,17 @@ export function DocumentComposePage() {
                   ))}
                 </datalist>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="document-slug">Адрес (slug)</Label>
-                <Input
-                  id="document-slug"
-                  value={slug}
-                  disabled={createDocument.isPending}
-                  onChange={(event) => setSlug(event.target.value)}
-                  placeholder="создастся автоматически"
-                />
-              </div>
+              <FormField id="document-slug" label={'Адрес (slug)'}>
+                {(baseFieldAttrs) => (
+                  <Input
+                    {...baseFieldAttrs}
+                    value={slug}
+                    disabled={createDocument.isPending}
+                    onChange={(event) => setSlug(event.target.value)}
+                    placeholder="создастся автоматически"
+                  />
+                )}
+              </FormField>
               <Badge tone="info">
                 <Tag aria-hidden="true" className="h-4 w-4" />
                 Markdown, ревизии, связи

@@ -21,10 +21,10 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
-  Label,
   Textarea,
   UnsavedChangesGuard,
   Notice,
+  FormField,
 } from '@pdlc/ui/ui'
 import { useParams } from 'react-router'
 import {
@@ -499,26 +499,27 @@ export function DocumentPage() {
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSaveDraft} className="space-y-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="document-edit-title">Название</Label>
-                    <Input
-                      id="document-edit-title"
-
-                      value={draftTitle}
-                      onChange={(event) => setDraftTitle(event.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="document-edit-markdown">Markdown</Label>
-                    <Textarea
-                      id="document-edit-markdown"
-                      className="min-h-80 font-mono text-sm"
-                      aria-label="Markdown черновика"
-                      value={draftBody}
-                      onChange={(event) => setDraftBody(event.target.value)}
-                    />
-                  </div>
+                  <FormField id="document-edit-title" label={'Название'}>
+                    {(baseFieldAttrs) => (
+                      <Input
+                        {...baseFieldAttrs}
+                        value={draftTitle}
+                        onChange={(event) => setDraftTitle(event.target.value)}
+                        required
+                      />
+                    )}
+                  </FormField>
+                  <FormField id="document-edit-markdown" label={'Markdown'}>
+                    {(baseFieldAttrs) => (
+                      <Textarea
+                        {...baseFieldAttrs}
+                        className="min-h-80 font-mono text-sm"
+                        aria-label="Markdown черновика"
+                        value={draftBody}
+                        onChange={(event) => setDraftBody(event.target.value)}
+                      />
+                    )}
+                  </FormField>
                   <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto]">
                     <Input
                       value={publishSummary}
@@ -604,16 +605,16 @@ export function DocumentPage() {
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleMove} className="space-y-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="document-parent">Родительский документ</Label>
-                    <Input
-                      id="document-parent"
-
-                      value={parentId}
-                      onChange={(event) => setParentId(event.target.value)}
-                      placeholder="корень пространства"
-                    />
-                  </div>
+                  <FormField id="document-parent" label={'Родительский документ'}>
+                    {(baseFieldAttrs) => (
+                      <Input
+                        {...baseFieldAttrs}
+                        value={parentId}
+                        onChange={(event) => setParentId(event.target.value)}
+                        placeholder="корень пространства"
+                      />
+                    )}
+                  </FormField>
                   <Button
                     type="submit"
                     size="sm"

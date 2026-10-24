@@ -28,10 +28,10 @@ import {
   Checkbox,
   Button,
   Input,
-  Label,
   Textarea,
   SearchInput,
   Notice,
+  FormField,
 } from '@pdlc/ui/ui'
 
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
@@ -125,34 +125,37 @@ function CreateSpaceForm({ onCreated }: { onCreated: () => void }) {
       <form onSubmit={handleSubmit}>
         <CardContent>
           <div className="grid gap-3 lg:grid-cols-[10rem_1fr_1.5fr_auto] lg:items-end">
-            <div className="space-y-1.5">
-              <Label htmlFor="space-key">Ключ</Label>
-              <Input
-                id="space-key"
-                value={key}
-                onChange={(event) => setKey(event.target.value)}
-                placeholder="KEY"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="space-name">Название</Label>
-              <Input
-                id="space-name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder="Название пространства"
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="space-description">Описание</Label>
-              <Input
-                id="space-description"
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                placeholder="Описание пространства"
-              />
-            </div>
+            <FormField id="space-key" label={'Ключ'}>
+              {(baseFieldAttrs) => (
+                <Input
+                  {...baseFieldAttrs}
+                  value={key}
+                  onChange={(event) => setKey(event.target.value)}
+                  placeholder="KEY"
+                />
+              )}
+            </FormField>
+            <FormField id="space-name" label={'Название'}>
+              {(baseFieldAttrs) => (
+                <Input
+                  {...baseFieldAttrs}
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="Название пространства"
+                  required
+                />
+              )}
+            </FormField>
+            <FormField id="space-description" label={'Описание'}>
+              {(baseFieldAttrs) => (
+                <Input
+                  {...baseFieldAttrs}
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  placeholder="Описание пространства"
+                />
+              )}
+            </FormField>
             <Button disabled={createSpace.isPending || !key.trim() || !name.trim()}>
               <Plus className="h-4 w-4" />
               {createSpace.isPending ? 'Создаём...' : 'Создать пространство'}
@@ -209,23 +212,25 @@ function SpaceDetails({
           <form onSubmit={handleUpdate}>
             <CardContent className="space-y-3">
               <div className="grid gap-3 md:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label htmlFor={`${space.key}-name`}>Название пространства</Label>
-                  <Input
-                    id={`${space.key}-name`}
-                    value={name}
-                    onChange={(event) => setName(event.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor={`${space.key}-description`}>Описание</Label>
-                  <Textarea
-                    id={`${space.key}-description`}
-                    value={description}
-                    onChange={(event) => setDescription(event.target.value)}
-                  />
-                </div>
+                <FormField id={`${space.key}-name`} label={'Название пространства'}>
+                  {(baseFieldAttrs) => (
+                    <Input
+                      {...baseFieldAttrs}
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                      required
+                    />
+                  )}
+                </FormField>
+                <FormField id={`${space.key}-description`} label={'Описание'}>
+                  {(baseFieldAttrs) => (
+                    <Textarea
+                      {...baseFieldAttrs}
+                      value={description}
+                      onChange={(event) => setDescription(event.target.value)}
+                    />
+                  )}
+                </FormField>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" disabled={updateSpace.isPending || !changed || !name.trim()}>

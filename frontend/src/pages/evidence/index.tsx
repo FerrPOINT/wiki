@@ -14,7 +14,6 @@ import {
   EmptyState,
   ErrorState,
   Input,
-  Label,
   LoadingState,
   Table,
   TableBody,
@@ -24,6 +23,7 @@ import {
   TableRow,
   Notice,
   TextLink,
+  FormField,
 } from '@pdlc/ui/ui'
 import { useSearchParams } from 'react-router'
 import {
@@ -440,69 +440,70 @@ export function EvidencePage() {
             </Button>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[10rem_13rem_minmax(0,1fr)_10rem_10rem]">
-            <div className="space-y-1.5">
-              <Label htmlFor="evidence-space">Пространство</Label>
-              <Input
-                id="evidence-space"
-                readOnly={Boolean(namespace.ref)}
+            <FormField id="evidence-space" label={'Пространство'}>
+              {(baseFieldAttrs) => (
+                <Input
+                  {...baseFieldAttrs}
+                  readOnly={Boolean(namespace.ref)}
 
-                value={space}
-                onChange={(event) => setSpace(event.target.value.toUpperCase())}
-                disabled={isSaving}
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="evidence-document">Документ</Label>
-              <Input
-                id="evidence-document"
-
-                value={documentId}
-                onChange={(event) => {
-                  setDocumentId(event.target.value)
-                  setTargetError('')
-                }}
-                disabled={isSaving}
-                placeholder="ID или slug"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="evidence-title">Название</Label>
-              <Input
-                id="evidence-title"
-
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                disabled={isSaving}
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="evidence-task">Задача</Label>
-              <Input
-                id="evidence-task"
-
-                value={task}
-                onChange={(event) => {
-                  setTask(event.target.value)
-                  setTargetError('')
-                }}
-                disabled={isSaving}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="evidence-phase">Фаза</Label>
-              <Input
-                id="evidence-phase"
-
-                value={phase}
-                onChange={(event) => {
-                  setPhase(event.target.value)
-                  setTargetError('')
-                }}
-                disabled={isSaving}
-              />
-            </div>
+                  value={space}
+                  onChange={(event) => setSpace(event.target.value.toUpperCase())}
+                  disabled={isSaving}
+                  required
+                />
+              )}
+            </FormField>
+            <FormField id="evidence-document" label={'Документ'}>
+              {(baseFieldAttrs) => (
+                <Input
+                  {...baseFieldAttrs}
+                  value={documentId}
+                  onChange={(event) => {
+                    setDocumentId(event.target.value)
+                    setTargetError('')
+                  }}
+                  disabled={isSaving}
+                  placeholder="ID или slug"
+                />
+              )}
+            </FormField>
+            <FormField id="evidence-title" label={'Название'}>
+              {(baseFieldAttrs) => (
+                <Input
+                  {...baseFieldAttrs}
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  disabled={isSaving}
+                  required
+                />
+              )}
+            </FormField>
+            <FormField id="evidence-task" label={'Задача'}>
+              {(baseFieldAttrs) => (
+                <Input
+                  {...baseFieldAttrs}
+                  value={task}
+                  onChange={(event) => {
+                    setTask(event.target.value)
+                    setTargetError('')
+                  }}
+                  disabled={isSaving}
+                />
+              )}
+            </FormField>
+            <FormField id="evidence-phase" label={'Фаза'}>
+              {(baseFieldAttrs) => (
+                <Input
+                  {...baseFieldAttrs}
+                  value={phase}
+                  onChange={(event) => {
+                    setPhase(event.target.value)
+                    setTargetError('')
+                  }}
+                  disabled={isSaving}
+                />
+              )}
+            </FormField>
           </div>
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
             {mode === 'external_url' ? (
