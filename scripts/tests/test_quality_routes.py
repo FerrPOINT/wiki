@@ -35,6 +35,30 @@ class QualityRouteTests(unittest.TestCase):
             self.assertFalse(any(g["component"] in ("frontend", "backend") for g in gates))
         self.assertEqual(self.plan(["scripts/tests/test_quality_routes.py"])["components"], ["tooling"])
 
+    def test_readme_validator_and_its_tests_have_source_only_owners(self):
+        for path in ('scripts/verify_readme.py', 'scripts/tests/test_verify_readme.py'):
+            for profile in ('fast', 'unit', 'build'):
+                with self.subTest(path=path, profile=profile):
+                    candidate = self.plan([path], profile)
+                    expected = {'tooling:quality-routes'}
+                    if path == 'scripts/verify_readme.py' and profile == 'fast':
+                        expected.add('docs:readme')
+                    self.assertEqual({gate['id'] for gate in candidate['gates']}, expected)
+                    self.assertFalse(any(gate.get('kind') == 'artifact' for gate in candidate['gates']))
+        gate = next(item for item in selector.load(ROOT)['gates'] if item['id'] == 'tooling:quality-routes')
+        self.assertEqual(gate['argv'].count('scripts.tests.test_verify_readme'), 1)
+        self.assertIn('scripts/verify_readme.py', gate['inputs'])
+        self.assertIn('scripts/tests/test_verify_readme.py', gate['inputs'])
+
+    def test_readme_source_ci_and_neighboring_application_or_unknown_changes(self):
+        for paths, backend, frontend in ((['scripts/verify_readme.py'], 'false', 'false'),
+            (['scripts/verify_readme.py', 'backend/server/src/main.rs'], 'true', 'false'),
+            (['scripts/verify_readme.py', 'scripts/new_generator.py'], 'true', 'true')):
+            with self.subTest(paths=paths), patch.object(selector, 'git', return_value='\n'.join(paths)):
+                outputs = selector.ci_outputs('pull_request', 'a' * 40, 'b' * 40, repo=ROOT)
+                self.assertEqual(outputs['backend_build'], backend)
+                self.assertEqual(outputs['frontend_build'], frontend)
+
     def test_frontend_source_and_lock_select_only_frontend(self):
         for path in ("frontend/src/pages/document/document.tsx", "frontend/pnpm-lock.yaml", ".base-ui-revision"):
             with self.subTest(path=path):

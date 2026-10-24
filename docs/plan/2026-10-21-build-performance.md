@@ -38,3 +38,13 @@ implicit prebuild hook execution не измерено. Эта граница о
 Source/static и route tests выполняются отдельно от native Cargo/Vitest/build,
 hosted CI, manual release и live. Скорость компиляции и память приложения из
 route tests не выводятся. Финальный readback и measurements сохраняет Base.
+
+## README validator как tooling source
+
+`scripts/verify_readme.py` выбирает docs/tooling: Fast сохраняет actual README
+validation и Python units, Unit/Build выполняют только Python units. Его
+`scripts/tests/test_verify_readme.py` выбирает tooling во всех трёх профилях.
+Существующий `tooling:quality-routes` включает этот test module один раз, как CI.
+Изменённый validator входит в inputs gate; никакие app producer inputs не сужены.
+Unknown scripts сохраняют полный fallback; mixed helper/backend diff сохраняет
+backend checks/build. Общий стандарт и manual gates остаются прежними.
