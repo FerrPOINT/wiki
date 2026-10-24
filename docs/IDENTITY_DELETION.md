@@ -4,8 +4,12 @@
 пройдены pinned Rust 1.88 fmt/clippy, unfiltered library tests (98 PASS, 29 ignored),
 явные owner PostgreSQL tests (10 PASS, 0 ignored) и named server release.
 Счётчики library и явного PostgreSQL run могут пересекаться и не складываются;
-ignored behavior не квалифицирован. Реальные private RPC с центральным Auth,
-полный cohort восьми owners и Kubernetes остаются отдельными открытыми gates.
+ignored behavior не квалифицирован. Отдельный genuine C9 Auth/retained Wiki image
+curl-run подтвердил семь private HTTP cases: no-bearer 401, wrong-scope 403,
+check, freeze, exact same-operation readback, release и late-freeze 409.
+Receipt SHA-256: `117a7c6aab49bbfe9737f108c317d09bd81984cc08b9890bfb904ba875d73a92`;
+source/process cleanup и guards четырёх постоянных групп пройдены. Это не
+полный cohort восьми owners, restart/restore или Kubernetes: они остаются открыты.
 Установленный runtime не изменён; эти результаты не означают завершённый rollout.
 Согласованный Base protocol: `pdlc_shared::identity_lifecycle`, SDK candidate
 `ed61ec63b58fe9b60d8669c85de5ac6b5bec872b`; SDK pins обновлены отдельно от UI.
@@ -117,9 +121,9 @@ journal transition и отсутствие временных clock rows. Его
 Проверяются populated upgrade, immutable binding/aliases, отсутствие email
 linking, каждый reference table через настоящий raw SQL writer, local→central linking до/после fence, writer drain,
 repeatable-read epoch, zero-reference/replay/conflict, release-before-late-freeze,
-фактическая orphan history и machine/HTTP rejection. Реальная выдача coordinator
-credentials и совместное завершение удаления с восемью owners остаются отдельным
-сквозным gate; изолированная Wiki проверка их не заменяет.
+фактическая orphan history и machine/HTTP rejection. Genuine coordinator credential выдавался только в fresh disposable QA Auth DB
+для этого семисценарного curl-run. Совместное завершение удаления с восемью
+owners остаётся отдельным сквозным gate; эта Wiki проверка его не заменяет.
 
 Owner transactions set local lock and statement timeouts to 8 seconds before acquiring the reference barrier. The private HTTP boundary bounds the entire call to 9 seconds and returns a static, non-cacheable 503 when it expires. A missing response remains an unknown outcome; callers read back or replay the same operation rather than infer that no fence was saved.
 

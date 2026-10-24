@@ -15,6 +15,10 @@
 
 ## [Unreleased]
 
+- Private identity owner check/freeze/release сохраняет immutable aliases,
+  историю и durable fences; unknown bindings fail closed. Отдельный genuine
+  Auth/Wiki curl проверен, полный cohort/Kubernetes/rollout остаются открыты.
+
 - UI закреплён на merged Base #297: единый брендинг, независимые scroll panes
   предпросмотра и сохранённые contracts оболочки. SDK/skills pins не меняются.
 - Browser fixture мобильного меню использует доступное имя общего DialogTitle

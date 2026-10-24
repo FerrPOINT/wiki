@@ -131,3 +131,24 @@ server {
 - `docs/LOCAL_SETUP.md`
 - `docs/OPS_RUNBOOK.md`
 - `docs/SECURITY.md`
+
+## Private identity-deletion owner
+
+Перед приёмкой deployment оператор проверяет происхождение прежних central
+bindings и явно задаёт `WIKI_IDENTITY_DELETION_LEGACY_ISSUER`. Первое сохранённое
+значение неизменно; отсутствие binding означает unavailable, не zero references.
+Не назначайте issuer по email, локальному UUID или форме исторических данных.
+
+`WIKI_IDENTITY_DELETION_COORDINATOR_SUBJECTS` — CSV зарегистрированных UUID
+service-account. Пустой/отсутствующий список не разрешает координаторов.
+Существующий central bridge требует `WIKI_AUTH__CENTRAL_ISSUER` и JWKS-настройки;
+issuer проверенного PAT и request должен совпадать с настроенным issuer.
+Точный scope — `wiki:identity-lifecycle`, без browser session. Human/admin и
+обычный machine PAT не заменяют этот допуск. Секрет PAT не входит в этот пример.
+
+Миграция и guards устанавливаются при обычном startup независимо от выдачи
+coordinator credentials: отсутствие allowlist не означает отсутствие schema
+изменений. Не включайте новый runtime по готовности одного owner. Compose и
+Kubernetes передают одинаковые защищённые bindings, но принимаются отдельно.
+Контракт, inventory и восстановление: [IDENTITY_DELETION](IDENTITY_DELETION.md);
+архитектурное решение: [ADR-0011](adr/0011-identity-deletion-owner.md).
