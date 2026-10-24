@@ -104,6 +104,12 @@ Rust build toolchain 1.88.0, Node 22.20.0, pnpm 10.28.1; MSRV отдельно.
 
 ## Общие поля выбора Base
 
+Свободная строка с локальными подсказками использует AutocompleteInput Base:
+options/value/defaultValue/onValueChange(string). Произвольные значения остаются допустимыми;
+закрытый Select для этого не подходит. Native input, ref, FormData, reset, popup и клавиатура
+принадлежат Base; запросы и сохранение — продукту. Не добавлять list/datalist или локальный
+popup.
+
 Сначала искать общий UI в Base: search → show → example. Общие исправления
 вносить в Base; продукт передаёт данные, права, преобразования и сохранение.
 Для закрытого списка с одним значением — Select; для нескольких — MultiSelect.

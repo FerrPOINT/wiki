@@ -4,6 +4,7 @@ import { documentPath } from '@/api/workspaces'
 import { FormEvent, useEffect, useState } from 'react'
 import Markdown from 'react-markdown'
 import {
+  AutocompleteInput,
   PageHeader,
   Badge,
   Prose,
@@ -429,23 +430,22 @@ export function DocumentComposePage() {
             <CardContent className="space-y-3">
               <div className="space-y-1.5">
                 <Label htmlFor="document-type">Тип</Label>
-                <Input
+                <AutocompleteInput
                   id="document-type"
-                  list="document-type-options"
+                  options={
+                    typeOptions.map((type) => ({
+                      value: type,
+                      label: formatDocumentType(type),
+                    })) ?? []
+                  }
                   value={documentType}
                   disabled={createDocument.isPending}
-                  onChange={(event) => {
-                    setDocumentType(event.target.value)
+                  onValueChange={(nextValue) => {
+                    setDocumentType(nextValue)
                     setTemplateInitialized(true)
                   }}
                 />
-                <datalist id="document-type-options">
-                  {typeOptions.map((type) => (
-                    <option key={type} value={type}>
-                      {formatDocumentType(type)}
-                    </option>
-                  ))}
-                </datalist>
+
               </div>
               <FormField id="document-slug" label={'Адрес (slug)'}>
                 {(baseFieldAttrs) => (
