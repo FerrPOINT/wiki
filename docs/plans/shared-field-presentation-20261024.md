@@ -133,3 +133,18 @@ Frozen offline refresh прошёл без downloads и изменения lockf
 и независимые SDK/skills pins сохранены. Настоящий архив Base проверен отдельно.
 IAB использовал собственные исходники и read-only adapters; новый полный build,
 hosted CI, zoom 200%, публикация и installed acceptance этим срезом не заявляются.
+
+## Компактные сообщения и актуальная UI-поставка
+
+Предупреждение о несохранённом черновике использует Notice tone=warning
+appearance=inline. Dirty tracking, выбор режима и запросы сохранения не меняются.
+24 scoped cases, TypeScript и scoped ESLint прошли. IAB настоящего DocumentPage
+проверил три темы и четыре ширины с вводом названия; предупреждение видно,
+ввод сохранён, записи не выполнялись.
+
+UI pin — eb3ceceeb1b1c5029ccaaa9b863d6646b35b1a46; reference
+`5a702cb74a6eff5ec0e298ebdee609e70703e4fb01eda9e101cf7be84f019d36`.
+Cached frozen refresh обновил UI без downloads и сторонних dependency upgrades;
+React singleton и независимые SDK/skills pins сохранены. Настоящий UI-архив
+проверен отдельно. Общий integrated gate, source publication и hosted evidence
+остаются открытыми; установленный runtime этим изменением не обновляется.

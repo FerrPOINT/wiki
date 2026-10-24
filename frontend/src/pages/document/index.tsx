@@ -374,9 +374,9 @@ export function DocumentPage() {
             ]}
           />
           {draftChanged && (
-            <span role="status" className="text-xs text-warning">
+            <Notice role="status" tone="warning" appearance="inline">
               Несохранённые изменения в черновике
-            </span>
+            </Notice>
           )}
         </div>
       )}
