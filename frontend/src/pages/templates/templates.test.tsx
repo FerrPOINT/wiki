@@ -118,24 +118,24 @@ describe('TemplatesPage', () => {
       '/documents/new?template=requirements',
     )
     expect(
-      screen.queryByRole('textbox', { name: 'Название шаблона', exact: true }),
+      screen.queryByRole('textbox', { name: 'Название шаблона' }),
     ).not.toBeInTheDocument()
     expect(screen.queryByText('# Требования')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Показать содержимое шаблона Требования' }))
     expect(screen.getByText(/# Требования/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Новый шаблон' }))
-    expect(screen.getByRole('textbox', { name: 'Название шаблона', exact: true })).toHaveValue('')
-    expect(screen.getByRole('textbox', { name: 'Markdown шаблона', exact: true })).toHaveValue('')
+    expect(screen.getByRole('textbox', { name: 'Название шаблона' })).toHaveValue('')
+    expect(screen.getByRole('textbox', { name: 'Markdown шаблона' })).toHaveValue('')
 
-    fireEvent.change(screen.getByRole('textbox', { name: 'Название шаблона', exact: true }), {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Название шаблона' }), {
       target: { value: '  План релиза  ' },
     })
     await chooseValue(screen.getByLabelText('Тип документа'), 'release_note')
-    fireEvent.change(screen.getByRole('textbox', { name: 'Markdown шаблона', exact: true }), {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Markdown шаблона' }), {
       target: { value: '# Релиз\n\n## Проверки\n' },
     })
     fireEvent.submit(
-      screen.getByRole('textbox', { name: 'Markdown шаблона', exact: true }).closest('form')!,
+      screen.getByRole('textbox', { name: 'Markdown шаблона' }).closest('form')!,
     )
 
     expect(createTemplateMutate).toHaveBeenCalledWith(
@@ -155,7 +155,7 @@ describe('TemplatesPage', () => {
       }),
     )
     expect(
-      screen.queryByRole('textbox', { name: 'Название шаблона', exact: true }),
+      screen.queryByRole('textbox', { name: 'Название шаблона' }),
     ).not.toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('Шаблон «План релиза» создан')
     expect(screen.getByRole('link', { name: 'Использовать' })).toHaveAttribute(
@@ -176,8 +176,8 @@ describe('TemplatesPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Новый шаблон' }))
     expect(createTemplateReset).toHaveBeenCalledTimes(1)
 
-    const nameInput = screen.getByRole('textbox', { name: 'Название шаблона', exact: true })
-    const bodyInput = screen.getByRole('textbox', { name: 'Markdown шаблона', exact: true })
+    const nameInput = screen.getByRole('textbox', { name: 'Название шаблона' })
+    const bodyInput = screen.getByRole('textbox', { name: 'Markdown шаблона' })
     fireEvent.change(nameInput, { target: { value: '   ' } })
     fireEvent.change(bodyInput, { target: { value: '   ' } })
     fireEvent.submit(screen.getByRole('form', { name: 'Создание шаблона' }))
@@ -246,10 +246,10 @@ describe('TemplatesPage', () => {
       target: { value: 'Непохожее' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Новый шаблон' }))
-    fireEvent.change(screen.getByRole('textbox', { name: 'Название шаблона', exact: true }), {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Название шаблона' }), {
       target: { value: created.name },
     })
-    fireEvent.change(screen.getByRole('textbox', { name: 'Markdown шаблона', exact: true }), {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Markdown шаблона' }), {
       target: { value: created.body_markdown },
     })
     fireEvent.submit(screen.getByRole('form', { name: 'Создание шаблона' }))
@@ -265,10 +265,10 @@ describe('TemplatesPage', () => {
   it('locks the create form while saving and keeps its draft on error', () => {
     setupTemplates()
     fireEvent.click(screen.getByRole('button', { name: 'Новый шаблон' }))
-    fireEvent.change(screen.getByRole('textbox', { name: 'Название шаблона', exact: true }), {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Название шаблона' }), {
       target: { value: 'Мой шаблон' },
     })
-    fireEvent.change(screen.getByRole('textbox', { name: 'Markdown шаблона', exact: true }), {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Markdown шаблона' }), {
       target: { value: '# Текст' },
     })
     useCreateTemplate.mockReturnValue({
@@ -282,9 +282,9 @@ describe('TemplatesPage', () => {
     })
     expect(screen.getByRole('button', { name: 'Свернуть форму' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Свернуть' })).toBeDisabled()
-    expect(screen.getByRole('textbox', { name: 'Название шаблона', exact: true })).toBeDisabled()
+    expect(screen.getByRole('textbox', { name: 'Название шаблона' })).toBeDisabled()
     expect(screen.getByLabelText('Тип документа')).toBeDisabled()
-    expect(screen.getByRole('textbox', { name: 'Markdown шаблона', exact: true })).toBeDisabled()
+    expect(screen.getByRole('textbox', { name: 'Markdown шаблона' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Создаём...' })).toBeDisabled()
     fireEvent.submit(screen.getByRole('form', { name: 'Создание шаблона' }))
     expect(createTemplateMutate).not.toHaveBeenCalled()
@@ -298,10 +298,10 @@ describe('TemplatesPage', () => {
     fireEvent.change(screen.getByRole('searchbox', { name: 'Найти шаблон' }), {
       target: { value: 'after error' },
     })
-    expect(screen.getByRole('textbox', { name: 'Название шаблона', exact: true })).toHaveValue(
+    expect(screen.getByRole('textbox', { name: 'Название шаблона' })).toHaveValue(
       'Мой шаблон',
     )
-    expect(screen.getByRole('textbox', { name: 'Markdown шаблона', exact: true })).toHaveValue(
+    expect(screen.getByRole('textbox', { name: 'Markdown шаблона' })).toHaveValue(
       '# Текст',
     )
     expect(screen.getByRole('alert')).toBeInTheDocument()
