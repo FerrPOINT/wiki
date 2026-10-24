@@ -1,5 +1,17 @@
 # Testing Strategy - Wiki
 
+Pure unit suites for api-error/search-scope/space-selection, raw nginx config
+and the two mocked Wiki API query suites use explicit Vitest Node environment.
+Their imports need no browser. Auth store, real client and UI suites retain the
+default jsdom environment; unknown suites are not moved automatically. Browser
+matchers, i18n and storage initialize only in the browser setup branch.
+Node/browser controls guard that boundary; isolation and four workers remain.
+Run only affected suites with `pnpm exec vitest run <test-paths>` from frontend,
+or use root `check-workspace.ps1 -Profile Fast -Repository wiki -Component frontend`.
+Use `-BaseRef HEAD -PlanOnly -DetailedPlan` for the current dirty delta; after
+commit select an explicit component or the intended comparison range. Empty
+diff is not test evidence. App build, integration and release stay separate.
+
 Known Python helper tests (`test_build_pin`, `test_verify_readme`,
 `test_tooling_ownership`) select only `tooling:python-helpers` in Fast/Unit/Build.
 The existing CI-contract test keeps `tooling:build-contracts`; unknown scripts

@@ -1,46 +1,51 @@
-import '@testing-library/jest-dom/vitest'
-import '@/shared/i18n/config'
+// Browser-only dependencies stay out of reviewed pure Node unit suites.
+if (typeof window !== 'undefined') {
+  await import('@testing-library/jest-dom/vitest')
+  await import('@/shared/i18n/config')
 
-class MemoryStorage implements Storage {
-  private readonly items = new Map<string, string>()
+  class MemoryStorage implements Storage {
+    private readonly items = new Map<string, string>()
 
-  get length() {
-    return this.items.size
+    get length() {
+      return this.items.size
+    }
+
+    clear() {
+      this.items.clear()
+    }
+
+    getItem(key: string) {
+      return this.items.get(key) ?? null
+    }
+
+    key(index: number) {
+      return Array.from(this.items.keys())[index] ?? null
+    }
+
+    removeItem(key: string) {
+      this.items.delete(key)
+    }
+
+    setItem(key: string, value: string) {
+      this.items.set(key, String(value))
+    }
   }
 
-  clear() {
-    this.items.clear()
+  function installStorage(name: 'localStorage' | 'sessionStorage') {
+    const current = globalThis[name]
+    if (current && typeof current.getItem === 'function' && typeof current.setItem === 'function') {
+      return
+    }
+
+    const storage = new MemoryStorage()
+    Object.defineProperty(globalThis, name, { value: storage, configurable: true })
+    if (typeof window !== 'undefined') {
+      Object.defineProperty(window, name, { value: storage, configurable: true })
+    }
   }
 
-  getItem(key: string) {
-    return this.items.get(key) ?? null
-  }
-
-  key(index: number) {
-    return Array.from(this.items.keys())[index] ?? null
-  }
-
-  removeItem(key: string) {
-    this.items.delete(key)
-  }
-
-  setItem(key: string, value: string) {
-    this.items.set(key, String(value))
-  }
+  installStorage('localStorage')
+  installStorage('sessionStorage')
 }
 
-function installStorage(name: 'localStorage' | 'sessionStorage') {
-  const current = globalThis[name]
-  if (current && typeof current.getItem === 'function' && typeof current.setItem === 'function') {
-    return
-  }
-
-  const storage = new MemoryStorage()
-  Object.defineProperty(globalThis, name, { value: storage, configurable: true })
-  if (typeof window !== 'undefined') {
-    Object.defineProperty(window, name, { value: storage, configurable: true })
-  }
-}
-
-installStorage('localStorage')
-installStorage('sessionStorage')
+export {}
