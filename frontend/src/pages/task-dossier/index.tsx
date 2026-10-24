@@ -1,6 +1,6 @@
 import { SpaceSelector, useSelectedSpaceKey } from '@/widgets/dossier-space'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
-import {
+import { ResourceListTitle, ResourceListDescription,
   SectionHeader,
   NamespaceLink as Link,
   ResourceList,
@@ -110,18 +110,18 @@ function TaskCatalog({ spaceKey }: { spaceKey: string }) {
                       className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1"
                     >
                       <span className="min-w-0">
-                        <span className="block break-words text-sm font-medium text-text-primary">
+                        <ResourceListTitle asChild className="block break-words"><span >
                           {task.task_key}
-                        </span>
+                        </span></ResourceListTitle>
                         {task.title && (
                           <span className="block break-words text-sm text-text-secondary">
                             {task.title}
                           </span>
                         )}
                       </span>
-                      <span className="shrink-0 text-xs text-text-muted">
+                      <ResourceListDescription asChild className="shrink-0"><span >
                         Документы: {task.document_count} · Материалы: {task.evidence_count}
-                      </span>
+                      </span></ResourceListDescription>
                     </Link>
                   </ResourceListRow>
                 </li>
@@ -344,13 +344,13 @@ export function TaskDossierPage() {
                       >
                         <FileText className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
                         <span className="min-w-0">
-                          <span className="block break-words text-sm font-medium text-text-primary">
+                          <ResourceListTitle asChild className="block break-words"><span >
                             {document.title}
-                          </span>
-                          <span className="block text-xs text-text-muted">
+                          </span></ResourceListTitle>
+                          <ResourceListDescription asChild className="block"><span >
                             {formatDocumentType(document.document_type)} ·{' '}
                             {formatDocumentStatus(document.status)}
-                          </span>
+                          </span></ResourceListDescription>
                         </span>
                       </Link>
                     </ResourceListRow>
@@ -403,13 +403,13 @@ export function TaskDossierPage() {
                     >
                       <FileCheck2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
                       <span className="min-w-0">
-                        <span className="block break-words text-sm font-medium text-text-primary">
+                        <ResourceListTitle asChild className="block break-words"><span >
                           {item.title}
-                        </span>
-                        <span className="block text-xs text-text-muted">
+                        </span></ResourceListTitle>
+                        <ResourceListDescription asChild className="block"><span >
                           {formatEvidenceType(item.evidence_type)} ·{' '}
                           {formatDateTime(item.created_at)}
-                        </span>
+                        </span></ResourceListDescription>
                       </span>
                     </Link>
                   </ResourceListRow>

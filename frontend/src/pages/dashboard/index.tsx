@@ -1,6 +1,6 @@
 import { useActiveSpaces } from '@/widgets/active-spaces'
 import { useState } from 'react'
-import {
+import { ResourceListTitle, ResourceListDescription,
   Label,
   PageHeader,
   SectionHeader,
@@ -225,12 +225,12 @@ export function DashboardPage() {
                                 className="flex items-center justify-between gap-3"
                               >
                                 <span className="min-w-0">
-                                  <span className="block truncate text-sm font-medium text-text-primary">
+                                  <ResourceListTitle asChild className="block truncate"><span >
                                     {document.title}
-                                  </span>
-                                  <span className="block text-xs text-text-muted">
+                                  </span></ResourceListTitle>
+                                  <ResourceListDescription asChild className="block"><span >
                                     {formatDateTime(document.updated_at)}
-                                  </span>
+                                  </span></ResourceListDescription>
                                 </span>
                                 <ArrowRight
                                   className="h-4 w-4 shrink-0 text-text-muted"
@@ -283,12 +283,12 @@ export function DashboardPage() {
                                 className="flex items-center justify-between gap-3"
                               >
                                 <span className="min-w-0">
-                                  <span className="block truncate text-sm font-medium text-text-primary">
+                                  <ResourceListTitle asChild className="block truncate"><span >
                                     {task.title || task.task_key}
-                                  </span>
-                                  <span className="block text-xs text-text-muted">
+                                  </span></ResourceListTitle>
+                                  <ResourceListDescription asChild className="block"><span >
                                     {task.task_key} · Документы: {task.document_count}
-                                  </span>
+                                  </span></ResourceListDescription>
                                 </span>
                                 <ArrowRight
                                   className="h-4 w-4 shrink-0 text-text-muted"

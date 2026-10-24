@@ -1,4 +1,4 @@
-import {
+import { ResourceListTitle,
   DescriptionItem,
   PageNavigation,
   Label,
@@ -516,9 +516,9 @@ export function AuditLogPage() {
                   <ResourceListRow asChild key={event.id}>
                     <li>
                       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                        <span className="min-w-0 break-words text-sm font-medium">
+                        <ResourceListTitle asChild className="min-w-0 break-words"><span >
                           {actionLabels[event.action] ?? event.action}
-                        </span>
+                        </span></ResourceListTitle>
                         <time dateTime={event.created_at} className="text-xs text-text-muted">
                           {formatDateTime(event.created_at)}
                         </time>
