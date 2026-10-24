@@ -15,6 +15,7 @@ import {
   PageNavigation,
   PageHeader,
   Notice,
+  TextLink,
 } from '@pdlc/ui/ui'
 import { useNavigate, useParams } from 'react-router'
 import { FileCheck2, FileText, GitBranch, Link2 } from 'lucide-react'
@@ -244,12 +245,14 @@ export function TaskDossierPage() {
     <div className="space-y-5">
       <section className="space-y-3">
         <div className="space-y-2">
-          <Link
-            to={pathWithSearchParams('/tasks', searchParams)}
-            className="inline-flex min-h-10 items-center text-sm text-accent hover:text-accent-hover"
-          >
-            К задачам
-          </Link>
+          <TextLink asChild>
+            <Link
+              to={pathWithSearchParams('/tasks', searchParams)}
+              className="inline-flex min-h-10 items-center text-sm"
+            >
+              К задачам
+            </Link>
+          </TextLink>
           <PageHeader
             title={task.task_key}
             context={

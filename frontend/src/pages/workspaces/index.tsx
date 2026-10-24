@@ -10,6 +10,7 @@ import {
   ErrorState,
   Notice,
   EmptyState,
+  TextLink,
 } from '@pdlc/ui/ui'
 import { projectIdentity, withNamespaceLocation } from '@pdlc/ui/lib'
 import { documentPath, useWorkspaceCatalog, workspacePath } from '@/api/workspaces'
@@ -24,9 +25,9 @@ function Documents({ nodes, search }: { nodes: SpaceTreeNode[]; search: string }
     <ul className="space-y-2">
       {nodes.map((node) => (
         <li key={node.id}>
-          <Link className="text-accent" to={documentPath(node.id, search)}>
-            {node.title}
-          </Link>
+          <TextLink asChild>
+            <Link to={documentPath(node.id, search)}>{node.title}</Link>
+          </TextLink>
           {node.children.length > 0 && (
             <div className="ml-3">
               <Documents nodes={node.children} search={search} />
@@ -119,9 +120,9 @@ export function WorkspacePage({ documents = false }: { documents?: boolean }) {
             {projectResourceLabel(project)}
           </Notice>
           {project.resource_status === 'not_connected' && (
-            <Link className="text-accent" to="/spaces?project_scope=all">
-              Связать пространство в каталоге Wiki
-            </Link>
+            <TextLink asChild>
+              <Link to="/spaces?project_scope=all">Связать пространство в каталоге Wiki</Link>
+            </TextLink>
           )}
         </div>
       ) : documents ? (
@@ -169,21 +170,22 @@ export function WorkspacePage({ documents = false }: { documents?: boolean }) {
               ))}
             </ul>
           </ResourceList>
-          <Link className="text-accent" to="/spaces?project_scope=all">
-            Управлять связями пространств
-          </Link>
+          <TextLink asChild>
+            <Link to="/spaces?project_scope=all">Управлять связями пространств</Link>
+          </TextLink>
         </section>
       )}
       {resource?.status === 'active' && (
-        <Link
-          className="text-accent"
-          to={withNamespaceLocation(
-            `/documents/new?space=${encodeURIComponent(resource.resource_key)}`,
-            project.namespace,
-          )}
-        >
-          Создать документ
-        </Link>
+        <TextLink asChild>
+          <Link
+            to={withNamespaceLocation(
+              `/documents/new?space=${encodeURIComponent(resource.resource_key)}`,
+              project.namespace,
+            )}
+          >
+            Создать документ
+          </Link>
+        </TextLink>
       )}
     </div>
   )

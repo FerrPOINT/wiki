@@ -23,6 +23,7 @@ import {
   TableHeader,
   TableRow,
   Notice,
+  TextLink,
 } from '@pdlc/ui/ui'
 import { useSearchParams } from 'react-router'
 import {
@@ -133,28 +134,34 @@ function EvidenceTargetLinks({ item }: { item: Evidence }) {
   return (
     <div className="flex min-w-0 flex-wrap gap-x-3 text-sm">
       {item.document_id && (
-        <Link
-          to={`/documents/${item.document_id}`}
-          className="inline-flex min-h-10 min-w-0 items-center break-all text-accent hover:text-accent-hover"
-        >
-          документ {item.document_id}
-        </Link>
+        <TextLink asChild>
+          <Link
+            to={`/documents/${item.document_id}`}
+            className="inline-flex min-h-10 min-w-0 items-center break-all"
+          >
+            документ {item.document_id}
+          </Link>
+        </TextLink>
       )}
       {item.task_key && (
-        <Link
-          to={scopedDossierPath(`/tasks/${item.task_key}`, item.space_key)}
-          className="inline-flex min-h-10 min-w-0 items-center break-all text-accent hover:text-accent-hover"
-        >
-          задача {item.task_key}
-        </Link>
+        <TextLink asChild>
+          <Link
+            to={scopedDossierPath(`/tasks/${item.task_key}`, item.space_key)}
+            className="inline-flex min-h-10 min-w-0 items-center break-all"
+          >
+            задача {item.task_key}
+          </Link>
+        </TextLink>
       )}
       {item.phase_key && (
-        <Link
-          to={scopedDossierPath(`/phases/${item.phase_key}`, item.space_key)}
-          className="inline-flex min-h-10 min-w-0 items-center break-all text-accent hover:text-accent-hover"
-        >
-          фаза {item.phase_key}
-        </Link>
+        <TextLink asChild>
+          <Link
+            to={scopedDossierPath(`/phases/${item.phase_key}`, item.space_key)}
+            className="inline-flex min-h-10 min-w-0 items-center break-all"
+          >
+            фаза {item.phase_key}
+          </Link>
+        </TextLink>
       )}
     </div>
   )
@@ -163,14 +170,14 @@ function EvidenceTargetLinks({ item }: { item: Evidence }) {
 function EvidenceTitle({ item, onSelect }: { item: Evidence; onSelect: (id: string) => void }) {
   if (item.url) {
     return (
-      <a
+      <TextLink
         href={item.url}
         target="_blank"
         rel="noreferrer"
-        className="inline-flex min-h-10 min-w-0 items-center break-words font-medium text-accent hover:text-accent-hover"
+        className="inline-flex min-h-10 min-w-0 items-center break-words font-medium"
       >
         {item.title}
-      </a>
+      </TextLink>
     )
   }
   return (
@@ -634,15 +641,15 @@ export function EvidencePage() {
                       {formatDateTime(selectedEvidence.created_at)}
                     </div>
                     {selectedEvidence.url && (
-                      <a
+                      <TextLink
                         href={selectedEvidence.url}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex min-h-10 items-center gap-2 text-sm text-accent hover:text-accent-hover"
+                        className="inline-flex min-h-10 items-center gap-2 text-sm"
                       >
                         <ExternalLink className="h-4 w-4" />
                         Открыть ссылку
-                      </a>
+                      </TextLink>
                     )}
                     <EvidenceTargetLinks item={selectedEvidence} />
                   </div>

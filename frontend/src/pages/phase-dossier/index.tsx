@@ -15,6 +15,7 @@ import {
   PageNavigation,
   PageHeader,
   Notice,
+  TextLink,
 } from '@pdlc/ui/ui'
 import { useParams } from 'react-router'
 import { FileCheck2, FileText, Link2 } from 'lucide-react'
@@ -226,12 +227,14 @@ export function PhaseDossierPage() {
     <div className="space-y-5">
       <section className="space-y-3">
         <div className="space-y-2">
-          <Link
-            to={pathWithSearchParams('/phases', searchParams)}
-            className="inline-flex min-h-10 items-center text-sm text-accent hover:text-accent-hover"
-          >
-            К фазам
-          </Link>
+          <TextLink asChild>
+            <Link
+              to={pathWithSearchParams('/phases', searchParams)}
+              className="inline-flex min-h-10 items-center text-sm"
+            >
+              К фазам
+            </Link>
+          </TextLink>
           <PageHeader
             title={phase.title ?? phase.phase_key}
             context={

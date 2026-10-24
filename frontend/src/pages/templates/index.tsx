@@ -16,6 +16,7 @@ import {
   Textarea,
   SearchInput,
   Notice,
+  TextLink,
 } from '@pdlc/ui/ui'
 import { useSearchParams } from 'react-router'
 import { ChevronDown, ClipboardCheck, FileText, Plus, ShieldCheck, X } from 'lucide-react'
@@ -452,13 +453,15 @@ export function TemplatesPage() {
                               aria-hidden
                             />
                           </Button>
-                          <Link
-                            to={`/documents/new?template=${encodeURIComponent(template.id)}`}
-                            aria-label={`Использовать шаблон ${template.name}`}
-                            className="inline-flex min-h-10 shrink-0 items-center px-2 text-sm text-accent hover:underline"
-                          >
-                            Использовать
-                          </Link>
+                          <TextLink asChild>
+                            <Link
+                              to={`/documents/new?template=${encodeURIComponent(template.id)}`}
+                              aria-label={`Использовать шаблон ${template.name}`}
+                              className="inline-flex min-h-10 shrink-0 items-center px-2 text-sm"
+                            >
+                              Использовать
+                            </Link>
+                          </TextLink>
                         </div>
                       </ResourceListRow>
                       {expanded && (
