@@ -188,7 +188,7 @@ export function AppShell() {
           }
           actions={
             <>
-              <Button asChild size="sm" className="hidden min-w-10 gap-2 px-3 md:inline-flex">
+              <Button asChild size="sm" className="hidden min-w-10 gap-2 md:inline-flex">
                 <Link to="/documents/new" aria-label="Новый документ">
                   <FilePlus2 className="h-4 w-4" aria-hidden />
                   <span>Новый документ</span>

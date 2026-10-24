@@ -393,7 +393,6 @@ export function AuditLogPage() {
                         type="button"
                         size="sm"
                         variant="ghost"
-                        className="px-0"
                         onClick={() => setManualActorId(false)}
                       >
                         Выбрать из списка
@@ -438,7 +437,6 @@ export function AuditLogPage() {
                       type="button"
                       size="sm"
                       variant="ghost"
-                      className="px-0"
                       onClick={() => setManualActorId(true)}
                     >
                       Ввести UUID
