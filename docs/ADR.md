@@ -42,6 +42,7 @@ Positive and negative.
 | ADR-0008 | Versioned SQLx migrations | Accepted | `adr/0008-versioned-sqlx-migrations.md` |
 | ADR-0009 | Canonical registry and source priority | Accepted | `adr/0009-canonical-registry.md` |
 | ADR-0010 | Background jobs are deferred | Deferred | `adr/0010-apalis.md` |
+| ADR-0011 | Durable identity-reference owner и отдельный coordinator допуск | Accepted | `adr/0011-identity-deletion-owner.md` |
 
 ## 4. Creating New ADRs
 

@@ -12,6 +12,9 @@ mod dossiers;
 mod evidence;
 mod idempotency;
 mod identity;
+mod identity_deletion;
+#[cfg(test)]
+mod identity_deletion_tests;
 mod maintenance;
 mod managed_links;
 mod mapping;
@@ -288,6 +291,37 @@ impl PostgresWikiBackend {
 
 #[async_trait::async_trait]
 impl WikiBackendPort for PostgresWikiBackend {
+    async fn identity_deletion_check(
+        &self,
+        request: &shared::identity_deletion::DeletionRequest,
+        window: &shared::identity_deletion::IdentityDeletionWindow,
+    ) -> Result<shared::identity_deletion::OwnerReferenceSummary, shared::AppError> {
+        self.deletion_store()
+            .check(request, window)
+            .await
+            .map_err(Into::into)
+    }
+    async fn identity_deletion_freeze(
+        &self,
+        request: &shared::identity_deletion::DeletionRequest,
+        window: &shared::identity_deletion::IdentityDeletionWindow,
+    ) -> Result<shared::identity_deletion::OwnerFreezeReceipt, shared::AppError> {
+        self.deletion_store()
+            .freeze(request, window)
+            .await
+            .map_err(Into::into)
+    }
+    async fn identity_deletion_release(
+        &self,
+        request: &shared::identity_deletion::DeletionRequest,
+        window: &shared::identity_deletion::IdentityDeletionWindow,
+    ) -> Result<shared::identity_deletion::OwnerReleaseReceipt, shared::AppError> {
+        self.deletion_store()
+            .release(request, window)
+            .await
+            .map_err(Into::into)
+    }
+
     async fn document_space_projects(
         &self,
         claims: &WikiClaims,

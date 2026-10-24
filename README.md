@@ -295,3 +295,14 @@ integration/live/E2E приёмку. Перед относящейся к дан
 
 Полный workspace-набор тоже ручной: автоматический backend выполняет короткие
 SDK/domain unit tests; прежний полный набор сохранён с manual predicate.
+
+## Владелец identity references
+
+Private `check/freeze/release` удерживает durable fences и прежнюю identity-историю;
+неизвестные bindings не считаются отсутствием ссылок. Настройки
+`WIKI_IDENTITY_DELETION_LEGACY_ISSUER` и
+`WIKI_IDENTITY_DELETION_COORDINATOR_SUBJECTS` задаются только после операторской
+проверки deployment; примеры закомментированы в `.env.example`.
+См. [настройки deployment](docs/DEPLOYMENT.md#private-identity-deletion-owner) и
+[контракт](docs/IDENTITY_DELETION.md). Проверенный отдельный owner не означает
+приёмку восьми owners, Kubernetes или установленного rollout.

@@ -1,6 +1,7 @@
 #[cfg(feature = "runtime")]
 pub mod config;
 pub mod id;
+pub mod identity_deletion;
 pub mod managed_links;
 pub mod wiki_contract;
 pub mod wiki_space_access;
