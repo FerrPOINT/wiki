@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ExternalLink } from 'lucide-react'
 import { useSearchParams } from 'react-router'
 import {
+  PageNavigation,
   PageHeader,
   Button,
   EmptyState,
@@ -214,37 +215,25 @@ export function UsersPage() {
             </TableBody>
           </Table>
           {filtered.length > pageSize && (
-            <nav
-              aria-label="Страницы профилей"
-              className="flex flex-wrap items-center justify-end gap-2"
-            >
-              <span className="mr-auto text-sm text-text-muted">
-                Показаны {firstVisible}–{lastVisible} из {filtered.length}
-              </span>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-
-                disabled={currentPage === 1}
-                onClick={() => setPage(currentPage - 1)}
-              >
-                Назад
-              </Button>
-              <span className="text-sm text-text-muted">
-                {currentPage} / {totalPages}
-              </span>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-
-                disabled={currentPage === totalPages}
-                onClick={() => setPage(currentPage + 1)}
-              >
-                Далее
-              </Button>
-            </nav>
+            <PageNavigation
+              page={currentPage}
+              pageCount={totalPages}
+              onPageChange={setPage}
+              label="Страницы профилей"
+              previousLabel="Назад"
+              nextLabel="Далее"
+              summary={
+                <>
+                  <span>
+                    Показаны {firstVisible}–{lastVisible} из {filtered.length}
+                  </span>
+                  {' · '}
+                  <span>
+                    {currentPage} / {totalPages}
+                  </span>
+                </>
+              }
+            />
           )}
         </>
       )}

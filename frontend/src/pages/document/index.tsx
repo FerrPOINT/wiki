@@ -2,6 +2,7 @@ import { useNamespaceContext } from '@/widgets/namespace-context'
 import { TaskRevisionLink } from '@/features/managed-links/TaskRevisionLink'
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import {
+  PageNavigation,
   RadioGroup,
   PageHeader,
   Prose,
@@ -730,42 +731,20 @@ export function DocumentPage() {
                 </div>
               ))}
               {(revisionPage > 0 || hasNextRevisionPage) && (
-                <nav
-                  aria-label="Страницы ревизий"
-                  className="space-y-2 border-t border-border pt-3"
-                >
-                  <span className="block text-center text-sm text-text-secondary">
-                    Страница {revisionPage + 1}
-                  </span>
-                  <div className="flex items-center justify-between gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-
-                      disabled={revisionPage === 0}
-                      onClick={() => {
-                        setSelectedRevisionId(null)
-                        setRevisionPage((page) => page - 1)
-                      }}
-                    >
-                      Предыдущая
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-
-                      disabled={
-                        !hasNextRevisionPage || revisionsQuery.isLoading || revisionsQuery.isError
-                      }
-                      onClick={() => {
-                        setSelectedRevisionId(null)
-                        setRevisionPage((page) => page + 1)
-                      }}
-                    >
-                      Следующая
-                    </Button>
-                  </div>
-                </nav>
+                <PageNavigation
+                  page={revisionPage + 1}
+                  hasNext={
+                    hasNextRevisionPage && !revisionsQuery.isLoading && !revisionsQuery.isError
+                  }
+                  onPageChange={(nextPage) => {
+                    setSelectedRevisionId(null)
+                    setRevisionPage(nextPage - 1)
+                  }}
+                  label="Страницы ревизий"
+                  className="border-t border-border pt-3"
+                  previousLabel="Предыдущая"
+                  nextLabel="Следующая"
+                />
               )}
             </CardContent>
           </Card>

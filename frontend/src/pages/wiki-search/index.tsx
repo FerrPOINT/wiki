@@ -6,6 +6,7 @@ import { SearchResultLink } from '@/widgets/search-result-link'
 import { FileCheck2, FileText, GitBranch, ListFilter } from 'lucide-react'
 import { useWikiSearch } from '@/shared/api/hooks'
 import {
+  PageNavigation,
   PageHeader,
   SectionHeader,
   Select,
@@ -476,29 +477,15 @@ export function WikiSearchPage() {
           </ResourceList>
         )}
         {(currentPage > 1 || nextCursor) && !searchQuery.isLoading && !searchQuery.isError && (
-          <nav aria-label="Страницы результатов" className="flex items-center justify-end gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-
-              disabled={currentPage === 1}
-              onClick={() => changePage('previous')}
-            >
-              Назад
-            </Button>
-            <span className="text-sm text-text-muted">Страница {currentPage}</span>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-
-              disabled={!nextCursor}
-              onClick={() => changePage('next')}
-            >
-              Далее
-            </Button>
-          </nav>
+          <PageNavigation
+            page={currentPage}
+            hasNext={!!nextCursor}
+            onPageChange={(nextPage) => changePage(nextPage < currentPage ? 'previous' : 'next')}
+            label="Страницы результатов"
+            previousLabel="Назад"
+            nextLabel="Далее"
+            summary={<>Страница {currentPage}</>}
+          />
         )}
       </section>
     </div>

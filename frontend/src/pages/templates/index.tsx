@@ -1,6 +1,7 @@
 import { useApplicationAccess } from '@pdlc/ui/auth'
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import {
+  PageNavigation,
   PageHeader,
   Select,
   CodeBlock,
@@ -480,37 +481,17 @@ export function TemplatesPage() {
             </ResourceList>
           )}
           {filteredTemplates.length > pageSize && (
-            <nav aria-label="Страницы шаблонов" className="flex items-center justify-end gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-
-                disabled={currentPage === 1}
-                onClick={() => {
-                  setCatalogPage(currentPage - 1)
-                  setExpandedId(null)
-                }}
-              >
-                Назад
-              </Button>
-              <span className="text-sm text-text-muted">
-                {currentPage} / {totalPages}
-              </span>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-
-                disabled={currentPage === totalPages}
-                onClick={() => {
-                  setCatalogPage(currentPage + 1)
-                  setExpandedId(null)
-                }}
-              >
-                Далее
-              </Button>
-            </nav>
+            <PageNavigation
+              page={currentPage}
+              pageCount={totalPages}
+              onPageChange={(nextPage) => {
+                setCatalogPage(nextPage)
+                setExpandedId(null)
+              }}
+              label="Страницы шаблонов"
+              previousLabel="Назад"
+              nextLabel="Далее"
+            />
           )}
         </section>
       )}

@@ -2,6 +2,7 @@ import { downloadBlob } from '@pdlc/ui/lib'
 import { useProjectRouteRef } from '@/widgets/namespace-context'
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  PageNavigation,
   PageHeader,
   NamespaceLink as Link,
   ResourceList,
@@ -27,8 +28,6 @@ import {
 } from '@pdlc/ui/ui'
 import { useSearchParams } from 'react-router'
 import {
-  ChevronLeft,
-  ChevronRight,
   Download,
   ExternalLink,
   FileText,
@@ -788,39 +787,25 @@ export function EvidencePage() {
             </>
           )}
           {(cursors.length > 1 || nextCursor) && (
-            <nav
-              aria-label="Страницы материалов"
-              className="mt-4 flex flex-wrap items-center gap-3 border-t border-border pt-3"
-            >
-              <span className="mr-auto text-sm text-text-secondary">Страница {cursors.length}</span>
-              <Button
-                type="button"
-                variant="outline"
-
-                disabled={
-                  cursors.length === 1 || evidenceQuery.isLoading || evidenceQuery.isFetching
-                }
-                onClick={() => changePage(cursors.slice(0, -1))}
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Назад
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-
-                disabled={
-                  !nextCursor ||
-                  evidenceQuery.isLoading ||
-                  evidenceQuery.isFetching ||
-                  evidenceQuery.isError
-                }
-                onClick={() => nextCursor && changePage([...cursors, nextCursor])}
-              >
-                Далее
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </nav>
+            <PageNavigation
+              page={cursors.length}
+              hasNext={
+                !!nextCursor &&
+                !evidenceQuery.isLoading &&
+                !evidenceQuery.isFetching &&
+                !evidenceQuery.isError
+              }
+              onPageChange={(nextPage) => {
+                if (nextPage < cursors.length) changePage(cursors.slice(0, -1))
+                else if (nextCursor) changePage([...cursors, nextCursor])
+              }}
+              label="Страницы материалов"
+              previousLabel="Назад"
+              nextLabel="Далее"
+              pending={evidenceQuery.isLoading || evidenceQuery.isFetching}
+              summary={<>Страница {cursors.length}</>}
+              className="mt-4 border-t border-border pt-3"
+            />
           )}
         </CardContent>
       </Card>

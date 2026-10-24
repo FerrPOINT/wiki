@@ -15,6 +15,7 @@ import {
   useUsers,
 } from '@/shared/api/hooks'
 import {
+  PageNavigation,
   CardContent,
   Card,
   PageHeader,
@@ -562,37 +563,17 @@ export function SpacesPage() {
             </ResourceList>
           )}
           {filteredSpaces.length > 12 && (
-            <nav aria-label="Страницы пространств" className="flex items-center justify-end gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-
-                disabled={currentPage === 1}
-                onClick={() => {
-                  setPage(currentPage - 1)
-                  setExpandedKey(null)
-                }}
-              >
-                Назад
-              </Button>
-              <span className="text-sm tabular-nums text-text-muted">
-                {currentPage} / {pageCount}
-              </span>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-
-                disabled={currentPage === pageCount}
-                onClick={() => {
-                  setPage(currentPage + 1)
-                  setExpandedKey(null)
-                }}
-              >
-                Далее
-              </Button>
-            </nav>
+            <PageNavigation
+              page={currentPage}
+              pageCount={pageCount}
+              onPageChange={(nextPage) => {
+                setPage(nextPage)
+                setExpandedKey(null)
+              }}
+              label="Страницы пространств"
+              previousLabel="Назад"
+              nextLabel="Далее"
+            />
           )}
         </section>
       )}

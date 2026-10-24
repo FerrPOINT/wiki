@@ -1,4 +1,5 @@
 import {
+  PageNavigation,
   Label,
   PageHeader,
   Disclosure,
@@ -21,7 +22,7 @@ import {
 } from '@pdlc/ui/ui'
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
-import { ChevronLeft, ChevronRight, ListFilter, RefreshCw } from 'lucide-react'
+import { ListFilter, RefreshCw } from 'lucide-react'
 import { useAuditLog, useUsers } from '@/shared/api/hooks'
 
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
@@ -583,34 +584,22 @@ export function AuditLogPage() {
           </>
         )}
         {(hasPreviousPage || nextCursor) && (
-          <nav
-            aria-label="Страницы аудита"
-            className="mt-4 flex flex-wrap items-center gap-3 border-t border-border pt-3"
-          >
-            <span className="mr-auto text-sm text-text-secondary">Страница {currentPage}</span>
-            <Button
-              type="button"
-              variant="outline"
-
-              disabled={!hasPreviousPage || auditQuery.isLoading || auditQuery.isFetching}
-              onClick={() => changePage('previous')}
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Назад
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-
-              disabled={
-                !nextCursor || auditQuery.isLoading || auditQuery.isFetching || auditQuery.isError
-              }
-              onClick={() => nextCursor && changePage('next', nextCursor)}
-            >
-              Далее
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </nav>
+          <PageNavigation
+            page={currentPage}
+            hasNext={
+              !!nextCursor && !auditQuery.isLoading && !auditQuery.isFetching && !auditQuery.isError
+            }
+            onPageChange={(nextPage) => {
+              if (nextPage < currentPage) changePage('previous')
+              else if (nextCursor) changePage('next', nextCursor)
+            }}
+            label="Страницы аудита"
+            previousLabel="Назад"
+            nextLabel="Далее"
+            pending={auditQuery.isLoading || auditQuery.isFetching}
+            summary={<>Страница {currentPage}</>}
+            className="mt-4 border-t border-border pt-3"
+          />
         )}
       </section>
     </div>
