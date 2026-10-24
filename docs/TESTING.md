@@ -1,5 +1,19 @@
 # Testing Strategy - Wiki
 
+## Bounded frontend unit workers
+
+The ordinary `pnpm test:unit` command in frontend uses an explicit maximum of
+four Vitest workers. Isolation, jsdom, test inventory and manual tiers remain.
+The same installed Node 22.20.0/pnpm 10.28.1/Vitest 4.1.11 environment passed
+187 cases at both two and four workers (three samples each). Command medians
+were 30.942 s and 17.539 s respectively; four is the faster measured bounded
+profile. This is not a comparison against the unbounded historical default,
+and private committed job memory is not an application RAM requirement.
+Existing compatible in-place dependencies can serve this native unit command;
+this does not issue a managed Base environment, unit receipt or artifact grant.
+Integration/slow/release and application production builds remain separate.
+
+
 ## Scoped unit/static и полный release
 
 Из корня PDLC3 обычные проверки выбирают только нужный продукт и компонент:
