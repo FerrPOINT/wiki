@@ -310,7 +310,9 @@ export function PhaseDossierPage() {
               </Notice>
             )}
             {linkMessage && !linkDocument.isError && (
-              <p className="mt-2 text-sm text-success">{linkMessage}</p>
+              <Notice tone="success" appearance="inline" className="mt-2">
+                {linkMessage}
+              </Notice>
             )}
           </form>
           {phase.documents.length === 0 ? (

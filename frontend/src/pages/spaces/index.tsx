@@ -15,6 +15,7 @@ import {
   useUsers,
 } from '@/shared/api/hooks'
 import {
+  Badge,
   PageNavigation,
   CardContent,
   Card,
@@ -520,9 +521,9 @@ export function SpacesPage() {
                               <span className="truncate text-sm font-semibold">{space.name}</span>
                               <span className="shrink-0 text-xs text-text-muted">{space.key}</span>
                               {space.status === 'archived' && (
-                                <span className="shrink-0 text-xs text-warning">
+                                <Badge appearance="inline" tone="warning" className="shrink-0">
                                   {statusLabel(space.status)}
-                                </span>
+                                </Badge>
                               )}
                             </span>
                             <span className="block truncate text-xs text-text-secondary">

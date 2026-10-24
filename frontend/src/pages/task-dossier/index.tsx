@@ -325,7 +325,9 @@ export function TaskDossierPage() {
               </Notice>
             )}
             {linkMessage && !linkDocument.isError && (
-              <p className="mt-2 text-sm text-success">{linkMessage}</p>
+              <Notice tone="success" appearance="inline" className="mt-2">
+                {linkMessage}
+              </Notice>
             )}
           </form>
           {task.documents.length === 0 ? (
