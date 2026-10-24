@@ -32,3 +32,25 @@ standard/large и 320/375/1920/2560. Подписи имеют 14/16 px из Bra
 Повторного install не было. Installed CLI check и React singleton подтвердили
 сохранённый пакет. Предыдущие 25 cases не обозначаются новым прогоном.
 SDK/skills pins и внешние версии сохранены; новый frontend build остаётся gate.
+
+## Составные поля и сообщения операций
+
+Три FormField Base заменяют разметку имени, типа и Markdown шаблона. Сохранены
+id, refs, native required, noValidate и продуктовые trim/focus/submit правила.
+Base задаёт связь ошибки с контролом и оформление Notice. Ошибки создания,
+обновления пространства и скачивания evidence также используют inline Notice
+с role=alert. Запросы, права и форматирование безопасной API-ошибки остаются в Wiki.
+
+38 уникальных cases прошли: evidence 15, spaces 11, templates 12. Четыре первых
+отказа templates были связаны с буквальным label-текстом после появления общей
+required-звёздочки: тесты используют точное доступное имя textbox и дополнительно
+проверяют обе accessible descriptions и два alert. Требования trim, focus,
+сохранности черновика и permissions не ослаблялись. AST, scoped lint, format и
+primitive/choice guard прошли; другие файлы после исправления не перезапускались.
+
+IAB настоящей TemplatesPage с синтетическими чтениями подтвердил 12 сочетаний
+трёх тем и 320/375/1920/2560, 40/44 px без overflow. Обе ошибки связаны с полями;
+после исправления имени focus переходит к Markdown, имя сохраняется. Дополнительный
+large-показ даёт Label 16 px. Внешних API и записей не было; собственные сервер
+и вкладка закрыты. Это не backend/installed acceptance и не browser zoom 200%.
+UI pin и зависимости не менялись; общий build/reference gate остаётся открыт.

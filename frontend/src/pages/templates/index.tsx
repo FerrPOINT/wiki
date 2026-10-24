@@ -11,7 +11,7 @@ import {
   EmptyState,
   ErrorState,
   Input,
-  Label,
+  FormField,
   LoadingState,
   Textarea,
   SearchInput,
@@ -291,61 +291,58 @@ export function TemplatesPage() {
           className="space-y-3 border-y border-border py-4"
         >
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_14rem]">
-            <div className="space-y-1.5">
-              <Label htmlFor="template-name">Название шаблона</Label>
-              <Input
-                ref={nameRef}
-                id="template-name"
-
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                disabled={createTemplate.isPending}
-                aria-invalid={nameInvalid}
-                aria-describedby={nameInvalid ? 'template-name-error' : undefined}
-                required
-              />
-              {nameInvalid && (
-                <p id="template-name-error" className="text-sm text-danger">
-                  Введите название шаблона.
-                </p>
-              )}
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="template-type">Тип документа</Label>
-              <Select
-                id="template-type"
-                className="w-full"
-                value={documentType}
-                onValueChange={(nextValue) => setDocumentType(nextValue)}
-                disabled={createTemplate.isPending}
-                options={[
-                  ...(typeOptions.map((type) => ({
-                    value: String(type),
-                    label: String(formatDocumentType(type)),
-                  })) ?? []),
-                ]}
-              />
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="template-body">Markdown шаблона</Label>
-            <Textarea
-              ref={bodyRef}
-              id="template-body"
-              className="min-h-32 font-mono text-sm"
-              value={body}
-              onChange={(event) => setBody(event.target.value)}
-              disabled={createTemplate.isPending}
-              aria-invalid={bodyInvalid}
-              aria-describedby={bodyInvalid ? 'template-body-error' : undefined}
+            <FormField
+              id="template-name"
+              label="Название шаблона"
               required
-            />
-            {bodyInvalid && (
-              <p id="template-body-error" className="text-sm text-danger">
-                Введите содержимое шаблона.
-              </p>
-            )}
+              error={nameInvalid ? 'Введите название шаблона.' : undefined}
+            >
+              {(attrs) => (
+                <Input
+                  {...attrs}
+                  ref={nameRef}
+
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  disabled={createTemplate.isPending}
+                />
+              )}
+            </FormField>
+            <FormField id="template-type" label="Тип документа">
+              {(attrs) => (
+                <Select
+                  {...attrs}
+                  className="w-full"
+                  value={documentType}
+                  onValueChange={(nextValue) => setDocumentType(nextValue)}
+                  disabled={createTemplate.isPending}
+                  options={[
+                    ...(typeOptions.map((type) => ({
+                      value: String(type),
+                      label: String(formatDocumentType(type)),
+                    })) ?? []),
+                  ]}
+                />
+              )}
+            </FormField>
           </div>
+          <FormField
+            id="template-body"
+            label="Markdown шаблона"
+            required
+            error={bodyInvalid ? 'Введите содержимое шаблона.' : undefined}
+          >
+            {(attrs) => (
+              <Textarea
+                {...attrs}
+                ref={bodyRef}
+                className="min-h-32 font-mono text-sm"
+                value={body}
+                onChange={(event) => setBody(event.target.value)}
+                disabled={createTemplate.isPending}
+              />
+            )}
+          </FormField>
           {createTemplate.isError && (
             <Notice role="alert" appearance="inline" tone="danger">
               {formatApiErrorForUser(createTemplate.error, 'Не удалось создать шаблон')}

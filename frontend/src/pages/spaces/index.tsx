@@ -159,9 +159,9 @@ function CreateSpaceForm({ onCreated }: { onCreated: () => void }) {
             </Button>
           </div>
           {createSpace.isError && (
-            <p className="mt-2 text-sm text-danger">
+            <Notice role="alert" appearance="inline" tone="danger" className="mt-2">
               {formatApiErrorForUser(createSpace.error, 'Не удалось создать пространство')}
-            </p>
+            </Notice>
           )}
         </CardContent>
       </form>
@@ -247,9 +247,9 @@ function SpaceDetails({
                 </Button>
               </div>
               {updateSpace.isError && (
-                <p className="text-sm text-danger">
+                <Notice role="alert" appearance="inline" tone="danger">
                   {formatApiErrorForUser(updateSpace.error, 'Не удалось обновить пространство')}
-                </p>
+                </Notice>
               )}
             </CardContent>
           </form>

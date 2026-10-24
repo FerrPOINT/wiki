@@ -121,9 +121,9 @@ function AttachmentMetadata({ item }: { item: Evidence }) {
         {downloadAttachment.isPending ? 'Скачиваем...' : 'Скачать'}
       </Button>
       {downloadAttachment.isError && (
-        <div className="text-danger">
+        <Notice role="alert" appearance="inline" tone="danger">
           {formatApiErrorForUser(downloadAttachment.error, 'Не удалось скачать файл')}
-        </div>
+        </Notice>
       )}
     </div>
   )
