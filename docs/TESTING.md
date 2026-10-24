@@ -287,3 +287,11 @@ CLI `wiki`, migration и OpenAPI остаются отдельными consumers
 `backend:quality` сохраняет полные workspace clippy/tests в ручном release;
 MSRV/features/OpenAPI и необходимые integration gates не сокращаются.
 Fresh target между source exports и registry/compiler-cache policy Base сохраняются.
+
+Изменение только `scripts/verify_readme.py` выбирает docs/tooling: Fast выполняет
+README validator и Python helper units, Unit/Build — только helper units.
+Application producers для этого пути не выбираются. Неизвестные scripts и
+`scripts/build.py` сохраняют полный product fallback; соседний backend input
+по-прежнему включает backend checks/build. Public plan допускает
+`--changed-file scripts/verify_readme.py`; root `-Repository wiki -Component tooling`
+проверяет весь явно выбранный tooling scope. Общие правила — стандарт Base выше.

@@ -31,3 +31,13 @@ scripts и реальные app inputs. Прямой запуск — коман
 Application builds/install/export0. Реальное ускорение сборки и CPU/RAM здесь
 NOT_MEASURED. Quality/SDK/UI/skills/operator pins не менялись; перенос соседним
 workspace требует проверки их актуальных descriptors, без массовой sync.
+
+## Source README validator
+
+Исходный `scripts/verify_readme.py` оставался unknown path и выбирал оба
+application components ещё до `05c311a`. Новая regression была RED во всех
+Fast/Unit/Build. Exact map теперь выбирает docs/tooling и существующий Python
+gate; Fast сохраняет actual README validator. Все прежние gate objects и
+producer inputs неизменны. Public CI classifier проверяет false для frontend/
+backend при одном helper и true для backend при соседнем backend изменении.
+`scripts/build.py` и неизвестные paths сохраняют полный fallback.

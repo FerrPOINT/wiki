@@ -2,6 +2,7 @@
 import shlex
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from scripts.vendor import base_quality_selection as selection
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -9,6 +10,16 @@ TESTS = ('test_build_pin', 'test_verify_readme', 'test_tooling_ownership')
 
 
 class PythonToolingOwnershipTests(unittest.TestCase):
+    def test_readme_validator_source_selects_docs_and_helpers_without_application_work(self):
+        for profile in ('fast', 'unit', 'build'):
+            with self.subTest(profile=profile):
+                candidate = selection.plan(ROOT, profile=profile, changed=['scripts/verify_readme.py'])
+                self.assertEqual(candidate['components'], ['docs', 'tooling'])
+                expected = {'tooling:python-helpers', 'docs:readme'} if profile == 'fast' else {'tooling:python-helpers'}
+                self.assertEqual({gate['id'] for gate in candidate['gates']}, expected)
+                self.assertFalse(any(gate.get('kind') == 'artifact' or gate.get('prepare_frontend')
+                                     for gate in candidate['gates']))
+
     def test_known_tests_select_only_python_helpers(self):
         manifest = selection.load(ROOT)
         for profile in ('fast', 'unit', 'build'):
@@ -22,6 +33,21 @@ class PythonToolingOwnershipTests(unittest.TestCase):
                     self.assertEqual(gate['argv'][0], '{python}')
                     self.assertFalse(gate.get('kind') == 'artifact')
                     self.assertTrue({'scripts.tests.' + n for n in TESTS} <= set(gate['argv']))
+
+    def test_ci_readme_validator_diff_skips_producers_and_keeps_neighboring_backend_change(self):
+        base, head = '1' * 40, '2' * 40
+        for paths, backend in ((['scripts/verify_readme.py'], 'false'),
+                               (['scripts/verify_readme.py', 'backend/server/src/main.rs'], 'true')):
+            with self.subTest(paths=paths):
+                def changed(root, *arguments):
+                    self.assertEqual(arguments, ('diff', '--name-only', '--no-renames', base, head))
+                    return '\n'.join(paths)
+                with patch.object(selection, 'git', side_effect=changed):
+                    result = selection.ci_outputs('pull_request', base, head, repo=ROOT)
+                self.assertEqual(result['backend'], backend)
+                self.assertEqual(result['backend_build'], backend)
+                self.assertEqual(result['frontend'], 'false')
+                self.assertEqual(result['frontend_build'], 'false')
 
     def test_contract_test_keeps_its_existing_gate_and_unknown_script_stays_wide(self):
         contract = selection.plan(ROOT, profile='build', changed=['scripts/tests/test_ci_contract_checks.py'])

@@ -4,6 +4,7 @@
   "components": {
     "docs": [
       "docs/**",
+      "scripts/verify_readme.py",
       "*.md",
       "LICENSE"
     ],
@@ -26,6 +27,7 @@
       "openapi/**"
     ],
     "tooling": [
+      "scripts/verify_readme.py",
       "scripts/tests/test_build_pin.py",
       "scripts/tests/test_verify_readme.py",
       "scripts/tests/test_tooling_ownership.py",
@@ -502,6 +504,7 @@
     "tooling": [
       {
         "paths": [
+          "scripts/verify_readme.py",
           "scripts/tests/test_build_pin.py",
           "scripts/tests/test_verify_readme.py",
           "scripts/tests/test_tooling_ownership.py"
