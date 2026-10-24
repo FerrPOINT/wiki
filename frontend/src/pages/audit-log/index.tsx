@@ -1,4 +1,5 @@
 import {
+  DescriptionItem,
   PageNavigation,
   Label,
   PageHeader,
@@ -522,20 +523,22 @@ export function AuditLogPage() {
                           {formatDateTime(event.created_at)}
                         </time>
                       </div>
-                      <dl className="mt-1 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
-                        <dt className="text-text-muted">Участник</dt>
-                        <dd className="min-w-0 break-all">{event.actor_id}</dd>
-                        <dt className="text-text-muted">Объект</dt>
-                        <dd className="min-w-0 break-all">
+                      <dl className="mt-1 space-y-1">
+                        <DescriptionItem label={<>Участник</>} layout="inline">
+                          {event.actor_id}
+                        </DescriptionItem>
+                        <DescriptionItem label={<>Объект</>} layout="inline">
                           {event.entity_type}: {event.entity_id}
-                        </dd>
+                        </DescriptionItem>
                       </dl>
                       <Disclosure className="mt-1 text-xs" summary={<>Технические данные</>}>
-                        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 pb-2">
-                          <dt className="text-text-muted">Действие</dt>
-                          <dd className="min-w-0 break-all font-mono">{event.action}</dd>
-                          <dt className="text-text-muted">Запрос</dt>
-                          <dd className="min-w-0 break-all font-mono">{event.request_id}</dd>
+                        <dl className="space-y-1 pb-2">
+                          <DescriptionItem label={<>Действие</>} layout="inline" technical>
+                            {event.action}
+                          </DescriptionItem>
+                          <DescriptionItem label={<>Запрос</>} layout="inline" technical>
+                            {event.request_id}
+                          </DescriptionItem>
                         </dl>
                       </Disclosure>
                     </li>
