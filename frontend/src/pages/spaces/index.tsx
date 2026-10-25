@@ -479,7 +479,8 @@ export function SpacesPage() {
             />
             {currentUserQuery.data && (
               <Checkbox
-                className="whitespace-nowrap text-text-secondary"
+                className="whitespace-nowrap"
+                labelTone="secondary"
                 checked={mineOnly}
                 onCheckedChange={(checked) => {
                   setMineOnly(checked === true)
