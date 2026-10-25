@@ -1,5 +1,17 @@
 # Общие подписи полей Base
 
+## Метаданные файла материала — 25 октября 2026
+
+AttachmentMetadata использует ResourceListTitle/Description, сохраняя native div,
+размещение и моноширинный checksum. Название следует title scale Base, сведения —
+caption scale. Attachment admission, query, filename/checksum fallback, download,
+retry/pending/errors принадлежат Wiki и не менялись. Полный модуль и типы сверены
+с baseline; scoped types/lint/shell:check и 15 cases PASS. IAB: 24 контекста
+трёх source widgets и десять read-состояний без overflow; pending блокирует
+скачивание, явный retry вызывает один callback. Synthetic transport, без
+установленного backend. UI producer 403e5002 и pins прежние; install/build/export
+не повторялись. Evidence: private evidence/attachment-captions-20261025/.
+
 ## Текущий UI кандидат: Breadcrumbs — 25 октября 2026
 
 UI producer `403e5002b37621a1c7c67767dece8fa712eb16c0`, версия 0.3.2, reference

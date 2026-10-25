@@ -7,6 +7,8 @@ import {
   NamespaceLink as Link,
   ResourceList,
   ResourceListRow,
+  ResourceListTitle,
+  ResourceListDescription,
   Button,
   Card,
   CardContent,
@@ -85,47 +87,49 @@ function AttachmentMetadata({ item }: { item: Evidence }) {
   }
 
   return (
-    <div className="min-w-0 space-y-2 text-xs text-text-muted">
-      <div className="min-w-0 break-all font-medium text-text-secondary">
-        {attachmentQuery.isLoading ? 'Загружаем файл...' : fileName}
-      </div>
-      {attachment && (
-        <div>
-          {formatBytes(attachment.size_bytes)} · {attachment.content_type}
+    <ResourceListDescription asChild className="min-w-0 space-y-2">
+      <div>
+        <ResourceListTitle asChild className="min-w-0 break-all">
+          <div>{attachmentQuery.isLoading ? 'Загружаем файл...' : fileName}</div>
+        </ResourceListTitle>
+        {attachment && (
+          <div>
+            {formatBytes(attachment.size_bytes)} · {attachment.content_type}
+          </div>
+        )}
+        {attachmentQuery.isError && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+
+            onClick={() => attachmentQuery.refetch()}
+          >
+            Повторить загрузку метаданных
+          </Button>
+        )}
+        <div className="min-w-0 break-all font-mono">
+          {checksum ?? 'Контрольная сумма недоступна'}
         </div>
-      )}
-      {attachmentQuery.isError && (
         <Button
           type="button"
           size="sm"
           variant="outline"
 
-          onClick={() => attachmentQuery.refetch()}
+          onClick={handleDownload}
+          disabled={downloadAttachment.isPending}
+          aria-label={`Скачать ${item.title}`}
         >
-          Повторить загрузку метаданных
+          <Download className="h-4 w-4" />
+          {downloadAttachment.isPending ? 'Скачиваем...' : 'Скачать'}
         </Button>
-      )}
-      <div className="min-w-0 break-all font-mono">
-        {checksum ?? 'Контрольная сумма недоступна'}
+        {downloadAttachment.isError && (
+          <Notice role="alert" appearance="inline" tone="danger">
+            {formatApiErrorForUser(downloadAttachment.error, 'Не удалось скачать файл')}
+          </Notice>
+        )}
       </div>
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-
-        onClick={handleDownload}
-        disabled={downloadAttachment.isPending}
-        aria-label={`Скачать ${item.title}`}
-      >
-        <Download className="h-4 w-4" />
-        {downloadAttachment.isPending ? 'Скачиваем...' : 'Скачать'}
-      </Button>
-      {downloadAttachment.isError && (
-        <Notice role="alert" appearance="inline" tone="danger">
-          {formatApiErrorForUser(downloadAttachment.error, 'Не удалось скачать файл')}
-        </Notice>
-      )}
-    </div>
+    </ResourceListDescription>
   )
 }
 
