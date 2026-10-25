@@ -1,5 +1,17 @@
 # Testing Strategy - Wiki
 
+## Production CSS source graph
+
+Node 22.20.0, UI `@sdlc/ui` и его source layout сохранены.
+Tailwind читает application src, index.html и прежний UI source; test/spec/setup/tooling исключены.
+`pnpm test:unit` сначала выполняет два scanner/compiler controls, затем прежние units.
+Ручной `pnpm test:all` включает те же Node controls перед прежним полным Vitest.
+Отдельно из frontend с готовыми dependencies: `node --test scripts/tailwind-source-inputs.test.mjs`.
+Fixture-only изменение не выбирает application artifact в quality/CI; реальный CSS сохраняет Build.
+Это source checks, полный Vite/dist и native/container acceptance выполняются отдельно на общей вехе.
+Общий стандарт — [Base BUILD_PERFORMANCE](../../services-base/docs/BUILD_PERFORMANCE.md).
+
+
 Pure unit suites for api-error/search-scope/space-selection, raw nginx config
 and the two mocked Wiki API query suites use explicit Vitest Node environment.
 Their imports need no browser. Auth store, real client and UI suites retain the
