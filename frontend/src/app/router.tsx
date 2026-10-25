@@ -65,12 +65,8 @@ const ManagedTaskPage = lazy(() =>
   import('@/pages/managed-task').then((m) => ({ default: m.ManagedTaskPage })),
 )
 
-function PageLoader() {
-  return <LoadingState />
-}
-
 const withSuspense = (element: ReactElement) => (
-  <Suspense fallback={<PageLoader />}>
+  <Suspense fallback={<LoadingState />}>
     <PlatformRoute>{element}</PlatformRoute>
   </Suspense>
 )
