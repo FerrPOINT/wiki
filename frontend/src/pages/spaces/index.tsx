@@ -15,6 +15,7 @@ import {
   useUsers,
 } from '@/shared/api/hooks'
 import {
+  TextLink,
   Badge,
   PageNavigation,
   CardContent,
@@ -82,16 +83,15 @@ function SpaceTreePreview({ spaceKey }: { spaceKey: string }) {
   return (
     <div className="space-y-1.5">
       {documents.map((document) => (
-        <Link
-          key={document.id}
+        <TextLink asChild key={document.id}><Link
           to={`/documents/${document.id}`}
-          className="block truncate text-sm text-text-secondary hover:text-accent"
+          className="block truncate text-sm"
         >
           {document.title}
           <span className="ml-2 text-xs text-text-muted">
             {formatDocumentType(document.document_type)}
           </span>
-        </Link>
+        </Link></TextLink>
       ))}
     </div>
   )

@@ -61,15 +61,14 @@ export function ManagedTaskPage() {
           {query.data.map((link) => (
             <ResourceListRow asChild key={link.revision_id}>
               <li>
-                <Link
-                  className="text-accent"
+                <TextLink asChild><Link
                   to={withNamespaceLocation(
                     `/documents/${link.document_id}/revisions/${link.revision_id}`,
                     null,
                   )}
                 >
                   {link.title} · ревизия {link.version}
-                </Link>
+                </Link></TextLink>
               </li>
             </ResourceListRow>
           ))}
