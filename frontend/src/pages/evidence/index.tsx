@@ -804,7 +804,8 @@ export function EvidencePage() {
               nextLabel="Далее"
               pending={evidenceQuery.isLoading || evidenceQuery.isFetching}
               summary={<>Страница {cursors.length}</>}
-              className="mt-4 border-t border-border pt-3"
+              separated
+              className="mt-4"
             />
           )}
         </CardContent>

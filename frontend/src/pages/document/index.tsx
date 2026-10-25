@@ -738,7 +738,7 @@ export function DocumentPage() {
                     setRevisionPage(nextPage - 1)
                   }}
                   label="Страницы ревизий"
-                  className="border-t border-border pt-3"
+                  separated
                   previousLabel="Предыдущая"
                   nextLabel="Следующая"
                 />

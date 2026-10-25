@@ -599,7 +599,8 @@ export function AuditLogPage() {
             nextLabel="Далее"
             pending={auditQuery.isLoading || auditQuery.isFetching}
             summary={<>Страница {currentPage}</>}
-            className="mt-4 border-t border-border pt-3"
+            separated
+            className="mt-4"
           />
         )}
       </section>
