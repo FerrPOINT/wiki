@@ -1,5 +1,6 @@
 import { useApplicationAccess } from '@pdlc/ui/auth'
 import {
+  AccountMenu,
   AppShell as BaseAppShell,
   SidebarNavigationGroup,
   useSidebarDisclosure,
@@ -7,15 +8,8 @@ import {
   NamespaceLink as Link,
   NamespaceNavLink as NavLink,
   Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  ResourceListDescription,
-  DropdownMenuTrigger,
   PlatformHeader,
   PlatformMark,
-  ThemeMenuItems,
 } from '@pdlc/ui/ui'
 
 import { NamespaceShellContext } from './namespace-context'
@@ -26,17 +20,7 @@ import { Outlet, useLocation } from 'react-router'
 import { useProjectDisclosures } from '@pdlc/ui/lib'
 import { WorkspaceNavigation, useDocumentDisclosures } from './workspace-navigation'
 import { ProjectBoundary } from './project-boundary'
-import {
-  FileCheck2,
-  FilePlus2,
-  FileText,
-  Home,
-  Library,
-  LogOut,
-  Search,
-  ShieldCheck,
-  User,
-} from 'lucide-react'
+import { FileCheck2, FilePlus2, FileText, Home, Library, Search, ShieldCheck } from 'lucide-react'
 
 import { useCurrentUser, useLogout } from '@/shared/api/hooks'
 
@@ -196,35 +180,13 @@ export function AppShell() {
                   <span>Новый документ</span>
                 </Link>
               </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-
-                    aria-label="Аккаунт"
-                  >
-                    <User className="h-5 w-5" aria-hidden />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-64 max-w-[calc(100vw-2rem)]">
-                  <DropdownMenuLabel>
-                    {identity}
-                    {user?.email && user.email !== identity && (
-                      <ResourceListDescription className="block">
-                        {user.email}
-                      </ResourceListDescription>
-                    )}
-                  </DropdownMenuLabel>
-                  <ThemeMenuItems />
-                  <DropdownMenuItem
-                    onSelect={() => logout.mutate()}
-                  >
-                    <LogOut className="h-4 w-4" aria-hidden />
-                    <span>Выйти</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <AccountMenu
+                account={{
+                  label: identity,
+                  secondary: user?.email && user.email !== identity ? user.email : undefined,
+                  onLogout: () => logout.mutate(),
+                }}
+              />
             </>
           }
         />
