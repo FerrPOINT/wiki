@@ -158,6 +158,12 @@ Base; локальные h-10/min-h-10 и мобильные копии не д�
 копируют padding, border, цвета и hover/focus общих контролов.
 UI/SDK/skills pins независимы; source-изменения не означают установку.
 
+
+Разделитель секции задаётся SectionHeader separated (SSR section_header с separated=true).
+Фон CodeBlock/JsonBlock и выбранная TableRow selected оформляются Base; продукт
+сохраняет viewport, содержимое, выбранный ID и доступные действия. Не копировать
+border/padding заголовка и bg на этих общих компонентах. Наличие props сверять по UI pin.
+
 ## Единое пространство PDLC
 
 [Согласованный план](docs/plans/unified-spaces-20261019.md) вводит M:N и общий read admission. До полного

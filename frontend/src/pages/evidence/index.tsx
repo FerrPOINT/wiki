@@ -752,7 +752,7 @@ export function EvidencePage() {
                     {items.map((item) => (
                       <TableRow
                         key={item.id}
-                        className={item.id === selectedEvidenceId ? 'bg-accent/10' : undefined}
+                        selected={item.id === selectedEvidenceId}
                       >
                         <TableCell className="min-w-0">
                           <EvidenceTitle item={item} onSelect={selectEvidence} />
