@@ -13,6 +13,8 @@ import {
   LoadingState,
   ResourceList,
   ResourceListRow,
+  CardDescription,
+  ResourceListDescription,
 } from '@pdlc/ui/ui'
 import { projectIdentity, withNamespaceLocation } from '@pdlc/ui/lib'
 import {
@@ -58,10 +60,9 @@ export function SpaceProjectsEditor({
       <section aria-label="Проекты пространства">
         <CardContent className="space-y-3">
           <SectionHeader title={<>Проекты пространства</>} />
-          <p className="text-sm text-text-muted">
-            Пространство может быть общим для нескольких проектов. Отвязка сохраняет документы и их
-            историю.
-          </p>
+          <CardDescription tone="muted">
+            Пространство может быть общим для нескольких проектов. Отвязка сохраняет документы и их историю.
+          </CardDescription>
           {projects.isPending ? (
             <LoadingState message="Загружаем связи" />
           ) : projects.isError ? (
@@ -89,11 +90,9 @@ export function SpaceProjectsEditor({
                           <span>Проект {project.namespace.namespace_id}</span>
                         )}
                         {(!project.available || project.state === 'archived') && (
-                          <p className="text-sm text-text-muted">
-                            {project.state === 'archived'
-                              ? 'Проект в архиве'
-                              : 'Сведения о проекте недоступны'}
-                          </p>
+                          <ResourceListDescription asChild>
+                            <p>{project.state === 'archived' ? 'Проект в архиве' : 'Сведения о проекте недоступны'}</p>
+                          </ResourceListDescription>
                         )}
                       </div>
                       {canManage && (

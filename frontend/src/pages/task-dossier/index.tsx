@@ -1,6 +1,8 @@
 import { SpaceSelector, useSelectedSpaceKey } from '@/widgets/dossier-space'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
-import { ResourceListTitle, ResourceListDescription,
+import {
+  ResourceListTitle,
+  ResourceListDescription,
   SectionHeader,
   NamespaceLink as Link,
   ResourceList,
@@ -114,9 +116,9 @@ function TaskCatalog({ spaceKey }: { spaceKey: string }) {
                           {task.task_key}
                         </span></ResourceListTitle>
                         {task.title && (
-                          <span className="block break-words text-sm text-text-secondary">
-                            {task.title}
-                          </span>
+                          <ResourceListDescription asChild>
+                            <span className="block break-words">{task.title}</span>
+                          </ResourceListDescription>
                         )}
                       </span>
                       <ResourceListDescription asChild className="shrink-0"><span >
@@ -257,7 +259,7 @@ export function TaskDossierPage() {
             title={task.task_key}
             context={
               task.title && (
-                <p className="mt-1 break-words text-sm text-text-secondary">{task.title}</p>
+                <p className="mt-1 break-words">{task.title}</p>
               )
             }
             actions={

@@ -11,6 +11,8 @@ import {
   Notice,
   EmptyState,
   TextLink,
+  ResourceListTitle,
+  ResourceListDescription,
 } from '@pdlc/ui/ui'
 import { projectIdentity, withNamespaceLocation } from '@pdlc/ui/lib'
 import { documentPath, useWorkspaceCatalog, workspacePath } from '@/api/workspaces'
@@ -58,10 +60,14 @@ export function ProjectsPage() {
                   )}
                 >
                   <ProjectAvatar projectKey={project.project_key} />
-                  <span>
-                    {project.name} · {project.project_key}
-                  </span>
-                  <span className="text-sm text-text-muted">{projectResourceLabel(project)}</span>
+                  <ResourceListTitle asChild>
+                    <span>
+                      {project.name} · {project.project_key}
+                    </span>
+                  </ResourceListTitle>
+                  <ResourceListDescription asChild>
+                    <span>{projectResourceLabel(project)}</span>
+                  </ResourceListDescription>
                 </Link>
               </ResourceListRow>
             </li>
@@ -158,12 +164,14 @@ export function WorkspacePage({ documents = false }: { documents?: boolean }) {
                         project.namespace,
                       )}
                     >
-                      <span className="min-w-0 break-words">
-                        {space.name} · {space.key}
-                      </span>
-                      <span className="text-sm text-text-muted">
-                        {space.status === 'archived' ? 'Пространство в архиве' : 'Документы'}
-                      </span>
+                      <ResourceListTitle asChild>
+                        <span className="min-w-0 break-words">
+                          {space.name} · {space.key}
+                        </span>
+                      </ResourceListTitle>
+                      <ResourceListDescription asChild>
+                        <span>{space.status === 'archived' ? 'Пространство в архиве' : 'Документы'}</span>
+                      </ResourceListDescription>
                     </Link>
                   </ResourceListRow>
                 </li>

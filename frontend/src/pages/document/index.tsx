@@ -26,6 +26,11 @@ import {
   UnsavedChangesGuard,
   Notice,
   FormField,
+  ResourceListDescription,
+  ResourceListTitle,
+  ResourceList,
+  ResourceListRow,
+  IconMark,
 } from '@pdlc/ui/ui'
 import { useParams } from 'react-router'
 import {
@@ -689,44 +694,54 @@ export function DocumentPage() {
                   message={revisionPage > 0 ? 'На этой странице ревизий нет' : 'Ревизий пока нет'}
                 />
               )}
-              {revisions.map((revision) => (
-                <div
-                  key={revision.id}
-                  role="group"
-                  aria-label={`Ревизия ${revision.version}`}
-                  className="flex items-start gap-3 border-b border-border py-3 last:border-b-0"
-                >
-                  <History className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm font-medium">
-                      <span>Ревизия {revision.version}</span>
-                      <span className="text-xs font-normal text-text-muted">
-                        {formatDateTime(revision.published_at)}
-                      </span>
-                    </div>
-                    <p className="mt-1 truncate text-xs text-text-secondary">
-                      {shortText(revision.summary, 'Без описания изменений')}
-                    </p>
-                    <p className="mt-1 truncate text-xs text-text-muted" title={revision.author_id}>
-                      {revision.author_id}
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    size="icon"
-                    className="shrink-0"
-                    variant="outline"
-                    aria-label={`Открыть ревизию ${revision.version}`}
-                    title={`Открыть ревизию ${revision.version}`}
-                    onClick={(event) => {
-                      revisionTriggerRef.current = event.currentTarget
-                      setSelectedRevisionId(revision.id)
-                    }}
-                  >
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
+              {revisions.length > 0 && (
+                <ResourceList>
+                  {revisions.map((revision) => (
+                    <ResourceListRow
+                      key={revision.id}
+                      role="group"
+                      aria-label={`Ревизия ${revision.version}`}
+                      className="flex items-start gap-3"
+                    >
+                      <IconMark size="sm">
+                        <History aria-hidden />
+                      </IconMark>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                          <ResourceListTitle asChild>
+                            <span>Ревизия {revision.version}</span>
+                          </ResourceListTitle>
+                          <ResourceListDescription asChild>
+                            <span>{formatDateTime(revision.published_at)}</span>
+                          </ResourceListDescription>
+                        </div>
+                        <ResourceListDescription asChild>
+                          <p className="mt-1 truncate">{shortText(revision.summary, 'Без описания изменений')}</p>
+                        </ResourceListDescription>
+                        <ResourceListDescription asChild>
+                          <p className="mt-1 truncate" title={revision.author_id}>
+                            {revision.author_id}
+                          </p>
+                        </ResourceListDescription>
+                      </div>
+                      <Button
+                        type="button"
+                        size="icon"
+                        className="shrink-0"
+                        variant="outline"
+                        aria-label={`Открыть ревизию ${revision.version}`}
+                        title={`Открыть ревизию ${revision.version}`}
+                        onClick={(event) => {
+                          revisionTriggerRef.current = event.currentTarget
+                          setSelectedRevisionId(revision.id)
+                        }}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    </ResourceListRow>
+                  ))}
+                </ResourceList>
+              )}
               {(revisionPage > 0 || hasNextRevisionPage) && (
                 <PageNavigation
                   page={revisionPage + 1}
