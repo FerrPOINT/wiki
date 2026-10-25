@@ -93,6 +93,7 @@
     },
     {
       "id": "frontend:types",
+      "environment_input_contract": "frontend-agent-presence-v1",
       "component": "frontend",
       "profiles": [
         "fast",
@@ -135,6 +136,7 @@
     },
     {
       "id": "frontend:tests",
+      "environment_input_contract": "frontend-agent-presence-v1",
       "component": "frontend",
       "profiles": [
         "fast",

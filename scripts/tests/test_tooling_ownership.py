@@ -10,6 +10,26 @@ TESTS = ('test_build_pin', 'test_verify_readme', 'test_tooling_ownership')
 
 
 class PythonToolingOwnershipTests(unittest.TestCase):
+    def test_agent_presence_contract_loads_and_projects_only_types_and_units(self):
+        gates = selection.load(ROOT)['gates']
+        self.assertEqual({g['id']: g['environment_input_contract'] for g in gates
+                          if 'environment_input_contract' in g}, {
+            'frontend:types': 'frontend-agent-presence-v1',
+            'frontend:tests': 'frontend-agent-presence-v1',
+        })
+        for gate in gates:
+            values = {'CODEX_THREAD_ID': 'chat-a', 'CODEX_SESSION_ID': 'session-a',
+                      'CODEX_SANDBOX': 'workspace', 'VITE_API_BASE_URL': '/api/v1',
+                      'NODE_EXTRA_CA_CERTS': 'fixture.pem', 'HTTPS_PROXY': 'fixture-proxy',
+                      'UNKNOWN_PRODUCT_INPUT': 'retained'}
+            expected = dict(values)
+            if gate['id'] in ('frontend:types', 'frontend:tests'):
+                expected.update(CODEX_THREAD_ID='1', CODEX_SESSION_ID='1')
+            with self.subTest(gate=gate['id']):
+                self.assertEqual(selection.artifact_environment(gate, values), expected)
+                empty = {'CODEX_THREAD_ID': '', 'VITE_API_BASE_URL': '/api/v1'}
+                self.assertEqual(selection.artifact_environment(gate, empty), empty)
+
     def test_readme_validator_source_selects_docs_and_helpers_without_application_work(self):
         for profile in ('fast', 'unit', 'build'):
             with self.subTest(profile=profile):

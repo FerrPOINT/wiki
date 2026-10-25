@@ -195,6 +195,30 @@ def artifact_environment(gate, values):
     """An opt-in projection constrains the actual child, not only its cache key."""
     if 'environment_input_contract' not in gate:
         return dict(values)
+    if gate['environment_input_contract'] == 'frontend-agent-presence-v1':
+        # Qualified frontend consumers use these correlation channels only as
+        # presence flags (notably std-env agent detection). Keep absent/empty
+        # distinct, and leave every other supplied variable conservatively live.
+        channels = ('CODEX_THREAD_ID', 'CODEX_SESSION_ID')
+        artifact = gate.get('kind') == 'artifact'
+        if (gate.get('component') != 'frontend' or gate.get('cwd') != 'frontend'
+                or not gate.get('prepare_frontend') or gate.get('covers_units')
+                or gate.get('execution_slot') == 'command' or 'compose_execution' in gate
+                or 'workspace_toolchain' in gate or 'sdk_revision' in gate
+                or (artifact and (gate.get('test_tier') != 'artifact'
+                                  or gate.get('artifact_input_contract') != 'git-source-v1'))
+                or (not artifact and (gate.get('kind') is not None
+                                      or gate.get('test_tier') not in ('unit', 'static')))
+                or any(name in channels for name in gate.get('requires_env', []))):
+            raise ValueError('Agent presence contract requires qualified ordinary frontend gates')
+        result = dict(values)
+        for name in channels:
+            if name in result:
+                if not isinstance(result[name], str):
+                    raise ValueError('Agent presence channels must contain string values')
+                if result[name]:
+                    result[name] = '1'
+        return result
     if (gate['environment_input_contract'] != 'declared-artifact-v1'
             or gate.get('kind') != 'artifact' or gate.get('execution_slot') == 'command'
             or gate.get('covers_units')):
@@ -448,6 +472,14 @@ def validate_native_execution(manifest):
                 raise ValueError('Native Admin runtime requires an explicit download owner and resource limits')
             validate_resource_limits(runtime['limits'])
         return
+    return validate_java_native_execution(manifest)
+
+
+def validate_java_native_execution(manifest):
+    """Canonical Java declaration, also emitted into the standalone QA consumer."""
+    value = manifest.get('native_execution')
+    if value is None:
+        return
     if (not isinstance(value, dict) or set(value) not in (
             {'adapter', 'host_platforms', 'gates'}, {'adapter', 'host_platforms', 'gates', 'cli_max_workers'})
             or manifest.get('product') != 'java-agent'
@@ -499,10 +531,31 @@ def validate_native_execution(manifest):
             raise ValueError('Native Java requires the selected read-only JDK context: ' + identifier)
 
 
+def java_compiler_cache_request(value):
+    """Request metadata only; qualified authority is resolved after ready lookup."""
+    if value is None:
+        return None
+    if (not isinstance(value, dict) or set(value) != {'id', 'owner_sha256', 'allocation_sha256'}
+            or not isinstance(value['id'], str) or not re.fullmatch('[a-z0-9][a-z0-9-]{0,63}', value['id'])
+            or any(not isinstance(value[name], str) or not re.fullmatch('[a-f0-9]{64}', value[name])
+                   for name in ('owner_sha256', 'allocation_sha256'))):
+        raise ValueError('Java compiler cache requires an explicit id and paired owner/allocation SHA256 pins')
+    return dict(value)
+
+
 def native_execution_plan(manifest, gates, execution_platform, docker_context=None, *, native_admin_inputs=None,
-                          native_rust_inputs=None):
+                          native_rust_inputs=None, native_java_cache=False):
     """Pure dispatch plan. No tool probes, filesystem preparation or Docker calls."""
     value = manifest.get('native_execution')
+    if type(native_java_cache) is not bool:
+        raise ValueError('Java compiler-cache execution profile must be explicit')
+    if native_java_cache and (
+            native_admin_inputs is not None or native_rust_inputs is not None
+            or execution_platform != 'win32' or not isinstance(value, dict)
+            or value.get('adapter') != 'java-compose-v1'
+            or not gates or any(gate['id'] not in ('cli:unit', 'cli:build') for gate in gates)
+            or not isinstance(docker_context, str) or not re.fullmatch('[A-Za-z0-9_.-]{1,128}', docker_context)):
+        raise ValueError('Java compiler cache requires only the explicit Windows native CLI graph and Docker context')
     if native_rust_inputs is not None:
         if (native_admin_inputs is not None or not isinstance(native_rust_inputs, dict)
                 or set(native_rust_inputs) != {'path', 'sha256'}
@@ -588,7 +641,9 @@ def native_execution_plan(manifest, gates, execution_platform, docker_context=No
             'docker_context': docker_context, 'profile': 'build' if artifacts else 'unit',
             'components': components, 'artifact_components': artifacts,
             'gates': requests,
-            **({'cli_max_workers': 3} if components == ['cli'] and value.get('cli_max_workers') == 3 else {})}
+            **({'compiler_cache_profile': 'root-clients-v1'} if native_java_cache else {}),
+            **({'cli_max_workers': 3} if not native_java_cache and components == ['cli']
+               and value.get('cli_max_workers') == 3 else {})}
 
 
 def inside(root, relative):
@@ -739,6 +794,14 @@ def load(root):
     validate_native_execution(manifest)
     gradle_unit_groups(manifest["gates"], native_gates=native_gradle_gate_ids(manifest))
     covered_unit_owners(manifest["gates"])
+    return manifest
+
+
+def load_java(root):
+    """Full ordinary validation, restricted to the Java QA consumer's product."""
+    manifest = load(root)
+    if manifest.get('product') != 'java-agent':
+        raise ValueError('Java selector requires java-agent')
     return manifest
 
 
@@ -956,9 +1019,10 @@ def affected_checks(gates, manifest, reasons):
 def plan(
     root, profile="fast", base="HEAD", changed=None, components=None, manifest=None,
     *, only_components=None, execution_platform=None, native_docker_context=None, native_admin_inputs=None,
-    native_rust_inputs=None,
+    native_rust_inputs=None, native_java_cache=None,
 ):
     manifest = load(root) if manifest is None else manifest
+    cache_request = java_compiler_cache_request(native_java_cache)
     validate_affected_checks(manifest)
     if only_components and (components or set(only_components) - manifest["components"].keys()):
         raise ValueError("Affected component filter requires known components and no explicit selection")
@@ -1008,7 +1072,8 @@ def plan(
     if native_rust_inputs is not None and (profile not in ('fast', 'unit', 'build') or selected != ['backend']):
         raise ValueError('Rust native inputs require only the backend fast/unit/Build selection')
     native = native_execution_plan(manifest, gates, execution_platform, native_docker_context,
-                                   native_admin_inputs=native_admin_inputs, native_rust_inputs=native_rust_inputs)
+                                   native_admin_inputs=native_admin_inputs, native_rust_inputs=native_rust_inputs,
+                                   native_java_cache=cache_request is not None)
     if native:
         # Native adapters retain the ordinary gate identities for certification.
         ordinary = gradle_unit_groups([gate for gate in gates if gate['id'] not in native['gates']],
@@ -1037,6 +1102,8 @@ def plan(
     }
     if native:
         result['native_execution'] = native
+    if cache_request is not None:
+        result['java_compiler_cache_request'] = cache_request
     return result
 
 
@@ -1062,6 +1129,8 @@ def plan_summary(candidate):
     }
     if candidate.get('native_execution'):
         result['native_execution'] = candidate['native_execution']
+    if candidate.get('java_compiler_cache_request') is not None:
+        result['java_compiler_cache_request'] = dict(candidate['java_compiler_cache_request'])
     return result
 
 
