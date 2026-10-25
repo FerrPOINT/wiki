@@ -10,6 +10,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  ResourceListDescription,
   DropdownMenuTrigger,
   PlatformHeader,
   PlatformMark,
@@ -206,18 +208,17 @@ export function AppShell() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-64 max-w-[calc(100vw-2rem)]">
-                  <div className="break-words px-2 py-1.5 text-sm font-medium text-text-primary">
+                  <DropdownMenuLabel>
                     {identity}
-                  </div>
-                  {user?.email && user.email !== identity && (
-                    <div className="break-words px-2 pb-2 text-xs text-text-muted">
-                      {user.email}
-                    </div>
-                  )}
+                    {user?.email && user.email !== identity && (
+                      <ResourceListDescription className="block">
+                        {user.email}
+                      </ResourceListDescription>
+                    )}
+                  </DropdownMenuLabel>
                   <ThemeMenuItems />
                   <DropdownMenuItem
                     onSelect={() => logout.mutate()}
-                    className="min-h-11 gap-2 text-text-secondary md:min-h-10"
                   >
                     <LogOut className="h-4 w-4" aria-hidden />
                     <span>Выйти</span>
