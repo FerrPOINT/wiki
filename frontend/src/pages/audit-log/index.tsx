@@ -529,7 +529,7 @@ export function AuditLogPage() {
                           {event.entity_type}: {event.entity_id}
                         </DescriptionItem>
                       </dl>
-                      <Disclosure className="mt-1 text-xs" summary={<>Технические данные</>}>
+                      <Disclosure className="mt-1" size="sm" summary={<>Технические данные</>}>
                         <dl className="space-y-1 pb-2">
                           <DescriptionItem label={<>Действие</>} layout="inline" technical>
                             {event.action}
