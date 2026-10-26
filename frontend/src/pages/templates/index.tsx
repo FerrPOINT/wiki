@@ -1,6 +1,7 @@
 import { useApplicationAccess } from '@pdlc/ui/auth'
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import {
+  ActionGroup,
   PageNavigation,
   PageHeader,
   Select,
@@ -349,7 +350,7 @@ export function TemplatesPage() {
               {formatApiErrorForUser(createTemplate.error, 'Не удалось создать шаблон')}
             </Notice>
           )}
-          <div className="flex flex-wrap justify-end gap-2">
+          <ActionGroup align="end">
             <Button
               type="button"
               size="sm"
@@ -368,7 +369,7 @@ export function TemplatesPage() {
             >
               {createTemplate.isPending ? 'Создаём...' : 'Создать шаблон'}
             </Button>
-          </div>
+          </ActionGroup>
         </form>
       )}
 

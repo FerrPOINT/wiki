@@ -6,6 +6,7 @@ import { SearchResultLink } from '@/widgets/search-result-link'
 import { FileCheck2, FileText, GitBranch, ListFilter } from 'lucide-react'
 import { useWikiSearch } from '@/shared/api/hooks'
 import {
+  ActionGroup,
   PageNavigation,
   PageHeader,
   SectionHeader,
@@ -356,7 +357,7 @@ export function WikiSearchPage() {
                 />
               )}
             </FormField>
-            <div className="flex flex-wrap justify-end gap-2 sm:col-span-2 xl:col-span-4">
+            <ActionGroup align="end" className="sm:col-span-2 xl:col-span-4">
               {(activeFilterCount > 0 ||
                 spaceFilter ||
                 taskFilter ||
@@ -393,7 +394,7 @@ export function WikiSearchPage() {
               <Button type="submit" size="sm">
                 Применить
               </Button>
-            </div>
+            </ActionGroup>
           </form>
         )}
       </section>

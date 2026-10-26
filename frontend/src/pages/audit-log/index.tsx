@@ -1,4 +1,6 @@
-import { ResourceListTitle,
+import {
+  ActionGroup,
+  ResourceListTitle,
   DescriptionItem,
   PageNavigation,
   Label,
@@ -472,12 +474,12 @@ export function AuditLogPage() {
                 {filterError}
               </Notice>
             )}
-            <div className="flex flex-wrap justify-end gap-2">
+            <ActionGroup align="end">
               <Button type="button" variant="outline" onClick={clearFilters}>
                 Сбросить
               </Button>
               <Button type="submit">Применить</Button>
-            </div>
+            </ActionGroup>
           </form>
         )}
       </div>
@@ -514,9 +516,9 @@ export function AuditLogPage() {
                   <ResourceListRow asChild key={event.id}>
                     <li>
                       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                        <ResourceListTitle asChild className="min-w-0 break-words"><span >
-                          {actionLabels[event.action] ?? event.action}
-                        </span></ResourceListTitle>
+                        <ResourceListTitle asChild className="min-w-0 break-words">
+                          <span>{actionLabels[event.action] ?? event.action}</span>
+                        </ResourceListTitle>
                         <time dateTime={event.created_at} className="text-xs text-text-muted">
                           {formatDateTime(event.created_at)}
                         </time>
