@@ -170,3 +170,17 @@ Tracker связана с её данными и не получает общи�
 +pins, зависимости и runtime не менялись. Полный интеграционный gate,
 +публикация и hosted CI учитываются отдельно.
 +
+
+## Подготовленный HTML и клавиатура — 2026-10-27
+
+Принят совместимый UI producer `a95d9fe7b31cca23e1f6432bae43246120859efb`; SDK/skills pins сохранены.
+Общий Prose keyboardScroll документирован в [Base](https://github.com/FerrPOINT/services-base/blob/a95d9fe7b31cca23e1f6432bae43246120859efb/docs/platform/DESIGN_SYSTEM.md).
+Проверены настоящий архив UI, offline frozen install, singleton React,
+reference/CLI и typecheck данного frontend.
+Две страницы документа используют Base вместо локального DOM-цикла.
+Прошли 27 адресных тестов, scoped lint и namespace-denied regression.
+IAB проверяет source-компоненты с синтетическими hook-адаптерами: 36
+сочетаний темы, scene и ширины; Tab, стрелки, focus, обновление и reset.
+Это не приёмка установленного приложения, API или Auth.
+Backend build, hosted CI, общий интеграционный gate и установка здесь
+не выполнялись; source adoption не меняет установленный runtime.

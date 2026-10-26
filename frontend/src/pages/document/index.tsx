@@ -86,22 +86,11 @@ function RenderedDocumentBody({
   emptyMessage: string
   compact?: boolean
 }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
-
-    for (const region of container.querySelectorAll<HTMLElement>('pre, table')) {
-      region.tabIndex = 0
-    }
-  })
-
   if (html.trim().length === 0) return <EmptyState message={emptyMessage} />
 
   return (
     <Prose
-      ref={containerRef}
+      keyboardScroll
       compact={compact}
       className="page-readable"
       dangerouslySetInnerHTML={{ __html: html }}

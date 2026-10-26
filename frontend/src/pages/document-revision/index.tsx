@@ -45,6 +45,7 @@ export function DocumentRevisionPage() {
         }
       />
       <Prose
+        keyboardScroll
         className="page-readable"
         dangerouslySetInnerHTML={{ __html: revision.data.body_html }}
       />

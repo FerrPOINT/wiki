@@ -245,3 +245,9 @@ logout/pending и предметные пункты beforeTheme/children ост�
 его border/padding/gap не копировать. Сначала pdlc-ui show и один example.
 Корневой список боковых ссылок также использует SidebarList asChild;
 map/filter, маршруты и вызов onNavigate остаются у владельца приложения.
+
+Подготовленный HTML документа и ревизии использует Prose keyboardScroll из
+проверенного UI pin. Base владеет tab stops/focus paint для raw pre/table;
+Wiki сохраняет Markdown/sanitization, права, body_html и пустые состояния.
+Не восстанавливать локальный querySelectorAll(pre/table) для tabindex.
+JSX-содержимое использует CodeBlock/Table, без скрытого HTML-преобразования.
