@@ -160,6 +160,9 @@ RadioGroup/Select; контекст ресурса не превращается
 штатный size="sm". Кнопки шаблонов сохраняют Wiki-обработчик и pending, но не
 копируют padding, border, цвета и hover/focus общих контролов.
 UI/SDK/skills pins независимы; source-изменения не означают установку.
+ThemeProvider/useTheme подключаются напрямую из публичного @pdlc/ui/lib.
+Новый локальный ThemeContext, storage runtime или ненужный private re-export
+не создавать; исправления общего поведения темы принадлежат Base.
 
 
 Разделитель секции задаётся SectionHeader separated (SSR section_header с separated=true).
