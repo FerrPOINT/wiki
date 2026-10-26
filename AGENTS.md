@@ -243,3 +243,5 @@ logout/pending и предметные пункты beforeTheme/children ост�
 Ключ mapped-узла передавать внешнему SidebarList. Данные, ACL, URL, раскрытие
 и внешние margin/width остаются у продукта; внутренний base-sidebar-list и
 его border/padding/gap не копировать. Сначала pdlc-ui show и один example.
+Корневой список боковых ссылок также использует SidebarList asChild;
+map/filter, маршруты и вызов onNavigate остаются у владельца приложения.

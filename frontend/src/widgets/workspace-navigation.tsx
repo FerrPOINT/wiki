@@ -110,12 +110,12 @@ function DocumentNodes({
                   </SidebarItem>
                 </div>
                 {open && node.children.length > 0 && (
-                  <div className="ml-3">
+                  <SidebarList nested>
                     <DocumentNodes
                       {...{ project, documents, prefix, current, all, search, onNavigate }}
                       nodes={node.children}
                     />
-                  </div>
+                  </SidebarList>
                 )}
               </li>
             </SidebarList>
@@ -269,7 +269,7 @@ export function WorkspaceNavigation({
                                 (active &&
                                   new URLSearchParams(location.search).get('space') === space.key)
                               return (
-                                <SidebarList asChild key={space.id} className="ml-3">
+                                <SidebarList asChild key={space.id} nested>
                                   <div>
                                     <div className="flex min-w-0 items-center">
                                       <SidebarItem asChild>

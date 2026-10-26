@@ -1,5 +1,6 @@
 import { useApplicationAccess } from '@pdlc/ui/auth'
 import {
+  SidebarList,
   AccountMenu,
   AppShell as BaseAppShell,
   SidebarNavigationGroup,
@@ -39,29 +40,6 @@ const baseNavItems: NavItem[] = [
 
 const adminNavItems: NavItem[] = [{ to: '/admin', icon: ShieldCheck, label: 'Администрирование' }]
 
-function SidebarLink({
-  to,
-  icon: Icon,
-  label,
-  onClick,
-  compact = false,
-}: {
-  to: string
-  icon: ElementType
-  label: string
-  onClick?: () => void
-  compact?: boolean
-}) {
-  return (
-    <SidebarItem asChild compact={compact}>
-      <NavLink to={to} end={to === '/'} onClick={onClick} aria-label={label} title={label}>
-        <Icon aria-hidden />
-        <span className="base-sidebar-item-label">{label}</span>
-      </NavLink>
-    </SidebarItem>
-  )
-}
-
 function NavigationList({
   items,
   onNavigate,
@@ -72,11 +50,18 @@ function NavigationList({
   compact?: boolean
 }) {
   return (
-    <nav className="flex flex-col gap-1" aria-label="Основная навигация">
-      {items.map((item) => (
-        <SidebarLink key={item.to} {...item} onClick={onNavigate} compact={compact} />
-      ))}
-    </nav>
+    <SidebarList asChild>
+      <nav aria-label="Основная навигация">
+        {items.map(({ to, icon: Icon, label }) => (
+          <SidebarItem key={to} asChild compact={compact}>
+            <NavLink to={to} end={to === '/'} onClick={onNavigate} aria-label={label} title={label}>
+              <Icon aria-hidden />
+              <span className="base-sidebar-item-label">{label}</span>
+            </NavLink>
+          </SidebarItem>
+        ))}
+      </nav>
+    </SidebarList>
   )
 }
 
