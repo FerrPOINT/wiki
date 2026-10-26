@@ -6,6 +6,7 @@ import {
   Button,
   NamespaceNavLink,
   ProjectNavigationGroup,
+  SidebarItemLabel,
   SidebarItem,
   LoadingState,
   Notice,
@@ -105,7 +106,7 @@ function DocumentNodes({
                   <SidebarItem asChild active={current === node.id}>
                     <NamespaceNavLink to={to} title={node.title} onClick={onNavigate}>
                       <FileText aria-hidden />
-                      <span className="base-sidebar-item-label truncate">{node.title}</span>
+                      <SidebarItemLabel>{node.title}</SidebarItemLabel>
                     </NamespaceNavLink>
                   </SidebarItem>
                 </div>
@@ -253,7 +254,7 @@ export function WorkspaceNavigation({
                               aria-label={label}
                             >
                               <Icon aria-hidden />
-                              <span className="base-sidebar-item-label">{label}</span>
+                              <SidebarItemLabel>{label}</SidebarItemLabel>
                             </NamespaceNavLink>
                           </SidebarItem>
                         </div>
@@ -284,9 +285,9 @@ export function WorkspaceNavigation({
                                           title={space.name}
                                         >
                                           <FileText aria-hidden />
-                                          <span className="base-sidebar-item-label truncate">
+                                          <SidebarItemLabel>
                                             {space.name}
-                                          </span>
+                                          </SidebarItemLabel>
                                         </NamespaceNavLink>
                                       </SidebarItem>
                                       <Button

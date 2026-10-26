@@ -259,3 +259,10 @@ React Markdown preview использует CodeBlock Base со стабильн
 вне компонента страницы. Inline renderer пересоздаёт DOM и теряет focus при
 изменении заголовка/темы. Парсер, skipHtml, политика ссылок и черновик остаются
 у Wiki; оформление и клавиатурный контракт CodeBlock не копировать.
+
+
+Текст бокового пункта после проверки UI pin использует SidebarItemLabel Base.
+Не копировать base-sidebar-item-label/truncate: compact и сокращение общие.
+Иконка, полное aria-label/title, маршрут, current state и callbacks остаются
+продукту. У текстового slot нет собственного SSR macro; отдельную кнопку
+или focus target вокруг подписи не добавлять.

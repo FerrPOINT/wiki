@@ -5,6 +5,7 @@ import {
   AppShell as BaseAppShell,
   SidebarNavigationGroup,
   useSidebarDisclosure,
+  SidebarItemLabel,
   SidebarItem,
   NamespaceLink as Link,
   NamespaceNavLink as NavLink,
@@ -56,7 +57,7 @@ function NavigationList({
           <SidebarItem key={to} asChild compact={compact}>
             <NavLink to={to} end={to === '/'} onClick={onNavigate} aria-label={label} title={label}>
               <Icon aria-hidden />
-              <span className="base-sidebar-item-label">{label}</span>
+              <SidebarItemLabel>{label}</SidebarItemLabel>
             </NavLink>
           </SidebarItem>
         ))}
