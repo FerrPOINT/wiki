@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router'
 import { ChevronRight, FileCheck2, FileText, LayoutDashboard } from 'lucide-react'
 import {
+  SidebarList,
   Button,
   NamespaceNavLink,
   ProjectNavigationGroup,
@@ -80,44 +81,48 @@ function DocumentNodes({
   onNavigate?: () => void
 }) {
   return (
-    <ul className="base-sidebar-list">
-      {nodes.map((node) => {
-        const key = prefix + '/' + node.id,
-          open = documents.values[key] ?? contains(node.children, current)
-        const to = withNamespaceLocation(documentPath(node.id, search, all), project.namespace)
-        return (
-          <li key={node.id} className="base-sidebar-list">
-            <div className="flex min-w-0 items-center">
-              {node.children.length > 0 && (
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  aria-label={`Развернуть раздел: ${node.title}`}
-                  aria-expanded={open}
-                  onClick={() => documents.toggle(key, open)}
-                >
-                  <ChevronRight className={open ? 'rotate-90' : ''} aria-hidden />
-                </Button>
-              )}
-              <SidebarItem asChild active={current === node.id}>
-                <NamespaceNavLink to={to} title={node.title} onClick={onNavigate}>
-                  <FileText aria-hidden />
-                  <span className="base-sidebar-item-label truncate">{node.title}</span>
-                </NamespaceNavLink>
-              </SidebarItem>
-            </div>
-            {open && node.children.length > 0 && (
-              <div className="ml-3">
-                <DocumentNodes
-                  {...{ project, documents, prefix, current, all, search, onNavigate }}
-                  nodes={node.children}
-                />
-              </div>
-            )}
-          </li>
-        )
-      })}
-    </ul>
+    <SidebarList asChild>
+      <ul>
+        {nodes.map((node) => {
+          const key = prefix + '/' + node.id,
+            open = documents.values[key] ?? contains(node.children, current)
+          const to = withNamespaceLocation(documentPath(node.id, search, all), project.namespace)
+          return (
+            <SidebarList asChild key={node.id}>
+              <li>
+                <div className="flex min-w-0 items-center">
+                  {node.children.length > 0 && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      aria-label={`Развернуть раздел: ${node.title}`}
+                      aria-expanded={open}
+                      onClick={() => documents.toggle(key, open)}
+                    >
+                      <ChevronRight className={open ? 'rotate-90' : ''} aria-hidden />
+                    </Button>
+                  )}
+                  <SidebarItem asChild active={current === node.id}>
+                    <NamespaceNavLink to={to} title={node.title} onClick={onNavigate}>
+                      <FileText aria-hidden />
+                      <span className="base-sidebar-item-label truncate">{node.title}</span>
+                    </NamespaceNavLink>
+                  </SidebarItem>
+                </div>
+                {open && node.children.length > 0 && (
+                  <div className="ml-3">
+                    <DocumentNodes
+                      {...{ project, documents, prefix, current, all, search, onNavigate }}
+                      nodes={node.children}
+                    />
+                  </div>
+                )}
+              </li>
+            </SidebarList>
+          )
+        })}
+      </ul>
+    </SidebarList>
   )
 }
 function DocumentTree({
@@ -206,103 +211,116 @@ export function WorkspaceNavigation({
     ['evidence', 'Материалы', FileCheck2],
   ] as const
   return (
-    <nav aria-label="Проекты" className="base-sidebar-list mt-3 border-t border-border pt-3">
-      {projects.map((project) => {
-        const id = `${project.tracker.instance_id}/${project.tracker.resource_id}`
-        const active =
-          !!context.ref && projectIdentity(context.ref) === projectIdentity(project.namespace)
-        return (
-          <ProjectNavigationGroup
-            key={id}
-            name={project.name}
-            projectKey={project.project_key}
-            compact={compact}
-            active={active}
-            open={!disclosures.collapsed.includes(id)}
-            onToggle={() => disclosures.toggle(id)}
-            status={projectResourceLabel(project)}
-          >
-            {sections
-              .filter(([section]) => !section || project.resource_status === 'connected')
-              .map(([section, label, Icon]) => {
-                const path = workspacePath(project.namespace, section),
-                  to = withNamespaceLocation(
-                    path + (context.all ? '?project_scope=all' : ''),
-                    project.namespace,
+    <SidebarList asChild separated className="mt-3">
+      <nav aria-label="Проекты">
+        {projects.map((project) => {
+          const id = `${project.tracker.instance_id}/${project.tracker.resource_id}`
+          const active =
+            !!context.ref && projectIdentity(context.ref) === projectIdentity(project.namespace)
+          return (
+            <ProjectNavigationGroup
+              key={id}
+              name={project.name}
+              projectKey={project.project_key}
+              compact={compact}
+              active={active}
+              open={!disclosures.collapsed.includes(id)}
+              onToggle={() => disclosures.toggle(id)}
+              status={projectResourceLabel(project)}
+            >
+              {sections
+                .filter(([section]) => !section || project.resource_status === 'connected')
+                .map(([section, label, Icon]) => {
+                  const path = workspacePath(project.namespace, section),
+                    to = withNamespaceLocation(
+                      path + (context.all ? '?project_scope=all' : ''),
+                      project.namespace,
+                    )
+                  return (
+                    <SidebarList asChild key={section}>
+                      <div>
+                        <div className="flex min-w-0 items-center">
+                          <SidebarItem
+                            asChild
+                            compact={compact}
+                            active={location.pathname === path}
+                          >
+                            <NamespaceNavLink
+                              to={to}
+                              end
+                              onClick={onNavigate}
+                              title={label}
+                              aria-label={label}
+                            >
+                              <Icon aria-hidden />
+                              <span className="base-sidebar-item-label">{label}</span>
+                            </NamespaceNavLink>
+                          </SidebarItem>
+                        </div>
+                        {section === 'documents' &&
+                          !compact &&
+                          !disclosures.collapsed.includes(id) &&
+                          project.spaces
+                            .filter((space) => space.resource_status === 'connected')
+                            .map((space) => {
+                              const key = space.id + '/documents'
+                              const open =
+                                documents.values[key] ??
+                                (active &&
+                                  new URLSearchParams(location.search).get('space') === space.key)
+                              return (
+                                <SidebarList asChild key={space.id} className="ml-3">
+                                  <div>
+                                    <div className="flex min-w-0 items-center">
+                                      <SidebarItem asChild>
+                                        <NamespaceNavLink
+                                          to={withNamespaceLocation(
+                                            workspacePath(project.namespace, 'documents') +
+                                              '?space=' +
+                                              encodeURIComponent(space.key),
+                                            project.namespace,
+                                          )}
+                                          onClick={onNavigate}
+                                          title={space.name}
+                                        >
+                                          <FileText aria-hidden />
+                                          <span className="base-sidebar-item-label truncate">
+                                            {space.name}
+                                          </span>
+                                        </NamespaceNavLink>
+                                      </SidebarItem>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        aria-label={`Дерево документов: ${space.name} · ${space.key}`}
+                                        aria-expanded={open}
+                                        onClick={() => documents.toggle(key, open)}
+                                      >
+                                        <ChevronRight
+                                          className={open ? 'rotate-90' : ''}
+                                          aria-hidden
+                                        />
+                                      </Button>
+                                    </div>
+                                    <DocumentTree
+                                      {...{ project, space, documents }}
+                                      open={open}
+                                      all={context.all}
+                                      onNavigate={onNavigate}
+                                    />
+                                  </div>
+                                </SidebarList>
+                              )
+                            })}
+                      </div>
+                    </SidebarList>
                   )
-                return (
-                  <div key={section} className="base-sidebar-list">
-                    <div className="flex min-w-0 items-center">
-                      <SidebarItem asChild compact={compact} active={location.pathname === path}>
-                        <NamespaceNavLink
-                          to={to}
-                          end
-                          onClick={onNavigate}
-                          title={label}
-                          aria-label={label}
-                        >
-                          <Icon aria-hidden />
-                          <span className="base-sidebar-item-label">{label}</span>
-                        </NamespaceNavLink>
-                      </SidebarItem>
-                    </div>
-                    {section === 'documents' &&
-                      !compact &&
-                      !disclosures.collapsed.includes(id) &&
-                      project.spaces
-                        .filter((space) => space.resource_status === 'connected')
-                        .map((space) => {
-                          const key = space.id + '/documents'
-                          const open =
-                            documents.values[key] ??
-                            (active &&
-                              new URLSearchParams(location.search).get('space') === space.key)
-                          return (
-                            <div key={space.id} className="base-sidebar-list ml-3">
-                              <div className="flex min-w-0 items-center">
-                                <SidebarItem asChild>
-                                  <NamespaceNavLink
-                                    to={withNamespaceLocation(
-                                      workspacePath(project.namespace, 'documents') +
-                                        '?space=' +
-                                        encodeURIComponent(space.key),
-                                      project.namespace,
-                                    )}
-                                    onClick={onNavigate}
-                                    title={space.name}
-                                  >
-                                    <FileText aria-hidden />
-                                    <span className="base-sidebar-item-label truncate">
-                                      {space.name}
-                                    </span>
-                                  </NamespaceNavLink>
-                                </SidebarItem>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  aria-label={`Дерево документов: ${space.name} · ${space.key}`}
-                                  aria-expanded={open}
-                                  onClick={() => documents.toggle(key, open)}
-                                >
-                                  <ChevronRight className={open ? 'rotate-90' : ''} aria-hidden />
-                                </Button>
-                              </div>
-                              <DocumentTree
-                                {...{ project, space, documents }}
-                                open={open}
-                                all={context.all}
-                                onNavigate={onNavigate}
-                              />
-                            </div>
-                          )
-                        })}
-                  </div>
-                )
-              })}
-          </ProjectNavigationGroup>
-        )
-      })}
-      {!projects.length && <p className="p-3 text-sm text-text-muted">Нет доступных проектов</p>}
-    </nav>
+                })}
+            </ProjectNavigationGroup>
+          )
+        })}
+        {!projects.length && <p className="p-3 text-sm text-text-muted">Нет доступных проектов</p>}
+      </nav>
+    </SidebarList>
   )
 }
