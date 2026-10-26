@@ -133,7 +133,7 @@
       ],
       "prepare_frontend": "22.20.0",
       "test_tier": "static",
-      "descriptor_input_contract": "prepared-frontend-generation-v1"
+      "descriptor_input_contract": "prepared-frontend-generation-context-v1"
     },
     {
       "id": "frontend:tests",
@@ -176,7 +176,7 @@
       ],
       "prepare_frontend": "22.20.0",
       "test_tier": "unit",
-      "descriptor_input_contract": "prepared-frontend-generation-v1"
+      "descriptor_input_contract": "prepared-frontend-generation-context-v1"
     },
     {
       "id": "frontend:lint",
@@ -215,7 +215,7 @@
       ],
       "prepare_frontend": "22.20.0",
       "test_tier": "static",
-      "descriptor_input_contract": "prepared-frontend-generation-v1"
+      "descriptor_input_contract": "prepared-frontend-generation-context-v1"
     },
     {
       "id": "frontend:build",
@@ -291,7 +291,7 @@
         "frontend/scripts/tailwind-source-inputs.test.mjs"
       ],
       "test_tier": "artifact",
-      "descriptor_input_contract": "prepared-frontend-generation-v1",
+      "descriptor_input_contract": "prepared-frontend-generation-context-v1",
       "artifact_input_contract": "git-source-v1"
     },
     {
@@ -600,16 +600,18 @@
   "frontend_generation": {
     "schema": "base-frontend-generation/v1",
     "inputs": [
-      "frontend/scripts/generate-exports.mjs",
+      "frontend/scripts/base-generate-openapi.mjs",
+      "openapi/**",
       "frontend/redocly.yaml",
       "frontend/redocly.yml",
       "frontend/.redocly.yaml",
-      "frontend/.redocly.yml"
+      "frontend/.redocly.yml",
+      "frontend/scripts/generate-exports.mjs"
     ],
     "scripts": [
       "postinstall"
     ],
-    "commands_sha256": "6ee200e534efbe89f476dfbd9b48970abf1b5d506c04e7437e942a85a59ff8f9",
+    "commands_sha256": "48f44d9ce94e480771f0cbddf1326eba3f1172621dbf3441c5576fdc4c32f484",
     "environment_input_contract": "frontend-agent-presence-v1"
   }
 }

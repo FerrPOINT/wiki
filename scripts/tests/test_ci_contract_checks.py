@@ -159,6 +159,12 @@ class BackendUnitBoundaryTests(unittest.TestCase):
 
 
 class FrontendGenerationContractTests(unittest.TestCase):
+    def test_docker_stage_consumes_the_registered_helper_before_postinstall(self):
+        for name in ('Dockerfile', 'Dockerfile.umbrella'):
+            source = (ROOT / 'frontend' / name).read_text(encoding='utf8')
+            stage = source.split('AS generated\n', 1)[1].split('\nFROM ', 1)[0]
+            self.assertLess(stage.index('COPY wiki/frontend/scripts/base-generate-openapi.mjs'), stage.index('pnpm run postinstall'))
+
     def test_profile_seals_actual_commands_and_all_prepared_consumers(self):
         selector = runpy.run_path(str(ROOT / "scripts/vendor/base_quality_selection.py"))
         manifest = json.loads((ROOT / ".quality-gate.json").read_text(encoding="utf-8"))
@@ -171,6 +177,7 @@ class FrontendGenerationContractTests(unittest.TestCase):
                     for name in ("postinstall", "prepostinstall", "postpostinstall")}
         self.assertEqual(selector["digest"](commands), profile["commands_sha256"])
         self.assertEqual(set(profile["inputs"]), {
+            "frontend/scripts/base-generate-openapi.mjs", "openapi/**",
             "frontend/scripts/generate-exports.mjs", "frontend/redocly.yaml",
             "frontend/redocly.yml", "frontend/.redocly.yaml", "frontend/.redocly.yml",
         })
@@ -179,7 +186,7 @@ class FrontendGenerationContractTests(unittest.TestCase):
         for gate in manifest["gates"]:
             if gate.get("prepare_frontend"):
                 with self.subTest(gate=gate["id"]):
-                    self.assertEqual(gate["descriptor_input_contract"], "prepared-frontend-generation-v1")
+                    self.assertEqual(gate["descriptor_input_contract"], "prepared-frontend-generation-context-v1")
                     if gate.get("kind") == "artifact":
                         self.assertEqual(gate["artifact_input_contract"], "git-source-v1")
 
