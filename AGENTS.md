@@ -251,3 +251,8 @@ map/filter, маршруты и вызов onNavigate остаются у вла
 Wiki сохраняет Markdown/sanitization, права, body_html и пустые состояния.
 Не восстанавливать локальный querySelectorAll(pre/table) для tabindex.
 JSX-содержимое использует CodeBlock/Table, без скрытого HTML-преобразования.
+
+React Markdown preview использует CodeBlock Base со стабильным renderer mapping
+вне компонента страницы. Inline renderer пересоздаёт DOM и теряет focus при
+изменении заголовка/темы. Парсер, skipHtml, политика ссылок и черновик остаются
+у Wiki; оформление и клавиатурный контракт CodeBlock не копировать.

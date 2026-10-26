@@ -2,7 +2,7 @@ import { useActiveSpaces } from '@/widgets/active-spaces'
 import { useNamespaceContext } from '@/widgets/namespace-context'
 import { documentPath } from '@/api/workspaces'
 import { FormEvent, useEffect, useState } from 'react'
-import Markdown from 'react-markdown'
+import Markdown, { type Components } from 'react-markdown'
 import {
   AutocompleteInput,
   PageHeader,
@@ -46,6 +46,10 @@ const typeOptions = [
   'test_plan',
   'release_note',
 ]
+
+const markdownComponents: Components = {
+  pre: ({ children }) => <CodeBlock wrap={false}>{children}</CodeBlock>,
+}
 
 function normalizeOptional(value: string) {
   const trimmed = value.trim()
@@ -352,16 +356,7 @@ export function DocumentComposePage() {
                   <CardContent>
                     <Prose>
                       <h2>{title}</h2>
-                      <Markdown
-                        skipHtml
-                        components={{
-                          pre: ({ children }) => (
-                            <CodeBlock tabIndex={0} wrap={false}>
-                              {children}
-                            </CodeBlock>
-                          ),
-                        }}
-                      >
+                      <Markdown skipHtml components={markdownComponents}>
                         {body}
                       </Markdown>
                     </Prose>
@@ -445,7 +440,6 @@ export function DocumentComposePage() {
                     setTemplateInitialized(true)
                   }}
                 />
-
               </div>
               <FormField id="document-slug" label={'Адрес (slug)'}>
                 {(baseFieldAttrs) => (
