@@ -15,6 +15,7 @@ import {
   useUsers,
 } from '@/shared/api/hooks'
 import {
+  ActionGroup,
   TextLink,
   Badge,
   PageNavigation,
@@ -234,7 +235,7 @@ function SpaceDetails({
                   )}
                 </FormField>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <ActionGroup align="start">
                 <Button size="sm" disabled={updateSpace.isPending || !changed || !name.trim()}>
                   <Save className="h-3.5 w-3.5" />
                   {updateSpace.isPending ? 'Сохраняем...' : 'Сохранить'}
@@ -252,7 +253,7 @@ function SpaceDetails({
                   <Archive className="h-3.5 w-3.5" />
                   Архивировать
                 </Button>
-              </div>
+              </ActionGroup>
               {updateSpace.isError && (
                 <Notice role="alert" appearance="inline" tone="danger">
                   {formatApiErrorForUser(updateSpace.error, 'Не удалось обновить пространство')}

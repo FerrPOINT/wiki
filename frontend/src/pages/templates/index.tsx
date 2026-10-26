@@ -430,7 +430,7 @@ export function TemplatesPage() {
                   return (
                     <li key={template.id}>
                       <ResourceListRow asChild>
-                        <div className="flex min-w-0 items-center gap-2">
+                        <ActionGroup align="start" className="min-w-0">
                           <Button
                             variant="ghost"
                             type="button"
@@ -462,7 +462,7 @@ export function TemplatesPage() {
                               Использовать
                             </Link>
                           </Button>
-                        </div>
+                        </ActionGroup>
                       </ResourceListRow>
                       {expanded && (
                         <CodeBlock id={`template-body-${template.id}`} aria-label={template.name}>

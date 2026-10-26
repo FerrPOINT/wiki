@@ -3,6 +3,7 @@ import { useProjectRouteRef } from '@/widgets/namespace-context'
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import {
   PageNavigation,
+  RadioGroup,
   PageHeader,
   NamespaceLink as Link,
   ResourceList,
@@ -34,11 +35,9 @@ import {
   ExternalLink,
   FileText,
   Info,
-  Link2,
   Plus,
   RotateCcw,
   Search,
-  Upload,
   X,
 } from 'lucide-react'
 
@@ -416,32 +415,17 @@ export function EvidencePage() {
           onSubmit={handleSubmit}
           className="space-y-3 border-y border-border py-4"
         >
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Тип материала">
-            <Button
-              type="button"
-              size="sm"
-
-              variant={mode === 'external_url' ? 'default' : 'secondary'}
-              onClick={() => setMode('external_url')}
-              disabled={isSaving}
-              aria-pressed={mode === 'external_url'}
-            >
-              <Link2 className="h-4 w-4" />
-              Ссылка
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-
-              variant={mode === 'uploaded_file' ? 'default' : 'secondary'}
-              onClick={() => setMode('uploaded_file')}
-              disabled={isSaving}
-              aria-pressed={mode === 'uploaded_file'}
-            >
-              <Upload className="h-4 w-4" />
-              Файл
-            </Button>
-          </div>
+          <RadioGroup
+            label="Тип материала"
+            appearance="segmented"
+            options={[
+              { value: 'external_url', label: 'Ссылка' },
+              { value: 'uploaded_file', label: 'Файл' },
+            ]}
+            value={mode}
+            onValueChange={(value) => setMode(value as EvidenceMode)}
+            disabled={isSaving}
+          />
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[10rem_13rem_minmax(0,1fr)_10rem_10rem]">
             <FormField id="evidence-space" label={'Пространство'}>
               {(baseFieldAttrs) => (

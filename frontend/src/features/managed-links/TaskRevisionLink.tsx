@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router'
-import { SectionHeader, Card, CardContent, Select, Button, Notice, FormField } from '@pdlc/ui/ui'
+import { ActionGroup, SectionHeader, Card, CardContent, Select, Button, Notice, FormField } from '@pdlc/ui/ui'
 import { useQuery } from '@tanstack/react-query'
 import { apiRequest } from '@/api/client'
 import { useNamespaceContext } from '@/widgets/namespace-context'
@@ -147,7 +147,7 @@ export function TaskRevisionLink({
               )}
             </FormField>
           )}
-          <div className="flex flex-wrap gap-2">
+          <ActionGroup align="start">
             <Button
               type="button"
               variant="outline"
@@ -167,7 +167,7 @@ export function TaskRevisionLink({
             <Button type="button" variant="outline" onClick={() => void tasks.refetch()}>
               Обновить
             </Button>
-          </div>
+          </ActionGroup>
           {message && (
             <Notice role="status" appearance="inline" tone="neutral">
               {message}
