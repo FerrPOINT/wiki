@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import unittest
+import hashlib
 import json
 import runpy
 import re
@@ -155,6 +156,63 @@ class BackendUnitBoundaryTests(unittest.TestCase):
         selector = runpy.run_path(str(ROOT / "scripts/vendor/base_quality_selection.py"))
         plan = selector["plan"](ROOT, profile="build", changed=["scripts/tests/test_ci_contract_checks.py"])
         self.assertEqual([g["id"] for g in plan["gates"]], ["tooling:build-contracts"])
+
+
+class FrontendGenerationContractTests(unittest.TestCase):
+    def test_profile_seals_actual_commands_and_all_prepared_consumers(self):
+        selector = runpy.run_path(str(ROOT / "scripts/vendor/base_quality_selection.py"))
+        manifest = json.loads((ROOT / ".quality-gate.json").read_text(encoding="utf-8"))
+        package = json.loads((ROOT / "frontend/package.json").read_text(encoding="utf-8"))
+        profile = manifest["frontend_generation"]
+        self.assertEqual(profile["schema"], "base-frontend-generation/v1")
+        self.assertEqual(profile["environment_input_contract"], "frontend-agent-presence-v1")
+        self.assertEqual(profile["scripts"], ["postinstall"])
+        commands = {name: package["scripts"].get(name)
+                    for name in ("postinstall", "prepostinstall", "postpostinstall")}
+        self.assertEqual(selector["digest"](commands), profile["commands_sha256"])
+        self.assertEqual(set(profile["inputs"]), {
+            "frontend/scripts/generate-exports.mjs", "frontend/redocly.yaml",
+            "frontend/redocly.yml", "frontend/.redocly.yaml", "frontend/.redocly.yml",
+        })
+        self.assertEqual(manifest["frontend_generated"],
+                         ["src/api/generated.ts", "src/api/generated-exports.ts"])
+        for gate in manifest["gates"]:
+            if gate.get("prepare_frontend"):
+                with self.subTest(gate=gate["id"]):
+                    self.assertEqual(gate["descriptor_input_contract"], "prepared-frontend-generation-v1")
+                    if gate.get("kind") == "artifact":
+                        self.assertEqual(gate["artifact_input_contract"], "git-source-v1")
+
+    @staticmethod
+    def external_refs(value):
+        pending, found = [value], []
+        while pending:
+            current = pending.pop()
+            if isinstance(current, dict):
+                if "$ref" in current and not str(current["$ref"]).startswith("#"):
+                    found.append(current["$ref"])
+                pending.extend(current.values())
+            elif isinstance(current, list):
+                pending.extend(current)
+        return found
+
+    def test_qualified_graph_has_no_unreviewed_external_or_config_consumers(self):
+        schema = json.loads((ROOT / "openapi/openapi.json").read_text(encoding="utf-8"))
+        self.assertEqual(self.external_refs(schema), [], "Requalify external schema consumers")
+        for name in ("redocly.yaml", "redocly.yml", ".redocly.yaml", ".redocly.yml"):
+            self.assertFalse((ROOT / "frontend" / name).exists(), "Requalify new Redocly config/plugins")
+        helper = (ROOT / "frontend/scripts/generate-exports.mjs").read_text(encoding="utf-8")
+        self.assertEqual(hashlib.sha256(helper.encode()).hexdigest(),
+                         "c4058d11cf64d9cf5cb3e22a357dcbc7876e2b4b244eff0c4debfbfe68b7beaf",
+                         "Review changed helper reads/imports and requalify its closure")
+        lock = (ROOT / "frontend/pnpm-lock.yaml").read_text(encoding="utf-8")
+        self.assertRegex(lock, r"(?m)^      openapi-typescript:\n        specifier: [^\n]+\n        version: 7\.13\.0\(typescript@5\.9\.3\)$")
+
+    def test_external_ref_guard_accepts_fragments_and_finds_nested_consumers(self):
+        self.assertEqual(self.external_refs({"schema": [{"$ref": "#/components/schemas/Page"}]}), [])
+        for reference in ("../external.json#/Page", "https://example.test/openapi.json#/Page"):
+            with self.subTest(reference=reference):
+                self.assertEqual(self.external_refs({"schema": [{"items": {"$ref": reference}}]}), [reference])
 
 
 if __name__ == "__main__":

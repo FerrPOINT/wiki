@@ -88,7 +88,7 @@ Rust build toolchain 1.88.0, Node 22.20.0, pnpm 10.28.1; MSRV отдельно.
 
 ## Быстрые проверки и сборка
 
-Перед тестами, build и CI читать обязательный [стандарт Base](https://github.com/FerrPOINT/services-base/blob/197ead9d9b6cf6901e8f9dd31f43f719885502c3/docs/BUILD_PERFORMANCE.md).
+Перед тестами, build и CI читать обязательный [стандарт Base](https://github.com/FerrPOINT/services-base/blob/f910017264a730089b38c11ee8ee53b29eed8fe2/docs/BUILD_PERFORMANCE.md).
 При разработке и сборке unit/static. Integration/slow/full coverage —
 ручной gate при подготовке релиза по docs/TESTING.md.
 Сохранять полезный cache, не переустанавливать неизменные dependencies и не

@@ -132,7 +132,8 @@
         }
       ],
       "prepare_frontend": "22.20.0",
-      "test_tier": "static"
+      "test_tier": "static",
+      "descriptor_input_contract": "prepared-frontend-generation-v1"
     },
     {
       "id": "frontend:tests",
@@ -174,7 +175,8 @@
         }
       ],
       "prepare_frontend": "22.20.0",
-      "test_tier": "unit"
+      "test_tier": "unit",
+      "descriptor_input_contract": "prepared-frontend-generation-v1"
     },
     {
       "id": "frontend:lint",
@@ -212,7 +214,8 @@
         }
       ],
       "prepare_frontend": "22.20.0",
-      "test_tier": "static"
+      "test_tier": "static",
+      "descriptor_input_contract": "prepared-frontend-generation-v1"
     },
     {
       "id": "frontend:build",
@@ -287,7 +290,9 @@
         "frontend/vitest.config.ts",
         "frontend/scripts/tailwind-source-inputs.test.mjs"
       ],
-      "test_tier": "artifact"
+      "test_tier": "artifact",
+      "descriptor_input_contract": "prepared-frontend-generation-v1",
+      "artifact_input_contract": "git-source-v1"
     },
     {
       "id": "backend:unit",
@@ -591,5 +596,20 @@
         "pids": 256
       }
     }
+  },
+  "frontend_generation": {
+    "schema": "base-frontend-generation/v1",
+    "inputs": [
+      "frontend/scripts/generate-exports.mjs",
+      "frontend/redocly.yaml",
+      "frontend/redocly.yml",
+      "frontend/.redocly.yaml",
+      "frontend/.redocly.yml"
+    ],
+    "scripts": [
+      "postinstall"
+    ],
+    "commands_sha256": "6ee200e534efbe89f476dfbd9b48970abf1b5d506c04e7437e942a85a59ff8f9",
+    "environment_input_contract": "frontend-agent-presence-v1"
   }
 }

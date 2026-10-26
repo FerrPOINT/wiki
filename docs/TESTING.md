@@ -1,5 +1,24 @@
 # Testing Strategy - Wiki
 
+## Prepared generator inputs
+
+Wiki принимает quality tooling `f910017264a730089b38c11ee8ee53b29eed8fe2`
+независимо от SDK/UI/skills/operator pins. В source workspace используйте
+`check-workspace.ps1 -Profile Fast -Repository wiki -Component frontend` из
+корня после `enter-dev.ps1`; подготовка и проверка используют один environment.
+Профиль `frontend_generation` в `.quality-gate.json` сохраняет postinstall,
+его hooks и actual environment; test-only/no-change не повторяют генерацию.
+
+Квалифицированы OpenAPI local fragments, существующий exports helper и
+отсутствие четырёх cwd Redocly configs. Изменение helper, generator toolchain,
+external refs или добавление config/plugins требует проверки нового closure.
+`FrontendGenerationContractTests` в CI docs/tooling gate проверяет эту границу;
+не обновлять approved hash вместо исследования новых imports/reads. Base
+проверяет новые inputs и generated outputs, неизвестные cache-only configs
+сохраняются с отказом. Общий контракт — [Base delivery standard](https://github.com/FerrPOINT/services-base/blob/f910017264a730089b38c11ee8ee53b29eed8fe2/docs/plans/frontend-generation-delivery-20261026.md).
+Standalone CI с новым dependency environment выполняет необходимый postinstall;
+этот профиль не объявляет CI dependency installation готовым локальным cache hit.
+
 ## Production CSS source graph
 
 Node 22.20.0, UI `@sdlc/ui` и его source layout сохранены.
