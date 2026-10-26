@@ -573,10 +573,10 @@ export function AuditLogPage() {
                         <span className="block text-xs text-text-muted">{event.entity_type}</span>
                         {event.entity_id}
                       </TableCell>
-                      <TableCell className="break-all font-mono text-xs">
+                      <TableCell className="break-all" technical size="sm">
                         {event.request_id}
                       </TableCell>
-                      <TableCell className="whitespace-nowrap text-xs text-text-muted">
+                      <TableCell className="whitespace-nowrap text-text-muted" size="sm">
                         {formatDateTime(event.created_at)}
                       </TableCell>
                     </TableRow>

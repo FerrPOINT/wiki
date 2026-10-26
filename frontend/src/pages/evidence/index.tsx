@@ -767,7 +767,7 @@ export function EvidencePage() {
                         <TableCell className="text-sm">
                           {formatEvidenceType(item.evidence_type)}
                         </TableCell>
-                        <TableCell className="text-xs text-text-muted">
+                        <TableCell className="text-text-muted" size="sm">
                           {formatDateTime(item.created_at)}
                         </TableCell>
                         <TableCell>
