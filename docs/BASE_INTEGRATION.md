@@ -269,3 +269,32 @@ mobileFlow для длинной формы. SSR-аналога этого React
 Настоящий архив из 882 файлов сверён с установленным UI; offline frozen install,
 singleton React и CLI check пройдены. SDK/skills pins сохранены. Это source
 adoption; приложение, backend и Storybook не пересобирались, runtime не менялся.
+
+## Поверхности dossier и сведения о пространстве — 2026-10-27
+
+Формы привязки документа к задаче/фазе используют Card asChild с surface=raised
+и CardContent density=compact. Native form, onSubmit, aria-label, поля, pending,
+ошибки, callbacks и сообщения об успехе остаются у Wiki. Поверхность SpaceDetails
+получает те же общие tokens; её grid/порядок содержимого и права сохраняются.
+Подпись дерева использует SectionHeader level=3; названия, ключи, описания и
+метаданные строк — ResourceListTitle/Description. Разделитель « · » между
+названием документа и типом присутствует в тексте ссылки и доступном имени.
+
+Scoped TypeScript, ESLint/format, UI guard и AST-проверка сохранности модуля,
+45 callbacks, 88 bindings и 125 выражений показа пройдены. 34 unit cases трёх
+страниц подтверждены; после изменения текста ссылок повторены 11 cases spaces.
+Две проверки доступного имени сохраняют оба текста и прежние URL разных документов.
+
+В IAB импортированы настоящие модули страниц и канонический Wiki index.css:
+36 режимов трёх страниц × light/dark/gray × 320/375/1920/2560, без горизонтального
+переполнения. Native Enter даёт один вызов, ошибка сохраняет ввод, pending
+блокирует повтор; readonly не показывает управление. Меню в Card сохраняет
+тему Portal и возврат focus по Escape. Четыре снимка просмотрены. Данные и
+mutation adapters синтетические, только в памяти; fake login, backend, SMTP,
+credentials и установленный runtime не используются. Финальный console чистый.
+Снимки показывают 600px viewport source-фикстуры; full-page и установленная
+приёмка ими не закрываются. Свои вкладка и сервер остановлены.
+
+Новый Base API и обновление dependencies/pins не требовались: UI 0.3.9,
+producer bab93d2683367117784c2f01fcbed7f80fd3ef15. SDK/skills pins сохранены.
+Общий семантический аудит и интеграционный gate остаются открытыми.

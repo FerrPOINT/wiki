@@ -16,6 +16,7 @@ import {
 } from '@/shared/api/hooks'
 import {
   ActionGroup,
+  SectionHeader,
   TextLink,
   Badge,
   PageNavigation,
@@ -29,6 +30,8 @@ import {
   LoadingState,
   ResourceList,
   ResourceListRow,
+  ResourceListTitle,
+  ResourceListDescription,
   Checkbox,
   Button,
   Input,
@@ -84,15 +87,17 @@ function SpaceTreePreview({ spaceKey }: { spaceKey: string }) {
   return (
     <div className="space-y-1.5">
       {documents.map((document) => (
-        <TextLink asChild key={document.id}><Link
-          to={`/documents/${document.id}`}
-          className="block truncate text-sm"
-        >
-          {document.title}
-          <span className="ml-2 text-xs text-text-muted">
-            {formatDocumentType(document.document_type)}
-          </span>
-        </Link></TextLink>
+        <TextLink asChild key={document.id}>
+          <Link to={`/documents/${document.id}`} className="block truncate text-sm">
+            {document.title}
+            <ResourceListDescription asChild>
+              <span>
+                {' · '}
+                {formatDocumentType(document.document_type)}
+              </span>
+            </ResourceListDescription>
+          </Link>
+        </TextLink>
       ))}
     </div>
   )
@@ -209,106 +214,113 @@ function SpaceDetails({
   }
 
   return (
-    <div className="space-y-4 border-t border-border bg-surface-raised/40 p-3">
-      {canManage && (
-        <Card asChild>
-          <form onSubmit={handleUpdate}>
-            <CardContent className="space-y-3">
-              <div className="grid gap-3 md:grid-cols-2">
-                <FormField id={`${space.key}-name`} label={'Название пространства'}>
-                  {(baseFieldAttrs) => (
-                    <Input
-                      {...baseFieldAttrs}
-                      value={name}
-                      onChange={(event) => setName(event.target.value)}
-                      required
-                    />
-                  )}
-                </FormField>
-                <FormField id={`${space.key}-description`} label={'Описание'}>
-                  {(baseFieldAttrs) => (
-                    <Textarea
-                      {...baseFieldAttrs}
-                      value={description}
-                      onChange={(event) => setDescription(event.target.value)}
-                    />
-                  )}
-                </FormField>
-              </div>
-              <ActionGroup align="start">
-                <Button size="sm" disabled={updateSpace.isPending || !changed || !name.trim()}>
-                  <Save className="h-3.5 w-3.5" />
-                  {updateSpace.isPending ? 'Сохраняем...' : 'Сохранить'}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="destructive"
-                  onClick={() => {
-                    archiveSpace.reset()
-                    setArchiveOpen(true)
-                  }}
-                  disabled={archiveSpace.isPending}
-                >
-                  <Archive className="h-3.5 w-3.5" />
-                  Архивировать
-                </Button>
-              </ActionGroup>
-              {updateSpace.isError && (
-                <Notice role="alert" appearance="inline" tone="danger">
-                  {formatApiErrorForUser(updateSpace.error, 'Не удалось обновить пространство')}
-                </Notice>
-              )}
-            </CardContent>
-          </form>
-        </Card>
-      )}
+    <Card surface="raised">
+      <CardContent density="compact" className="space-y-4">
+        {canManage && (
+          <Card asChild>
+            <form onSubmit={handleUpdate}>
+              <CardContent className="space-y-3">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <FormField id={`${space.key}-name`} label={'Название пространства'}>
+                    {(baseFieldAttrs) => (
+                      <Input
+                        {...baseFieldAttrs}
+                        value={name}
+                        onChange={(event) => setName(event.target.value)}
+                        required
+                      />
+                    )}
+                  </FormField>
+                  <FormField id={`${space.key}-description`} label={'Описание'}>
+                    {(baseFieldAttrs) => (
+                      <Textarea
+                        {...baseFieldAttrs}
+                        value={description}
+                        onChange={(event) => setDescription(event.target.value)}
+                      />
+                    )}
+                  </FormField>
+                </div>
+                <ActionGroup align="start">
+                  <Button size="sm" disabled={updateSpace.isPending || !changed || !name.trim()}>
+                    <Save className="h-3.5 w-3.5" />
+                    {updateSpace.isPending ? 'Сохраняем...' : 'Сохранить'}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => {
+                      archiveSpace.reset()
+                      setArchiveOpen(true)
+                    }}
+                    disabled={archiveSpace.isPending}
+                  >
+                    <Archive className="h-3.5 w-3.5" />
+                    Архивировать
+                  </Button>
+                </ActionGroup>
+                {updateSpace.isError && (
+                  <Notice role="alert" appearance="inline" tone="danger">
+                    {formatApiErrorForUser(updateSpace.error, 'Не удалось обновить пространство')}
+                  </Notice>
+                )}
+              </CardContent>
+            </form>
+          </Card>
+        )}
 
-      <SpaceProjectsEditor spaceKey={space.key} canManage={Boolean(canManage)} />
+        <SpaceProjectsEditor spaceKey={space.key} canManage={Boolean(canManage)} />
 
-      <ConfirmDialog
-        open={archiveOpen}
-        fallbackFocusRef={fallbackFocusRef}
-        onOpenChange={setArchiveOpen}
-        title="Архивировать пространство?"
-        description={`«${space.name}» (${space.key}) останется доступным для чтения, но изменения документов, материалов и связей будут заблокированы. Восстановление из интерфейса пока недоступно.`}
-        onConfirm={() => {
-          if (!canManage || archiveSpace.isPending) return
-          archiveSpace.mutate(space.key, {
-            onSuccess: (archived) => {
-              setArchiveOpen(false)
-              onArchived(archived)
-            },
-          })
-        }}
-        isPending={archiveSpace.isPending}
-        error={
-          archiveSpace.error
-            ? formatApiErrorForUser(archiveSpace.error, 'Не удалось архивировать пространство')
-            : null
-        }
-      />
-
-      <Card>
-        <CardContent className="space-y-2">
-          <DossierMenu spaceKey={space.key} />
-          <div className="flex items-center gap-2 text-xs font-medium uppercase text-text-muted">
-            <BookOpenText className="h-3.5 w-3.5" />
-            Дерево
-          </div>
-          <SpaceTreePreview spaceKey={space.key} />
-        </CardContent>
-      </Card>
-      {!isSystemAdmin && membersQuery.isError && (
-        <ErrorState
-          message={formatApiErrorForUser(
-            membersQuery.error,
-            'Не удалось проверить право на изменение пространства',
-          )}
-          onRetry={() => membersQuery.refetch()}
+        <ConfirmDialog
+          open={archiveOpen}
+          fallbackFocusRef={fallbackFocusRef}
+          onOpenChange={setArchiveOpen}
+          title="Архивировать пространство?"
+          description={`«${space.name}» (${space.key}) останется доступным для чтения, но изменения документов, материалов и связей будут заблокированы. Восстановление из интерфейса пока недоступно.`}
+          onConfirm={() => {
+            if (!canManage || archiveSpace.isPending) return
+            archiveSpace.mutate(space.key, {
+              onSuccess: (archived) => {
+                setArchiveOpen(false)
+                onArchived(archived)
+              },
+            })
+          }}
+          isPending={archiveSpace.isPending}
+          error={
+            archiveSpace.error
+              ? formatApiErrorForUser(archiveSpace.error, 'Не удалось архивировать пространство')
+              : null
+          }
         />
-      )}
-    </div>
+
+        <Card>
+          <CardContent className="space-y-2">
+            <DossierMenu spaceKey={space.key} />
+            <SectionHeader
+              level={3}
+              title={
+                <span className="flex items-center gap-2">
+                  <BookOpenText className="h-3.5 w-3.5" />
+                  Дерево
+                </span>
+              }
+            />
+            <SpaceTreePreview spaceKey={space.key} />
+          </CardContent>
+        </Card>
+        {!isSystemAdmin && membersQuery.isError && (
+          <ErrorState
+            message={formatApiErrorForUser(
+              membersQuery.error,
+              'Не удалось проверить право на изменение пространства',
+            )}
+            onRetry={() => membersQuery.refetch()}
+          />
+        )}
+      </CardContent>
+    </Card>
   )
 }
 
@@ -520,27 +532,33 @@ export function SpacesPage() {
                           <FolderOpen className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
                           <span className="min-w-0 flex-1 space-y-1">
                             <span className="flex min-w-0 items-center gap-2">
-                              <span className="truncate text-sm font-semibold">{space.name}</span>
-                              <span className="shrink-0 text-xs text-text-muted">{space.key}</span>
+                              <ResourceListTitle asChild>
+                                <span className="truncate">{space.name}</span>
+                              </ResourceListTitle>
+                              <ResourceListDescription asChild technical>
+                                <span className="shrink-0">{space.key}</span>
+                              </ResourceListDescription>
                               {space.status === 'archived' && (
                                 <Badge appearance="inline" tone="warning" className="shrink-0">
                                   {statusLabel(space.status)}
                                 </Badge>
                               )}
                             </span>
-                            <span className="block truncate text-xs text-text-secondary">
-                              {shortText(space.description)}
-                            </span>
-                            <span className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-muted">
-                              <span className="inline-flex items-center gap-1">
-                                <FileText className="h-3.5 w-3.5" aria-hidden />
-                                {space.document_count} документов
+                            <ResourceListDescription asChild>
+                              <span className="block truncate">{shortText(space.description)}</span>
+                            </ResourceListDescription>
+                            <ResourceListDescription asChild>
+                              <span className="flex flex-wrap gap-x-3 gap-y-1">
+                                <span className="inline-flex items-center gap-1">
+                                  <FileText className="h-3.5 w-3.5" aria-hidden />
+                                  {space.document_count} документов
+                                </span>
+                                {owner && (
+                                  <span>Владелец: {owner.display_name ?? owner.username}</span>
+                                )}
+                                <span>Обновлено {formatDateTime(space.updated_at)}</span>
                               </span>
-                              {owner && (
-                                <span>Владелец: {owner.display_name ?? owner.username}</span>
-                              )}
-                              <span>Обновлено {formatDateTime(space.updated_at)}</span>
-                            </span>
+                            </ResourceListDescription>
                           </span>
                           <ChevronDown
                             className={`mt-1 h-4 w-4 shrink-0 text-text-muted transition-transform ${expanded ? 'rotate-180' : ''}`}
