@@ -72,6 +72,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: wiki/backend
+          cache-targets: false
       - run: cargo fmt --all -- --check
       - run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - name: Quick domain/SDK unit tests
@@ -212,6 +213,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: wiki/backend
+          cache-targets: false
       - name: Check declared minimum independently of release builds
         working-directory: wiki/backend
         run: cargo check --locked --workspace --all-targets

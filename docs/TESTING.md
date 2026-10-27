@@ -115,6 +115,9 @@ build inputs; docs-only не создаёт application artifact.
 `-p wiki-cli --bin wiki`. CLI не включается в server graph и не исчезает из поставки.
 CLI rustfmt — static gate; физическое отделение его pure unit от HTTP integration
 ещё требует квалификации. Оно не считается выполненным через unit domain.
+CI сохраняет download cache, но `cache-targets: false` не восстанавливает compiled
+target без qualified timestamp guard. Безопасное возвращение compiled dependency
+reuse требует отдельной native qualification; Docker layer cache сохраняется.
 
 Frontend `pnpm test:unit` запускает source-tool Node tests и Vitest без
 `*.integration.test.*`, `*.slow.test.*`, `*.e2e.test.*`. `pnpm test:all` сохраняет

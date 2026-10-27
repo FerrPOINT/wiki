@@ -127,6 +127,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: wiki/backend
+          cache-targets: false
       - run: cargo fmt --all -- --check
       - name: Quick domain/SDK unit tests
         run: cargo test --locked -p domain --lib

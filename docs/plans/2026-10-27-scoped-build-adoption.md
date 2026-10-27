@@ -20,6 +20,7 @@ SDK/UI/quality pins независимы. Rust1.88/Node22.20/pnpm10.28.1 сох�
    test/setup/tooling negative плюс app/index/UI-fixture positive case.
 6. Убрать unsafe shared compiled target между exports, сохранить download/layer
    caches и bounded workers. Ограничить recipe contexts прежним COPY closure.
+   CI не восстанавливает unqualified compiled target; download cache остаётся.
 7. Scoped source checks и штатные Root no-change/unit routes; native compile/
    Vitest/Vite/Docker, artifact reuse/invalidation, resource/visual/live gates —
    согласованная финальная веха. До неё application cacheable=false.

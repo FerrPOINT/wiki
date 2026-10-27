@@ -104,6 +104,16 @@ class QualityRouteTests(unittest.TestCase):
         self.assertIn('target=/usr/local/cargo/git', source)
         self.assertIn('cargo test --locked --release -p domain --lib', source)
 
+    def test_ci_does_not_restore_unqualified_compiled_targets(self):
+        for filename in ('ci.yml', 'release.yml'):
+            text = (ROOT / '.github/workflows' / filename).read_text(encoding='utf-8')
+            parts = text.split('uses: Swatinem/rust-cache@v2')[1:]
+            self.assertTrue(parts)
+            for part in parts:
+                cache = part.split('\n      - ', 1)[0]
+                self.assertIn('cache-targets: false', cache)
+                self.assertIn('workspaces: wiki/backend', cache)
+
     def test_packaged_selector_matches_its_independent_revision(self):
         receipt = json.loads((ROOT / 'scripts/vendor/base-quality-tooling.json').read_bytes())
         self.assertEqual(receipt['revision'], (ROOT / '.quality-tooling-revision').read_text().strip())
