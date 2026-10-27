@@ -2,6 +2,7 @@ import { useNamespaceContext } from '@/widgets/namespace-context'
 import { TaskRevisionLink } from '@/features/managed-links/TaskRevisionLink'
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import {
+  Badge,
   PageNavigation,
   RadioGroup,
   PageHeader,
@@ -35,7 +36,6 @@ import {
 import { useParams } from 'react-router'
 import {
   Archive,
-  CheckCircle2,
   Clock3,
   Eye,
   FileCheck2,
@@ -308,17 +308,14 @@ export function DocumentPage() {
               {document.space_key} / {formatDocumentType(document.document_type)} / {document.slug}
             </div>
             <div className="mt-3 flex flex-wrap gap-2 text-xs text-text-secondary">
-              <span className="inline-flex items-center gap-1 rounded bg-surface-raised px-2 py-1">
-                <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+              <Badge appearance="dot" tone={document.status === 'published' ? 'success' : 'muted'}>
                 {formatDocumentStatus(document.status)}
-              </span>
-              <span className="inline-flex items-center gap-1 rounded bg-surface-raised px-2 py-1">
+              </Badge>
+              <Badge>
                 <Clock3 className="h-3.5 w-3.5" />
                 ревизия {document.current_revision?.version ?? 0}
-              </span>
-              <span className="rounded bg-surface-raised px-2 py-1">
-                обновлено {formatDateTime(document.updated_at)}
-              </span>
+              </Badge>
+              <Badge>обновлено {formatDateTime(document.updated_at)}</Badge>
             </div>
           </>
         }
@@ -705,7 +702,9 @@ export function DocumentPage() {
                           </ResourceListDescription>
                         </div>
                         <ResourceListDescription asChild>
-                          <p className="mt-1 truncate">{shortText(revision.summary, 'Без описания изменений')}</p>
+                          <p className="mt-1 truncate">
+                            {shortText(revision.summary, 'Без описания изменений')}
+                          </p>
                         </ResourceListDescription>
                         <ResourceListDescription asChild>
                           <p className="mt-1 truncate" title={revision.author_id}>

@@ -317,3 +317,17 @@ singleton, CLI check, TypeScript, UI contract guard и scoped tests пройде
 Браузерные доказательства относятся к изолированным общим композициям,
 не ко всем страницам приложения/API/Auth. Полный интеграционный gate и
 установленная приёмка остаются отдельными. SDK/skills pins и runtime сохранены.
+
+## Общие метки и inline-код UI 0.3.11 — 2026-10-27
+
+Точный UI producer `755c9f9a27ba81ddd841b43c511bb372a3c93e40` принят отдельно от SDK/skills.
+Три метки документа используют Badge. Зелёная отметка теперь относится только к published; draft/archived имеют muted tone. Это исправляет прежнюю безусловную success-иконку, не меняя записи и API. Все 27 document tests прошли, включая три статуса.
+
+Настоящий архив UI содержит 900 файлов; все production bytes сверены с
+producer и шестью установленными frontend-пакетами. Offline frozen refresh,
+React singleton и CLI check пройдены; runtime и зависимости backend не менялись.
+
+IAB evidence относится к пяти изолированным композициям из настоящих owner/Base
+исходников: 60 сочетаний темы/ширины, 18 branding-пресетов, три статуса Wiki,
+readonly click и Enter/Space. Это не приёмка всех экранов, Auth или API продукта.
+Полный интеграционный gate остаётся отдельной открытой стадией.

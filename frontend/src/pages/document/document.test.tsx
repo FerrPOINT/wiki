@@ -159,6 +159,20 @@ function setupDocument(document: Document = baseDocument, revisionHistory?: Docu
 }
 
 describe('DocumentPage', () => {
+  it.each([
+    { status: 'draft', label: 'черновик', tone: 'muted' },
+    { status: 'published', label: 'опубликован', tone: 'success' },
+    { status: 'archived', label: 'архив', tone: 'muted' },
+  ] as const)(
+    'shows the actual $status state instead of an unconditional success mark',
+    ({ status, label, tone }) => {
+      setupDocument({ ...baseDocument, status })
+      const badge = screen.getByText(label)
+      expect(badge).toHaveAttribute('data-appearance', 'dot')
+      expect(badge).toHaveAttribute('data-tone', tone)
+    },
+  )
+
   it('shows an explicitly empty saved draft without restoring published content', () => {
     setupDocument({ ...baseDocument, draft_markdown: '' })
     fireEvent.click(screen.getByRole('radio', { name: 'Правка' }))
