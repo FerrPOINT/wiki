@@ -16,6 +16,7 @@ services:
       retries: 5
 
   backend:
+    init: true
     build:
       context: ..
       dockerfile: wiki/backend/Dockerfile
@@ -49,7 +50,7 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3456/api/v1/health/ready || exit 1"]
+      test: ["CMD", "wget", "--quiet", "--output-document", "/dev/null", "--timeout", "2", "--tries", "1", "http://localhost:3456/api/v1/health/ready"]
       interval: 10s
       timeout: 5s
       retries: 5
