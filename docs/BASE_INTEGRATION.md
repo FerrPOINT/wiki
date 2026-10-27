@@ -20,7 +20,6 @@ SDK и skills pins независимы и этим обновлением не 
 продукт сохраняет данные, права, запросы и действия. Штатные SSR-ресурсы Workflow
 обновлены из того же UI SHA. Это source-кандидат, а не установка платформы.
 
-
 Датированные разделы ниже описывают историю квалификаций. Текущий pin сам по себе не подтверждает установку или authenticated-приёмку.
 
 Для центральной проекции используется `ServiceBridge::try_token_with_name`:
@@ -156,21 +155,19 @@ Tracker связана с её данными и не получает общи�
 Публикация, полный интеграционный gate и установка учитываются отдельно.
 
 ## Корневые коллекции навигации — 2026-10-26
-+
-+Корневой nav использует SidebarList asChild из текущего UI producer
-+`7294a7974a898f182c22034b511c6b4b15205cef`; вложенность Wiki использует nested.
+
+-
+
++Корневой nav использует SidebarList asChild из текущего UI producer +`7294a7974a898f182c22034b511c6b4b15205cef`; вложенность Wiki использует nested.
 +Native semantics, labels, маршруты, ACL, key и onNavigate сохранены.
-+Gap и inset следуют плотности брендинга. Канонический контракт:
-+[списки Base](https://github.com/FerrPOINT/services-base/blob/7294a7974a898f182c22034b511c6b4b15205cef/docs/platform/DESIGN_SYSTEM.md#списки-боковой-навигации).
-+
++Gap и inset следуют плотности брендинга. Канонический контракт: +[списки Base](https://github.com/FerrPOINT/services-base/blob/7294a7974a898f182c22034b511c6b4b15205cef/docs/platform/DESIGN_SYSTEM.md#списки-боковой-навигации). +
 +Types, lint и штатный shell:check прошли; проверены12 тестов оболочки Admin
 +и38 тестов Wiki AppShell/WorkspaceNavigation. IAB проверяет source-функции
 +с синтетическими данными в трёх темах, на ширинах320/375/1920/2560 и
 +с тремя density. Это компонентная проверка, не установленное приложение.
 +UI-архив переиспользован по совпадению863 production-файлов; UI/SDK/skills
 +pins, зависимости и runtime не менялись. Полный интеграционный gate,
-+публикация и hosted CI учитываются отдельно.
-+
++публикация и hosted CI учитываются отдельно. +
 
 ## Подготовленный HTML и клавиатура — 2026-10-27
 
@@ -215,7 +212,6 @@ frontend-пакете нет его публичного export; исходни�
 удалённый модуль не входит в его runtime import graph. Полный интеграционный
 gate и установленная приёмка остаются отдельными этапами.
 
-
 ## Общая подпись навигации — 2026-10-27
 
 Принят совместимый UI 0.3.4, producer `efa4babe176b42530a3e17fc25f10e8678f82d33`.
@@ -229,7 +225,6 @@ pins неизменны; это source-кандидат, без установк
 Итоговый producer проверен 38 scoped tests боковой навигации;
 TypeScript, lint изменённых модулей и shell contract gate прошли отдельно.
 
-
 ## Нативные атрибуты SSR Button — 2026-10-27
 
 Текущий UI 0.3.5: `8bdd8ecd54eb6a6f553bfbadcfaf07c99f4a801d`. Сохраняются React API и независимые SDK/skills pins.
@@ -237,7 +232,6 @@ React/JS/CSS и типы API не менялись; frontend/backend не пер
 Новые SSR параметры доступны в этом точном Base, не являются новым React API.
 Архив UI и offline frozen adoption проверены; общий интеграционный gate,
 hosted CI, публикация и установка здесь не выполнялись.
-
 
 ## Общие нативные элементы SSR — 2026-10-27
 
@@ -248,7 +242,6 @@ hosted CI, публикация и установка здесь не выпол
 offline frozen install, singleton React и CLI check пройдены. SDK/skills pins
 неизменны. Это source adoption, без hosted CI и установленного runtime.
 
-
 ## SSR композиции и native reset — 2026-10-27
 
 Текущий UI 0.3.8, producer `cf88f7094044a403e6bb7105cfa88b12c4208c96`.
@@ -258,7 +251,6 @@ offline frozen install, singleton React и CLI check пройдены. SDK/skill
 select-runtime в React runtime source продукта нет. Настоящий архив из
 868 файлов сверён, offline frozen install, singleton React и CLI пройдены.
 SDK/skills pins неизменны. Это source adoption, без установки и hosted CI.
-
 
 ## Рабочая область Base — 2026-10-27
 
@@ -299,7 +291,6 @@ credentials и установленный runtime не используются.
 producer bab93d2683367117784c2f01fcbed7f80fd3ef15. SDK/skills pins сохранены.
 Общий семантический аудит и интеграционный gate остаются открытыми.
 
-
 ## Общие секции и полосы данных — 2026-10-27
 
 UI 0.3.10, точный producer `94f2ccd9e6f09eba9fbf67f4582a9fa7a91c44b9`.
@@ -331,3 +322,21 @@ IAB evidence относится к пяти изолированным комп�
 исходников: 60 сочетаний темы/ширины, 18 branding-пресетов, три статуса Wiki,
 readonly click и Enter/Space. Это не приёмка всех экранов, Auth или API продукта.
 Полный интеграционный gate остаётся отдельной открытой стадией.
+
+## Общая render-граница UI 0.3.12 — 2026-10-27
+
+Точный UI producer `20633a6489dfd33e7afa782e0a06c23faea26b7a` принят отдельно от SDK/skills.
+Предметные React-композиции не менялись; принят совместимый общий UI.
+
+Настоящий UI-архив: 904 файла, offline CLI/reference и production bytes
+проверены вне workspace без Storybook. Шесть frontend-пакетов сверены с архивом;
+cached offline frozen refresh, React singleton и CLI check прошли.
+Общий механизм и ограничения: Base docs/platform/DESIGN_SYSTEM.md,
+раздел «Граница render-ошибки React». Данные, fallback, отчёт и reset identity
+принадлежат владельцу. HTTP/async/event/SSR ошибки обслуживаются отдельно.
+
+IAB evidence относится к фактическим Base/CatalogProviders source-композициям:
+12 сценариев ввода/сбоя/reset и 12 длинных fallback в трёх темах и четырёх
+ширинах; сохранены preview ready/error и черновик. Это не приёмка установленного
+продукта или Auth/API. Интеграционный gate, hosted CI и публикация остаются
+отдельными стадиями. Runtime не менялся.

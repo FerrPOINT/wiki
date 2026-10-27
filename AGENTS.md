@@ -164,7 +164,6 @@ ThemeProvider/useTheme подключаются напрямую из публи
 Новый локальный ThemeContext, storage runtime или ненужный private re-export
 не создавать; исправления общего поведения темы принадлежат Base.
 
-
 Разделитель под заголовком задаёт SectionHeader separated. Для прозрачной области
 содержимого используйте ContentSection (SSR content_section): dividers/inset и density
 принадлежат Base; native section/form, сетка, внешние отступы и handlers — продукту.
@@ -203,7 +202,6 @@ SSR использует checkbox_control/radio_control с appearance='card'; о
 click-handler или повторное input/change для оформления не нужен.
 Контракт и пример: Base docs/platform/CHOICE_CONTROLS.md, pdlc-ui example Checkbox --case cards.
 
-
 Видимый выбор файла использует `Input type="file"` Base: кнопка выбора,
 focus и disabled следуют теме и branding. Native файловый диалог остаётся у ОС;
 чтение, проверка содержимого/размера и отправка — у продукта. Скрытый технический
@@ -214,7 +212,6 @@ file input за Button допустим; видимый raw input не доба�
 поля — FormField Base. Продукт сохраняет текст, htmlFor/id, required, данные
 и обработчики; не копировать типографику подписи и фон/рамку/радиусы/padding
 Input/Textarea. Внешняя компоновка, высота Textarea и моноширинный код допустимы.
-
 
 ## Композиция списков и страниц
 
@@ -232,6 +229,7 @@ URL, курсоры, проверка допустимости страницы 
 и данные остаются у владельца. Для Disclosure используйте appearance, tone=muted/danger
 и size=sm вместо локальных border/padding, цветов и типографики. Внешние margin,
 ширина и предметное содержимое остаются у продукта; наличие props сверять по UI pin.
+
 ## Меню аккаунта Base
 
 При принятом UI pin с AccountMenu использовать общую композицию аккаунта,
@@ -263,7 +261,6 @@ React Markdown preview использует CodeBlock Base со стабильн
 изменении заголовка/темы. Парсер, skipHtml, политика ссылок и черновик остаются
 у Wiki; оформление и клавиатурный контракт CodeBlock не копировать.
 
-
 Текст бокового пункта после проверки UI pin использует SidebarItemLabel Base.
 Не копировать base-sidebar-item-label/truncate: compact и сокращение общие.
 Иконка, полное aria-label/title, маршрут, current state и callbacks остаются
@@ -279,3 +276,11 @@ ResourceListDescription technical для подписи без поверхно�
 оформление: текущий ID, aria-current, ref/tabIndex и действия остаются у продукта.
 SSR: inline_code и resource_list_row из штатного экспорта Base.
 Каноническое руководство — Base docs/platform/DESIGN_SYSTEM.md и pdlc-ui.
+
+## Граница render-ошибки React
+
+После проверки UI pin использовать RenderBoundary Base; собственные
+getDerivedStateFromError/componentDidCatch не добавлять. Fallback, отчёт,
+данные и явный reset key остаются у продукта. Граница не очищает журнал и
+не повторяет операцию; HTTP, async, event handlers и SSR обслуживаются отдельно.
+Контракт и поиск: Base docs/platform/DESIGN_SYSTEM.md и `pdlc-ui show RenderBoundary`.
