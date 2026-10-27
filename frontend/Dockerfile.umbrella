@@ -2,7 +2,7 @@
 # The repo's own frontend/Dockerfile builds with context=repo-root only; this
 # variant additionally stages the sibling services-base frontend so the
 # `@pdlc/ui` file dependency (../../services-base/base-modules/ui) resolves.
-FROM node:22.20.0-bookworm-slim AS builder
+FROM node:22.22.2-bookworm-slim AS builder
 
 RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
 
