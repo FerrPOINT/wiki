@@ -13,6 +13,7 @@ COPY wiki/frontend/package.json wiki/frontend/pnpm-lock.yaml wiki/frontend/pnpm-
 COPY services-base/base-modules/ui /workspace/services-base/base-modules/ui
 COPY wiki/openapi/openapi.json /workspace/wiki/openapi/openapi.json
 COPY wiki/frontend/scripts/generate-exports.mjs ./scripts/generate-exports.mjs
+COPY wiki/frontend/.prettierrc ./.prettierrc
 # pnpm resolves file: dependencies from the importer package root.
 RUN ln -s /workspace/services-base /workspace/wiki/services-base && pnpm install --frozen-lockfile
 
@@ -29,7 +30,7 @@ ARG VITE_AUTH_NAMESPACE="sdlc"
 ENV VITE_AUTH_NAMESPACE=${VITE_AUTH_NAMESPACE}
 ARG VITE_PLATFORM_ORIGIN=""
 ENV VITE_PLATFORM_ORIGIN=${VITE_PLATFORM_ORIGIN}
-RUN pnpm generate:api && pnpm build
+RUN pnpm run build:prepared
 
 FROM nginx:alpine
 ARG VITE_NAMESPACE_ENABLED="false"

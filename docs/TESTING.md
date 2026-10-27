@@ -92,6 +92,61 @@ E2E smoke:
 
 ## 4. Commands
 
+Общие правила: Base `docs/BUILD_PERFORMANCE.md` и `docs/TESTING.md` из принятого
+quality tooling. SDK/UI/skills/operator pins независимы от quality pin.
+Классификация и команды Wiki находятся в `.quality-gate.json`; CI и container
+helper используют тот же exact Base selector.
+
+Из корня PDLC workspace сначала выполнить `enter-dev.ps1`, затем выбрать Wiki:
+
+```powershell
+./check-workspace.ps1 -Profile Build -Repository wiki -BaseRef HEAD -PlanOnly
+./check-workspace.ps1 -Profile Unit -Repository wiki -Component tooling -BaseRef HEAD
+```
+
+Обычный запуск учитывает staged/unstaged/untracked/deleted inputs. `-All` означает
+намеренный полный обход; неизвестный путь расширяет проверки продукта.
+План без изменений не подтверждает наличие образа: холодную подготовку и нужный
+компонент задавать явно. Test-only сохраняет production producer при неизменных
+build inputs; docs-only не создаёт application artifact.
+
+Быстрый Rust-набор сейчас — `cargo test --locked -p domain --lib`. Backend server
+и официальный HTTP CLI — отдельные producers: `-p server --bin server` и
+`-p wiki-cli --bin wiki`. CLI не включается в server graph и не исчезает из поставки.
+CLI rustfmt — static gate; физическое отделение его pure unit от HTTP integration
+ещё требует квалификации. Оно не считается выполненным через unit domain.
+
+Frontend `pnpm test:unit` запускает source-tool Node tests и Vitest без
+`*.integration.test.*`, `*.slow.test.*`, `*.e2e.test.*`. `pnpm test:all` сохраняет
+полный Vitest-набор; Playwright запускается отдельно. При сборке units выполняются
+до producer. Ошибка unit не позволяет опубликовать новый candidate.
+
+После frozen install postinstall готовит OpenAPI types и bridge один раз.
+Root/CI/Docker используют prepared consumers: `tsc --noEmit`, unit и `vite build`.
+Отдельный CI `openapi:check` сохраняется: он генерирует временный контрольный
+schema для drift comparison и не считается устранённым вызовом генератора.
+`pnpm build:prepared` объединяет их без повторной генерации. Ручные
+`generate:api`, `typecheck`, `build` сохраняют recovery generated outputs;
+их вызов не объявляется полным generation-cache hit. Bridge сохраняет прежний
+Prettier format и не перезаписывает идентичный output. Host generated files
+исключены из Docker context и не затирают подготовленные внутри image types.
+
+Tailwind сканирует явные app/index/Base UI roots, исключая tests/setup. Реальный
+UI pin и product artifact проверяются отдельно от маленьких source fixtures.
+
+`python scripts/build.py` выбирает только изменённые container producers;
+`backend`/`frontend` выбирают конкретный контейнер, `--all` — оба. CLI producer
+возвращает binary через Root, отдельного CLI container нет. `NO_BUILD_SERVICES_SELECTED`
+не означает image ready. Legacy helper не владеет execution slot: raw heavy вызов
+нужно обернуть общим Base slot; SDK/UI checkout verifier сохраняется. При разных
+pins helper отказывает до Docker; пользоваться квалифицированным multi-pin route,
+не переписывать pins ради запуска.
+
+Следующие полные команды — отдельная согласованная ручная integration/release
+веха, а не цикл после каждого изменения. `.github/workflows/release.yml`
+(`workflow_dispatch`) сохраняет прежние четыре jobs, включая PostgreSQL/ignored,
+namespace, packed consumer, themes и MSRV. Их `NOT_RUN` сообщается отдельно.
+
 ```bash
 cd backend
 cargo fmt --all -- --check
@@ -101,7 +156,7 @@ cargo test --workspace -- --test-threads=1
 
 cd frontend
 pnpm typecheck
-pnpm test -- --run
+pnpm test:all
 pnpm test:e2e
 ```
 
@@ -150,11 +205,15 @@ Baseline test fixtures:
 
 ## 6. Merge Checklist
 
+В ходе реализации выполнять scoped проверки. Полный checklist ниже относится
+к согласованной интегрированной/manual вехе; необходимые security/data/live gates
+сохраняются. Не повторять успешно проверенный graph без changed inputs.
+
 - [ ] `cargo fmt --all -- --check` clean
 - [ ] `cargo clippy --workspace --all-targets -- -D warnings` clean
 - [ ] `cargo test --workspace -- --test-threads=1` green
 - [ ] `pnpm typecheck` clean
-- [ ] `pnpm test -- --run` green
+- [ ] `pnpm test:all` green на ручной полной вехе
 - [ ] `pnpm build` green
 - [ ] Playwright critical path green
 - [ ] Documentation updated

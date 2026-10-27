@@ -2,7 +2,7 @@
 // Kept so 20+ hand-written API modules can import `WikiAuthResponse` directly
 // instead of components['schemas']['WikiAuthResponse'].
 // Run as part of `pnpm generate:api` (after openapi-typescript itself).
-import { readFileSync, writeFileSync } from 'node:fs'
+import { closeSync, openSync, readFileSync, readSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import * as prettier from 'prettier'
@@ -54,6 +54,31 @@ for (const n of names) {
   lines.push(`export type ${n} = components['schemas']['${n}']`)
 }
 const options = await prettier.resolveConfig(outPath)
-const formatted = await prettier.format(`${lines.join('\n')}\n`, { ...options, filepath: outPath })
-writeFileSync(outPath, formatted, 'utf8')
-console.log(`generated-exports.ts: ${names.length} flat types`)
+const output = await prettier.format(`${lines.join('\n')}\n`, { ...options, filepath: outPath })
+let unchanged = false
+try {
+  const descriptor = openSync(outPath, 'r')
+  try {
+    const expected = Buffer.from(output, 'utf8')
+    // A corrupt output may be arbitrarily large. Read only the expected bytes
+    // plus one sentinel, and check EOF even if the first read was short.
+    const previous = Buffer.alloc(expected.length + 1)
+    const count = readSync(descriptor, previous, 0, previous.length, 0)
+    unchanged =
+      count === expected.length &&
+      previous.subarray(0, count).equals(expected) &&
+      readSync(descriptor, previous, 0, 1, count) === 0
+  } finally {
+    closeSync(descriptor)
+  }
+} catch (error) {
+  if (error.code !== 'ENOENT') throw error
+}
+// Compare actual content: repeated preparation must not invalidate watchers or
+// timestamp-based consumers, and an older input mtime cannot hide a schema edit.
+if (!unchanged) {
+  writeFileSync(outPath, output, 'utf8')
+}
+console.log(
+  `generated-exports.ts: ${names.length} flat types (${unchanged ? 'unchanged' : 'updated'})`,
+)

@@ -25,7 +25,10 @@ COPY wiki/backend/api ./api
 COPY wiki/backend/server ./server
 COPY wiki/backend/cli ./cli
 
-RUN cargo build --locked --release --bin server
+ARG PDLC_CARGO_BUILD_JOBS=2
+ENV CARGO_BUILD_JOBS=${PDLC_CARGO_BUILD_JOBS}
+RUN cargo test --locked --release -p domain --lib \
+    && cargo build --locked --release -p server --bin server
 
 FROM debian:bookworm-slim
 RUN apt-get update \

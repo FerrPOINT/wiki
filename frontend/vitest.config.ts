@@ -6,6 +6,7 @@ export default mergeConfig(
   defineConfig({
     test: {
       globals: true,
+      maxWorkers: 1,
       environment: 'jsdom',
       setupFiles: ['./src/test/setup.ts'],
       include: ['src/**/*.test.{ts,tsx}'],
