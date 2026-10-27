@@ -2,6 +2,12 @@
 
 ## Prepared generator inputs
 
+LF-правило frontend-генератора находится в `frontend/.gitattributes`, рядом с
+его потребителем. Общие backend rules остаются в корневом `.gitattributes`;
+frontend-only добавление не должно менять native backend input key. При переносе
+rules сравнивать `git check-attr --all -z --stdin` для tracked paths и соседних
+новых путей, сохраняя фактические source bytes и все проверки artifact identity.
+
 Wiki принимает quality tooling `f910017264a730089b38c11ee8ee53b29eed8fe2`
 независимо от SDK/UI/skills/operator pins. В source workspace используйте
 `check-workspace.ps1 -Profile Fast -Repository wiki -Component frontend` из
