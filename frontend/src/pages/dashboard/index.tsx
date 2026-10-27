@@ -1,6 +1,9 @@
+import { ContentSection } from '@pdlc/ui/ui'
 import { useActiveSpaces } from '@/widgets/active-spaces'
 import { useState } from 'react'
-import { ResourceListTitle, ResourceListDescription,
+import {
+  ResourceListTitle,
+  ResourceListDescription,
   Label,
   PageHeader,
   SectionHeader,
@@ -131,32 +134,34 @@ export function DashboardPage() {
         />
       ) : (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-3 border-y border-border py-3">
-            <div className="flex min-w-0 items-center gap-3">
-              <Label htmlFor="overview-space" className="shrink-0">
-                Пространство
-              </Label>
-              <Select
-                id="overview-space"
-                className="w-auto max-w-64 min-w-0"
-                value={activeSpaceKey}
-                onValueChange={(nextValue) => setRequestedSpaceKey(nextValue)}
-                disabled={spacesQuery.isLoading || spaces.length === 0}
-                options={[
-                  ...(spaces.length === 0 ? [{ value: '', label: 'Нет пространств' }] : []),
-                  ...(spaces.map((space) => ({
-                    value: String(space.key),
-                    label: String(space.name),
-                  })) ?? []),
-                ]}
-              />
+          <ContentSection asChild dividers="both" density="compact">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <Label htmlFor="overview-space" className="shrink-0">
+                  Пространство
+                </Label>
+                <Select
+                  id="overview-space"
+                  className="w-auto max-w-64 min-w-0"
+                  value={activeSpaceKey}
+                  onValueChange={(nextValue) => setRequestedSpaceKey(nextValue)}
+                  disabled={spacesQuery.isLoading || spaces.length === 0}
+                  options={[
+                    ...(spaces.length === 0 ? [{ value: '', label: 'Нет пространств' }] : []),
+                    ...(spaces.map((space) => ({
+                      value: String(space.key),
+                      label: String(space.name),
+                    })) ?? []),
+                  ]}
+                />
+              </div>
+              <Button asChild variant="link">
+                <Link to="/spaces">
+                  Все пространства <ArrowRight className="h-4 w-4" aria-hidden />
+                </Link>
+              </Button>
             </div>
-            <Button asChild variant="link">
-              <Link to="/spaces">
-                Все пространства <ArrowRight className="h-4 w-4" aria-hidden />
-              </Link>
-            </Button>
-          </div>
+          </ContentSection>
 
           {spacesQuery.isLoading ? (
             <LoadingState message="Загружаем пространства" />
@@ -164,14 +169,16 @@ export function DashboardPage() {
             <EmptyState message="Пространства пока не созданы" />
           ) : (
             <>
-              <section
-                aria-label="Показатели Wiki"
-                className="grid grid-cols-2 gap-x-5 gap-y-3 border-b border-border pb-4 lg:grid-cols-4"
-              >
-                {stats.map((metric) => (
-                  <Metric key={metric.label} {...metric} appearance="inline" />
-                ))}
-              </section>
+              <ContentSection asChild dividers="end">
+                <section
+                  aria-label="Показатели Wiki"
+                  className="grid grid-cols-2 gap-x-5 gap-y-3 lg:grid-cols-4"
+                >
+                  {stats.map((metric) => (
+                    <Metric key={metric.label} {...metric} appearance="inline" />
+                  ))}
+                </section>
+              </ContentSection>
 
               <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
                 <section aria-labelledby="recent-documents" className="min-w-0">
@@ -225,12 +232,12 @@ export function DashboardPage() {
                                 className="flex items-center justify-between gap-3"
                               >
                                 <span className="min-w-0">
-                                  <ResourceListTitle asChild className="block truncate"><span >
-                                    {document.title}
-                                  </span></ResourceListTitle>
-                                  <ResourceListDescription asChild className="block"><span >
-                                    {formatDateTime(document.updated_at)}
-                                  </span></ResourceListDescription>
+                                  <ResourceListTitle asChild className="block truncate">
+                                    <span>{document.title}</span>
+                                  </ResourceListTitle>
+                                  <ResourceListDescription asChild className="block">
+                                    <span>{formatDateTime(document.updated_at)}</span>
+                                  </ResourceListDescription>
                                 </span>
                                 <ArrowRight
                                   className="h-4 w-4 shrink-0 text-text-muted"
@@ -283,12 +290,14 @@ export function DashboardPage() {
                                 className="flex items-center justify-between gap-3"
                               >
                                 <span className="min-w-0">
-                                  <ResourceListTitle asChild className="block truncate"><span >
-                                    {task.title || task.task_key}
-                                  </span></ResourceListTitle>
-                                  <ResourceListDescription asChild className="block"><span >
-                                    {task.task_key} · Документы: {task.document_count}
-                                  </span></ResourceListDescription>
+                                  <ResourceListTitle asChild className="block truncate">
+                                    <span>{task.title || task.task_key}</span>
+                                  </ResourceListTitle>
+                                  <ResourceListDescription asChild className="block">
+                                    <span>
+                                      {task.task_key} · Документы: {task.document_count}
+                                    </span>
+                                  </ResourceListDescription>
                                 </span>
                                 <ArrowRight
                                   className="h-4 w-4 shrink-0 text-text-muted"

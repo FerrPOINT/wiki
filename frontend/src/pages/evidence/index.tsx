@@ -1,3 +1,4 @@
+import { ContentSection } from '@pdlc/ui/ui'
 import { downloadBlob } from '@pdlc/ui/lib'
 import { useProjectRouteRef } from '@/widgets/namespace-context'
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
@@ -30,16 +31,7 @@ import {
   FormField,
 } from '@pdlc/ui/ui'
 import { useSearchParams } from 'react-router'
-import {
-  Download,
-  ExternalLink,
-  FileText,
-  Info,
-  Plus,
-  RotateCcw,
-  Search,
-  X,
-} from 'lucide-react'
+import { Download, ExternalLink, FileText, Info, Plus, RotateCcw, Search, X } from 'lucide-react'
 
 import {
   useAttachment,
@@ -410,187 +402,189 @@ export function EvidencePage() {
       )}
 
       {isCreateOpen && (
-        <form
-          id="evidence-create-form"
-          onSubmit={handleSubmit}
-          className="space-y-3 border-y border-border py-4"
-        >
-          <RadioGroup
-            label="Тип материала"
-            appearance="segmented"
-            options={[
-              { value: 'external_url', label: 'Ссылка' },
-              { value: 'uploaded_file', label: 'Файл' },
-            ]}
-            value={mode}
-            onValueChange={(value) => setMode(value as EvidenceMode)}
-            disabled={isSaving}
-          />
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[10rem_13rem_minmax(0,1fr)_10rem_10rem]">
-            <FormField id="evidence-space" label={'Пространство'}>
-              {(baseFieldAttrs) => (
-                <Input
-                  {...baseFieldAttrs}
-                  readOnly={Boolean(namespace.ref)}
+        <ContentSection asChild dividers="both">
+          <form id="evidence-create-form" onSubmit={handleSubmit} className="space-y-3">
+            <RadioGroup
+              label="Тип материала"
+              appearance="segmented"
+              options={[
+                { value: 'external_url', label: 'Ссылка' },
+                { value: 'uploaded_file', label: 'Файл' },
+              ]}
+              value={mode}
+              onValueChange={(value) => setMode(value as EvidenceMode)}
+              disabled={isSaving}
+            />
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[10rem_13rem_minmax(0,1fr)_10rem_10rem]">
+              <FormField id="evidence-space" label={'Пространство'}>
+                {(baseFieldAttrs) => (
+                  <Input
+                    {...baseFieldAttrs}
+                    readOnly={Boolean(namespace.ref)}
 
-                  value={space}
-                  onChange={(event) => setSpace(event.target.value.toUpperCase())}
+                    value={space}
+                    onChange={(event) => setSpace(event.target.value.toUpperCase())}
+                    disabled={isSaving}
+                    required
+                  />
+                )}
+              </FormField>
+              <FormField id="evidence-document" label={'Документ'}>
+                {(baseFieldAttrs) => (
+                  <Input
+                    {...baseFieldAttrs}
+                    value={documentId}
+                    onChange={(event) => {
+                      setDocumentId(event.target.value)
+                      setTargetError('')
+                    }}
+                    disabled={isSaving}
+                    placeholder="ID или slug"
+                  />
+                )}
+              </FormField>
+              <FormField id="evidence-title" label={'Название'}>
+                {(baseFieldAttrs) => (
+                  <Input
+                    {...baseFieldAttrs}
+                    value={title}
+                    onChange={(event) => setTitle(event.target.value)}
+                    disabled={isSaving}
+                    required
+                  />
+                )}
+              </FormField>
+              <FormField id="evidence-task" label={'Задача'}>
+                {(baseFieldAttrs) => (
+                  <Input
+                    {...baseFieldAttrs}
+                    value={task}
+                    onChange={(event) => {
+                      setTask(event.target.value)
+                      setTargetError('')
+                    }}
+                    disabled={isSaving}
+                  />
+                )}
+              </FormField>
+              <FormField id="evidence-phase" label={'Фаза'}>
+                {(baseFieldAttrs) => (
+                  <Input
+                    {...baseFieldAttrs}
+                    value={phase}
+                    onChange={(event) => {
+                      setPhase(event.target.value)
+                      setTargetError('')
+                    }}
+                    disabled={isSaving}
+                  />
+                )}
+              </FormField>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+              {mode === 'external_url' ? (
+                <Input
+                  type="url"
+
+                  value={url}
+                  onChange={(event) => setUrl(event.target.value)}
+                  disabled={isSaving}
+                  placeholder="https://..."
+                  aria-label="URL материала"
+                  required
+                />
+              ) : (
+                <Input
+                  ref={fileInputRef}
+                  type="file"
+
+                  aria-label="Файл материала"
+                  onChange={(event) => setFile(event.target.files?.[0] ?? null)}
                   disabled={isSaving}
                   required
                 />
               )}
-            </FormField>
-            <FormField id="evidence-document" label={'Документ'}>
-              {(baseFieldAttrs) => (
-                <Input
-                  {...baseFieldAttrs}
-                  value={documentId}
-                  onChange={(event) => {
-                    setDocumentId(event.target.value)
-                    setTargetError('')
-                  }}
-                  disabled={isSaving}
-                  placeholder="ID или slug"
-                />
-              )}
-            </FormField>
-            <FormField id="evidence-title" label={'Название'}>
-              {(baseFieldAttrs) => (
-                <Input
-                  {...baseFieldAttrs}
-                  value={title}
-                  onChange={(event) => setTitle(event.target.value)}
-                  disabled={isSaving}
-                  required
-                />
-              )}
-            </FormField>
-            <FormField id="evidence-task" label={'Задача'}>
-              {(baseFieldAttrs) => (
-                <Input
-                  {...baseFieldAttrs}
-                  value={task}
-                  onChange={(event) => {
-                    setTask(event.target.value)
-                    setTargetError('')
-                  }}
-                  disabled={isSaving}
-                />
-              )}
-            </FormField>
-            <FormField id="evidence-phase" label={'Фаза'}>
-              {(baseFieldAttrs) => (
-                <Input
-                  {...baseFieldAttrs}
-                  value={phase}
-                  onChange={(event) => {
-                    setPhase(event.target.value)
-                    setTargetError('')
-                  }}
-                  disabled={isSaving}
-                />
-              )}
-            </FormField>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-            {mode === 'external_url' ? (
-              <Input
-                type="url"
-
-                value={url}
-                onChange={(event) => setUrl(event.target.value)}
-                disabled={isSaving}
-                placeholder="https://..."
-                aria-label="URL материала"
-                required
-              />
-            ) : (
-              <Input
-                ref={fileInputRef}
-                type="file"
-
-                aria-label="Файл материала"
-                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-                disabled={isSaving}
-                required
-              />
+              <Button disabled={isSaving}>
+                {isSaving ? 'Сохраняем...' : 'Сохранить материал'}
+              </Button>
+            </div>
+            {targetError && (
+              <Notice role="alert" appearance="inline" tone="danger">
+                {targetError}
+              </Notice>
             )}
-            <Button disabled={isSaving}>{isSaving ? 'Сохраняем...' : 'Сохранить материал'}</Button>
-          </div>
-          {targetError && (
-            <Notice role="alert" appearance="inline" tone="danger">
-              {targetError}
-            </Notice>
-          )}
-          {saveError && (
-            <Notice role="alert" appearance="inline" tone="danger">
-              {saveError}
+            {saveError && (
+              <Notice role="alert" appearance="inline" tone="danger">
+                {saveError}
+              </Notice>
+            )}
+          </form>
+        </ContentSection>
+      )}
+
+      <ContentSection asChild dividers="both" density="compact">
+        <form
+          onSubmit={applyFilters}
+          aria-label="Фильтры материалов"
+          className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-[minmax(12rem,1fr)_8rem_12rem_10rem_10rem_auto_auto]"
+        >
+          <Input
+            value={filterQuery}
+            onChange={(event) => setFilterQuery(event.target.value)}
+            maxLength={200}
+            placeholder="Поиск по всем материалам"
+            aria-label="Поиск материалов"
+          />
+          <Input
+            value={filterSpace}
+            readOnly={Boolean(namespace.ref)}
+            onChange={(event) => {
+              setFilterSpace(event.target.value.toUpperCase())
+              setFilterError('')
+            }}
+            minLength={2}
+            placeholder="Пространство"
+            aria-label="Фильтр пространства"
+          />
+          <Input
+            value={filterDocument}
+            onChange={(event) => setFilterDocument(event.target.value)}
+            placeholder="Документ"
+            aria-label="Фильтр документа"
+          />
+          <Input
+            value={filterTask}
+            onChange={(event) => setFilterTask(event.target.value)}
+            placeholder="Задача"
+            aria-label="Фильтр задачи"
+          />
+          <Input
+            value={filterPhase}
+            onChange={(event) => setFilterPhase(event.target.value)}
+            placeholder="Фаза"
+            aria-label="Фильтр фазы"
+          />
+          <Button type="submit" size="sm">
+            <Search className="h-4 w-4" />
+            Найти
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+
+            onClick={resetFilters}
+          >
+            <RotateCcw className="h-4 w-4" />
+            Сбросить
+          </Button>
+          {filterError && (
+            <Notice role="alert" className="2xl:col-span-full" appearance="inline" tone="danger">
+              {filterError}
             </Notice>
           )}
         </form>
-      )}
-
-      <form
-        onSubmit={applyFilters}
-        aria-label="Фильтры материалов"
-        className="grid gap-2 border-y border-border py-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-[minmax(12rem,1fr)_8rem_12rem_10rem_10rem_auto_auto]"
-      >
-        <Input
-          value={filterQuery}
-          onChange={(event) => setFilterQuery(event.target.value)}
-          maxLength={200}
-          placeholder="Поиск по всем материалам"
-          aria-label="Поиск материалов"
-        />
-        <Input
-          value={filterSpace}
-          readOnly={Boolean(namespace.ref)}
-          onChange={(event) => {
-            setFilterSpace(event.target.value.toUpperCase())
-            setFilterError('')
-          }}
-          minLength={2}
-          placeholder="Пространство"
-          aria-label="Фильтр пространства"
-        />
-        <Input
-          value={filterDocument}
-          onChange={(event) => setFilterDocument(event.target.value)}
-          placeholder="Документ"
-          aria-label="Фильтр документа"
-        />
-        <Input
-          value={filterTask}
-          onChange={(event) => setFilterTask(event.target.value)}
-          placeholder="Задача"
-          aria-label="Фильтр задачи"
-        />
-        <Input
-          value={filterPhase}
-          onChange={(event) => setFilterPhase(event.target.value)}
-          placeholder="Фаза"
-          aria-label="Фильтр фазы"
-        />
-        <Button type="submit" size="sm">
-          <Search className="h-4 w-4" />
-          Найти
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-
-          onClick={resetFilters}
-        >
-          <RotateCcw className="h-4 w-4" />
-          Сбросить
-        </Button>
-        {filterError && (
-          <Notice role="alert" className="2xl:col-span-full" appearance="inline" tone="danger">
-            {filterError}
-          </Notice>
-        )}
-      </form>
+      </ContentSection>
 
       {selectedEvidenceId && (
         <Card>
@@ -663,16 +657,18 @@ export function EvidencePage() {
       )}
 
       {!evidenceQuery.isLoading && !evidenceQuery.isError && items.length > 0 && (
-        <section
-          aria-label="Сводка текущей страницы"
-          className="flex flex-wrap gap-x-5 gap-y-1 border-b border-border pb-3 text-sm text-text-secondary"
-        >
-          <span>
-            Показано <strong>{items.length}</strong> (лимит {PAGE_SIZE})
-          </span>
-          <span>Ссылки: {linkCount}</span>
-          <span>Файлы: {fileCount}</span>
-        </section>
+        <ContentSection asChild dividers="end" density="compact">
+          <section
+            aria-label="Сводка текущей страницы"
+            className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-text-secondary"
+          >
+            <span>
+              Показано <strong>{items.length}</strong> (лимит {PAGE_SIZE})
+            </span>
+            <span>Ссылки: {linkCount}</span>
+            <span>Файлы: {fileCount}</span>
+          </section>
+        </ContentSection>
       )}
 
       <Card ref={registryRef} className="scroll-mt-16">
@@ -738,10 +734,7 @@ export function EvidencePage() {
                   </TableHeader>
                   <TableBody>
                     {items.map((item) => (
-                      <TableRow
-                        key={item.id}
-                        selected={item.id === selectedEvidenceId}
-                      >
+                      <TableRow key={item.id} selected={item.id === selectedEvidenceId}>
                         <TableCell className="min-w-0">
                           <EvidenceTitle item={item} onSelect={selectEvidence} />
                         </TableCell>

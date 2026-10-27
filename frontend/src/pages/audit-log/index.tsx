@@ -1,3 +1,4 @@
+import { ContentSection } from '@pdlc/ui/ui'
 import {
   ActionGroup,
   ResourceListTitle,
@@ -300,187 +301,185 @@ export function AuditLogPage() {
           Фильтры{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
         </Button>
         {showFilters && (
-          <form
-            aria-label="Фильтры аудита"
-            onSubmit={applyFilters}
-            className="space-y-3 border-y border-border py-3"
-          >
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              <FormField id="audit-action" label={'Действие'}>
-                {(baseFieldAttrs) => (
-                  <Select
-                    {...baseFieldAttrs}
-                    className="w-full"
-                    value={draftFilters.action}
-                    onValueChange={(nextValue) => updateDraft('action', nextValue)}
-                    options={[
-                      { value: '', label: 'Все действия' },
-                      ...(draftFilters.action && !actionLabels[draftFilters.action]
-                        ? [
-                            {
-                              value: String(draftFilters.action),
-                              label: String(draftFilters.action),
-                            },
-                          ]
-                        : []),
-                      ...(Object.entries(actionLabels).map(([value, label]) => ({
-                        value: String(value),
-                        label: String(label),
-                      })) ?? []),
-                    ]}
-                  />
-                )}
-              </FormField>
-              <FormField id="audit-entity-type" label={'Тип объекта'}>
-                {(baseFieldAttrs) => (
-                  <Select
-                    {...baseFieldAttrs}
-                    className="w-full"
-                    value={draftFilters.entity_type}
-                    onValueChange={(nextValue) => updateDraft('entity_type', nextValue)}
-                    options={[
-                      { value: '', label: 'Все типы' },
-                      ...(draftFilters.entity_type &&
-                      !entityTypes.some(([value]) => value === draftFilters.entity_type)
-                        ? [
-                            {
-                              value: String(draftFilters.entity_type),
-                              label: String(draftFilters.entity_type),
-                            },
-                          ]
-                        : []),
-                      ...(entityTypes.map(([value, label]) => ({
-                        value: String(value),
-                        label: String(label),
-                      })) ?? []),
-                    ]}
-                  />
-                )}
-              </FormField>
-              <div className="space-y-1">
-                <Label htmlFor="audit-actor">Участник</Label>
-                {manualActorId ||
-                usersQuery.isError ||
-                (!usersQuery.isLoading && users.length === 0) ? (
-                  <div className="space-y-1">
-                    <div className="flex gap-2">
-                      <Input
-                        id="audit-actor"
-                        className="min-w-0"
-                        placeholder="UUID участника"
-                        value={draftFilters.actor_id}
-                        onChange={(event) => updateDraft('actor_id', event.target.value)}
-                      />
+          <ContentSection asChild dividers="both" density="compact">
+            <form aria-label="Фильтры аудита" onSubmit={applyFilters} className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <FormField id="audit-action" label={'Действие'}>
+                  {(baseFieldAttrs) => (
+                    <Select
+                      {...baseFieldAttrs}
+                      className="w-full"
+                      value={draftFilters.action}
+                      onValueChange={(nextValue) => updateDraft('action', nextValue)}
+                      options={[
+                        { value: '', label: 'Все действия' },
+                        ...(draftFilters.action && !actionLabels[draftFilters.action]
+                          ? [
+                              {
+                                value: String(draftFilters.action),
+                                label: String(draftFilters.action),
+                              },
+                            ]
+                          : []),
+                        ...(Object.entries(actionLabels).map(([value, label]) => ({
+                          value: String(value),
+                          label: String(label),
+                        })) ?? []),
+                      ]}
+                    />
+                  )}
+                </FormField>
+                <FormField id="audit-entity-type" label={'Тип объекта'}>
+                  {(baseFieldAttrs) => (
+                    <Select
+                      {...baseFieldAttrs}
+                      className="w-full"
+                      value={draftFilters.entity_type}
+                      onValueChange={(nextValue) => updateDraft('entity_type', nextValue)}
+                      options={[
+                        { value: '', label: 'Все типы' },
+                        ...(draftFilters.entity_type &&
+                        !entityTypes.some(([value]) => value === draftFilters.entity_type)
+                          ? [
+                              {
+                                value: String(draftFilters.entity_type),
+                                label: String(draftFilters.entity_type),
+                              },
+                            ]
+                          : []),
+                        ...(entityTypes.map(([value, label]) => ({
+                          value: String(value),
+                          label: String(label),
+                        })) ?? []),
+                      ]}
+                    />
+                  )}
+                </FormField>
+                <div className="space-y-1">
+                  <Label htmlFor="audit-actor">Участник</Label>
+                  {manualActorId ||
+                  usersQuery.isError ||
+                  (!usersQuery.isLoading && users.length === 0) ? (
+                    <div className="space-y-1">
+                      <div className="flex gap-2">
+                        <Input
+                          id="audit-actor"
+                          className="min-w-0"
+                          placeholder="UUID участника"
+                          value={draftFilters.actor_id}
+                          onChange={(event) => updateDraft('actor_id', event.target.value)}
+                        />
+                        {usersQuery.isError && (
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="outline"
+
+                            title="Повторить загрузку пользователей"
+                            aria-label="Повторить загрузку пользователей"
+                            onClick={() => usersQuery.refetch()}
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                       {usersQuery.isError && (
+                        <p className="text-xs text-text-muted">
+                          Каталог пользователей недоступен; укажите UUID
+                        </p>
+                      )}
+                      {!usersQuery.isError && users.length > 0 && (
                         <Button
                           type="button"
-                          size="icon"
-                          variant="outline"
-
-                          title="Повторить загрузку пользователей"
-                          aria-label="Повторить загрузку пользователей"
-                          onClick={() => usersQuery.refetch()}
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setManualActorId(false)}
                         >
-                          <RefreshCw className="h-4 w-4" />
+                          Выбрать из списка
                         </Button>
                       )}
                     </div>
-                    {usersQuery.isError && (
-                      <p className="text-xs text-text-muted">
-                        Каталог пользователей недоступен; укажите UUID
-                      </p>
-                    )}
-                    {!usersQuery.isError && users.length > 0 && (
+                  ) : (
+                    <div className="space-y-1">
+                      <Select
+                        id="audit-actor"
+                        className="w-full"
+                        value={draftFilters.actor_id}
+                        disabled={usersQuery.isLoading}
+                        onValueChange={(nextValue) => updateDraft('actor_id', nextValue)}
+                        options={[
+                          {
+                            value: '',
+                            label: String(
+                              usersQuery.isLoading ? 'Загружаем пользователей' : 'Все участники',
+                            ),
+                          },
+                          ...(draftFilters.actor_id &&
+                          !users.some((user) => user.id === draftFilters.actor_id)
+                            ? [
+                                {
+                                  value: String(draftFilters.actor_id),
+                                  label: String(draftFilters.actor_id),
+                                },
+                              ]
+                            : []),
+                          ...(users.map((user) => ({
+                            value: String(user.id),
+                            label: [
+                              user.display_name ?? user.username ?? user.email,
+                              ' · ',
+                              user.email,
+                            ].join(''),
+                          })) ?? []),
+                        ]}
+                      />
                       <Button
                         type="button"
                         size="sm"
                         variant="ghost"
-                        onClick={() => setManualActorId(false)}
+                        onClick={() => setManualActorId(true)}
                       >
-                        Выбрать из списка
+                        Ввести UUID
                       </Button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    <Select
-                      id="audit-actor"
-                      className="w-full"
-                      value={draftFilters.actor_id}
-                      disabled={usersQuery.isLoading}
-                      onValueChange={(nextValue) => updateDraft('actor_id', nextValue)}
-                      options={[
-                        {
-                          value: '',
-                          label: String(
-                            usersQuery.isLoading ? 'Загружаем пользователей' : 'Все участники',
-                          ),
-                        },
-                        ...(draftFilters.actor_id &&
-                        !users.some((user) => user.id === draftFilters.actor_id)
-                          ? [
-                              {
-                                value: String(draftFilters.actor_id),
-                                label: String(draftFilters.actor_id),
-                              },
-                            ]
-                          : []),
-                        ...(users.map((user) => ({
-                          value: String(user.id),
-                          label: [
-                            user.display_name ?? user.username ?? user.email,
-                            ' · ',
-                            user.email,
-                          ].join(''),
-                        })) ?? []),
-                      ]}
+                    </div>
+                  )}
+                </div>
+                <FormField id="audit-from" label={'С даты (местное время)'}>
+                  {(baseFieldAttrs) => (
+                    <Input
+                      {...baseFieldAttrs}
+                      type="datetime-local"
+
+                      value={draftFilters.from}
+                      onChange={(event) => updateDraft('from', event.target.value)}
                     />
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setManualActorId(true)}
-                    >
-                      Ввести UUID
-                    </Button>
-                  </div>
-                )}
+                  )}
+                </FormField>
+                <FormField id="audit-to" label={'До даты (не включая)'}>
+                  {(baseFieldAttrs) => (
+                    <Input
+                      {...baseFieldAttrs}
+                      type="datetime-local"
+
+                      value={draftFilters.to}
+                      onChange={(event) => updateDraft('to', event.target.value)}
+                    />
+                  )}
+                </FormField>
               </div>
-              <FormField id="audit-from" label={'С даты (местное время)'}>
-                {(baseFieldAttrs) => (
-                  <Input
-                    {...baseFieldAttrs}
-                    type="datetime-local"
-
-                    value={draftFilters.from}
-                    onChange={(event) => updateDraft('from', event.target.value)}
-                  />
-                )}
-              </FormField>
-              <FormField id="audit-to" label={'До даты (не включая)'}>
-                {(baseFieldAttrs) => (
-                  <Input
-                    {...baseFieldAttrs}
-                    type="datetime-local"
-
-                    value={draftFilters.to}
-                    onChange={(event) => updateDraft('to', event.target.value)}
-                  />
-                )}
-              </FormField>
-            </div>
-            {filterError && (
-              <Notice role="alert" appearance="inline" tone="danger">
-                {filterError}
-              </Notice>
-            )}
-            <ActionGroup align="end">
-              <Button type="button" variant="outline" onClick={clearFilters}>
-                Сбросить
-              </Button>
-              <Button type="submit">Применить</Button>
-            </ActionGroup>
-          </form>
+              {filterError && (
+                <Notice role="alert" appearance="inline" tone="danger">
+                  {filterError}
+                </Notice>
+              )}
+              <ActionGroup align="end">
+                <Button type="button" variant="outline" onClick={clearFilters}>
+                  Сбросить
+                </Button>
+                <Button type="submit">Применить</Button>
+              </ActionGroup>
+            </form>
+          </ContentSection>
         )}
       </div>
 

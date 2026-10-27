@@ -1,3 +1,4 @@
+import { ContentSection } from '@pdlc/ui/ui'
 import { SpaceSelector, useSelectedSpaceKey } from '@/widgets/dossier-space'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
 import {
@@ -278,11 +279,13 @@ export function TaskDossierPage() {
             }
           />
         </div>
-        <div className="flex flex-wrap gap-x-5 gap-y-1 border-y border-border py-2 text-sm text-text-muted">
-          <span>Документы: {task.document_count}</span>
-          <span>Фазы материалов: {phaseKeys.length}</span>
-          <span>Материалы: {task.evidence_count}</span>
-        </div>
+        <ContentSection asChild dividers="both" density="compact">
+          <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-text-muted">
+            <span>Документы: {task.document_count}</span>
+            <span>Фазы материалов: {phaseKeys.length}</span>
+            <span>Материалы: {task.evidence_count}</span>
+          </div>
+        </ContentSection>
       </section>
 
       {spacesQuery.isError && (

@@ -165,7 +165,10 @@ ThemeProvider/useTheme подключаются напрямую из публи
 не создавать; исправления общего поведения темы принадлежат Base.
 
 
-Разделитель секции задаётся SectionHeader separated (SSR section_header с separated=true).
+Разделитель под заголовком задаёт SectionHeader separated. Для прозрачной области
+содержимого используйте ContentSection (SSR content_section): dividers/inset и density
+принадлежат Base; native section/form, сетка, внешние отступы и handlers — продукту.
+ResourceList предназначен для строк, Fieldset — для группы полей. Сначала сверить UI pin.
 Фон CodeBlock/JsonBlock и выбранная TableRow selected оформляются Base; продукт
 сохраняет viewport, содержимое, выбранный ID и доступные действия. Не копировать
 border/padding заголовка и bg на этих общих компонентах. Наличие props сверять по UI pin.

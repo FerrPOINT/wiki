@@ -1,3 +1,4 @@
+import { ContentSection } from '@pdlc/ui/ui'
 import { Check, Database, Globe2, KeyRound, Minus, Settings2 } from 'lucide-react'
 import { useWikiSettings } from '@/shared/api/hooks'
 import { DescriptionItem, PageHeader, SectionHeader, ErrorState, LoadingState } from '@pdlc/ui/ui'
@@ -93,39 +94,37 @@ export function SettingsPage() {
           {settingsGroups.map((group) => {
             const Icon = group.icon
             return (
-              <section
-                key={group.id}
-                aria-labelledby={group.id}
-                className="min-w-0 border-t border-border pt-3"
-              >
-                <SectionHeader
-                  headingId={group.id}
-                  title={
-                    <>
-                      <Icon aria-hidden className="h-4 w-4 shrink-0 text-accent" />
-                      {group.title}
-                    </>
-                  }
-                />
-                <dl className="mt-2 divide-y divide-border">
-                  {group.fields.map((field) => (
-                    <DescriptionItem key={field.label} label={<>{field.label}</>} layout="inline">
-                      <span className="inline-flex min-w-0 items-start gap-1.5">
-                        {'enabled' in field &&
-                          (field.enabled ? (
-                            <Check aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-success" />
-                          ) : (
-                            <Minus
-                              aria-hidden
-                              className="mt-0.5 h-4 w-4 shrink-0 text-text-muted"
-                            />
-                          ))}
-                        <span className="min-w-0 break-all">{field.value}</span>
-                      </span>
-                    </DescriptionItem>
-                  ))}
-                </dl>
-              </section>
+              <ContentSection asChild dividers="start" density="compact" key={group.id}>
+                <section aria-labelledby={group.id} className="min-w-0">
+                  <SectionHeader
+                    headingId={group.id}
+                    title={
+                      <>
+                        <Icon aria-hidden className="h-4 w-4 shrink-0 text-accent" />
+                        {group.title}
+                      </>
+                    }
+                  />
+                  <dl className="mt-2 divide-y divide-border">
+                    {group.fields.map((field) => (
+                      <DescriptionItem key={field.label} label={<>{field.label}</>} layout="inline">
+                        <span className="inline-flex min-w-0 items-start gap-1.5">
+                          {'enabled' in field &&
+                            (field.enabled ? (
+                              <Check aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+                            ) : (
+                              <Minus
+                                aria-hidden
+                                className="mt-0.5 h-4 w-4 shrink-0 text-text-muted"
+                              />
+                            ))}
+                          <span className="min-w-0 break-all">{field.value}</span>
+                        </span>
+                      </DescriptionItem>
+                    ))}
+                  </dl>
+                </section>
+              </ContentSection>
             )
           })}
         </div>

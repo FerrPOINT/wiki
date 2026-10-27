@@ -1,3 +1,4 @@
+import { ContentSection } from '@pdlc/ui/ui'
 import { useProjectRouteRef } from '@/widgets/namespace-context'
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router'
@@ -296,106 +297,108 @@ export function WikiSearchPage() {
         </form>
 
         {showFilters && (
-          <form
-            id="search-filters"
-            onSubmit={applyFilters}
-            className="grid gap-3 border-y border-border py-3 sm:grid-cols-2 xl:grid-cols-4"
-          >
-            <FormField id="search-space" label={'Пространство'}>
-              {(baseFieldAttrs) => (
-                <Input
-                  {...baseFieldAttrs}
-                  readOnly={projectSearch}
+          <ContentSection asChild dividers="both" density="compact">
+            <form
+              id="search-filters"
+              onSubmit={applyFilters}
+              className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+            >
+              <FormField id="search-space" label={'Пространство'}>
+                {(baseFieldAttrs) => (
+                  <Input
+                    {...baseFieldAttrs}
+                    readOnly={projectSearch}
 
-                  value={spaceFilter}
-                  onChange={(event) => {
-                    setSpaceFilter(event.target.value.toUpperCase())
-                  }}
-                  placeholder="BASE"
-                />
-              )}
-            </FormField>
-            <FormField id="search-task" label={'Задача'}>
-              {(baseFieldAttrs) => (
-                <Input
-                  {...baseFieldAttrs}
-                  value={taskFilter}
-                  onChange={(event) => {
-                    setTaskFilter(event.target.value)
-                  }}
-                  placeholder="BASE-42"
-                />
-              )}
-            </FormField>
-            <FormField id="search-phase" label={'Фаза'}>
-              {(baseFieldAttrs) => (
-                <Input
-                  {...baseFieldAttrs}
-                  value={phaseFilter}
-                  onChange={(event) => {
-                    setPhaseFilter(event.target.value)
-                  }}
-                  placeholder="implementation"
-                />
-              )}
-            </FormField>
-            <FormField id="search-document-type" label={'Тип документа'}>
-              {(baseFieldAttrs) => (
-                <Select
-                  {...baseFieldAttrs}
-                  className="w-full"
-                  value={documentTypeDraft}
-                  onValueChange={(nextValue) => {
-                    setDocumentTypeDraft(nextValue as DocumentTypeFilter)
-                  }}
-                  options={[
-                    ...(documentTypes.map((type) => ({
-                      value: String(type),
-                      label: String(type === 'all' ? 'Любой тип' : formatDocumentType(type)),
-                    })) ?? []),
-                  ]}
-                />
-              )}
-            </FormField>
-            <ActionGroup align="end" className="sm:col-span-2 xl:col-span-4">
-              {(activeFilterCount > 0 ||
-                spaceFilter ||
-                taskFilter ||
-                phaseFilter ||
-                documentTypeDraft !== 'all') && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
+                    value={spaceFilter}
+                    onChange={(event) => {
+                      setSpaceFilter(event.target.value.toUpperCase())
+                    }}
+                    placeholder="BASE"
+                  />
+                )}
+              </FormField>
+              <FormField id="search-task" label={'Задача'}>
+                {(baseFieldAttrs) => (
+                  <Input
+                    {...baseFieldAttrs}
+                    value={taskFilter}
+                    onChange={(event) => {
+                      setTaskFilter(event.target.value)
+                    }}
+                    placeholder="BASE-42"
+                  />
+                )}
+              </FormField>
+              <FormField id="search-phase" label={'Фаза'}>
+                {(baseFieldAttrs) => (
+                  <Input
+                    {...baseFieldAttrs}
+                    value={phaseFilter}
+                    onChange={(event) => {
+                      setPhaseFilter(event.target.value)
+                    }}
+                    placeholder="implementation"
+                  />
+                )}
+              </FormField>
+              <FormField id="search-document-type" label={'Тип документа'}>
+                {(baseFieldAttrs) => (
+                  <Select
+                    {...baseFieldAttrs}
+                    className="w-full"
+                    value={documentTypeDraft}
+                    onValueChange={(nextValue) => {
+                      setDocumentTypeDraft(nextValue as DocumentTypeFilter)
+                    }}
+                    options={[
+                      ...(documentTypes.map((type) => ({
+                        value: String(type),
+                        label: String(type === 'all' ? 'Любой тип' : formatDocumentType(type)),
+                      })) ?? []),
+                    ]}
+                  />
+                )}
+              </FormField>
+              <ActionGroup align="end" className="sm:col-span-2 xl:col-span-4">
+                {(activeFilterCount > 0 ||
+                  spaceFilter ||
+                  taskFilter ||
+                  phaseFilter ||
+                  documentTypeDraft !== 'all') && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
 
-                  onClick={() => {
-                    setSpaceFilter('')
-                    setTaskFilter('')
-                    setPhaseFilter('')
-                    setDocumentTypeDraft('all')
-                    setSearchParams((current) => {
-                      const next = new URLSearchParams(current)
-                      for (const key of [
-                        'space',
-                        'task_key',
-                        'phase_key',
-                        'document_type',
-                        'result_type',
-                      ]) {
-                        next.delete(key)
-                      }
-                      return next
-                    })
-                  }}
-                >
-                  Сбросить фильтры
+                    onClick={() => {
+                      setSpaceFilter('')
+                      setTaskFilter('')
+                      setPhaseFilter('')
+                      setDocumentTypeDraft('all')
+                      setSearchParams((current) => {
+                        const next = new URLSearchParams(current)
+                        for (const key of [
+                          'space',
+                          'task_key',
+                          'phase_key',
+                          'document_type',
+                          'result_type',
+                        ]) {
+                          next.delete(key)
+                        }
+                        return next
+                      })
+                    }}
+                  >
+                    Сбросить фильтры
+                  </Button>
+                )}
+                <Button type="submit" size="sm">
+                  Применить
                 </Button>
-              )}
-              <Button type="submit" size="sm">
-                Применить
-              </Button>
-            </ActionGroup>
-          </form>
+              </ActionGroup>
+            </form>
+          </ContentSection>
         )}
       </section>
 

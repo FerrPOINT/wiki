@@ -1,3 +1,4 @@
+import { ContentSection } from '@pdlc/ui/ui'
 import { useApplicationAccess } from '@pdlc/ui/auth'
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import {
@@ -285,92 +286,94 @@ export function TemplatesPage() {
       )}
 
       {isSystemAdmin && showCreate && (
-        <form
-          id="template-create"
-          aria-label="Создание шаблона"
-          onSubmit={handleCreateTemplate}
-          noValidate
-          className="space-y-3 border-y border-border py-4"
-        >
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_14rem]">
-            <FormField
-              id="template-name"
-              label="Название шаблона"
-              required
-              error={nameInvalid ? 'Введите название шаблона.' : undefined}
-            >
-              {(attrs) => (
-                <Input
-                  {...attrs}
-                  ref={nameRef}
-
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  disabled={createTemplate.isPending}
-                />
-              )}
-            </FormField>
-            <FormField id="template-type" label="Тип документа">
-              {(attrs) => (
-                <Select
-                  {...attrs}
-                  className="w-full"
-                  value={documentType}
-                  onValueChange={(nextValue) => setDocumentType(nextValue)}
-                  disabled={createTemplate.isPending}
-                  options={[
-                    ...(typeOptions.map((type) => ({
-                      value: String(type),
-                      label: String(formatDocumentType(type)),
-                    })) ?? []),
-                  ]}
-                />
-              )}
-            </FormField>
-          </div>
-          <FormField
-            id="template-body"
-            label="Markdown шаблона"
-            required
-            error={bodyInvalid ? 'Введите содержимое шаблона.' : undefined}
+        <ContentSection asChild dividers="both">
+          <form
+            id="template-create"
+            aria-label="Создание шаблона"
+            onSubmit={handleCreateTemplate}
+            noValidate
+            className="space-y-3"
           >
-            {(attrs) => (
-              <Textarea
-                {...attrs}
-                ref={bodyRef}
-                className="min-h-32 font-mono text-sm"
-                value={body}
-                onChange={(event) => setBody(event.target.value)}
-                disabled={createTemplate.isPending}
-              />
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_14rem]">
+              <FormField
+                id="template-name"
+                label="Название шаблона"
+                required
+                error={nameInvalid ? 'Введите название шаблона.' : undefined}
+              >
+                {(attrs) => (
+                  <Input
+                    {...attrs}
+                    ref={nameRef}
+
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    disabled={createTemplate.isPending}
+                  />
+                )}
+              </FormField>
+              <FormField id="template-type" label="Тип документа">
+                {(attrs) => (
+                  <Select
+                    {...attrs}
+                    className="w-full"
+                    value={documentType}
+                    onValueChange={(nextValue) => setDocumentType(nextValue)}
+                    disabled={createTemplate.isPending}
+                    options={[
+                      ...(typeOptions.map((type) => ({
+                        value: String(type),
+                        label: String(formatDocumentType(type)),
+                      })) ?? []),
+                    ]}
+                  />
+                )}
+              </FormField>
+            </div>
+            <FormField
+              id="template-body"
+              label="Markdown шаблона"
+              required
+              error={bodyInvalid ? 'Введите содержимое шаблона.' : undefined}
+            >
+              {(attrs) => (
+                <Textarea
+                  {...attrs}
+                  ref={bodyRef}
+                  className="min-h-32 font-mono text-sm"
+                  value={body}
+                  onChange={(event) => setBody(event.target.value)}
+                  disabled={createTemplate.isPending}
+                />
+              )}
+            </FormField>
+            {createTemplate.isError && (
+              <Notice role="alert" appearance="inline" tone="danger">
+                {formatApiErrorForUser(createTemplate.error, 'Не удалось создать шаблон')}
+              </Notice>
             )}
-          </FormField>
-          {createTemplate.isError && (
-            <Notice role="alert" appearance="inline" tone="danger">
-              {formatApiErrorForUser(createTemplate.error, 'Не удалось создать шаблон')}
-            </Notice>
-          )}
-          <ActionGroup align="end">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
+            <ActionGroup align="end">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
 
-              disabled={createTemplate.isPending}
-              onClick={() => setShowCreate(false)}
-            >
-              Свернуть
-            </Button>
-            <Button
-              type="submit"
-              size="sm"
+                disabled={createTemplate.isPending}
+                onClick={() => setShowCreate(false)}
+              >
+                Свернуть
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
 
-              disabled={createTemplate.isPending}
-            >
-              {createTemplate.isPending ? 'Создаём...' : 'Создать шаблон'}
-            </Button>
-          </ActionGroup>
-        </form>
+                disabled={createTemplate.isPending}
+              >
+                {createTemplate.isPending ? 'Создаём...' : 'Создать шаблон'}
+              </Button>
+            </ActionGroup>
+          </form>
+        </ContentSection>
       )}
 
       {templatesQuery.isLoading && <LoadingState message="Загружаем шаблоны" />}
