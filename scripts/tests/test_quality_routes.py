@@ -139,6 +139,15 @@ class QualityRouteTests(unittest.TestCase):
         self.assertFalse(self.ci('frontend/src/api/client.test.ts')['frontend_build'])
         self.assertTrue(self.ci('openapi/openapi.json')['openapi_check'])
 
+    def test_recipe_only_changes_select_packaging_without_application_compile(self):
+        for path, service in [('backend/Dockerfile.umbrella', 'backend'),
+                              ('backend/Dockerfile.umbrella.dockerignore', 'backend'),
+                              ('frontend/Dockerfile', 'frontend'),
+                              ('frontend/nginx.conf', 'frontend')]:
+            plan = self.plan(path)
+            self.assertEqual([g['id'] for g in plan['gates'] if g.get('kind') == 'artifact'], [])
+            self.assertEqual(build_services(plan), [service])
+
     def test_invalid_ci_base_fails_before_git_or_preparation(self):
         with patch.object(selector, 'git') as git:
             with self.assertRaises(ValueError): outputs(ROOT, 'pull_request', '', 'b' * 40)

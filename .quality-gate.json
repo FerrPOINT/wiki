@@ -412,7 +412,9 @@
         "frontend/vitest.config.ts",
         "frontend/e2e/**",
         "frontend/scripts/tailwind-source-inputs.test.mjs",
-        "frontend/scripts/tests/generate-exports.test.mjs"
+        "frontend/scripts/tests/generate-exports.test.mjs",
+        "frontend/Dockerfile*",
+        "frontend/nginx.conf"
       ],
       "test_tier": "artifact"
     },
@@ -646,5 +648,14 @@
         "cli"
       ]
     }
-  ]
+  ],
+  "container_inputs": {
+    "backend": [
+      "backend/Dockerfile*"
+    ],
+    "frontend": [
+      "frontend/Dockerfile*",
+      "frontend/nginx.conf"
+    ]
+  }
 }

@@ -92,6 +92,11 @@ E2E smoke:
 
 ## 4. Commands
 
+Container recipes имеют собственные `container_inputs`: Dockerfile/recipe ignore
+и frontend nginx выбирают упаковку соответствующего сервиса. Это отличается от
+binary/Vite producer; один recipe-only change не требует application compile.
+Native layer reuse и реальная упаковка квалифицируются отдельно.
+
 Общие правила: Base `docs/BUILD_PERFORMANCE.md` и `docs/TESTING.md` из принятого
 quality tooling. SDK/UI/skills/operator pins независимы от quality pin.
 Классификация и команды Wiki находятся в `.quality-gate.json`; CI и container

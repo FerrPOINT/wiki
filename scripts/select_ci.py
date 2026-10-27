@@ -25,7 +25,11 @@ def describe(plan):
 
 def build_services(plan):
     values = describe(plan)
-    return [name for name in ('backend', 'frontend') if values[name + '_build']]
+    # Binary/Vite producers and container recipes have different inputs.
+    # A changed recipe must still package its service without inventing an app build.
+    inputs = selector.load(ROOT).get('container_inputs', {})
+    return [name for name in ('backend', 'frontend') if values[name + '_build'] or any(
+        selector.matches(path, inputs.get(name, [])) for path in plan['changed'])]
 
 
 def auto_services(root=ROOT):
