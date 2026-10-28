@@ -288,7 +288,8 @@
         "frontend/e2e/**",
         "frontend/src/test/setup.ts",
         "frontend/vitest.config.ts",
-        "frontend/scripts/tailwind-source-inputs.test.mjs"
+        "frontend/scripts/tailwind-source-inputs.test.mjs",
+        "frontend/scripts/tests/generate-exports.test.mjs"
       ],
       "test_tier": "artifact",
       "descriptor_input_contract": "prepared-frontend-generation-context-v1",
@@ -551,7 +552,8 @@
     "frontend/src/*.test.cjs",
     "frontend/src/test/setup.ts",
     "frontend/vitest.config.ts",
-    "frontend/scripts/tailwind-source-inputs.test.mjs"
+    "frontend/scripts/tailwind-source-inputs.test.mjs",
+    "frontend/scripts/tests/generate-exports.test.mjs"
   ],
   "test_policy": {
     "automatic": [

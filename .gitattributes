@@ -11,3 +11,6 @@ frontend/Dockerfile.prebuilt.dockerignore text eol=lf
 
 # Canonical bytes for the exact Base Rust cache helper.
 scripts/vendor/base_rust_target_cache.py text eol=lf
+frontend/scripts/generate-exports.mjs text eol=lf
+frontend/scripts/tests/generate-exports.test.mjs text eol=lf
+frontend/package.json text eol=lf

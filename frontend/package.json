@@ -22,8 +22,8 @@
     "openapi:compat": "node scripts/base-openapi-compat.mjs",
     "postinstall": "node scripts/base-generate-openapi.mjs --schema ../openapi/openapi.json --output src/api/generated.ts && node scripts/generate-exports.mjs",
     "theme:check": "node ../../services-base/frontend/scripts/sdlc-effective-theme-check.mjs",
-    "test:unit": "node --test scripts/tailwind-source-inputs.test.mjs && vitest run --exclude \"**/*.integration.test.*\" --exclude \"**/*.slow.test.*\" --exclude \"**/*.e2e.test.*\"",
-    "test:all": "node --test scripts/tailwind-source-inputs.test.mjs && vitest run"
+    "test:unit": "node --test scripts/tailwind-source-inputs.test.mjs scripts/tests/generate-exports.test.mjs && vitest run --exclude \"**/*.integration.test.*\" --exclude \"**/*.slow.test.*\" --exclude \"**/*.e2e.test.*\"",
+    "test:all": "node --test scripts/tailwind-source-inputs.test.mjs scripts/tests/generate-exports.test.mjs && vitest run"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.13",
