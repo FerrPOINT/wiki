@@ -20,3 +20,17 @@ backend/target-stable/
 frontend/src/api/generated.ts
 frontend/src/api/generated-exports.ts
 .pnpm-store/
+
+# Disposable artifacts: enforced by scripts/check_repository_hygiene.py
+__pycache__/
+*.py[cod]
+.venv/
+.local/
+.worktree/
+.worktrees/
+worktree/
+worktrees/
+target/
+target-cache*/
+target-stage/
+*.tsbuildinfo

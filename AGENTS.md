@@ -170,3 +170,10 @@ Owner lifecycle/Tracker projection/maintenance имеют отдельные у�
 SQLx errors внутри wiki_postgres передавать через typed database_error: SQLSTATE
 должен сохраняться до выбора публичного AppError. Не добавлять авто-повтор
 записи при conflict. Правила кодов и private diagnostics — в документе выше.
+
+## Проверка Git-гигиены
+
+Перед коммитом: `python3 -B scripts/check_repository_hygiene.py --index`.
+Перед публикацией проверять точный кандидат через `--ref <commit>`. Установка
+hooks и допустимые артефакты: [правила](docs/REPOSITORY_HYGIENE.md).
+Копии проверки принадлежат Base; SDK/UI pins не меняются.
