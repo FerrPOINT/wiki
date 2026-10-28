@@ -20,3 +20,7 @@ backend/target-stable/
 frontend/src/api/generated.ts
 frontend/src/api/generated-exports.ts
 .pnpm-store/
+
+# Generated Python bytecode
+__pycache__/
+*.py[cod]
