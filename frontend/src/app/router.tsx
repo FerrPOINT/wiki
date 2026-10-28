@@ -1,3 +1,4 @@
+import { CurrentApplicationAccess } from '@/shared/auth/current-application-access'
 import { LoadingState } from '@pdlc/ui/ui'
 import { createProductRouter, PlatformRoute } from '@pdlc/ui/platform'
 import { lazy, Suspense, type ReactElement } from 'react'
@@ -116,7 +117,11 @@ export function createWikiRoutes(namespaceEnabled: boolean): RouteObject[] {
       element: <RequireAuth />,
       children: [
         {
-          element: <AppShell />,
+          element: (
+            <CurrentApplicationAccess>
+              <AppShell />
+            </CurrentApplicationAccess>
+          ),
           children: [
             ...namespaceRoutes,
             { path: '/', element: withSuspense(<DashboardPage />) },
