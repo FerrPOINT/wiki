@@ -276,3 +276,25 @@ mixed_central_directory_preserves_identity_and_disabled_state_in_postgres
 на своём PostgreSQL; workspace test не исполняет ignored-тест автоматически.
 
 Scoped entrypoint, сохраняемые release gates и ограничения: [build performance](plan/2026-10-21-build-performance.md).
+
+
+## Повторная генерация API bridge
+
+`node frontend/scripts/generate-exports.mjs` публикует `generated-exports.ts`
+только при изменении фактических bytes. В PDLC1 применён существующий bounded
+content comparison PDLC3; формат output и оба Base pins сохраняются. Повторный
+parse и перезапись различаются: generator может проверить вход, не меняя inode/mtime
+готового bridge. Missing/corrupt output восстанавливается, старый timestamp
+изменённого schema не скрывает новое имя, parse failure сохраняет прежний output.
+
+`pnpm --dir frontend test:unit` и `test:all` теперь включают существующие Node
+controls для bridge. Изменение только `frontend/scripts/tests/generate-exports.test.mjs`
+выбирает frontend tests без production artifact/backend. Mixed изменение самого
+generator сохраняет application build. Изолированная быстрая команда без установки
+зависимостей: `node --test frontend/scripts/tests/generate-exports.test.mjs`.
+
+На копии actual PDLC1 `generated.ts` три warm CLI invocations до исправления
+перезаписывали output3 раза, после —0; содержимое совпало. Медианы отдельного
+helper0,107/0,096с, samples3; это не benchmark полной сборки, CPU/RAM приложения
+не измерялись. По6 Node controls PASS в PDLC1/3; PDLC2 сохраняет свой formatter
+и уже подключённые controls. Полный frontend gate остаётся на согласованной вехе.

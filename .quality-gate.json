@@ -293,7 +293,8 @@
         "frontend/src/test/**",
         "frontend/vitest.config.ts",
         "frontend/e2e/**",
-        "frontend/scripts/tailwind-source-inputs.test.mjs"
+        "frontend/scripts/tailwind-source-inputs.test.mjs",
+        "frontend/scripts/tests/generate-exports.test.mjs"
       ],
       "test_tier": "artifact"
     },
@@ -479,7 +480,8 @@
     "frontend/src/*.test.cjs",
     "frontend/src/test/**",
     "frontend/vitest.config.ts",
-    "frontend/scripts/tailwind-source-inputs.test.mjs"
+    "frontend/scripts/tailwind-source-inputs.test.mjs",
+    "frontend/scripts/tests/generate-exports.test.mjs"
   ],
   "test_policy": {
     "automatic": [

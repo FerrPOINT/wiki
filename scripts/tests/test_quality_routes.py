@@ -164,7 +164,7 @@ class QualityRouteTests(unittest.TestCase):
             self.assertIn("cat .base-revision", job(text, "backend"))
         scripts = json.loads((ROOT / "frontend/package.json").read_text(encoding="utf-8"))["scripts"]
         self.assertEqual(scripts["build"].count("test:unit"), 1)
-        self.assertEqual(scripts["test:all"], "node --test scripts/tailwind-source-inputs.test.mjs && vitest run")
+        self.assertEqual(scripts["test:all"], "node --test scripts/tailwind-source-inputs.test.mjs scripts/tests/generate-exports.test.mjs && vitest run")
         for tier in ("integration", "slow", "e2e"):
             self.assertIn("**/*." + tier + ".test.*", scripts["test:unit"])
         self.assertIn("/.local/", (ROOT / ".gitignore").read_text(encoding="utf-8"))
@@ -191,8 +191,8 @@ class CssInputOwnershipTests(unittest.TestCase):
         self.assertTrue(self.selection.matches(path, manifest['frontend_unit_inputs']))
         self.assertTrue(self.selection.matches(path, build['exclude_inputs']))
         package = json.loads((self.root / 'frontend/package.json').read_text(encoding='utf-8'))
-        self.assertTrue(package['scripts']['test:unit'].startswith('node --test scripts/tailwind-source-inputs.test.mjs && vitest run '))
-        self.assertEqual(package['scripts']['test:all'], 'node --test scripts/tailwind-source-inputs.test.mjs && vitest run')
+        self.assertTrue(package['scripts']['test:unit'].startswith('node --test scripts/tailwind-source-inputs.test.mjs scripts/tests/generate-exports.test.mjs && vitest run '))
+        self.assertEqual(package['scripts']['test:all'], 'node --test scripts/tailwind-source-inputs.test.mjs scripts/tests/generate-exports.test.mjs && vitest run')
 
     def test_css_fixture_skips_application_build_but_real_css_keeps_it(self):
         path = 'frontend/scripts/tailwind-source-inputs.test.mjs'
@@ -212,6 +212,32 @@ class CssInputOwnershipTests(unittest.TestCase):
             with self.subTest(build=build), patch.object(self.selection, 'git', return_value=changed):
                 values = self.selection.ci_outputs('push', 'a'*40, 'b'*40, repo=self.root)
             self.assertEqual(values, {'backend':'false','frontend':'true','backend_build':'false','frontend_build':build})
+
+
+    def test_generator_controls_are_unit_only_and_keep_real_input_builds(self):
+        import json
+        from unittest.mock import patch
+        path = 'frontend/scripts/tests/generate-exports.test.mjs'
+        manifest = self.selection.load(self.root)
+        build = next(g for g in manifest['gates'] if g['id'] == 'frontend:build')
+        self.assertTrue(self.selection.matches(path, manifest['frontend_unit_inputs']))
+        self.assertTrue(self.selection.matches(path, build['exclude_inputs']))
+        package = json.loads((self.root / 'frontend/package.json').read_text(encoding='utf-8'))
+        for name in ('test:unit', 'test:all'):
+            self.assertIn('scripts/tests/generate-exports.test.mjs', package['scripts'][name])
+        for profile in ('fast', 'unit', 'build'):
+            plan = self.selection.plan(self.root, profile=profile, changed=[path])
+            self.assertIn('frontend:tests', [gate['id'] for gate in plan['gates']])
+            self.assertFalse(any(gate.get('kind') == 'artifact' for gate in plan['gates']))
+        producer = 'frontend/scripts/generate-exports.mjs'
+        mixed = self.selection.plan(self.root, profile='build', changed=[path, producer])
+        self.assertIn('frontend:build', [gate['id'] for gate in mixed['gates']])
+        self.assertNotIn('backend', mixed['components'])
+        for changed, expected in ((path + '\n', 'false'), (path + '\n' + producer + '\n', 'true')):
+            with patch.object(self.selection, 'git', return_value=changed):
+                values = self.selection.ci_outputs('push', 'a' * 40, 'b' * 40, repo=self.root)
+            self.assertEqual(values, {'backend': 'false', 'frontend': 'true',
+                                      'backend_build': 'false', 'frontend_build': expected})
 
 
 if __name__ == "__main__":
