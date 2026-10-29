@@ -1,8 +1,11 @@
+# syntax=docker/dockerfile:1.27.1@sha256:4edf897a3ffa55b89f906fc8cc78afdb3f1834cc9c7083565e611a8a7d5fe99e
 # Umbrella build for PDLC root Compose (context = the parent source workspace).
 # The repo's own frontend/Dockerfile builds with context=repo-root only; this
 # variant additionally stages the sibling services-base frontend so the
 # `@pdlc/ui` file dependency (../../services-base/base-modules/ui) resolves.
 FROM node:22.22.2-bookworm-slim AS toolchain
+ARG TARGETARCH
+ARG PNPM_CACHE_ID=pdlc-operator-downloads-v1-pnpm10-node22
 
 RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
 
@@ -20,7 +23,7 @@ COPY --from=install-manifest /workspace/wiki/frontend/package.json ./
 COPY wiki/frontend/pnpm-lock.yaml wiki/frontend/pnpm-workspace.yaml ./
 COPY services-base/base-modules/ui /workspace/services-base/base-modules/ui
 # Keep dependency lifecycle scripts (including native tooling) enabled.
-RUN ln -s /workspace/services-base /workspace/wiki/services-base && pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=${PNPM_CACHE_ID}-${TARGETARCH},target=/pnpm/store,sharing=locked ln -s /workspace/services-base /workspace/wiki/services-base && pnpm install --frozen-lockfile --store-dir=/pnpm/store --side-effects-cache=false --verify-store-integrity=true
 
 # Generation inputs enter only after dependencies have been installed.
 COPY wiki/frontend/package.json ./

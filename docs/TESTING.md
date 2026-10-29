@@ -136,6 +136,10 @@ frozen install сохраняет lifecycle зависимостей. OpenAPI, g
 порядок и сохранение dependency fields; реальные BuildKit cache hits и ускорение
 этого разделения пока не измерены. Обычный frozen install вне Docker сохраняет
 прежний postinstall.
+
+Docker install использует зарегистрированный Node22/architecture download store
+Base в `/pnpm/store`; integrity check включён, side-effects cache выключен.
+`node_modules` остаётся локальным; реальные cache hits и ускорение пока не измерены.
 Root/CI/Docker используют prepared consumers: `tsc --noEmit`, unit и `vite build`.
 Отдельный CI `openapi:check` сохраняется: он генерирует временный контрольный
 schema для drift comparison и не считается устранённым вызовом генератора.
