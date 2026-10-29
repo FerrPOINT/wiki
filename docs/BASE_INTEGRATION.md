@@ -2,16 +2,26 @@
 
 ## Текущий source-кандидат UI
 
-Точный UI SHA: `cdfac2bbcf61f82ff126df529d5759d425e872ea` ([pin](../.base-ui-revision)),
-`@pdlc/ui` 0.3.25, зависимость — [Base #384](https://github.com/FerrPOINT/services-base/pull/384).
-Reference: `dee0677b0616c0caf8d5df8276cd43c1e7bbc1dfa7d9b6ac3776c57fb7ae1b7d`.
+Точный UI SHA: `d7c1d8c3bd92cf888abf1546243fa31878c80269` ([pin](../.base-ui-revision)),
+`@pdlc/ui` 0.3.26, зависимость — [Base #384](https://github.com/FerrPOINT/services-base/pull/384).
+Reference: `0027de894be13a69a735145a83366fd1d4cc72fba2d360994520b6cd6dcb0d20`.
 Компоненты и reference берутся из этой версии Base; открытый справочник другой
 версии не подтверждает доступность контракта в продукте. SDK/skills pins
 независимы. Это исходники собственного checkout; установка и authenticated
 приёмка runtime этим значением не подтверждаются. Датированные разделы ниже
 описывают прежние квалификации и не заменяют проверку итогового кандидата.
 
-### Квалификация frozen UI 0.3.25 — 2026-10-29
+### P1 Owner-Clock: 0.3.26
+
+Producer исправляет независимый JWT expiry через owner transport clock и
+monotonic deadline, сохраняя закрытые 401/403 и expiry после owner outage.
+Frozen offline install, exact installed snapshot, TypeScript, shell contract
+и production build PASS; affected application-access suite: 4 PASS.
+Production TS, API, SDK/skills pins и grants не менялись. Независимое review
+требуется до ready/merge; stand и PM03 pin не затронуты. Остальная theme/browser
+matrix остаётся follow-up; прежние 57 product tests не выдаются за новый run.
+
+### История frozen UI 0.3.25 — 2026-10-29
 
 Frozen offline install, точное совпадение установленного package snapshot,
 CLI/reference, TypeScript, ESLint/semantic/shell guards, OpenAPI parity и
