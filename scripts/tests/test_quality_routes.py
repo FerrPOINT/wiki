@@ -86,12 +86,39 @@ class QualityRouteTests(unittest.TestCase):
         for name in ('Dockerfile', 'Dockerfile.umbrella'):
             source = (ROOT / 'frontend' / name).read_text(encoding='utf-8')
             self.assertNotIn('RUN pnpm generate:api', source)
-            self.assertIn('RUN pnpm run build:prepared', source)
+            self.assertIn('RUN pnpm run build:compile', source)
             self.assertNotIn('RUN pnpm exec vitest', source)
             self.assertLess(source.index('pnpm install --frozen-lockfile'),
                             source.index('COPY wiki/frontend/.prettierrc'))
             self.assertLess(source.index('COPY wiki/frontend/.prettierrc'),
                             source.index('RUN pnpm run postinstall'))
+
+    def test_docker_unit_and_compile_stages_have_distinct_inputs_and_a_required_gate(self):
+        manifest = json.loads((ROOT / '.quality-gate.json').read_bytes())
+        excludes = next(g['exclude_inputs'] for g in manifest['gates'] if g['id'] == 'frontend:build')
+        for name in ('Dockerfile', 'Dockerfile.umbrella'):
+            source = (ROOT / 'frontend' / name).read_text(encoding='utf-8')
+            unit = source.split('FROM dependencies AS unit\n', 1)[1].split('FROM dependencies AS builder\n', 1)[0]
+            compile_stage = source.split('FROM dependencies AS builder\n', 1)[1].split('FROM nginx:', 1)[0]
+            self.assertIn('RUN pnpm run test:unit && ', unit)
+            self.assertIn('pnpm exec tsc --noEmit', unit)
+            self.assertIn("printf 'passed\\n' > /tmp/frontend-unit-check", unit)
+            self.assertNotIn('build:compile', unit)
+            self.assertNotIn('--exclude=', unit)
+            filtered_copy = next(line for line in compile_stage.splitlines() if line.startswith('COPY --exclude='))
+            actual = [arg.removeprefix('--exclude=') for arg in filtered_copy.split() if arg.startswith('--exclude=')]
+            self.assertEqual(actual, [path.removeprefix('frontend/') for path in excludes])
+            gate = '--mount=type=bind,from=unit,source=/tmp/frontend-unit-check,target=/tmp/frontend-unit-check'
+            self.assertIn(gate, compile_stage)
+            self.assertIn('= passed', compile_stage)
+            self.assertLess(compile_stage.index(gate), compile_stage.index('RUN pnpm run build:compile'))
+            self.assertNotIn('test:unit', compile_stage)
+            self.assertEqual(source.count('RUN pnpm run postinstall'), 1)
+            self.assertEqual(source.count('pnpm install --frozen-lockfile'), 1)
+            for consumer in (unit, compile_stage):
+                self.assertIn('COPY --from=generated /workspace/wiki/frontend/src/api/generated.ts', consumer)
+            self.assertEqual([line for line in unit.splitlines() if line.startswith(('ARG VITE_', 'ENV VITE_'))],
+                             [line for line in compile_stage.splitlines() if line.startswith(('ARG VITE_', 'ENV VITE_'))])
 
     def test_docker_install_consumes_registered_store_without_shared_node_modules(self):
         for name in ('Dockerfile', 'Dockerfile.umbrella'):
@@ -127,12 +154,12 @@ class QualityRouteTests(unittest.TestCase):
             self.assertIn('tooling:quality-routes',
                           [gate['id'] for gate in self.plan('frontend/' + name)['gates']])
             source = (ROOT / 'frontend' / name).read_text(encoding='utf-8')
-            dependency = source.split('FROM toolchain AS builder\n', 1)[1]
+            dependency = source.split('FROM toolchain AS dependencies\n', 1)[1]
             before_install, after_install = dependency.split('pnpm install --frozen-lockfile', 1)
             self.assertIn('COPY --from=install-manifest /workspace/wiki/frontend/package.json', before_install)
             self.assertIn('pnpm-lock.yaml wiki/frontend/pnpm-workspace.yaml', before_install)
             self.assertIn('COPY services-base/base-modules/ui ', before_install)
-            self.assertIn('delete pkg.scripts;', source.split('FROM toolchain AS builder', 1)[0])
+            self.assertIn('delete pkg.scripts;', source.split('FROM toolchain AS dependencies', 1)[0])
             self.assertNotIn('--ignore-scripts', source)
             for input_path in ('wiki/openapi/', 'scripts/', '.prettierrc'):
                 self.assertNotIn(input_path, before_install)

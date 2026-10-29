@@ -262,3 +262,8 @@ mixed_central_directory_preserves_identity_and_disabled_state_in_postgres
 
 Frontend dependency hooks: единственная policy — `allowBuilds.esbuild: true` в
 `frontend/pnpm-workspace.yaml`. Source command: `python -B -m unittest scripts.tests.test_ci_contract_checks.PnpmLifecyclePolicyTests -q`.
+
+Docker разделяет полный unit/typecheck context и production COPY по `frontend:build.exclude_inputs`.
+Один `pnpm run postinstall` обслуживает оба consumers; `pnpm run build:compile`
+зависит от успешного unit-маркера. Native cache-hit/time qualification пока не выполнена.
+Docker typecheck использует `pnpm exec tsc --noEmit`, сохраняя prepared bridge без повторной generation.
