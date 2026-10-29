@@ -47,7 +47,13 @@ class CiContractChecksTest(unittest.TestCase):
         frontend_job = workflow.split("\n  frontend:\n", 1)[1].split("\n  deny:\n", 1)[0]
         self.assertIn("fetch-depth: 0", frontend_job)
         self.assertIn("pnpm install --frozen-lockfile --ignore-scripts=false", frontend_job)
-        self.assertIn("git diff --exit-code -- pnpm-lock.yaml src/api/generated.ts src/api/generated-exports.ts", frontend_job)
+        self.assertTrue("git ls-files --error-unmatch pnpm-lock.yaml" in frontend_job)
+        self.assertTrue("git diff --exit-code -- pnpm-lock.yaml" in frontend_job)
+        for generated in ("src/api/generated.ts", "src/api/generated-exports.ts"):
+            for check in (f"git check-ignore -q -- {generated}", f"test -f {generated}",
+                          f"test ! -L {generated}", f"test -s {generated}"):
+                self.assertTrue(check in frontend_job, f"Missing generated-output guard: {check}")
+        self.assertTrue("pnpm openapi:check" in frontend_job, "Ignored outputs still need independent content parity")
         self.assertIn("pnpm openapi:compat", frontend_job)
         self.assertIn("pnpm format:check", frontend_job)
 
@@ -209,8 +215,12 @@ class FrontendGenerationContractTests(unittest.TestCase):
         for name in ("redocly.yaml", "redocly.yml", ".redocly.yaml", ".redocly.yml"):
             self.assertFalse((ROOT / "frontend" / name).exists(), "Requalify new Redocly config/plugins")
         helper = (ROOT / "frontend/scripts/generate-exports.mjs").read_text(encoding="utf-8")
+        # Reviewed incremental writer from 6c6bc5d / the original Wiki3 port.
+        # Its extra read is the declared generated output, only to suppress a
+        # byte-identical write; schema/config dependencies stay unchanged.
+        # This Source guard grants no native prepared-environment reuse.
         self.assertEqual(hashlib.sha256(helper.encode()).hexdigest(),
-                         "c4058d11cf64d9cf5cb3e22a357dcbc7876e2b4b244eff0c4debfbfe68b7beaf",
+                         "c2649c33fd9df9cf4f413f8b4cca1ed49a77ec89e08100f3557c70fb3eb2cb44",
                          "Review changed helper reads/imports and requalify its closure")
         lock = (ROOT / "frontend/pnpm-lock.yaml").read_text(encoding="utf-8")
         self.assertRegex(lock, r"(?m)^      openapi-typescript:\n        specifier: [^\n]+\n        version: 7\.13\.0\(typescript@5\.9\.3\)$")
