@@ -2,21 +2,33 @@
 # The repo's own frontend/Dockerfile builds with context=repo-root only; this
 # variant additionally stages the sibling services-base frontend so the
 # `@pdlc/ui` file dependency (../../services-base/base-modules/ui) resolves.
-FROM node:22.22.2-bookworm-slim AS builder
+FROM node:22.22.2-bookworm-slim AS toolchain
 
 RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
 
 # Preserve the workspace sibling layout so both pnpm's file dependency and
 # Tailwind's shared UI source path resolve the same way as a local checkout.
 WORKDIR /workspace/wiki/frontend
-COPY wiki/frontend/package.json wiki/frontend/pnpm-lock.yaml wiki/frontend/pnpm-workspace.yaml ./
+
+# Product scripts are generation inputs, not dependency installation inputs.
+FROM toolchain AS install-manifest
+COPY wiki/frontend/package.json ./
+RUN node -e 'const fs = require("node:fs"); const pkg = JSON.parse(fs.readFileSync("package.json", "utf8")); delete pkg.scripts; fs.writeFileSync("package.json", JSON.stringify(pkg) + "\n");'
+
+FROM toolchain AS builder
+COPY --from=install-manifest /workspace/wiki/frontend/package.json ./
+COPY wiki/frontend/pnpm-lock.yaml wiki/frontend/pnpm-workspace.yaml ./
 COPY services-base/base-modules/ui /workspace/services-base/base-modules/ui
+# Keep dependency lifecycle scripts (including native tooling) enabled.
+RUN ln -s /workspace/services-base /workspace/wiki/services-base && pnpm install --frozen-lockfile
+
+# Generation inputs enter only after dependencies have been installed.
+COPY wiki/frontend/package.json ./
 COPY wiki/openapi/openapi.json /workspace/wiki/openapi/openapi.json
 COPY wiki/frontend/scripts/generate-exports.mjs ./scripts/generate-exports.mjs
 COPY wiki/frontend/.prettierrc ./.prettierrc
-# pnpm resolves file: dependencies from the importer package root.
 COPY wiki/frontend/scripts/base-generate-openapi.mjs ./scripts/base-generate-openapi.mjs
-RUN ln -s /workspace/services-base /workspace/wiki/services-base && pnpm install --frozen-lockfile
+RUN pnpm run postinstall && test -s src/api/generated.ts && test -s src/api/generated-exports.ts
 
 COPY wiki/frontend/ ./
 ARG VITE_NAMESPACE_ENABLED="false"

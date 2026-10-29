@@ -81,15 +81,44 @@ class QualityRouteTests(unittest.TestCase):
         scripts = json.loads((ROOT / 'frontend/package.json').read_bytes())['scripts']
         self.assertEqual(scripts['build:prepared'], 'pnpm run test:unit && tsc --noEmit && pnpm run build:compile')
         self.assertEqual(scripts['build:compile'], 'vite build')
-        self.assertIn('openapi-typescript', scripts['postinstall'])
+        self.assertIn('base-generate-openapi.mjs', scripts['postinstall'])
         self.assertIn('generate-exports', scripts['postinstall'])
         for name in ('Dockerfile', 'Dockerfile.umbrella'):
             source = (ROOT / 'frontend' / name).read_text(encoding='utf-8')
             self.assertNotIn('RUN pnpm generate:api', source)
             self.assertIn('RUN pnpm run build:prepared', source)
             self.assertNotIn('RUN pnpm exec vitest', source)
+            self.assertLess(source.index('pnpm install --frozen-lockfile'),
+                            source.index('COPY wiki/frontend/.prettierrc'))
             self.assertLess(source.index('COPY wiki/frontend/.prettierrc'),
-                            source.index('pnpm install --frozen-lockfile'))
+                            source.index('RUN pnpm run postinstall'))
+
+    def test_schema_and_generator_changes_keep_the_dependency_install_layer(self):
+        scripts = json.loads((ROOT / 'frontend/package.json').read_bytes())['scripts']
+        # A new product install hook needs an explicit preparation stage.
+        hooks = {'preinstall', 'install', 'postinstall', 'prepublish', 'prepare',
+                 'preprepare', 'postprepare'}
+        self.assertEqual(set(scripts) & hooks, {'postinstall'})
+        for name in ('Dockerfile', 'Dockerfile.umbrella'):
+            self.assertIn('tooling:quality-routes',
+                          [gate['id'] for gate in self.plan('frontend/' + name)['gates']])
+            source = (ROOT / 'frontend' / name).read_text(encoding='utf-8')
+            dependency = source.split('FROM toolchain AS builder\n', 1)[1]
+            before_install, after_install = dependency.split('pnpm install --frozen-lockfile', 1)
+            self.assertIn('COPY --from=install-manifest /workspace/wiki/frontend/package.json', before_install)
+            self.assertIn('pnpm-lock.yaml wiki/frontend/pnpm-workspace.yaml', before_install)
+            self.assertIn('COPY services-base/base-modules/ui ', before_install)
+            self.assertIn('delete pkg.scripts;', source.split('FROM toolchain AS builder', 1)[0])
+            self.assertNotIn('--ignore-scripts', source)
+            for input_path in ('wiki/openapi/', 'scripts/', '.prettierrc'):
+                self.assertNotIn(input_path, before_install)
+                self.assertIn(input_path, after_install)
+            self.assertLess(after_install.index('COPY wiki/frontend/package.json'),
+                            after_install.index('RUN pnpm run postinstall'))
+            self.assertLess(after_install.index('RUN pnpm run postinstall'),
+                            after_install.index('COPY wiki/frontend/ ./'))
+            self.assertEqual(source.count('pnpm install --frozen-lockfile'), 1)
+            self.assertEqual(source.count('RUN pnpm run postinstall'), 1)
 
     def test_generated_outputs_are_not_overwritten_by_host_copy(self):
         for name in ('Dockerfile.dockerignore', 'Dockerfile.umbrella.dockerignore'):
@@ -172,7 +201,7 @@ class QualityRouteTests(unittest.TestCase):
             if not path.is_file(): continue
             source = path.read_text()
             generation = next(i for i, line in enumerate(source.splitlines()) if line.startswith('RUN ')
-                              and ('pnpm run postinstall' in line or 'pnpm install' in line and '--ignore-scripts' not in line))
+                              and 'pnpm run postinstall' in line)
             self.assertIn('base-generate-openapi.mjs', '\n'.join(source.splitlines()[:generation]))
 
 

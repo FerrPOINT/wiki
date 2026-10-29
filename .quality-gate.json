@@ -29,6 +29,7 @@
       "openapi/**"
     ],
     "tooling": [
+      "frontend/Dockerfile*",
       "scripts/tests/test_quality_routes.py",
       "scripts/tests/test_ci_contract_checks.py",
       "scripts/vendor/**",
@@ -75,6 +76,7 @@
         ".quality-gate.json",
         ".quality-tooling-revision",
         ".github/**",
+        "frontend/Dockerfile*",
         "frontend/package.json"
       ]
     },

@@ -129,7 +129,13 @@ Frontend `pnpm test:unit` запускает source-tool Node tests и Vitest б
 полный Vitest-набор; Playwright запускается отдельно. При сборке units выполняются
 до producer. Ошибка unit не позволяет опубликовать новый candidate.
 
-После frozen install postinstall готовит OpenAPI types и bridge один раз.
+В frontend Docker recipes dependency manifest исключает продуктовые scripts;
+frozen install сохраняет lifecycle зависимостей. OpenAPI, generators и `.prettierrc`
+копируются после установки; отдельный `pnpm run postinstall` готовит types и bridge.
+Изменение этих inputs не входит в dependency layer. Source-регрессии проверяют
+порядок и сохранение dependency fields; реальные BuildKit cache hits и ускорение
+этого разделения пока не измерены. Обычный frozen install вне Docker сохраняет
+прежний postinstall.
 Root/CI/Docker используют prepared consumers: `tsc --noEmit`, unit и `vite build`.
 Отдельный CI `openapi:check` сохраняется: он генерирует временный контрольный
 schema для drift comparison и не считается устранённым вызовом генератора.
