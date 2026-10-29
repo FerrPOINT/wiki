@@ -245,7 +245,7 @@ class QualityRouteTests(unittest.TestCase):
         self.assertEqual(generator['file'], 'frontend/scripts/base-generate-openapi.mjs')
         self.assertEqual(generator['contract'], 'base-openapi-generation/v1')
         self.assertEqual(hashlib.sha256((ROOT / generator['file']).read_bytes()).hexdigest(), generator['sha256'])
-        self.assertEqual(package['scripts']['postinstall'], 'node scripts/base-generate-openapi.mjs --schema ../openapi/openapi.json --output src/api/generated.ts && node scripts/generate-exports.mjs')
+        self.assertEqual(package['scripts']['postinstall'], 'node scripts/base-generate-openapi.mjs --schema ../openapi/openapi.json --output src/api/generated.ts && node scripts/generate-exports.mjs --prepared')
         self.assertEqual(package['scripts']['generate:api'], 'openapi-typescript ../openapi/openapi.json -o src/api/generated.ts && node scripts/generate-exports.mjs')
         for name in ('Dockerfile', 'Dockerfile.umbrella'):
             path = ROOT / 'frontend' / name

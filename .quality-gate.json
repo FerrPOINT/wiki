@@ -419,7 +419,8 @@
         "frontend/scripts/tailwind-source-inputs.test.mjs",
         "frontend/scripts/tests/generate-exports.test.mjs",
         "frontend/Dockerfile*",
-        "frontend/nginx.conf"
+        "frontend/nginx.conf",
+        "frontend/scripts/tests/generate-exports-prepared.test.mjs"
       ],
       "test_tier": "artifact"
     },
@@ -622,7 +623,8 @@
     "frontend/src/test/**",
     "frontend/vitest.config.ts",
     "frontend/scripts/tailwind-source-inputs.test.mjs",
-    "frontend/scripts/tests/generate-exports.test.mjs"
+    "frontend/scripts/tests/generate-exports.test.mjs",
+    "frontend/scripts/tests/generate-exports-prepared.test.mjs"
   ],
   "test_policy": {
     "automatic": [

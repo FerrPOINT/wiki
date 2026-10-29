@@ -53,7 +53,7 @@ ENV VITE_PLATFORM_ORIGIN=${VITE_PLATFORM_ORIGIN}
 RUN pnpm run test:unit && pnpm exec tsc --noEmit && printf 'passed\n' > /tmp/frontend-unit-check
 
 FROM dependencies AS builder
-COPY --exclude=src/**/*.test.ts --exclude=src/**/*.test.tsx --exclude=src/**/*.spec.ts --exclude=src/**/*.spec.tsx --exclude=src/**/*.test.mjs --exclude=src/**/*.test.cjs --exclude=src/*.test.ts --exclude=src/*.test.tsx --exclude=src/*.spec.ts --exclude=src/*.spec.tsx --exclude=src/*.test.mjs --exclude=src/*.test.cjs --exclude=src/test/** --exclude=vitest.config.ts --exclude=e2e/** --exclude=scripts/tailwind-source-inputs.test.mjs --exclude=scripts/tests/generate-exports.test.mjs --exclude=Dockerfile* --exclude=nginx.conf wiki/frontend/ ./
+COPY --exclude=src/**/*.test.ts --exclude=src/**/*.test.tsx --exclude=src/**/*.spec.ts --exclude=src/**/*.spec.tsx --exclude=src/**/*.test.mjs --exclude=src/**/*.test.cjs --exclude=src/*.test.ts --exclude=src/*.test.tsx --exclude=src/*.spec.ts --exclude=src/*.spec.tsx --exclude=src/*.test.mjs --exclude=src/*.test.cjs --exclude=src/test/** --exclude=vitest.config.ts --exclude=e2e/** --exclude=scripts/tailwind-source-inputs.test.mjs --exclude=scripts/tests/generate-exports.test.mjs --exclude=Dockerfile* --exclude=nginx.conf --exclude=scripts/tests/generate-exports-prepared.test.mjs wiki/frontend/ ./
 COPY wiki/openapi/openapi.json /workspace/wiki/openapi/openapi.json
 COPY --from=generated /workspace/wiki/frontend/src/api/generated.ts ./src/api/generated.ts
 COPY --from=generated /workspace/wiki/frontend/src/api/generated-exports.ts ./src/api/generated-exports.ts

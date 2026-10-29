@@ -267,3 +267,12 @@ Docker разделяет полный unit/typecheck context и production COPY
 Один `pnpm run postinstall` обслуживает оба consumers; `pnpm run build:compile`
 зависит от успешного unit-маркера. Native cache-hit/time qualification пока не выполнена.
 Docker typecheck использует `pnpm exec tsc --noEmit`, сохраняя prepared bridge без повторной generation.
+
+Автоматический postinstall вызывает bridge с `--prepared`: единственный formatter
+input — plain JSON `frontend/.prettierrc` до 8192 bytes, с `semi`, `singleQuote`,
+`trailingComma`, `printWidth`. Неизвестные options/неверный input дают ошибку до
+записи output. Public `generate:api`/`build`/`typecheck` сохраняют прежний поиск
+Prettier config. Prepared generation-cache profile пока не включён.
+Scoped bridge units: `node --test scripts/tests/generate-exports.test.mjs scripts/tests/generate-exports-prepared.test.mjs`
+из frontend. Реальный Prettier проверяется на synthetic fixtures; app schema/
+Linux/toolchain parity и whole-generation skip требуют отдельной qualification.

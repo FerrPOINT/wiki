@@ -24,11 +24,19 @@ async function fixture(run) {
   await writeFile(entry, source.replace("from 'prettier'", 'from ' + JSON.stringify(formatter)))
   await writeFile(join(root, '.prettierrc'), options)
   let invocation = 0
-  const generate = () => import(pathToFileURL(entry).href + '?unit=' + invocation++)
+  const generate = async (prepared = false) => {
+    const previous = process.argv
+    if (prepared) process.argv = [previous[0], entry, '--prepared']
+    try {
+      await import(pathToFileURL(entry).href + '?unit=' + invocation++)
+    } finally {
+      process.argv = previous
+    }
+  }
   const schema = (name) =>
     `export interface components {\n    schemas: {\n        ${name}: { value: string };\n    };\n}\nexport interface paths { unrelated: { parameters: string }; }\n`
   try {
-    await run({ generate, input, output, schema })
+    await run({ generate, input, output, schema, api })
   } finally {
     assert.equal(await realpath(root), root)
     assert.equal(dirname(root), temporary)
@@ -43,6 +51,23 @@ test('bridge keeps schema aliases without treating path parameters as schemas', 
     const result = await readFile(output, 'utf8')
     assert.match(result, /export type WikiDocument = components\['schemas'\]\['WikiDocument'\]/)
     assert.doesNotMatch(result, /export type unrelated|export type parameters/)
+  })
+})
+
+test('prepared root options match the real formatter and ignore a nearer manual config', async () => {
+  await fixture(async ({ generate, input, output, schema, api }) => {
+    await writeFile(input, schema('WikiDocument'))
+    await generate()
+    const baseline = await readFile(output)
+    await generate(true)
+    assert.deepEqual(await readFile(output), baseline)
+    await writeFile(join(api, '.prettierrc'), JSON.stringify({ semi: true }))
+    const prettier = await import(formatter)
+    await prettier.clearConfigCache()
+    await generate()
+    assert.notDeepEqual(await readFile(output), baseline)
+    await generate(true)
+    assert.deepEqual(await readFile(output), baseline)
   })
 })
 
