@@ -32,7 +32,8 @@
       "scripts/tests/test_verify_readme.py",
       "scripts/tests/test_tooling_ownership.py",
       ".github/workflows/ci.yml",
-      "scripts/tests/test_ci_contract_checks.py"
+      "scripts/tests/test_ci_contract_checks.py",
+      "frontend/pnpm-workspace.yaml"
     ]
   },
   "gates": [
@@ -503,7 +504,8 @@
         "backend/domain/src/wiki.rs",
         "backend/domain/src/value_objects/tests.rs",
         "backend/domain/src/wiki/tests.rs",
-        "scripts/vendor/**"
+        "scripts/vendor/**",
+        "frontend/pnpm-workspace.yaml"
       ],
       "cacheable": true,
       "test_tier": "static"
