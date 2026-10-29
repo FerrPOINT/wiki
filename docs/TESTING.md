@@ -298,3 +298,6 @@ generator сохраняет application build. Изолированная бы�
 helper0,107/0,096с, samples3; это не benchmark полной сборки, CPU/RAM приложения
 не измерялись. По6 Node controls PASS в PDLC1/3; PDLC2 сохраняет свой formatter
 и уже подключённые controls. Полный frontend gate остаётся на согласованной вехе.
+
+Frontend dependency hooks: единственная policy — `allowBuilds.esbuild: true` в
+`frontend/pnpm-workspace.yaml`. Source command: `python -B -m unittest scripts.tests.test_ci_contract_checks.PnpmLifecyclePolicyTests -q`.

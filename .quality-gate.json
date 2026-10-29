@@ -36,7 +36,8 @@
       "backend/Dockerfile.dockerignore",
       "backend/Dockerfile.umbrella.dockerignore",
       "backend/Cargo.toml",
-      "backend/*/Cargo.toml"
+      "backend/*/Cargo.toml",
+      "frontend/pnpm-workspace.yaml"
     ]
   },
   "gates": [
@@ -81,7 +82,8 @@
         "backend/Dockerfile.dockerignore",
         "backend/Dockerfile.umbrella.dockerignore",
         "backend/Cargo.toml",
-        "backend/*/Cargo.toml"
+        "backend/*/Cargo.toml",
+        "frontend/pnpm-workspace.yaml"
       ]
     },
     {
