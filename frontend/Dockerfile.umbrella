@@ -15,6 +15,7 @@ COPY wiki/openapi/openapi.json /workspace/wiki/openapi/openapi.json
 COPY wiki/frontend/scripts/generate-exports.mjs ./scripts/generate-exports.mjs
 COPY wiki/frontend/.prettierrc ./.prettierrc
 # pnpm resolves file: dependencies from the importer package root.
+COPY wiki/frontend/scripts/base-generate-openapi.mjs ./scripts/base-generate-openapi.mjs
 RUN ln -s /workspace/services-base /workspace/wiki/services-base && pnpm install --frozen-lockfile
 
 COPY wiki/frontend/ ./
