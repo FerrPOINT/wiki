@@ -259,3 +259,6 @@ Baseline test fixtures:
 проверяет закрытый DB pool и неполные claims отдельно. CI явно запускает
 mixed_central_directory_preserves_identity_and_disabled_state_in_postgres
 на своём PostgreSQL; workspace test не исполняет ignored-тест автоматически.
+
+Frontend dependency hooks: единственная policy — `allowBuilds.esbuild: true` в
+`frontend/pnpm-workspace.yaml`. Source command: `python -B -m unittest scripts.tests.test_ci_contract_checks.PnpmLifecyclePolicyTests -q`.
