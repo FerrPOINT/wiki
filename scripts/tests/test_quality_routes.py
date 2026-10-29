@@ -9,7 +9,7 @@ from unittest.mock import patch
 from scripts.vendor import base_quality_selection as selector
 
 ROOT = Path(__file__).resolve().parents[2]
-PIN = "339c1b0c94ef820a6a4c16c7d0174a56caaca234"
+PIN = '0a8b0ccf9a3db10f4ec954d9c8df21206f98a5e1'
 
 
 def job(text, name):
@@ -116,12 +116,12 @@ class QualityRouteTests(unittest.TestCase):
             outputs = selector.ci_outputs("push", "a" * 40, "b" * 40, repo=ROOT)
         self.assertEqual(outputs["backend_build"], "true")
 
-    def test_selector_packet_is_exact_and_has_no_optional_features(self):
+    def test_selector_packet_is_exact_and_has_registered_generator(self):
         receipt = json.loads((ROOT / "scripts/vendor/base-quality-tooling.json").read_text(encoding="utf-8"))
         self.assertEqual((ROOT / ".quality-tooling-revision").read_text(encoding="utf-8").strip(), PIN)
         self.assertEqual(receipt["revision"], PIN)
         self.assertEqual(receipt["sha256"], hashlib.sha256((ROOT / "scripts/vendor/base_quality_selection.py").read_bytes()).hexdigest())
-        self.assertEqual(set(receipt), {"schema", "repository", "revision", "source", "sha256"})
+        self.assertEqual(set(receipt), {'sha256', 'frontend_generator', 'schema', 'source', 'repository', 'revision'})
         changes = job((ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8"), "changes")
         code = re.search(r"          python3 - <<'PY'\n(.*?)^          PY$", changes, re.M | re.S)[1]
         code = "\n".join(line[10:] for line in code.splitlines())
@@ -168,6 +168,28 @@ class QualityRouteTests(unittest.TestCase):
         for tier in ("integration", "slow", "e2e"):
             self.assertIn("**/*." + tier + ".test.*", scripts["test:unit"])
         self.assertIn("/.local/", (ROOT / ".gitignore").read_text(encoding="utf-8"))
+
+
+    def test_automatic_generator_adapter_preserves_the_public_manual_route(self):
+        package = json.loads((ROOT / 'frontend/package.json').read_bytes())
+        receipt = json.loads((ROOT / 'scripts/vendor/base-quality-tooling.json').read_bytes())
+        self.assertEqual(receipt['schema'], 'base-quality-tooling/v2')
+        generator = receipt['frontend_generator']
+        self.assertEqual(set(generator), {'source', 'file', 'contract', 'sha256'})
+        self.assertEqual(generator['source'], 'scripts/generate_openapi.mjs')
+        self.assertEqual(generator['file'], 'frontend/scripts/base-generate-openapi.mjs')
+        self.assertEqual(generator['contract'], 'base-openapi-generation/v1')
+        self.assertEqual(hashlib.sha256((ROOT / generator['file']).read_bytes()).hexdigest(), generator['sha256'])
+        self.assertEqual(package['scripts']['postinstall'], 'node scripts/base-generate-openapi.mjs --schema ../openapi/openapi.json --output src/api/generated.ts && node scripts/generate-exports.mjs')
+        self.assertEqual(package['scripts']['generate:api'], 'openapi-typescript ../openapi/openapi.json -o src/api/generated.ts && node scripts/generate-exports.mjs')
+        for name in ('Dockerfile', 'Dockerfile.umbrella'):
+            path = ROOT / 'frontend' / name
+            if not path.is_file(): continue
+            source = path.read_text()
+            generation = next(i for i, line in enumerate(source.splitlines()) if line.startswith('RUN ')
+                              and ('pnpm run postinstall' in line or 'pnpm install' in line and '--ignore-scripts' not in line))
+            self.assertIn('base-generate-openapi.mjs', '\n'.join(source.splitlines()[:generation]))
+
 
 
 class CssInputOwnershipTests(unittest.TestCase):

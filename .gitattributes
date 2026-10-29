@@ -8,3 +8,5 @@ scripts/vendor/base_quality_selection.py text eol=lf
 frontend/scripts/generate-exports.mjs text eol=lf
 frontend/scripts/tests/generate-exports.test.mjs text eol=lf
 frontend/package.json text eol=lf
+
+frontend/scripts/base-generate-openapi.mjs text eol=lf

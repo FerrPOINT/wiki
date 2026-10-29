@@ -32,6 +32,7 @@ ARG PDLC_RUN_SLOT_SHARING=locked
 COPY wiki/frontend/package.json ./
 COPY wiki/openapi/openapi.json /workspace/wiki/openapi/openapi.json
 COPY wiki/frontend/scripts/generate-exports.mjs ./scripts/generate-exports.mjs
+COPY wiki/frontend/scripts/base-generate-openapi.mjs ./scripts/base-generate-openapi.mjs
 RUN --mount=type=cache,id=pdlc-host-run-slot-v1,target=/.__pdlc_build_slot__,sharing=${PDLC_RUN_SLOT_SHARING} pnpm run postinstall && test -s src/api/generated.ts && test -s src/api/generated-exports.ts
 
 FROM dependencies AS unit
