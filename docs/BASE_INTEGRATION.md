@@ -2,16 +2,24 @@
 
 ## Текущий source-кандидат UI
 
-Точный UI SHA: `d7c1d8c3bd92cf888abf1546243fa31878c80269` ([pin](../.base-ui-revision)),
+Точный UI SHA: `2de0f72b2c28f3d0930808a1c58a941f9c6be31e` ([pin](../.base-ui-revision)),
 `@pdlc/ui` 0.3.26, зависимость — [Base #384](https://github.com/FerrPOINT/services-base/pull/384).
-Reference: `0027de894be13a69a735145a83366fd1d4cc72fba2d360994520b6cd6dcb0d20`.
+Reference: `0bb6a3074c8188354c79a5b4bdea9654d3c31a60a6b1eec3033c20ebc0f1488f`.
 Компоненты и reference берутся из этой версии Base; открытый справочник другой
 версии не подтверждает доступность контракта в продукте. SDK/skills pins
 независимы. Это исходники собственного checkout; установка и authenticated
 приёмка runtime этим значением не подтверждаются. Датированные разделы ниже
 описывают прежние квалификации и не заменяют проверку итогового кандидата.
 
-### P1 Owner-Clock: 0.3.26
+### Финальный Checkpoint 2de0f72b
+
+Bounded fetch/body wait дополнен к owner-clock expiry. Frozen offline refresh,
+exact snapshot, types, production build и shell contract PASS. Changed transport
+покрыт 96 Base auth cases и 18 исходными Admin integration cases на final pin.
+Нижние product auth cases относятся к d7c1d8c3 и переиспользованы по неизменным
+React composition inputs; нового полного продуктового прогона нет.
+
+### Первый P1 Checkpoint d7c1d8c3
 
 Producer исправляет независимый JWT expiry через owner transport clock и
 monotonic deadline, сохраняя закрытые 401/403 и expiry после owner outage.
