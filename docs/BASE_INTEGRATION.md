@@ -2,12 +2,28 @@
 
 ## Текущий source-кандидат UI
 
-Точный UI SHA: `cf88f7094044a403e6bb7105cfa88b12c4208c96` ([pin](../.base-ui-revision)).
+Точный UI SHA: `cdfac2bbcf61f82ff126df529d5759d425e872ea` ([pin](../.base-ui-revision)),
+`@pdlc/ui` 0.3.25, зависимость — [Base #384](https://github.com/FerrPOINT/services-base/pull/384).
+Reference: `dee0677b0616c0caf8d5df8276cd43c1e7bbc1dfa7d9b6ac3776c57fb7ae1b7d`.
 Компоненты и reference берутся из этой версии Base; открытый справочник другой
 версии не подтверждает доступность контракта в продукте. SDK/skills pins
 независимы. Это исходники собственного checkout; установка и authenticated
 приёмка runtime этим значением не подтверждаются. Датированные разделы ниже
 описывают прежние квалификации и не заменяют проверку итогового кандидата.
+
+### Квалификация frozen UI 0.3.25 — 2026-10-29
+
+Frozen offline install, точное совпадение установленного package snapshot,
+CLI/reference, TypeScript, ESLint/semantic/shell guards, OpenAPI parity и
+production build прошли. Scoped Vitest: 57 PASS в четырёх suites — app-shell,
+application-access, document и settings. Production TS, API, SDK/skills pins,
+права, данные и runtime не менялись; обновлены только UI pin и этот профиль.
+
+Browser matrix финального pin остаётся открытой: light/gray/dark,
+375/1920/2560, keyboard/focus/drawer/Portal, document/editor states, reload и
+zoom 200%. Это не live-приёмка установленного Wiki. Hosted CI, общий
+семиклиентный gate, merge и установка отдельны; Release C не установлен.
+Текущий PM image с прежним UI не зависит от этой source-поставки.
 
 Audit/evidence ячейки используют TableCell technical/size=sm Base; ссылки, запросы, форматирование и скачивание остаются Wiki.
 
