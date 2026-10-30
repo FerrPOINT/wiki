@@ -1,6 +1,9 @@
+import { ContentSection } from '@pdlc/ui/ui'
 import { useApplicationAccess } from '@pdlc/ui/auth'
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import {
+  ActionGroup,
+  PageNavigation,
   PageHeader,
   Select,
   CodeBlock,
@@ -11,7 +14,7 @@ import {
   EmptyState,
   ErrorState,
   Input,
-  Label,
+  FormField,
   LoadingState,
   Textarea,
   SearchInput,
@@ -283,95 +286,94 @@ export function TemplatesPage() {
       )}
 
       {isSystemAdmin && showCreate && (
-        <form
-          id="template-create"
-          aria-label="Создание шаблона"
-          onSubmit={handleCreateTemplate}
-          noValidate
-          className="space-y-3 border-y border-border py-4"
-        >
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_14rem]">
-            <div className="space-y-1.5">
-              <Label htmlFor="template-name">Название шаблона</Label>
-              <Input
-                ref={nameRef}
+        <ContentSection asChild dividers="both">
+          <form
+            id="template-create"
+            aria-label="Создание шаблона"
+            onSubmit={handleCreateTemplate}
+            noValidate
+            className="space-y-3"
+          >
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_14rem]">
+              <FormField
                 id="template-name"
-
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                disabled={createTemplate.isPending}
-                aria-invalid={nameInvalid}
-                aria-describedby={nameInvalid ? 'template-name-error' : undefined}
+                label="Название шаблона"
                 required
-              />
-              {nameInvalid && (
-                <p id="template-name-error" className="text-sm text-danger">
-                  Введите название шаблона.
-                </p>
-              )}
+                error={nameInvalid ? 'Введите название шаблона.' : undefined}
+              >
+                {(attrs) => (
+                  <Input
+                    {...attrs}
+                    ref={nameRef}
+
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    disabled={createTemplate.isPending}
+                  />
+                )}
+              </FormField>
+              <FormField id="template-type" label="Тип документа">
+                {(attrs) => (
+                  <Select
+                    {...attrs}
+                    className="w-full"
+                    value={documentType}
+                    onValueChange={(nextValue) => setDocumentType(nextValue)}
+                    disabled={createTemplate.isPending}
+                    options={[
+                      ...(typeOptions.map((type) => ({
+                        value: String(type),
+                        label: String(formatDocumentType(type)),
+                      })) ?? []),
+                    ]}
+                  />
+                )}
+              </FormField>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="template-type">Тип документа</Label>
-              <Select
-                id="template-type"
-                className="w-full"
-                value={documentType}
-                onValueChange={(nextValue) => setDocumentType(nextValue)}
-                disabled={createTemplate.isPending}
-                options={[
-                  ...(typeOptions.map((type) => ({
-                    value: String(type),
-                    label: String(formatDocumentType(type)),
-                  })) ?? []),
-                ]}
-              />
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="template-body">Markdown шаблона</Label>
-            <Textarea
-              ref={bodyRef}
+            <FormField
               id="template-body"
-              className="min-h-32 font-mono text-sm"
-              value={body}
-              onChange={(event) => setBody(event.target.value)}
-              disabled={createTemplate.isPending}
-              aria-invalid={bodyInvalid}
-              aria-describedby={bodyInvalid ? 'template-body-error' : undefined}
+              label="Markdown шаблона"
               required
-            />
-            {bodyInvalid && (
-              <p id="template-body-error" className="text-sm text-danger">
-                Введите содержимое шаблона.
-              </p>
+              error={bodyInvalid ? 'Введите содержимое шаблона.' : undefined}
+            >
+              {(attrs) => (
+                <Textarea
+                  {...attrs}
+                  ref={bodyRef}
+                  className="min-h-32 font-mono text-sm"
+                  value={body}
+                  onChange={(event) => setBody(event.target.value)}
+                  disabled={createTemplate.isPending}
+                />
+              )}
+            </FormField>
+            {createTemplate.isError && (
+              <Notice role="alert" appearance="inline" tone="danger">
+                {formatApiErrorForUser(createTemplate.error, 'Не удалось создать шаблон')}
+              </Notice>
             )}
-          </div>
-          {createTemplate.isError && (
-            <Notice role="alert" appearance="inline" tone="danger">
-              {formatApiErrorForUser(createTemplate.error, 'Не удалось создать шаблон')}
-            </Notice>
-          )}
-          <div className="flex flex-wrap justify-end gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
+            <ActionGroup align="end">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
 
-              disabled={createTemplate.isPending}
-              onClick={() => setShowCreate(false)}
-            >
-              Свернуть
-            </Button>
-            <Button
-              type="submit"
-              size="sm"
+                disabled={createTemplate.isPending}
+                onClick={() => setShowCreate(false)}
+              >
+                Свернуть
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
 
-              disabled={createTemplate.isPending}
-            >
-              {createTemplate.isPending ? 'Создаём...' : 'Создать шаблон'}
-            </Button>
-          </div>
-        </form>
+                disabled={createTemplate.isPending}
+              >
+                {createTemplate.isPending ? 'Создаём...' : 'Создать шаблон'}
+              </Button>
+            </ActionGroup>
+          </form>
+        </ContentSection>
       )}
 
       {templatesQuery.isLoading && <LoadingState message="Загружаем шаблоны" />}
@@ -431,14 +433,14 @@ export function TemplatesPage() {
                   return (
                     <li key={template.id}>
                       <ResourceListRow asChild>
-                        <div className="flex min-w-0 items-center gap-2">
+                        <ActionGroup align="start" className="min-w-0">
                           <Button
                             variant="ghost"
                             type="button"
                             aria-expanded={expanded}
                             aria-controls={`template-body-${template.id}`}
                             aria-label={`${expanded ? 'Скрыть' : 'Показать'} содержимое шаблона ${template.name}`}
-                            className="flex min-h-14 min-w-0 flex-1 items-center gap-3 py-2 text-left hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent"
+                            className="min-w-0 flex-1 gap-3 text-left"
                             onClick={() => setExpandedId(expanded ? null : template.id)}
                           >
                             <Icon className="h-4 w-4 shrink-0 text-accent" aria-hidden />
@@ -455,21 +457,18 @@ export function TemplatesPage() {
                               aria-hidden
                             />
                           </Button>
-                          <Link
-                            to={`/documents/new?template=${encodeURIComponent(template.id)}`}
-                            aria-label={`Использовать шаблон ${template.name}`}
-                            className="inline-flex min-h-10 shrink-0 items-center px-2 text-sm text-accent hover:underline"
-                          >
-                            Использовать
-                          </Link>
-                        </div>
+                          <Button asChild variant="link" className="shrink-0">
+                            <Link
+                              to={`/documents/new?template=${encodeURIComponent(template.id)}`}
+                              aria-label={`Использовать шаблон ${template.name}`}
+                            >
+                              Использовать
+                            </Link>
+                          </Button>
+                        </ActionGroup>
                       </ResourceListRow>
                       {expanded && (
-                        <CodeBlock
-                          id={`template-body-${template.id}`}
-                          aria-label={template.name}
-                          className="rounded-none border-0 border-t bg-surface-raised"
-                        >
+                        <CodeBlock id={`template-body-${template.id}`} aria-label={template.name}>
                           {template.body_markdown}
                         </CodeBlock>
                       )}
@@ -480,37 +479,17 @@ export function TemplatesPage() {
             </ResourceList>
           )}
           {filteredTemplates.length > pageSize && (
-            <nav aria-label="Страницы шаблонов" className="flex items-center justify-end gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-
-                disabled={currentPage === 1}
-                onClick={() => {
-                  setCatalogPage(currentPage - 1)
-                  setExpandedId(null)
-                }}
-              >
-                Назад
-              </Button>
-              <span className="text-sm text-text-muted">
-                {currentPage} / {totalPages}
-              </span>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-
-                disabled={currentPage === totalPages}
-                onClick={() => {
-                  setCatalogPage(currentPage + 1)
-                  setExpandedId(null)
-                }}
-              >
-                Далее
-              </Button>
-            </nav>
+            <PageNavigation
+              page={currentPage}
+              pageCount={totalPages}
+              onPageChange={(nextPage) => {
+                setCatalogPage(nextPage)
+                setExpandedId(null)
+              }}
+              label="Страницы шаблонов"
+              previousLabel="Назад"
+              nextLabel="Далее"
+            />
           )}
         </section>
       )}

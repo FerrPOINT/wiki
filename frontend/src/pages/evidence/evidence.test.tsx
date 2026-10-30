@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -156,6 +156,51 @@ describe('EvidencePage', () => {
     })
   })
 
+  it.each([
+    ['снимок.csv', 'снимок.csv'],
+    [null, 'build.log'],
+  ])(
+    'downloads the returned Blob with its server filename or metadata fallback (%s)',
+    async (fileName, expectedName) => {
+      const blob = new Blob(['fixture bytes'], { type: 'text/plain' })
+      const create = vi.fn(() => 'blob:wiki-evidence')
+      const revoke = vi.fn()
+      vi.stubGlobal(
+        'URL',
+        class extends URL {
+          static createObjectURL = create
+          static revokeObjectURL = revoke
+        },
+      )
+      const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+        this: HTMLAnchorElement,
+      ) {
+        expect(this.download).toBe(expectedName)
+        expect(this.href).toBe('blob:wiki-evidence')
+      })
+      try {
+        setupEvidence()
+        fireEvent.click(
+          within(screen.getByRole('table')).getByRole('button', {
+            name: 'Открыть материал Лог сборки',
+          }),
+        )
+        fireEvent.click(screen.getByRole('button', { name: 'Скачать Лог сборки' }))
+        expect(create).not.toHaveBeenCalled()
+        const onSuccess = downloadAttachmentMutate.mock.calls[0]?.[1].onSuccess
+        expect(onSuccess).toBeTypeOf('function')
+        onSuccess({ blob, fileName })
+        expect(create).toHaveBeenCalledExactlyOnceWith(blob)
+        expect(click).toHaveBeenCalledOnce()
+        expect(document.querySelector('a[download]')).toBeNull()
+        await waitFor(() => expect(revoke).toHaveBeenCalledExactlyOnceWith('blob:wiki-evidence'))
+      } finally {
+        click.mockRestore()
+        vi.unstubAllGlobals()
+      }
+    },
+  )
+
   it('uses Base target sizing without product-specific control geometry', () => {
     setupEvidence()
 
@@ -193,9 +238,10 @@ describe('EvidencePage', () => {
     ]) {
       expect(screen.getByLabelText(label)).toHaveClass('base-control')
     }
-    for (const name of ['Ссылка', 'Файл', 'Сохранить материал']) {
-      expect(screen.getByRole('button', { name })).toHaveClass('min-h-10')
+    for (const name of ['Ссылка', 'Файл']) {
+      expect(screen.getByRole('radio', { name }).closest('label')).toHaveClass('base-check-field')
     }
+    expect(screen.getByRole('button', { name: 'Сохранить материал' })).toHaveClass('min-h-10')
   })
 
   it('applies server search only on submit and resets the cursor with filters', () => {
@@ -333,14 +379,33 @@ describe('EvidencePage', () => {
     expect(useEvidenceItem).toHaveBeenLastCalledWith('created')
   })
 
+  it('switches evidence type with the shared choice while preserving the draft and avoiding writes', async () => {
+    const user = userEvent.setup()
+    setupEvidence()
+    openCreateForm()
+    fillEvidenceForm()
+    fireEvent.change(screen.getByLabelText('URL материала'), {
+      target: { value: 'https://ci.local/jobs/retained-draft' },
+    })
+    const group = screen.getByRole('radiogroup', { name: 'Тип материала' })
+    expect(within(group).getByRole('radio', { name: 'Ссылка' })).toBeChecked()
+    await user.click(within(group).getByRole('radio', { name: 'Файл' }))
+    expect(screen.getByLabelText('Файл материала')).toBeInTheDocument()
+    expect(screen.getByLabelText('Название')).toHaveValue('Проверка сборки')
+    await user.click(within(group).getByRole('radio', { name: 'Ссылка' }))
+    expect(screen.getByLabelText('URL материала')).toHaveValue('https://ci.local/jobs/retained-draft')
+    expect(createLinkMutate).not.toHaveBeenCalled()
+    expect(createFileMutate).not.toHaveBeenCalled()
+  })
+
   it('locks every create control while a request is pending', () => {
     setupEvidence()
     openCreateForm()
     useCreateEvidence.mockReturnValue({ mutate: createLinkMutate, isPending: true, error: null })
     fireEvent.change(screen.getByLabelText('Поиск материалов'), { target: { value: 'refresh' } })
     expect(screen.getByRole('button', { name: 'Закрыть форму' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Ссылка' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Файл' })).toBeDisabled()
+    expect(screen.getByRole('radio', { name: 'Ссылка' })).toBeDisabled()
+    expect(screen.getByRole('radio', { name: 'Файл' })).toBeDisabled()
     for (const label of [
       'Пространство',
       'Документ',
@@ -379,7 +444,7 @@ describe('EvidencePage', () => {
     createFileMutate.mockImplementation((_payload, options) => options.onSuccess(defaultItems[1]))
     setupEvidence()
     openCreateForm()
-    await user.click(screen.getByRole('button', { name: 'Файл' }))
+    await user.click(screen.getByRole('radio', { name: 'Файл' }))
     fillEvidenceForm()
     const file = new File(['build ok'], 'build.log', { type: 'text/plain' })
     await user.upload(screen.getByLabelText('Файл материала'), file)
@@ -399,7 +464,7 @@ describe('EvidencePage', () => {
     const user = userEvent.setup()
     setupEvidence()
     openCreateForm()
-    await user.click(screen.getByRole('button', { name: 'Файл' }))
+    await user.click(screen.getByRole('radio', { name: 'Файл' }))
     fillEvidenceForm()
     const file = new File(['build ok'], 'build.log', { type: 'text/plain' })
     await user.upload(screen.getByLabelText('Файл материала'), file)

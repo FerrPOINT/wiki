@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { ExternalLink } from 'lucide-react'
 import { useSearchParams } from 'react-router'
-import {
+import { ResourceListTitle, ResourceListDescription,
+  PageNavigation,
   PageHeader,
   Button,
   EmptyState,
@@ -178,12 +179,12 @@ export function UsersPage() {
                 <ResourceListRow asChild key={user.id}>
                   <div className="min-w-0 space-y-1">
                     <div className="flex items-start justify-between gap-3">
-                      <span className="min-w-0 break-words font-medium">
+                      <ResourceListTitle asChild className="min-w-0 break-words"><span >
                         {user.display_name ?? user.username ?? user.email}
-                      </span>
-                      <span className="shrink-0 text-xs text-text-secondary">
+                      </span></ResourceListTitle>
+                      <ResourceListDescription asChild className="shrink-0"><span >
                         {user.active === false ? 'Профиль отключён' : 'Профиль доступен'}
-                      </span>
+                      </span></ResourceListDescription>
                     </div>
                     <div className="break-all text-sm text-text-muted">{user.email}</div>
                   </div>
@@ -214,37 +215,25 @@ export function UsersPage() {
             </TableBody>
           </Table>
           {filtered.length > pageSize && (
-            <nav
-              aria-label="Страницы профилей"
-              className="flex flex-wrap items-center justify-end gap-2"
-            >
-              <span className="mr-auto text-sm text-text-muted">
-                Показаны {firstVisible}–{lastVisible} из {filtered.length}
-              </span>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-
-                disabled={currentPage === 1}
-                onClick={() => setPage(currentPage - 1)}
-              >
-                Назад
-              </Button>
-              <span className="text-sm text-text-muted">
-                {currentPage} / {totalPages}
-              </span>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-
-                disabled={currentPage === totalPages}
-                onClick={() => setPage(currentPage + 1)}
-              >
-                Далее
-              </Button>
-            </nav>
+            <PageNavigation
+              page={currentPage}
+              pageCount={totalPages}
+              onPageChange={setPage}
+              label="Страницы профилей"
+              previousLabel="Назад"
+              nextLabel="Далее"
+              summary={
+                <>
+                  <span>
+                    Показаны {firstVisible}–{lastVisible} из {filtered.length}
+                  </span>
+                  {' · '}
+                  <span>
+                    {currentPage} / {totalPages}
+                  </span>
+                </>
+              }
+            />
           )}
         </>
       )}

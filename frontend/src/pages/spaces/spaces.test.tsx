@@ -249,11 +249,11 @@ describe('SpacesPage', () => {
     expect(screen.queryByText('2 участников')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Роль')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Назначить' })).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Требования требования/ })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /Требования · требования/ })).toHaveAttribute(
       'href',
       '/documents/doc-root',
     )
-    expect(screen.getByRole('link', { name: /План проверки план проверки/ })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /План проверки · план проверки/ })).toHaveAttribute(
       'href',
       '/documents/doc-child',
     )

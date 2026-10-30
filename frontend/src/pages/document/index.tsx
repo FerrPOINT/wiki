@@ -2,6 +2,8 @@ import { useNamespaceContext } from '@/widgets/namespace-context'
 import { TaskRevisionLink } from '@/features/managed-links/TaskRevisionLink'
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import {
+  Badge,
+  PageNavigation,
   RadioGroup,
   PageHeader,
   Prose,
@@ -21,15 +23,19 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
-  Label,
   Textarea,
   UnsavedChangesGuard,
   Notice,
+  FormField,
+  ResourceListDescription,
+  ResourceListTitle,
+  ResourceList,
+  ResourceListRow,
+  IconMark,
 } from '@pdlc/ui/ui'
 import { useParams } from 'react-router'
 import {
   Archive,
-  CheckCircle2,
   Clock3,
   Eye,
   FileCheck2,
@@ -80,22 +86,11 @@ function RenderedDocumentBody({
   emptyMessage: string
   compact?: boolean
 }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
-
-    for (const region of container.querySelectorAll<HTMLElement>('pre, table')) {
-      region.tabIndex = 0
-    }
-  })
-
   if (html.trim().length === 0) return <EmptyState message={emptyMessage} />
 
   return (
     <Prose
-      ref={containerRef}
+      keyboardScroll
       compact={compact}
       className="page-readable"
       dangerouslySetInnerHTML={{ __html: html }}
@@ -313,17 +308,14 @@ export function DocumentPage() {
               {document.space_key} / {formatDocumentType(document.document_type)} / {document.slug}
             </div>
             <div className="mt-3 flex flex-wrap gap-2 text-xs text-text-secondary">
-              <span className="inline-flex items-center gap-1 rounded bg-surface-raised px-2 py-1">
-                <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+              <Badge appearance="dot" tone={document.status === 'published' ? 'success' : 'muted'}>
                 {formatDocumentStatus(document.status)}
-              </span>
-              <span className="inline-flex items-center gap-1 rounded bg-surface-raised px-2 py-1">
+              </Badge>
+              <Badge>
                 <Clock3 className="h-3.5 w-3.5" />
                 ревизия {document.current_revision?.version ?? 0}
-              </span>
-              <span className="rounded bg-surface-raised px-2 py-1">
-                обновлено {formatDateTime(document.updated_at)}
-              </span>
+              </Badge>
+              <Badge>обновлено {formatDateTime(document.updated_at)}</Badge>
             </div>
           </>
         }
@@ -374,9 +366,9 @@ export function DocumentPage() {
             ]}
           />
           {draftChanged && (
-            <span role="status" className="text-xs text-warning">
+            <Notice role="status" tone="warning" appearance="inline">
               Несохранённые изменения в черновике
-            </span>
+            </Notice>
           )}
         </div>
       )}
@@ -406,10 +398,7 @@ export function DocumentPage() {
           layout="sectioned"
           className="max-w-4xl"
           aria-describedby="revision-snapshot-description"
-          onCloseAutoFocus={(event) => {
-            event.preventDefault()
-            revisionTriggerRef.current?.focus()
-          }}
+          returnFocusRef={revisionTriggerRef}
         >
           <DialogHeader>
             <DialogTitle>Снимок ревизии</DialogTitle>
@@ -499,26 +488,27 @@ export function DocumentPage() {
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSaveDraft} className="space-y-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="document-edit-title">Название</Label>
-                    <Input
-                      id="document-edit-title"
-
-                      value={draftTitle}
-                      onChange={(event) => setDraftTitle(event.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="document-edit-markdown">Markdown</Label>
-                    <Textarea
-                      id="document-edit-markdown"
-                      className="min-h-80 font-mono text-sm"
-                      aria-label="Markdown черновика"
-                      value={draftBody}
-                      onChange={(event) => setDraftBody(event.target.value)}
-                    />
-                  </div>
+                  <FormField id="document-edit-title" label={'Название'}>
+                    {(baseFieldAttrs) => (
+                      <Input
+                        {...baseFieldAttrs}
+                        value={draftTitle}
+                        onChange={(event) => setDraftTitle(event.target.value)}
+                        required
+                      />
+                    )}
+                  </FormField>
+                  <FormField id="document-edit-markdown" label={'Markdown'}>
+                    {(baseFieldAttrs) => (
+                      <Textarea
+                        {...baseFieldAttrs}
+                        className="min-h-80 font-mono text-sm"
+                        aria-label="Markdown черновика"
+                        value={draftBody}
+                        onChange={(event) => setDraftBody(event.target.value)}
+                      />
+                    )}
+                  </FormField>
                   <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto]">
                     <Input
                       value={publishSummary}
@@ -604,16 +594,16 @@ export function DocumentPage() {
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleMove} className="space-y-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="document-parent">Родительский документ</Label>
-                    <Input
-                      id="document-parent"
-
-                      value={parentId}
-                      onChange={(event) => setParentId(event.target.value)}
-                      placeholder="корень пространства"
-                    />
-                  </div>
+                  <FormField id="document-parent" label={'Родительский документ'}>
+                    {(baseFieldAttrs) => (
+                      <Input
+                        {...baseFieldAttrs}
+                        value={parentId}
+                        onChange={(event) => setParentId(event.target.value)}
+                        placeholder="корень пространства"
+                      />
+                    )}
+                  </FormField>
                   <Button
                     type="submit"
                     size="sm"
@@ -690,81 +680,71 @@ export function DocumentPage() {
                   message={revisionPage > 0 ? 'На этой странице ревизий нет' : 'Ревизий пока нет'}
                 />
               )}
-              {revisions.map((revision) => (
-                <div
-                  key={revision.id}
-                  role="group"
-                  aria-label={`Ревизия ${revision.version}`}
-                  className="flex items-start gap-3 border-b border-border py-3 last:border-b-0"
-                >
-                  <History className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm font-medium">
-                      <span>Ревизия {revision.version}</span>
-                      <span className="text-xs font-normal text-text-muted">
-                        {formatDateTime(revision.published_at)}
-                      </span>
-                    </div>
-                    <p className="mt-1 truncate text-xs text-text-secondary">
-                      {shortText(revision.summary, 'Без описания изменений')}
-                    </p>
-                    <p className="mt-1 truncate text-xs text-text-muted" title={revision.author_id}>
-                      {revision.author_id}
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    size="icon"
-                    className="shrink-0"
-                    variant="outline"
-                    aria-label={`Открыть ревизию ${revision.version}`}
-                    title={`Открыть ревизию ${revision.version}`}
-                    onClick={(event) => {
-                      revisionTriggerRef.current = event.currentTarget
-                      setSelectedRevisionId(revision.id)
-                    }}
-                  >
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
+              {revisions.length > 0 && (
+                <ResourceList>
+                  {revisions.map((revision) => (
+                    <ResourceListRow
+                      key={revision.id}
+                      role="group"
+                      aria-label={`Ревизия ${revision.version}`}
+                      className="flex items-start gap-3"
+                    >
+                      <IconMark size="sm">
+                        <History aria-hidden />
+                      </IconMark>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                          <ResourceListTitle asChild>
+                            <span>Ревизия {revision.version}</span>
+                          </ResourceListTitle>
+                          <ResourceListDescription asChild>
+                            <span>{formatDateTime(revision.published_at)}</span>
+                          </ResourceListDescription>
+                        </div>
+                        <ResourceListDescription asChild>
+                          <p className="mt-1 truncate">
+                            {shortText(revision.summary, 'Без описания изменений')}
+                          </p>
+                        </ResourceListDescription>
+                        <ResourceListDescription asChild>
+                          <p className="mt-1 truncate" title={revision.author_id}>
+                            {revision.author_id}
+                          </p>
+                        </ResourceListDescription>
+                      </div>
+                      <Button
+                        type="button"
+                        size="icon"
+                        className="shrink-0"
+                        variant="outline"
+                        aria-label={`Открыть ревизию ${revision.version}`}
+                        title={`Открыть ревизию ${revision.version}`}
+                        onClick={(event) => {
+                          revisionTriggerRef.current = event.currentTarget
+                          setSelectedRevisionId(revision.id)
+                        }}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    </ResourceListRow>
+                  ))}
+                </ResourceList>
+              )}
               {(revisionPage > 0 || hasNextRevisionPage) && (
-                <nav
-                  aria-label="Страницы ревизий"
-                  className="space-y-2 border-t border-border pt-3"
-                >
-                  <span className="block text-center text-sm text-text-secondary">
-                    Страница {revisionPage + 1}
-                  </span>
-                  <div className="flex items-center justify-between gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-
-                      disabled={revisionPage === 0}
-                      onClick={() => {
-                        setSelectedRevisionId(null)
-                        setRevisionPage((page) => page - 1)
-                      }}
-                    >
-                      Предыдущая
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-
-                      disabled={
-                        !hasNextRevisionPage || revisionsQuery.isLoading || revisionsQuery.isError
-                      }
-                      onClick={() => {
-                        setSelectedRevisionId(null)
-                        setRevisionPage((page) => page + 1)
-                      }}
-                    >
-                      Следующая
-                    </Button>
-                  </div>
-                </nav>
+                <PageNavigation
+                  page={revisionPage + 1}
+                  hasNext={
+                    hasNextRevisionPage && !revisionsQuery.isLoading && !revisionsQuery.isError
+                  }
+                  onPageChange={(nextPage) => {
+                    setSelectedRevisionId(null)
+                    setRevisionPage(nextPage - 1)
+                  }}
+                  label="Страницы ревизий"
+                  separated
+                  previousLabel="Предыдущая"
+                  nextLabel="Следующая"
+                />
               )}
             </CardContent>
           </Card>

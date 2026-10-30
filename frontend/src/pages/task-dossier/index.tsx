@@ -1,7 +1,12 @@
+import { ContentSection } from '@pdlc/ui/ui'
 import { SpaceSelector, useSelectedSpaceKey } from '@/widgets/dossier-space'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
 import {
+  ResourceListTitle,
+  ResourceListDescription,
   SectionHeader,
+  Card,
+  CardContent,
   NamespaceLink as Link,
   ResourceList,
   ResourceListRow,
@@ -10,11 +15,12 @@ import {
   LoadingState,
   Button,
   Input,
-  Label,
   SearchInput,
   PageNavigation,
   PageHeader,
   Notice,
+  TextLink,
+  FormField,
 } from '@pdlc/ui/ui'
 import { useNavigate, useParams } from 'react-router'
 import { FileCheck2, FileText, GitBranch, Link2 } from 'lucide-react'
@@ -109,18 +115,20 @@ function TaskCatalog({ spaceKey }: { spaceKey: string }) {
                       className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1"
                     >
                       <span className="min-w-0">
-                        <span className="block break-words text-sm font-medium text-text-primary">
-                          {task.task_key}
-                        </span>
+                        <ResourceListTitle asChild className="block break-words">
+                          <span>{task.task_key}</span>
+                        </ResourceListTitle>
                         {task.title && (
-                          <span className="block break-words text-sm text-text-secondary">
-                            {task.title}
-                          </span>
+                          <ResourceListDescription asChild>
+                            <span className="block break-words">{task.title}</span>
+                          </ResourceListDescription>
                         )}
                       </span>
-                      <span className="shrink-0 text-xs text-text-muted">
-                        Документы: {task.document_count} · Материалы: {task.evidence_count}
-                      </span>
+                      <ResourceListDescription asChild className="shrink-0">
+                        <span>
+                          Документы: {task.document_count} · Материалы: {task.evidence_count}
+                        </span>
+                      </ResourceListDescription>
                     </Link>
                   </ResourceListRow>
                 </li>
@@ -244,19 +252,17 @@ export function TaskDossierPage() {
     <div className="space-y-5">
       <section className="space-y-3">
         <div className="space-y-2">
-          <Link
-            to={pathWithSearchParams('/tasks', searchParams)}
-            className="inline-flex min-h-10 items-center text-sm text-accent hover:text-accent-hover"
-          >
-            К задачам
-          </Link>
+          <TextLink asChild>
+            <Link
+              to={pathWithSearchParams('/tasks', searchParams)}
+              className="inline-flex min-h-10 items-center text-sm"
+            >
+              К задачам
+            </Link>
+          </TextLink>
           <PageHeader
             title={task.task_key}
-            context={
-              task.title && (
-                <p className="mt-1 break-words text-sm text-text-secondary">{task.title}</p>
-              )
-            }
+            context={task.title && <p className="mt-1 break-words">{task.title}</p>}
             actions={
               <>
                 <SpaceSelector
@@ -273,11 +279,13 @@ export function TaskDossierPage() {
             }
           />
         </div>
-        <div className="flex flex-wrap gap-x-5 gap-y-1 border-y border-border py-2 text-sm text-text-muted">
-          <span>Документы: {task.document_count}</span>
-          <span>Фазы материалов: {phaseKeys.length}</span>
-          <span>Материалы: {task.evidence_count}</span>
-        </div>
+        <ContentSection asChild dividers="both" density="compact">
+          <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-text-muted">
+            <span>Документы: {task.document_count}</span>
+            <span>Фазы материалов: {phaseKeys.length}</span>
+            <span>Материалы: {task.evidence_count}</span>
+          </div>
+        </ContentSection>
       </section>
 
       {spacesQuery.isError && (
@@ -290,41 +298,47 @@ export function TaskDossierPage() {
       <div className="page-split items-start">
         <section className="min-w-0 space-y-3" aria-labelledby="task-documents-title">
           <SectionHeader headingId="task-documents-title" title={<>Документы задачи</>} />
-          <form
-            onSubmit={handleLinkDocument}
-            className="border-y border-border bg-surface-raised p-3"
-            aria-label="Привязать документ к задаче"
-          >
-            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-              <div className="space-y-1.5">
-                <Label htmlFor="task-document-link">Документ для задачи</Label>
-                <Input
-                  id="task-document-link"
+          <Card asChild surface="raised">
+            <form
+              onSubmit={handleLinkDocument}
 
-                  value={documentId}
-                  onChange={(event) => setDocumentId(event.target.value)}
-                  placeholder="product-requirements"
-                  disabled={linkDocument.isPending}
-                />
-              </div>
-              <Button
-                type="submit"
+              aria-label="Привязать документ к задаче"
+            >
+              <CardContent density="compact">
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                  <FormField id="task-document-link" label={'Документ для задачи'}>
+                    {(baseFieldAttrs) => (
+                      <Input
+                        {...baseFieldAttrs}
+                        value={documentId}
+                        onChange={(event) => setDocumentId(event.target.value)}
+                        placeholder="product-requirements"
+                        disabled={linkDocument.isPending}
+                      />
+                    )}
+                  </FormField>
+                  <Button
+                    type="submit"
 
-                disabled={linkDocument.isPending || !documentId.trim()}
-              >
-                <Link2 className="h-4 w-4" />
-                {linkDocument.isPending ? 'Привязываем' : 'Привязать'}
-              </Button>
-            </div>
-            {linkDocument.isError && (
-              <Notice className="mt-2" role="alert" appearance="inline" tone="danger">
-                {formatApiErrorForUser(linkDocument.error, 'Не удалось привязать документ')}
-              </Notice>
-            )}
-            {linkMessage && !linkDocument.isError && (
-              <p className="mt-2 text-sm text-success">{linkMessage}</p>
-            )}
-          </form>
+                    disabled={linkDocument.isPending || !documentId.trim()}
+                  >
+                    <Link2 className="h-4 w-4" />
+                    {linkDocument.isPending ? 'Привязываем' : 'Привязать'}
+                  </Button>
+                </div>
+                {linkDocument.isError && (
+                  <Notice className="mt-2" role="alert" appearance="inline" tone="danger">
+                    {formatApiErrorForUser(linkDocument.error, 'Не удалось привязать документ')}
+                  </Notice>
+                )}
+                {linkMessage && !linkDocument.isError && (
+                  <Notice tone="success" appearance="inline" className="mt-2">
+                    {linkMessage}
+                  </Notice>
+                )}
+              </CardContent>
+            </form>
+          </Card>
           {task.documents.length === 0 ? (
             <EmptyState message="С задачей пока не связан ни один документ" />
           ) : (
@@ -339,13 +353,15 @@ export function TaskDossierPage() {
                       >
                         <FileText className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
                         <span className="min-w-0">
-                          <span className="block break-words text-sm font-medium text-text-primary">
-                            {document.title}
-                          </span>
-                          <span className="block text-xs text-text-muted">
-                            {formatDocumentType(document.document_type)} ·{' '}
-                            {formatDocumentStatus(document.status)}
-                          </span>
+                          <ResourceListTitle asChild className="block break-words">
+                            <span>{document.title}</span>
+                          </ResourceListTitle>
+                          <ResourceListDescription asChild className="block">
+                            <span>
+                              {formatDocumentType(document.document_type)} ·{' '}
+                              {formatDocumentStatus(document.status)}
+                            </span>
+                          </ResourceListDescription>
                         </span>
                       </Link>
                     </ResourceListRow>
@@ -398,13 +414,15 @@ export function TaskDossierPage() {
                     >
                       <FileCheck2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
                       <span className="min-w-0">
-                        <span className="block break-words text-sm font-medium text-text-primary">
-                          {item.title}
-                        </span>
-                        <span className="block text-xs text-text-muted">
-                          {formatEvidenceType(item.evidence_type)} ·{' '}
-                          {formatDateTime(item.created_at)}
-                        </span>
+                        <ResourceListTitle asChild className="block break-words">
+                          <span>{item.title}</span>
+                        </ResourceListTitle>
+                        <ResourceListDescription asChild className="block">
+                          <span>
+                            {formatEvidenceType(item.evidence_type)} ·{' '}
+                            {formatDateTime(item.created_at)}
+                          </span>
+                        </ResourceListDescription>
                       </span>
                     </Link>
                   </ResourceListRow>

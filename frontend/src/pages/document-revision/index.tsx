@@ -1,4 +1,11 @@
-import { PageHeader, Prose, LoadingState, NamespaceLink as Link, ErrorState } from '@pdlc/ui/ui'
+import {
+  PageHeader,
+  Prose,
+  LoadingState,
+  NamespaceLink as Link,
+  ErrorState,
+  TextLink,
+} from '@pdlc/ui/ui'
 import { useParams } from 'react-router'
 import { withNamespaceLocation } from '@pdlc/ui/lib'
 import { useDocument, useDocumentRevision } from '@/shared/api/hooks'
@@ -23,9 +30,11 @@ export function DocumentRevisionPage() {
     return <ErrorState message="Ревизия недоступна в выбранном проекте." />
   return (
     <article className="space-y-5">
-      <Link className="text-accent" to={withNamespaceLocation(`/documents/${documentId}`, ref)}>
-        Все версии документа
-      </Link>
+      <TextLink asChild>
+        <Link to={withNamespaceLocation(`/documents/${documentId}`, ref)}>
+          Все версии документа
+        </Link>
+      </TextLink>
       <PageHeader
         title={revision.data.title}
         context={
@@ -36,6 +45,7 @@ export function DocumentRevisionPage() {
         }
       />
       <Prose
+        keyboardScroll
         className="page-readable"
         dangerouslySetInnerHTML={{ __html: revision.data.body_html }}
       />

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
-import { NamespaceLink, ResourceListRow } from '@pdlc/ui/ui'
+import { LoadingState, NamespaceLink, Notice, ResourceListRow } from '@pdlc/ui/ui'
 import { withNamespaceLocation } from '@pdlc/ui/lib'
 import { apiRequest, ApiError } from '@/api/client'
 import type { SearchResult } from '@/api/wiki'
@@ -73,7 +73,7 @@ function ResolvedResultLink({
       <ResourceListRow asChild>
         <div className={className} aria-busy="true">
           {children}
-          <span role="status">Разрешаем контекст…</span>
+          <LoadingState scope="local" message="Разрешаем контекст…" />
         </div>
       </ResourceListRow>
     )
@@ -83,7 +83,9 @@ function ResolvedResultLink({
       <ResourceListRow asChild>
         <div className={className}>
           {!forbidden && children}
-          <span role="alert">Контекст результата недоступен.</span>
+          <Notice role="alert" tone="danger" appearance="inline">
+            Контекст результата недоступен.
+          </Notice>
         </div>
       </ResourceListRow>
     )

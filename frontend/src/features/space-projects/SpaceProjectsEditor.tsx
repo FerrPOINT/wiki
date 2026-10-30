@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import {
+  TextLink,
   SectionHeader,
   Card,
   CardContent,
@@ -12,6 +13,8 @@ import {
   LoadingState,
   ResourceList,
   ResourceListRow,
+  CardDescription,
+  ResourceListDescription,
 } from '@pdlc/ui/ui'
 import { projectIdentity, withNamespaceLocation } from '@pdlc/ui/lib'
 import {
@@ -57,10 +60,9 @@ export function SpaceProjectsEditor({
       <section aria-label="Проекты пространства">
         <CardContent className="space-y-3">
           <SectionHeader title={<>Проекты пространства</>} />
-          <p className="text-sm text-text-muted">
-            Пространство может быть общим для нескольких проектов. Отвязка сохраняет документы и их
-            историю.
-          </p>
+          <CardDescription tone="muted">
+            Пространство может быть общим для нескольких проектов. Отвязка сохраняет документы и их историю.
+          </CardDescription>
           {projects.isPending ? (
             <LoadingState message="Загружаем связи" />
           ) : projects.isError ? (
@@ -76,24 +78,21 @@ export function SpaceProjectsEditor({
                     <li className="flex min-w-0 flex-wrap items-center justify-between gap-3">
                       <div className="min-w-0 flex-1 break-words">
                         {project.name ? (
-                          <Link
-                            className="text-accent"
+                          <TextLink asChild><Link
                             to={withNamespaceLocation(
                               workspacePath(project.namespace),
                               project.namespace,
                             )}
                           >
                             {project.name} · {project.project_key}
-                          </Link>
+                          </Link></TextLink>
                         ) : (
                           <span>Проект {project.namespace.namespace_id}</span>
                         )}
                         {(!project.available || project.state === 'archived') && (
-                          <p className="text-sm text-text-muted">
-                            {project.state === 'archived'
-                              ? 'Проект в архиве'
-                              : 'Сведения о проекте недоступны'}
-                          </p>
+                          <ResourceListDescription asChild>
+                            <p>{project.state === 'archived' ? 'Проект в архиве' : 'Сведения о проекте недоступны'}</p>
+                          </ResourceListDescription>
                         )}
                       </div>
                       {canManage && (

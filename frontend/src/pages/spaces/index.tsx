@@ -15,6 +15,11 @@ import {
   useUsers,
 } from '@/shared/api/hooks'
 import {
+  ActionGroup,
+  SectionHeader,
+  TextLink,
+  Badge,
+  PageNavigation,
   CardContent,
   Card,
   PageHeader,
@@ -25,13 +30,15 @@ import {
   LoadingState,
   ResourceList,
   ResourceListRow,
+  ResourceListTitle,
+  ResourceListDescription,
   Checkbox,
   Button,
   Input,
-  Label,
   Textarea,
   SearchInput,
   Notice,
+  FormField,
 } from '@pdlc/ui/ui'
 
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
@@ -80,16 +87,17 @@ function SpaceTreePreview({ spaceKey }: { spaceKey: string }) {
   return (
     <div className="space-y-1.5">
       {documents.map((document) => (
-        <Link
-          key={document.id}
-          to={`/documents/${document.id}`}
-          className="block truncate text-sm text-text-secondary hover:text-accent"
-        >
-          {document.title}
-          <span className="ml-2 text-xs text-text-muted">
-            {formatDocumentType(document.document_type)}
-          </span>
-        </Link>
+        <TextLink asChild key={document.id}>
+          <Link to={`/documents/${document.id}`} className="block truncate text-sm">
+            {document.title}
+            <ResourceListDescription asChild>
+              <span>
+                {' · '}
+                {formatDocumentType(document.document_type)}
+              </span>
+            </ResourceListDescription>
+          </Link>
+        </TextLink>
       ))}
     </div>
   )
@@ -125,43 +133,46 @@ function CreateSpaceForm({ onCreated }: { onCreated: () => void }) {
       <form onSubmit={handleSubmit}>
         <CardContent>
           <div className="grid gap-3 lg:grid-cols-[10rem_1fr_1.5fr_auto] lg:items-end">
-            <div className="space-y-1.5">
-              <Label htmlFor="space-key">Ключ</Label>
-              <Input
-                id="space-key"
-                value={key}
-                onChange={(event) => setKey(event.target.value)}
-                placeholder="KEY"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="space-name">Название</Label>
-              <Input
-                id="space-name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder="Название пространства"
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="space-description">Описание</Label>
-              <Input
-                id="space-description"
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                placeholder="Описание пространства"
-              />
-            </div>
+            <FormField id="space-key" label={'Ключ'}>
+              {(baseFieldAttrs) => (
+                <Input
+                  {...baseFieldAttrs}
+                  value={key}
+                  onChange={(event) => setKey(event.target.value)}
+                  placeholder="KEY"
+                />
+              )}
+            </FormField>
+            <FormField id="space-name" label={'Название'}>
+              {(baseFieldAttrs) => (
+                <Input
+                  {...baseFieldAttrs}
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="Название пространства"
+                  required
+                />
+              )}
+            </FormField>
+            <FormField id="space-description" label={'Описание'}>
+              {(baseFieldAttrs) => (
+                <Input
+                  {...baseFieldAttrs}
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  placeholder="Описание пространства"
+                />
+              )}
+            </FormField>
             <Button disabled={createSpace.isPending || !key.trim() || !name.trim()}>
               <Plus className="h-4 w-4" />
               {createSpace.isPending ? 'Создаём...' : 'Создать пространство'}
             </Button>
           </div>
           {createSpace.isError && (
-            <p className="mt-2 text-sm text-danger">
+            <Notice role="alert" appearance="inline" tone="danger" className="mt-2">
               {formatApiErrorForUser(createSpace.error, 'Не удалось создать пространство')}
-            </p>
+            </Notice>
           )}
         </CardContent>
       </form>
@@ -203,104 +214,113 @@ function SpaceDetails({
   }
 
   return (
-    <div className="space-y-4 border-t border-border bg-surface-raised/40 p-3">
-      {canManage && (
-        <Card asChild>
-          <form onSubmit={handleUpdate}>
-            <CardContent className="space-y-3">
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label htmlFor={`${space.key}-name`}>Название пространства</Label>
-                  <Input
-                    id={`${space.key}-name`}
-                    value={name}
-                    onChange={(event) => setName(event.target.value)}
-                    required
-                  />
+    <Card surface="raised">
+      <CardContent density="compact" className="space-y-4">
+        {canManage && (
+          <Card asChild>
+            <form onSubmit={handleUpdate}>
+              <CardContent className="space-y-3">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <FormField id={`${space.key}-name`} label={'Название пространства'}>
+                    {(baseFieldAttrs) => (
+                      <Input
+                        {...baseFieldAttrs}
+                        value={name}
+                        onChange={(event) => setName(event.target.value)}
+                        required
+                      />
+                    )}
+                  </FormField>
+                  <FormField id={`${space.key}-description`} label={'Описание'}>
+                    {(baseFieldAttrs) => (
+                      <Textarea
+                        {...baseFieldAttrs}
+                        value={description}
+                        onChange={(event) => setDescription(event.target.value)}
+                      />
+                    )}
+                  </FormField>
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor={`${space.key}-description`}>Описание</Label>
-                  <Textarea
-                    id={`${space.key}-description`}
-                    value={description}
-                    onChange={(event) => setDescription(event.target.value)}
-                  />
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" disabled={updateSpace.isPending || !changed || !name.trim()}>
-                  <Save className="h-3.5 w-3.5" />
-                  {updateSpace.isPending ? 'Сохраняем...' : 'Сохранить'}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="destructive"
-                  onClick={() => {
-                    archiveSpace.reset()
-                    setArchiveOpen(true)
-                  }}
-                  disabled={archiveSpace.isPending}
-                >
-                  <Archive className="h-3.5 w-3.5" />
-                  Архивировать
-                </Button>
-              </div>
-              {updateSpace.isError && (
-                <p className="text-sm text-danger">
-                  {formatApiErrorForUser(updateSpace.error, 'Не удалось обновить пространство')}
-                </p>
-              )}
-            </CardContent>
-          </form>
-        </Card>
-      )}
+                <ActionGroup align="start">
+                  <Button size="sm" disabled={updateSpace.isPending || !changed || !name.trim()}>
+                    <Save className="h-3.5 w-3.5" />
+                    {updateSpace.isPending ? 'Сохраняем...' : 'Сохранить'}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => {
+                      archiveSpace.reset()
+                      setArchiveOpen(true)
+                    }}
+                    disabled={archiveSpace.isPending}
+                  >
+                    <Archive className="h-3.5 w-3.5" />
+                    Архивировать
+                  </Button>
+                </ActionGroup>
+                {updateSpace.isError && (
+                  <Notice role="alert" appearance="inline" tone="danger">
+                    {formatApiErrorForUser(updateSpace.error, 'Не удалось обновить пространство')}
+                  </Notice>
+                )}
+              </CardContent>
+            </form>
+          </Card>
+        )}
 
-      <SpaceProjectsEditor spaceKey={space.key} canManage={Boolean(canManage)} />
+        <SpaceProjectsEditor spaceKey={space.key} canManage={Boolean(canManage)} />
 
-      <ConfirmDialog
-        open={archiveOpen}
-        fallbackFocusRef={fallbackFocusRef}
-        onOpenChange={setArchiveOpen}
-        title="Архивировать пространство?"
-        description={`«${space.name}» (${space.key}) останется доступным для чтения, но изменения документов, материалов и связей будут заблокированы. Восстановление из интерфейса пока недоступно.`}
-        onConfirm={() => {
-          if (!canManage || archiveSpace.isPending) return
-          archiveSpace.mutate(space.key, {
-            onSuccess: (archived) => {
-              setArchiveOpen(false)
-              onArchived(archived)
-            },
-          })
-        }}
-        isPending={archiveSpace.isPending}
-        error={
-          archiveSpace.error
-            ? formatApiErrorForUser(archiveSpace.error, 'Не удалось архивировать пространство')
-            : null
-        }
-      />
-
-      <Card>
-        <CardContent className="space-y-2">
-          <DossierMenu spaceKey={space.key} />
-          <div className="flex items-center gap-2 text-xs font-medium uppercase text-text-muted">
-            <BookOpenText className="h-3.5 w-3.5" />
-            Дерево
-          </div>
-          <SpaceTreePreview spaceKey={space.key} />
-        </CardContent>
-      </Card>
-      {!isSystemAdmin && membersQuery.isError && (
-        <ErrorState
-          message={formatApiErrorForUser(
-            membersQuery.error,
-            'Не удалось проверить право на изменение пространства',
-          )}
-          onRetry={() => membersQuery.refetch()}
+        <ConfirmDialog
+          open={archiveOpen}
+          fallbackFocusRef={fallbackFocusRef}
+          onOpenChange={setArchiveOpen}
+          title="Архивировать пространство?"
+          description={`«${space.name}» (${space.key}) останется доступным для чтения, но изменения документов, материалов и связей будут заблокированы. Восстановление из интерфейса пока недоступно.`}
+          onConfirm={() => {
+            if (!canManage || archiveSpace.isPending) return
+            archiveSpace.mutate(space.key, {
+              onSuccess: (archived) => {
+                setArchiveOpen(false)
+                onArchived(archived)
+              },
+            })
+          }}
+          isPending={archiveSpace.isPending}
+          error={
+            archiveSpace.error
+              ? formatApiErrorForUser(archiveSpace.error, 'Не удалось архивировать пространство')
+              : null
+          }
         />
-      )}
-    </div>
+
+        <Card>
+          <CardContent className="space-y-2">
+            <DossierMenu spaceKey={space.key} />
+            <SectionHeader
+              level={3}
+              title={
+                <span className="flex items-center gap-2">
+                  <BookOpenText className="h-3.5 w-3.5" />
+                  Дерево
+                </span>
+              }
+            />
+            <SpaceTreePreview spaceKey={space.key} />
+          </CardContent>
+        </Card>
+        {!isSystemAdmin && membersQuery.isError && (
+          <ErrorState
+            message={formatApiErrorForUser(
+              membersQuery.error,
+              'Не удалось проверить право на изменение пространства',
+            )}
+            onRetry={() => membersQuery.refetch()}
+          />
+        )}
+      </CardContent>
+    </Card>
   )
 }
 
@@ -471,16 +491,17 @@ export function SpacesPage() {
               ]}
             />
             {currentUserQuery.data && (
-              <label className="flex min-h-10 cursor-pointer items-center gap-2 whitespace-nowrap text-sm text-text-secondary">
-                <Checkbox
-                  checked={mineOnly}
-                  onCheckedChange={(checked) => {
-                    setMineOnly(checked === true)
-                    resetListPosition()
-                  }}
-                />
+              <Checkbox
+                className="whitespace-nowrap"
+                labelTone="secondary"
+                checked={mineOnly}
+                onCheckedChange={(checked) => {
+                  setMineOnly(checked === true)
+                  resetListPosition()
+                }}
+              >
                 Только мои
-              </label>
+              </Checkbox>
             )}
           </div>
           <p className="text-xs text-text-muted">
@@ -511,27 +532,33 @@ export function SpacesPage() {
                           <FolderOpen className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
                           <span className="min-w-0 flex-1 space-y-1">
                             <span className="flex min-w-0 items-center gap-2">
-                              <span className="truncate text-sm font-semibold">{space.name}</span>
-                              <span className="shrink-0 text-xs text-text-muted">{space.key}</span>
+                              <ResourceListTitle asChild>
+                                <span className="truncate">{space.name}</span>
+                              </ResourceListTitle>
+                              <ResourceListDescription asChild technical>
+                                <span className="shrink-0">{space.key}</span>
+                              </ResourceListDescription>
                               {space.status === 'archived' && (
-                                <span className="shrink-0 text-xs text-warning">
+                                <Badge appearance="inline" tone="warning" className="shrink-0">
                                   {statusLabel(space.status)}
+                                </Badge>
+                              )}
+                            </span>
+                            <ResourceListDescription asChild>
+                              <span className="block truncate">{shortText(space.description)}</span>
+                            </ResourceListDescription>
+                            <ResourceListDescription asChild>
+                              <span className="flex flex-wrap gap-x-3 gap-y-1">
+                                <span className="inline-flex items-center gap-1">
+                                  <FileText className="h-3.5 w-3.5" aria-hidden />
+                                  {space.document_count} документов
                                 </span>
-                              )}
-                            </span>
-                            <span className="block truncate text-xs text-text-secondary">
-                              {shortText(space.description)}
-                            </span>
-                            <span className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-muted">
-                              <span className="inline-flex items-center gap-1">
-                                <FileText className="h-3.5 w-3.5" aria-hidden />
-                                {space.document_count} документов
+                                {owner && (
+                                  <span>Владелец: {owner.display_name ?? owner.username}</span>
+                                )}
+                                <span>Обновлено {formatDateTime(space.updated_at)}</span>
                               </span>
-                              {owner && (
-                                <span>Владелец: {owner.display_name ?? owner.username}</span>
-                              )}
-                              <span>Обновлено {formatDateTime(space.updated_at)}</span>
-                            </span>
+                            </ResourceListDescription>
                           </span>
                           <ChevronDown
                             className={`mt-1 h-4 w-4 shrink-0 text-text-muted transition-transform ${expanded ? 'rotate-180' : ''}`}
@@ -557,37 +584,17 @@ export function SpacesPage() {
             </ResourceList>
           )}
           {filteredSpaces.length > 12 && (
-            <nav aria-label="Страницы пространств" className="flex items-center justify-end gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-
-                disabled={currentPage === 1}
-                onClick={() => {
-                  setPage(currentPage - 1)
-                  setExpandedKey(null)
-                }}
-              >
-                Назад
-              </Button>
-              <span className="text-sm tabular-nums text-text-muted">
-                {currentPage} / {pageCount}
-              </span>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-
-                disabled={currentPage === pageCount}
-                onClick={() => {
-                  setPage(currentPage + 1)
-                  setExpandedKey(null)
-                }}
-              >
-                Далее
-              </Button>
-            </nav>
+            <PageNavigation
+              page={currentPage}
+              pageCount={pageCount}
+              onPageChange={(nextPage) => {
+                setPage(nextPage)
+                setExpandedKey(null)
+              }}
+              label="Страницы пространств"
+              previousLabel="Назад"
+              nextLabel="Далее"
+            />
           )}
         </section>
       )}
