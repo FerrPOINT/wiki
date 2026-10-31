@@ -169,10 +169,24 @@ jobs:
         with:
           toolchain: 1.88.0
           components: clippy, rustfmt
-      - uses: Swatinem/rust-cache@v2
+      - name: Cache Cargo downloads
+        uses: actions/cache@v6
         with:
-          workspaces: wiki/backend
-          cache-targets: false
+          path: |
+            ~/.cargo/registry/cache
+            ~/.cargo/registry/index
+            ~/.cargo/git/db
+          key: >-
+            ${{ format('{0}-{1}-cargo-downloads-v1-rust1.88.0-{2}-{3}-{4}-{5}-{6}',
+            runner.os,
+            runner.arch,
+            hashFiles('wiki/backend/Cargo.lock', 'wiki/backend/**/Cargo.toml', 'wiki/.base-revision', 'wiki/.namespace-base-revision', 'wiki/.cargo/config.toml', 'wiki/backend/.cargo/config.toml'),
+            needs.changes.outputs.backend_build,
+            needs.changes.outputs.cli_build,
+            needs.changes.outputs.openapi_check,
+            needs.changes.outputs.server_checks) }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-cargo-downloads-v1-rust1.88.0-
       - run: cargo fmt --all -- --check
       - name: Quick domain/SDK unit tests
         run: cargo test --locked -p domain --lib
@@ -195,6 +209,7 @@ jobs:
       - docs
     if: needs.changes.outputs.backend == 'true'
     env:
+      CARGO_INCREMENTAL: "0"
       CARGO_BUILD_JOBS: 2
   frontend:
     runs-on: ubuntu-latest
