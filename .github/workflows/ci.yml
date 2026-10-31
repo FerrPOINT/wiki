@@ -18,6 +18,8 @@ jobs:
       frontend: ${{ steps.classify.outputs.frontend }}
       frontend_build: ${{ steps.classify.outputs.frontend_build }}
       backend_build: ${{ steps.classify.outputs.backend_build }}
+      cli_build: ${{ steps.classify.outputs.cli_build }}
+      server_checks: ${{ steps.classify.outputs.server_checks }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -75,7 +77,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: python3 wiki/scripts/vendor/base_quality_selection.py --root wiki
+        run: python3 wiki/scripts/select_ci.py
   docs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -83,9 +85,10 @@ jobs:
       - uses: actions/checkout@v7
         with:
           path: wiki
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Python tooling contracts
         working-directory: wiki
-        run: python3 -m unittest scripts.tests.test_ci_contract_checks scripts.tests.test_build_pin scripts.tests.test_verify_readme scripts.tests.test_tooling_ownership scripts.tests.test_build_scope
+        run: python3 -m unittest scripts.tests.test_ci_contract_checks scripts.tests.test_build_pin scripts.tests.test_verify_readme scripts.tests.test_tooling_ownership scripts.tests.test_build_scope scripts.tests.test_cli_selection
       - name: README structural validation
         working-directory: wiki
         run: python3 scripts/verify_readme.py
@@ -112,6 +115,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           path: wiki
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Read pinned Base revision
         id: base
         working-directory: wiki
@@ -140,18 +144,23 @@ jobs:
       - name: Reset restored local crates once; keep compiled external dependencies
         working-directory: wiki/backend
         run: python3 ../scripts/vendor/base_rust_target_cache.py
+      - name: Format Rust sources
+        run: cargo fmt --all -- --check
       - name: Fast isolated domain units (no PostgreSQL)
-        run: |-
-          cargo fmt --all -- --check
-          cargo test --locked -p domain --lib
+        if: needs.changes.outputs.server_checks == 'true'
+        run: cargo test --locked -p domain --lib
       - name: Check declared minimum in the shared Rust workspace
         # The former minimum job did not set the backend SQLX_OFFLINE override.
+        if: needs.changes.outputs.server_checks == 'true'
         run: env -u SQLX_OFFLINE cargo check --locked --workspace --all-targets
       - name: Build changed application after isolated units
         if: needs.changes.outputs.backend_build == 'true'
         run: cargo build --locked --workspace
         env:
           SQLX_OFFLINE: "true"
+      - name: Check shipped CLI on the declared minimum
+        if: needs.changes.outputs.cli_build == 'true'
+        run: cargo check --locked -p wiki-cli --bin wiki
       - name: OpenAPI drift gate
         run: |
           "${CARGO_TARGET_DIR:-target}/debug/openapi-gen" ../openapi/openapi.json.generated
@@ -175,7 +184,7 @@ jobs:
         with:
           path: wiki
           fetch-depth: 0
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Read pinned Base revision
         id: base
         working-directory: wiki
@@ -282,7 +291,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           path: wiki
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Receive the tested frontend packet
         uses: actions/download-artifact@v8
         with:

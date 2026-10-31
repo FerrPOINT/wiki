@@ -4,7 +4,7 @@ from scripts.vendor import base_quality_selection as selector
 
 ROOT = Path(__file__).resolve().parents[1]
 SERVICE_GATES = {'backend': 'backend:build', 'frontend': 'frontend:build'}
-NON_CONTAINER_GATES = frozenset([])
+NON_CONTAINER_GATES = frozenset(['cli:build'])
 SERVICES = tuple(SERVICE_GATES)
 
 
