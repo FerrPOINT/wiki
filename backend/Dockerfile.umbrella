@@ -26,9 +26,12 @@ COPY wiki/backend/api ./api
 COPY wiki/backend/server ./server
 COPY wiki/backend/cli ./cli
 
+ARG PDLC_CARGO_BUILD_JOBS=2
+ENV CARGO_BUILD_JOBS=${PDLC_CARGO_BUILD_JOBS}
 RUN --mount=type=cache,id=wiki-cargo-registry-rust-1.88,target=/usr/local/cargo/registry,sharing=shared \
-    --mount=type=cache,id=wiki-cargo-target-rust-1.88,target=/cargo-target,sharing=locked \
-    CARGO_TARGET_DIR=/cargo-target cargo build --locked --release --bin server \
+    --mount=type=cache,id=wiki-cargo-git-rust-1.88,target=/usr/local/cargo/git,sharing=shared \
+    CARGO_TARGET_DIR=/cargo-target cargo test --locked --release -p domain --lib \
+    && CARGO_TARGET_DIR=/cargo-target cargo build --locked --release -p server --bin server \
     && install -m 0755 /cargo-target/release/server /app/wiki-server
 
 FROM debian:bookworm-slim

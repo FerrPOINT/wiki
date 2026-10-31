@@ -2,7 +2,7 @@
 // Kept so 20+ hand-written API modules can import `WikiAuthResponse` directly
 // instead of components['schemas']['WikiAuthResponse'].
 // Run as part of `pnpm generate:api` (after openapi-typescript itself).
-import { readFileSync, writeFileSync } from 'node:fs'
+import { closeSync, lstatSync, openSync, readFileSync, readSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import * as prettier from 'prettier'
@@ -11,6 +11,56 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const frontendRoot = path.resolve(scriptDir, '..')
 const genPath = path.join(frontendRoot, 'src', 'api', 'generated.ts')
 const outPath = path.join(frontendRoot, 'src', 'api', 'generated-exports.ts')
+
+const flags = process.argv.slice(2)
+const prepared = flags.includes('--prepared')
+if (prepared && (flags.length !== 1 || flags[0] !== '--prepared')) {
+  throw new Error('Prepared bridge accepts only --prepared')
+}
+
+function preparedFormatOptions() {
+  // Prepared generation consumes one declared data file, with no config/plugin discovery.
+  const configPath = path.join(frontendRoot, '.prettierrc')
+  const metadata = lstatSync(configPath)
+  if (!metadata.isFile() || metadata.isSymbolicLink()) {
+    throw new Error('Prepared formatter config must be a plain JSON file')
+  }
+  const descriptor = openSync(configPath, 'r')
+  let contents
+  try {
+    const bytes = Buffer.alloc(8193)
+    let count = 0
+    while (count < bytes.length) {
+      const read = readSync(descriptor, bytes, count, bytes.length - count, count)
+      if (read === 0) break
+      count += read
+    }
+    if (count > 8192) {
+      throw new Error('Prepared formatter config exceeds 8192 bytes')
+    }
+    contents = bytes.subarray(0, count).toString('utf8')
+  } finally {
+    closeSync(descriptor)
+  }
+  const options = JSON.parse(contents)
+  if (!options || Array.isArray(options) || typeof options !== 'object') {
+    throw new Error('Prepared formatter config must be a JSON object')
+  }
+  const allowed = {
+    semi: (value) => typeof value === 'boolean',
+    singleQuote: (value) => typeof value === 'boolean',
+    trailingComma: (value) => ['all', 'es5', 'none'].includes(value),
+    printWidth: (value) => Number.isSafeInteger(value) && value > 0,
+  }
+  if (
+    Object.entries(options).some(
+      ([key, value]) => !Object.hasOwn(allowed, key) || !allowed[key](value),
+    )
+  ) {
+    throw new Error('Prepared formatter config has unsupported options; qualify new inputs first')
+  }
+  return options
+}
 
 const gen = readFileSync(genPath, 'utf8')
 
@@ -53,7 +103,32 @@ const lines = [
 for (const n of names) {
   lines.push(`export type ${n} = components['schemas']['${n}']`)
 }
-const options = await prettier.resolveConfig(outPath)
-const formatted = await prettier.format(`${lines.join('\n')}\n`, { ...options, filepath: outPath })
-writeFileSync(outPath, formatted, 'utf8')
-console.log(`generated-exports.ts: ${names.length} flat types`)
+const options = prepared ? preparedFormatOptions() : await prettier.resolveConfig(outPath)
+const output = await prettier.format(`${lines.join('\n')}\n`, { ...options, filepath: outPath })
+let unchanged = false
+try {
+  const descriptor = openSync(outPath, 'r')
+  try {
+    const expected = Buffer.from(output, 'utf8')
+    // A corrupt output may be arbitrarily large. Read only the expected bytes
+    // plus one sentinel, and check EOF even if the first read was short.
+    const previous = Buffer.alloc(expected.length + 1)
+    const count = readSync(descriptor, previous, 0, previous.length, 0)
+    unchanged =
+      count === expected.length &&
+      previous.subarray(0, count).equals(expected) &&
+      readSync(descriptor, previous, 0, 1, count) === 0
+  } finally {
+    closeSync(descriptor)
+  }
+} catch (error) {
+  if (error.code !== 'ENOENT') throw error
+}
+// Compare actual content: repeated preparation must not invalidate watchers or
+// timestamp-based consumers, and an older input mtime cannot hide a schema edit.
+if (!unchanged) {
+  writeFileSync(outPath, output, 'utf8')
+}
+console.log(
+  `generated-exports.ts: ${names.length} flat types (${unchanged ? 'unchanged' : 'updated'})`,
+)

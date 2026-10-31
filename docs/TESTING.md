@@ -1,5 +1,38 @@
 # Testing Strategy - Wiki
 
+## Текущий Source candidate PDLC2
+
+Перенос выполнен от main `87102c2b` без смены SDK/UI/skills pins и
+без изменения product API/data model. Node остаётся 22.22.2 во всех
+frontend preparation gates, CI/release и Docker toolchain. Текущий
+Node image использует version tag без digest; native/cache qualification
+не переносится с прежнего Node 22.20.0 tuple.
+
+`just test` теперь означает domain unit + frontend `test:unit`.
+Полный backend-набор сохранён как ручной `just test-backend-full`.
+Обычный `just build` отказывает без scope; выбрать `build-backend`,
+`build-frontend`, `build-cli` либо намеренный `build-all`. Backend/CLI
+package проверяют общий unit prerequisite перед выбранным binary.
+В одном вызове повторный prerequisite разделяется по
+[контракту Just](https://just.systems/man/en/dependencies.html).
+Unit route не выбирает production server/CLI/Vite producers; production build не выбирается
+из-за test/docs-only inputs. `scripts/build.py` без аргументов использует
+changed-path plan; пустой план не является artifact reuse proof и для
+холодного bootstrap требуется явный service.
+
+Required check name `minimum-rust` сохранён как строгий result guard
+совместимого backend/MSRV job; второй checkout/toolchain/cache/compile
+для этого не добавляется. Git hygiene, hooks и нынешние игнорирования
+временных файлов сохранены; два ранее удалённых tracked pyc не возвращены.
+
+В ходе переноса выполняются scoped Python/source checks и инертные
+Node IO fixtures. Установки зависимостей, Rust/Vite/application/Docker
+builds и CI/runtime не выполняются. Доступный Node 24 для stdlib fixtures
+не квалифицирует product Node 22.22.2. Tailwind/реальный formatter/Vitest,
+публичный Just CLI, native/cache/resource и release/live остаются
+отдельными непроведёнными проверками. Source counters не являются
+измерением ускорения или CPU/RAM.
+
 ## 1. Principles
 
 ### Live Detail Geometry
@@ -92,6 +125,79 @@ E2E smoke:
 
 ## 4. Commands
 
+Container recipes имеют собственные `container_inputs`: Dockerfile/recipe ignore
+и frontend nginx выбирают упаковку соответствующего сервиса. Это отличается от
+binary/Vite producer; один recipe-only change не требует application compile.
+Native layer reuse и реальная упаковка квалифицируются отдельно.
+
+Общие правила: Base `docs/BUILD_PERFORMANCE.md` и `docs/TESTING.md` из принятого
+quality tooling. SDK/UI/skills/operator pins независимы от quality pin.
+Классификация и команды Wiki находятся в `.quality-gate.json`; CI и container
+helper используют тот же exact Base selector.
+
+Из корня PDLC workspace сначала выполнить `enter-dev.ps1`, затем выбрать Wiki:
+
+```powershell
+./check-workspace.ps1 -Profile Build -Repository wiki -BaseRef HEAD -PlanOnly
+./check-workspace.ps1 -Profile Unit -Repository wiki -Component tooling -BaseRef HEAD
+```
+
+Обычный запуск учитывает staged/unstaged/untracked/deleted inputs. `-All` означает
+намеренный полный обход; неизвестный путь расширяет проверки продукта.
+План без изменений не подтверждает наличие образа: холодную подготовку и нужный
+компонент задавать явно. Test-only сохраняет production producer при неизменных
+build inputs; docs-only не создаёт application artifact.
+
+Быстрый Rust-набор сейчас — `cargo test --locked -p domain --lib`. Backend server
+и официальный HTTP CLI — отдельные producers: `-p server --bin server` и
+`-p wiki-cli --bin wiki`. CLI не включается в server graph и не исчезает из поставки.
+CLI rustfmt — static gate; физическое отделение его pure unit от HTTP integration
+ещё требует квалификации. Оно не считается выполненным через unit domain.
+CI сохраняет download cache, но `cache-targets: false` не восстанавливает compiled
+target без qualified timestamp guard. Безопасное возвращение compiled dependency
+reuse требует отдельной native qualification; Docker layer cache сохраняется.
+
+Frontend `pnpm test:unit` запускает source-tool Node tests и Vitest без
+`*.integration.test.*`, `*.slow.test.*`, `*.e2e.test.*`. `pnpm test:all` сохраняет
+полный Vitest-набор; Playwright запускается отдельно. При сборке units выполняются
+до producer. Ошибка unit не позволяет опубликовать новый candidate.
+
+В frontend Docker recipes dependency manifest исключает продуктовые scripts;
+frozen install сохраняет lifecycle зависимостей. OpenAPI, generators и `.prettierrc`
+копируются после установки; отдельный `pnpm run postinstall` готовит types и bridge.
+Изменение этих inputs не входит в dependency layer. Source-регрессии проверяют
+порядок и сохранение dependency fields; реальные BuildKit cache hits и ускорение
+этого разделения пока не измерены. Обычный frozen install вне Docker сохраняет
+прежний postinstall.
+
+Docker install использует зарегистрированный Node22/architecture download store
+Base в `/pnpm/store`; integrity check включён, side-effects cache выключен.
+`node_modules` остаётся локальным; реальные cache hits и ускорение пока не измерены.
+Root/CI/Docker используют prepared consumers: `tsc --noEmit`, unit и `vite build`.
+Отдельный CI `openapi:check` сохраняется: он генерирует временный контрольный
+schema для drift comparison и не считается устранённым вызовом генератора.
+`pnpm build:prepared` объединяет их без повторной генерации. Ручные
+`generate:api`, `typecheck`, `build` сохраняют recovery generated outputs;
+их вызов не объявляется полным generation-cache hit. Bridge сохраняет прежний
+Prettier format и не перезаписывает идентичный output. Host generated files
+исключены из Docker context и не затирают подготовленные внутри image types.
+
+Tailwind сканирует явные app/index/Base UI roots, исключая tests/setup. Реальный
+UI pin и product artifact проверяются отдельно от маленьких source fixtures.
+
+`python scripts/build.py` выбирает только изменённые container producers;
+`backend`/`frontend` выбирают конкретный контейнер, `--all` — оба. CLI producer
+возвращает binary через Root, отдельного CLI container нет. `NO_BUILD_SERVICES_SELECTED`
+не означает image ready. Legacy helper не владеет execution slot: raw heavy вызов
+нужно обернуть общим Base slot; SDK/UI checkout verifier сохраняется. При разных
+pins helper отказывает до Docker; пользоваться квалифицированным multi-pin route,
+не переписывать pins ради запуска.
+
+Следующие полные команды — отдельная согласованная ручная integration/release
+веха, а не цикл после каждого изменения. `.github/workflows/release.yml`
+(`workflow_dispatch`) сохраняет прежние четыре jobs, включая PostgreSQL/ignored,
+namespace, packed consumer, themes и MSRV. Их `NOT_RUN` сообщается отдельно.
+
 ```bash
 cd backend
 cargo fmt --all -- --check
@@ -101,7 +207,7 @@ cargo test --workspace -- --test-threads=1
 
 cd frontend
 pnpm typecheck
-pnpm test -- --run
+pnpm test:all
 pnpm test:e2e
 ```
 
@@ -150,11 +256,15 @@ Baseline test fixtures:
 
 ## 6. Merge Checklist
 
+В ходе реализации выполнять scoped проверки. Полный checklist ниже относится
+к согласованной интегрированной/manual вехе; необходимые security/data/live gates
+сохраняются. Не повторять успешно проверенный graph без changed inputs.
+
 - [ ] `cargo fmt --all -- --check` clean
 - [ ] `cargo clippy --workspace --all-targets -- -D warnings` clean
 - [ ] `cargo test --workspace -- --test-threads=1` green
 - [ ] `pnpm typecheck` clean
-- [ ] `pnpm test -- --run` green
+- [ ] `pnpm test:all` green на ручной полной вехе
 - [ ] `pnpm build` green
 - [ ] Playwright critical path green
 - [ ] Documentation updated
@@ -182,3 +292,20 @@ Baseline test fixtures:
 проверяет закрытый DB pool и неполные claims отдельно. CI явно запускает
 mixed_central_directory_preserves_identity_and_disabled_state_in_postgres
 на своём PostgreSQL; workspace test не исполняет ignored-тест автоматически.
+
+Frontend dependency hooks: единственная policy — `allowBuilds.esbuild: true` в
+`frontend/pnpm-workspace.yaml`. Source command: `python -B -m unittest scripts.tests.test_ci_contract_checks.PnpmLifecyclePolicyTests -q`.
+
+Docker разделяет полный unit/typecheck context и production COPY по `frontend:build.exclude_inputs`.
+Один `pnpm run postinstall` обслуживает оба consumers; `pnpm run build:compile`
+зависит от успешного unit-маркера. Native cache-hit/time qualification пока не выполнена.
+Docker typecheck использует `pnpm exec tsc --noEmit`, сохраняя prepared bridge без повторной generation.
+
+Автоматический postinstall вызывает bridge с `--prepared`: единственный formatter
+input — plain JSON `frontend/.prettierrc` до 8192 bytes, с `semi`, `singleQuote`,
+`trailingComma`, `printWidth`. Неизвестные options/неверный input дают ошибку до
+записи output. Public `generate:api`/`build`/`typecheck` сохраняют прежний поиск
+Prettier config. Prepared generation-cache profile пока не включён.
+Scoped bridge units: `node --test scripts/tests/generate-exports.test.mjs scripts/tests/generate-exports-prepared.test.mjs`
+из frontend. Реальный Prettier проверяется на synthetic fixtures; app schema/
+Linux/toolchain parity и whole-generation skip требуют отдельной qualification.

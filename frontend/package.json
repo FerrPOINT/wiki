@@ -6,9 +6,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/generate-exports.mjs && tsc --noEmit && vite build",
+    "build": "node scripts/generate-exports.mjs && pnpm run build:prepared",
     "typecheck": "node scripts/generate-exports.mjs && tsc --noEmit",
-    "test": "vitest run",
+    "test": "pnpm run test:unit",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "preview": "vite preview --host 127.0.0.1 --port 4174 --strictPort",
@@ -20,9 +20,13 @@
     "format:check": "prettier --check .",
     "openapi:check": "node node_modules/@pdlc/ui/scripts/pdlc-openapi-check.mjs --spec ../openapi/openapi.json --schema src/api/generated.ts",
     "openapi:compat": "node scripts/base-openapi-compat.mjs",
-    "postinstall": "openapi-typescript ../openapi/openapi.json -o src/api/generated.ts && node scripts/generate-exports.mjs",
+    "postinstall": "node scripts/base-generate-openapi.mjs --schema ../openapi/openapi.json --output src/api/generated.ts && node scripts/generate-exports.mjs --prepared",
     "theme:check": "node ../../services-base/base-modules/ui/scripts/pdlc-effective-theme-check.mjs",
-    "shell:check": "node ../../services-base/base-modules/ui/scripts/check-ui-contract.mjs --repo .. --shell-only --shell frontend/src/widgets/app-shell.tsx --tooling-from package.json"
+    "shell:check": "node ../../services-base/base-modules/ui/scripts/check-ui-contract.mjs --repo .. --shell-only --shell frontend/src/widgets/app-shell.tsx --tooling-from package.json",
+    "test:unit": "node --test scripts/tailwind-source-inputs.test.mjs scripts/tests/generate-exports.test.mjs scripts/tests/generate-exports-prepared.test.mjs && vitest run --exclude \"**/*.integration.test.*\" --exclude \"**/*.slow.test.*\" --exclude \"**/*.e2e.test.*\"",
+    "test:all": "node --test scripts/tailwind-source-inputs.test.mjs scripts/tests/generate-exports.test.mjs scripts/tests/generate-exports-prepared.test.mjs && vitest run",
+    "build:compile": "vite build",
+    "build:prepared": "pnpm run test:unit && tsc --noEmit && pnpm run build:compile"
   },
   "dependencies": {
     "@pdlc/ui": "file:../../services-base/base-modules/ui",

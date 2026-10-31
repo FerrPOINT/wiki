@@ -1,5 +1,12 @@
 # AGENTS.md — Wiki
 
+`just test` — reviewed domain units и frontend `test:unit`; полный backend
+набор запускается вручную через `just test-backend-full`. `just build`
+без scope отказывает: использовать `build-backend`, `build-frontend`,
+`build-cli` или намеренный `build-all`. Команды и пределы qualification —
+[TESTING](docs/TESTING.md). Source checks не подтверждают Native/CI/runtime;
+тяжёлые проверки выполняются на согласованной интегрированной вехе.
+
 ## Docker и Kubernetes
 
 Поддерживаются обычный Docker/Compose без Kubernetes и Kubernetes. Общие API,
@@ -47,8 +54,17 @@
 
 ### 4. Тестирование
 
-- Backend: `cargo fmt`, `cargo clippy`, `cargo test`, интеграционные тесты с PostgreSQL testcontainer.
-- Frontend: Vitest + Playwright.
+- Перед изменением build/test читать Base `docs/BUILD_PERFORMANCE.md` и
+  `docs/TESTING.md` из принятого quality tooling. Команды Wiki и исключения:
+  [TESTING](docs/TESTING.md#4-commands).
+- Во время разработки и сборки выбирать затронутые unit/static проверки через
+  `.quality-gate.json`; PostgreSQL, HTTP CLI, integration/slow, Playwright и
+  release проверки выполнять на отдельной ручной вехе. Полный набор сохраняется
+  в `.github/workflows/release.yml`.
+- Docs/test-only не пересобирают production artifact при неизменных build inputs.
+  Перед повторным тяжёлым запуском назвать changed inputs либо missing evidence;
+  сначала проверить готовый результат, затем admission и повторную проверку reuse.
+- Сохранять dependency caches; compiled Rust target не разделять между экспортами.
 - После UI-изменений — скриншоты full-page (375 / 1920 / 2560).
 - Все новые endpoint — curl-проверка.
 
@@ -67,14 +83,19 @@
 
 ### 7. Docker
 
-- Сборка: `docker compose build`.
+- Сборка выбранного контейнера: `python scripts/build.py backend` либо `frontend`;
+  без аргументов helper выбирает изменённые контейнеры, `--all` задаёт полный обход.
+  На Windows raw heavy команду запускать через общий Base execution slot;
+  Root quality command, владеющую slot, повторно не оборачивать.
+  Разные SDK/UI pins требуют квалифицированного multi-pin candidate route.
 - Пересоздание контейнера: `docker compose up -d` (не `docker compose restart`).
 - Проверка: `docker compose ps` и health endpoint.
 
 ### 8. Проверка перед завершением
 
-- [ ] Все тесты проходят.
-- [ ] Линтеры (`clippy`, `eslint`, `prettier`) чистые.
+- [ ] Затронутые unit/static проверки прошли; статус отдельной полной/manual
+  вехи указан явно. Unit green не заменяет integration/security/data/live gates.
+- [ ] Затронутые линтеры (`clippy`, `eslint`, `prettier`) чистые.
 - [ ] Документация актуальна.
 - [ ] Коммиты запушены, если пользователь просил push.
 - [ ] Пользователь увидел результат (скриншот / curl / лог).

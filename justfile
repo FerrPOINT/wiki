@@ -83,11 +83,15 @@ typecheck:
 
 # Run frontend unit tests
 test-frontend:
-    cd frontend && pnpm test
+    cd frontend && pnpm test:unit
 
-# Run backend unit + integration tests (single-threaded for env safety)
+# Reviewed fast domain unit lane; PostgreSQL and other boundaries are manual.
 test-backend:
-    cd backend && cargo test --workspace -- --test-threads=1
+    cd backend && cargo test --locked -p domain --lib
+
+# Explicit full backend tests (unit + integration), requiring the owned fixture.
+test-backend-full:
+    cd backend && cargo test --locked --workspace -- --test-threads=1
 
 # Run backend coverage gate against disposable Wiki PostgreSQL
 test-backend-coverage:
@@ -128,11 +132,20 @@ build-frontend:
     cd frontend && pnpm build
 
 # Build backend release binary
-build-backend:
-    cd backend && cargo build --release
+build-backend: test-backend
+    cd backend && cargo build --locked --release -p server --bin server
 
-# Build everything
-build: build-backend build-frontend
+# Official CLI is a separate shipped target.
+build-cli: test-backend
+    cd backend && cargo build --locked --release -p wiki-cli --bin wiki
+
+# A missing scope must not silently start both application graphs.
+build:
+    @echo "Choose build-backend, build-frontend, build-cli, or build-all." >&2
+    @exit 64
+
+# Intentional full production graph; the shared unit prerequisite runs once.
+build-all: build-backend build-cli build-frontend
 
 # ─────────────────────────────────────────────
 # Misc

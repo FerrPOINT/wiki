@@ -12,7 +12,7 @@ WORKFLOW = ROOT / ".github/workflows/ci.yml"
 
 class CiContractChecksTest(unittest.TestCase):
     def test_backend_job_runs_postgres_tests_against_isolated_service(self) -> None:
-        workflow = WORKFLOW.read_text(encoding="utf-8")
+        workflow = (ROOT / '.github/workflows/release.yml').read_text(encoding="utf-8")
         backend_job = workflow.split("\n  backend:\n", 1)[1].split("\n  frontend:\n", 1)[0]
         self.assertIn("image: postgres:16-alpine", backend_job)
         self.assertIn("POSTGRES_HOST_AUTH_METHOD: trust", backend_job)
@@ -23,12 +23,34 @@ class CiContractChecksTest(unittest.TestCase):
         )
 
     def test_frontend_job_checks_openapi_backward_compatibility(self) -> None:
-        workflow = WORKFLOW.read_text(encoding="utf-8")
-        frontend_job = workflow.split("\n  frontend:\n", 1)[1].split("\n  deny:\n", 1)[0]
-        self.assertIn("fetch-depth: 0", frontend_job)
-        self.assertIn("pnpm openapi:check", frontend_job)
-        self.assertIn("pnpm openapi:compat", frontend_job)
-        self.assertIn("pnpm format:check", frontend_job)
+        for path in (WORKFLOW, ROOT / '.github/workflows/release.yml'):
+            with self.subTest(workflow=path.name):
+                workflow = path.read_text(encoding="utf-8")
+                frontend_job = workflow.split("\n  frontend:\n", 1)[1].split("\n  deny:\n", 1)[0]
+                self.assertIn("fetch-depth: 0", frontend_job)
+                self.assertIn("pnpm openapi:check", frontend_job)
+                self.assertIn("pnpm openapi:compat", frontend_job)
+                self.assertIn("pnpm format:check", frontend_job)
+
+
+
+class PnpmLifecyclePolicyTests(unittest.TestCase):
+    def test_esbuild_has_one_explicit_dependency_build_policy(self):
+        from pathlib import Path
+        root = Path(__file__).resolve().parents[2]
+        lines = (root / 'frontend/pnpm-workspace.yaml').read_text(encoding='utf-8').splitlines()
+        self.assertEqual(lines.count('allowBuilds:'), 1)
+        body = []
+        for line in lines[lines.index('allowBuilds:') + 1:]:
+            if line and not line.startswith(' '):
+                break
+            if line.strip():
+                body.append(line)
+        self.assertEqual(body, ['  esbuild: true'])
+        for legacy in ('onlyBuiltDependencies:', 'onlyBuiltDependenciesFile:',
+                       'ignoredBuiltDependencies:', 'neverBuiltDependencies:',
+                       'dangerouslyAllowAllBuilds:'):
+            self.assertNotIn(legacy, lines)
 
 
 if __name__ == "__main__":
