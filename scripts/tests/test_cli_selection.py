@@ -19,6 +19,18 @@ class CliSelectionTests(unittest.TestCase):
     def artifacts(self, paths):
         return {gate['id'] for gate in self.plan(paths)['gates'] if gate.get('kind') == 'artifact'}
 
+    def test_cli_formatter_needs_no_sdk_or_cargo_target(self):
+        manifest = selector.load(ROOT)
+        gate = next(gate for gate in manifest['gates'] if gate['id'] == 'cli:format')
+        self.assertEqual(gate['argv'][:4], ['rustfmt', '--edition', '2024', '--check'])
+        self.assertTrue(all(name.startswith('cli/src/') and name.endswith('.rs') for name in gate['argv'][4:]))
+        self.assertNotIn('sdk_revision', gate)
+        self.assertEqual(gate['test_tier'], 'static')
+        self.assertEqual(gate['cwd'], 'backend')
+        self.assertEqual(gate['platforms'], ['linux'])
+        self.assertEqual(gate['tools'][0]['pattern'], r'^rustc 1\.88\.0\b')
+        self.assertIn('sdk_revision', next(gate for gate in manifest['gates'] if gate['id'] == 'cli:build'))
+
     def test_only_actual_application_inputs_select_producers(self):
         cases = [([], set()), (['README.md'], set()),
                  (['backend/cli/src/main.rs'], {'cli:build'}),
