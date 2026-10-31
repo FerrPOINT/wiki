@@ -322,3 +322,24 @@ Invalid ref или unsupported map отказывают до подготовк�
 Raw heavy остаётся под общим host slot, Root owner вторым slot не оборачивать.
 Source команда: `python -B -m unittest scripts.tests.test_build_scope -q`.
 Контракт/границы: [план](plans/container-selection-20261030.md).
+
+## CLI как отдельный компонент
+
+Root selection использует `-Repository wiki -Component cli`: profiles Fast/Unit
+выбирают только CLI format, Build добавляет только `wiki-cli --bin wiki`. HTTP
+CLI tests требуют окружения и остаются manual integration/release, они не
+выдаются за быстрые unit. `scripts/build.py` выбирает только контейнеры:
+CLI binary не является backend Docker service.
+
+Изменения CLI исходников не выбирают backend/frontend producers. Общие Cargo
+lock/config и SDK pins консервативно выбирают обоих Rust consumers. Отдельный SDK
+checkout сохраняется: Cargo workspace resolution и manual dev-dependencies CLI
+по-прежнему требуют sibling path manifests. Готовый CLI artifact пока не имеет
+квалифицированного receipt reuse; cacheable остаётся false.
+
+Manual backend и CLI gates сохраняют один полный исходный workspace-набор.
+Exact portable selector поддерживает Base `shared_check`: если выбраны оба
+компонента, набор выполняется один раз и отчёт перечисляет обоих members. Старый
+Root packet может консервативно выполнить его дважды; его отдельная adoption и
+Windows CLI native route ещё не квалифицированы. Source-тесты не заменяют
+реальную компиляцию, integration/release или проверку скорости.

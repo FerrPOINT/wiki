@@ -1,9 +1,9 @@
 {
   "schema": "base-quality-tooling/v2",
   "repository": "https://github.com/FerrPOINT/services-base",
-  "revision": "0a8b0ccf9a3db10f4ec954d9c8df21206f98a5e1",
+  "revision": "0a552be41d7b6586abc8cb2f54cfbccd3d7f1c59",
   "source": "scripts/quality_selection.py",
-  "sha256": "7f431f6c781fd39f519b74cb5241e278d357ab2c93518b062b07cc37839393b4",
+  "sha256": "063826ae4ccc2b84c1a31344f947dbf058ef39201b3be63271542cf286d2aa78",
   "frontend_generator": {
     "source": "scripts/generate_openapi.mjs",
     "file": "frontend/scripts/base-generate-openapi.mjs",

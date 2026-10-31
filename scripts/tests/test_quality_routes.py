@@ -9,7 +9,7 @@ from unittest.mock import patch
 from scripts.vendor import base_quality_selection as selector
 
 ROOT = Path(__file__).resolve().parents[2]
-PIN = '0a8b0ccf9a3db10f4ec954d9c8df21206f98a5e1'
+PIN = '0a552be41d7b6586abc8cb2f54cfbccd3d7f1c59'
 
 
 def job(text, name):
@@ -78,7 +78,7 @@ class QualityRouteTests(unittest.TestCase):
         self.assertNotIn("backend_unit_inputs", manifest)
         for path in ("backend/domain/src/lib.rs", "backend/infra/tests/postgres.rs", ".base-revision"):
             selected = self.plan([path])
-            self.assertEqual(selected["components"], ["backend"])
+            self.assertEqual(selected["components"], ["backend", "cli"] if path == ".base-revision" else ["backend"])
             build = next(g for g in selected["gates"] if g["id"] == "backend:build")
             self.assertNotIn("exclude_inputs", build)
             self.assertEqual(build["sdk_revision"], ".base-revision")
@@ -94,9 +94,9 @@ class QualityRouteTests(unittest.TestCase):
             self.assertIn('/app/target/release/server', (ROOT/'backend'/name).read_text(encoding='utf-8'))
 
     def test_unknown_and_explicit_full_selection_keep_application_builds(self):
-        self.assertEqual(set(self.plan(["new-runtime-input.conf"])["components"]), {"docs", "frontend", "backend", "tooling"})
-        explicit = self.plan([], components=["docs", "frontend", "backend", "tooling"])
-        self.assertTrue({"frontend:build", "backend:build"} <= {g["id"] for g in explicit["gates"]})
+        self.assertEqual(set(self.plan(["new-runtime-input.conf"])["components"]), {"docs", "frontend", "backend", "tooling", "cli"})
+        explicit = self.plan([], components=["docs", "frontend", "backend", "tooling", "cli"])
+        self.assertTrue({"frontend:build", "backend:build", "cli:build"} <= {g["id"] for g in explicit["gates"]})
 
     def test_domain_unit_is_fast_and_full_workspace_is_manual(self):
         native = [g for g in self.plan(["backend/domain/src/lib.rs"], "unit")["gates"] if g["component"] == "backend"]
