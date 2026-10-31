@@ -22,3 +22,7 @@ frontend/src/api/generated-exports.ts
 .pnpm-store/
 
 .local/
+
+# Preserve local Python caches outside published source.
+__pycache__/
+*.py[cod]

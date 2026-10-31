@@ -1,5 +1,13 @@
 # Testing Strategy - Wiki
 
+Обычный `just test` использует reviewed domain units и `pnpm test:unit`.
+Полный backend-набор вынесен в явный ручной `just test-backend-full`.
+`just build` без scope отказывает; выбрать `build-backend`,
+`build-frontend`, `build-cli` либо намеренный `build-all`.
+Backend/CLI packaging зависит от того же unit prerequisite;
+в одном полном вызове Just он выполняется один раз.
+Настоящие Rust/Node/Just qualification и release/live — отдельная веха.
+
 В automatic CI совместимые Rust 1.88.0 minimum и backend проверки используют
 одну подготовку в job `backend`. Прежний `minimum-rust` проверяет его успешный
 результат без второго compiler; unit failure останавливает дальнейшую работу.
