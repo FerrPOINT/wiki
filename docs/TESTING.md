@@ -309,3 +309,24 @@ Prettier config. Prepared generation-cache profile пока не включён.
 Scoped bridge units: `node --test scripts/tests/generate-exports.test.mjs scripts/tests/generate-exports-prepared.test.mjs`
 из frontend. Реальный Prettier проверяется на synthetic fixtures; app schema/
 Linux/toolchain parity и whole-generation skip требуют отдельной qualification.
+
+## CLI как отдельный компонент
+
+Root selection использует `-Repository wiki -Component cli`: profiles Fast/Unit
+выбирают только CLI format, Build добавляет только `wiki-cli --bin wiki`. HTTP
+CLI tests требуют окружения и остаются manual integration/release, они не
+выдаются за быстрые unit. `scripts/build.py` выбирает только контейнеры:
+CLI binary не является backend Docker service.
+
+Изменения CLI исходников не выбирают backend/frontend producers. Общие Cargo
+lock/config и SDK pins консервативно выбирают обоих Rust consumers. Отдельный SDK
+checkout сохраняется: Cargo workspace resolution и manual dev-dependencies CLI
+по-прежнему требуют sibling path manifests. Готовый CLI artifact пока не имеет
+квалифицированного receipt reuse; cacheable остаётся false.
+
+Manual backend и CLI gates сохраняют один полный исходный workspace-набор.
+Exact portable selector поддерживает Base `shared_check`: если выбраны оба
+компонента, набор выполняется один раз и отчёт перечисляет обоих members. Старый
+Root packet может консервативно выполнить его дважды; его отдельная adoption и
+Windows CLI native route ещё не квалифицированы. Source-тесты не заменяют
+реальную компиляцию, integration/release или проверку скорости.

@@ -125,7 +125,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: README validator tests
         working-directory: wiki
-        run: python3 -m unittest scripts.tests.test_verify_readme
+        run: python3 -m unittest scripts.tests.test_verify_readme scripts.tests.test_cli_selection
           scripts.tests.test_ci_contract_checks scripts.tests.test_build_pin
           scripts.tests.test_quality_routes
       - name: README structural validation

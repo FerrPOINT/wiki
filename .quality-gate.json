@@ -40,7 +40,8 @@
       ".quality-gate.json",
       ".github/workflows/ci.yml",
       ".github/workflows/release.yml",
-      "frontend/pnpm-workspace.yaml"
+      "frontend/pnpm-workspace.yaml",
+      "scripts/tests/test_cli_selection.py"
     ],
     "cli": [
       "backend/cli/**"
@@ -65,6 +66,7 @@
         "-B",
         "-m",
         "unittest",
+        "scripts.tests.test_cli_selection",
         "scripts.tests.test_quality_routes",
         "scripts.tests.test_ci_contract_checks",
         "scripts.tests.test_build_pin",
@@ -79,7 +81,9 @@
         ".github/**",
         "frontend/Dockerfile*",
         "frontend/package.json",
-        "frontend/pnpm-workspace.yaml"
+        "frontend/pnpm-workspace.yaml",
+        "scripts/select_ci.py",
+        "scripts/tests/test_cli_selection.py"
       ]
     },
     {
@@ -304,7 +308,8 @@
         }
       ],
       "sdk_revision": ".base-revision",
-      "test_tier": "integration"
+      "test_tier": "integration",
+      "shared_check": "wiki-rust-manual-v1"
     },
     {
       "id": "cli:format",
@@ -600,6 +605,49 @@
       "exclude_inputs": [
         "backend/**/tests/**"
       ]
+    },
+    {
+      "id": "cli:quality",
+      "component": "cli",
+      "profiles": [
+        "integration",
+        "integrated",
+        "release"
+      ],
+      "argv": [
+        "bash",
+        "{base}/scripts/run_rust_gate.sh",
+        "--",
+        "bash",
+        "-euo",
+        "pipefail",
+        "-c",
+        "cargo fmt --all -- --check; cargo clippy --locked --workspace --all-targets -- -D warnings; cargo test --locked --workspace -- --test-threads=1"
+      ],
+      "cwd": "backend",
+      "inputs": [
+        "**"
+      ],
+      "cacheable": false,
+      "platforms": [
+        "linux"
+      ],
+      "external_state": true,
+      "requires_env": [
+        "WIKI_TEST_DATABASE_URL"
+      ],
+      "tools": [
+        {
+          "argv": [
+            "rustc",
+            "--version"
+          ],
+          "pattern": "^rustc 1\\.88\\.0\\b"
+        }
+      ],
+      "sdk_revision": ".base-revision",
+      "test_tier": "integration",
+      "shared_check": "wiki-rust-manual-v1"
     }
   ],
   "additional_acceptance": "Existing product CI/CONTRIBUTING: MSRV/features, ignored DB, OpenAPI/packed consumer/themes, security and live acceptance remain separate mandatory gates where applicable.",
