@@ -1,5 +1,13 @@
 # Testing Strategy - Wiki
 
+Обычный `just test` использует reviewed domain units и `pnpm test:unit`.
+Полный backend-набор вынесен в явный ручной `just test-backend-full`.
+`just build` без scope отказывает; выбрать `build-backend`,
+`build-frontend`, `build-cli` либо намеренный `build-all`.
+Backend/CLI packaging зависит от того же unit prerequisite;
+в одном полном вызове Just он выполняется один раз.
+Настоящие Rust/Node/Just qualification и release/live — отдельная веха.
+
 ## Docker: раздельные входы проверок и компиляции
 
 `frontend/Dockerfile` и `Dockerfile.umbrella` разделяют dependency install,
