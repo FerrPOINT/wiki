@@ -136,7 +136,7 @@
             "node",
             "--version"
           ],
-          "pattern": "^v22\\.20\\.0\\s*$"
+          "pattern": "^v22\\.22\\.2\\s*$"
         },
         {
           "argv": [
@@ -177,7 +177,7 @@
             "node",
             "--version"
           ],
-          "pattern": "^v22\\.20\\.0\\s*$"
+          "pattern": "^v22\\.22\\.2\\s*$"
         },
         {
           "argv": [
@@ -215,7 +215,7 @@
             "node",
             "--version"
           ],
-          "pattern": "^v22\\.20\\.0\\s*$"
+          "pattern": "^v22\\.22\\.2\\s*$"
         },
         {
           "argv": [
@@ -372,7 +372,7 @@
             "node",
             "--version"
           ],
-          "pattern": "^v22\\.20\\.0\\s*$"
+          "pattern": "^v22\\.22\\.2\\s*$"
         },
         {
           "argv": [
