@@ -1,1 +1,4 @@
 scripts/base-generate-openapi.mjs text eol=lf
+scripts/generate-exports.mjs text eol=lf
+scripts/tests/generate-exports.test.mjs text eol=lf
+package.json text eol=lf
