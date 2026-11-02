@@ -26,6 +26,7 @@ COPY wiki/backend/api ./api
 COPY wiki/backend/server ./server
 COPY wiki/backend/cli ./cli
 
+ARG CARGO_BUILD_JOBS=1
 RUN --mount=type=cache,id=wiki-cargo-registry-rust-1.88,target=/usr/local/cargo/registry,sharing=shared \
     --mount=type=cache,id=wiki-cargo-target-rust-1.88,target=/cargo-target,sharing=locked \
     CARGO_TARGET_DIR=/cargo-target cargo build --locked --release --bin server \
