@@ -46,3 +46,41 @@ CodeBlock предпросмотра Markdown-шаблона используе�
 При ошибке поля снова доступны с прежними значениями. API и backend не меняются.
 Проверки: блокировка редактирования и повторного submit; браузерные сценарии
 с задержанным успехом и ошибкой создания, сохранность полей и save payload.
+
+## Общие навигационные карточки — 2026-10-26
+
+Значки административных разделов используют IconMark Base, подписи —
+ResourceListTitle и ResourceListDescription. Ссылки, доступ и загрузка показателей
+остаются у Wiki. Общая тема и typography presets изменяют оформление карточек
+без локальной копии размеров и цветов. UI pin 6dca218 остаётся прежним.
+
+Два выбранных теста, TypeScript, scoped lint и UI contract PASS. В IAB проверены
+24 контекста: три темы, viewport 320/375/1920/2560 и два typography presets.
+Все три перехода по описанию и Enter на ссылке сохраняют адрес назначения.
+Это точный source-фрагмент с настоящими metadata, без backend/Auth/runtime
+приёмки. Полная сверка модуля и отрицательные контроли защищают glyph, caption
+и маршрут; evidence: private wiki-worklog-compositions-20261026.
+
+## Общие каталоги и ревизии — 2026-10-26
+
+11 текстовых элементов четырёх модулей используют ResourceListTitle/Description
+и CardDescription Base: проекты, пространства, задачи, связи пространства и
+ревизии документа. Список ревизий использует ResourceList/ResourceListRow и
+IconMark вместо локальных border/padding/icon paint; пустая выдача не создаёт
+пустую рамку. В PageHeader удалена избыточная локальная типографика context.
+Названия, статусы, namespace URL, fallback, даты, права и mutations принадлежат
+Wiki; button выбора ревизии сохраняет прежние ID и trigger ref. UI pin 6dca218,
+SDK/skills pins, API и lockfile не меняются.
+
+53 выбранных unit-cases четырёх файлов, TypeScript, scoped lint и UI contract
+прошли. У ProjectsPage/WorkspacePage отдельного page-unit нет: их source regions
+проверены полной проекцией модуля и IAB, не объявлены покрытыми navigation-unit.
+Общая квалификация с Admin: 192 сочетания восьми source-композиций, трёх тем,
+viewport320/375/1920/2560 и двух typography presets; ещё36 проверок плотности
+строк ревизий. 12 соседних состояний и десять действий/переходов подтверждают
+fallback, readonly/busy, empty revisions, exact ID/ref и namespace context.
+Ошибок/предупреждений консоли нет; три снимка просмотрены. Полные семь модулей
+и19 payloads сверены, десять отрицательных контролей отклонены. Это исходные
+JSX с синтетическими DTO/callbacks, без backend/Auth/runtime приёмки; настоящий
+200% zoom не подменяется typography preset. Evidence: private
+catalog-metadata-20261026.

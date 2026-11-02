@@ -1,6 +1,9 @@
 import {
   Card,
   CardContent,
+  IconMark,
+  ResourceListTitle,
+  ResourceListDescription,
   PageHeader,
   SectionHeader,
   Metric,
@@ -170,14 +173,16 @@ export function AdminPage() {
               <Card asChild interactive key={section.href}>
                 <Link to={section.href}>
                   <CardContent className="group flex min-w-0 items-center gap-3">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-surface-raised text-accent">
-                      <Icon className="h-5 w-5" aria-hidden />
-                    </span>
+                    <IconMark>
+                      <Icon aria-hidden />
+                    </IconMark>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-semibold">{section.title}</span>
-                      <span className="mt-1 block text-xs leading-5 text-text-muted">
-                        {section.description}
-                      </span>
+                      <ResourceListTitle asChild>
+                        <span className="block">{section.title}</span>
+                      </ResourceListTitle>
+                      <ResourceListDescription asChild>
+                        <span className="mt-1 block">{section.description}</span>
+                      </ResourceListDescription>
                     </span>
                     <ArrowRight
                       className="h-4 w-4 shrink-0 text-text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-accent"

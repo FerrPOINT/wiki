@@ -1,4 +1,4 @@
-import { PageHeader, Select, ErrorState, Notice, LoadingState } from '@pdlc/ui/ui'
+import { Label, PageHeader, Select, ErrorState, Notice, LoadingState } from '@pdlc/ui/ui'
 import { useEffect, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { parseNamespaceLocation, withNamespaceLocation } from '@pdlc/ui/lib'
@@ -71,7 +71,7 @@ export function ProjectBoundary({ children }: { children: ReactNode }) {
     return (
       <section className="max-w-xl space-y-3">
         <PageHeader title={'Выберите пространство проекта'} />
-        <label htmlFor="project-space">Пространство</label>
+        <Label htmlFor="project-space">Пространство</Label>
         <Select
           id="project-space"
           value={''}

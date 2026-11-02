@@ -205,6 +205,20 @@ describe('DocumentComposePage', () => {
     expect(createDocumentMutate).not.toHaveBeenCalled()
   })
 
+  it('retains the code node and focus while other form data changes', () => {
+    setupCompose()
+    fireEvent.change(screen.getByLabelText('Markdown документа'), {
+      target: { value: '```\nRetain preview focus\n```' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Предпросмотр' }))
+    const code = screen.getByRole('region', { name: 'Код' })
+    code.focus()
+    fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Updated title' } })
+    expect(screen.getByRole('region', { name: 'Код' })).toBe(code)
+    expect(code).toHaveFocus()
+    expect(createDocumentMutate).not.toHaveBeenCalled()
+  })
+
   it('keeps an unsaved draft when navigation is cancelled and leaves after confirmation', async () => {
     const router = setupCompose()
     const cleanUnloadEvent = new Event('beforeunload', { cancelable: true })

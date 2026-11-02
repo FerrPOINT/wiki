@@ -1,7 +1,12 @@
+import { ContentSection } from '@pdlc/ui/ui'
 import { SpaceSelector, useSelectedSpaceKey } from '@/widgets/dossier-space'
 import { type FormEvent, useRef, useState } from 'react'
 import {
+  ResourceListTitle,
+  ResourceListDescription,
   SectionHeader,
+  Card,
+  CardContent,
   NamespaceLink as Link,
   ResourceList,
   ResourceListRow,
@@ -10,11 +15,12 @@ import {
   LoadingState,
   Button,
   Input,
-  Label,
   SearchInput,
   PageNavigation,
   PageHeader,
   Notice,
+  TextLink,
+  FormField,
 } from '@pdlc/ui/ui'
 import { useParams } from 'react-router'
 import { FileCheck2, FileText, Link2 } from 'lucide-react'
@@ -105,16 +111,20 @@ function PhaseCatalog({ spaceKey }: { spaceKey: string }) {
                       className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1"
                     >
                       <span className="min-w-0">
-                        <span className="block break-words text-sm font-medium text-text-primary">
-                          {phase.title ?? phase.phase_key}
-                        </span>
+                        <ResourceListTitle asChild className="block break-words">
+                          <span>{phase.title ?? phase.phase_key}</span>
+                        </ResourceListTitle>
                         {phase.title && (
-                          <span className="block text-xs text-text-muted">{phase.phase_key}</span>
+                          <ResourceListDescription asChild className="block">
+                            <span>{phase.phase_key}</span>
+                          </ResourceListDescription>
                         )}
                       </span>
-                      <span className="shrink-0 text-xs text-text-muted">
-                        Документы: {phase.document_count} · Материалы: {phase.evidence_count}
-                      </span>
+                      <ResourceListDescription asChild className="shrink-0">
+                        <span>
+                          Документы: {phase.document_count} · Материалы: {phase.evidence_count}
+                        </span>
+                      </ResourceListDescription>
                     </Link>
                   </ResourceListRow>
                 </li>
@@ -226,12 +236,14 @@ export function PhaseDossierPage() {
     <div className="space-y-5">
       <section className="space-y-3">
         <div className="space-y-2">
-          <Link
-            to={pathWithSearchParams('/phases', searchParams)}
-            className="inline-flex min-h-10 items-center text-sm text-accent hover:text-accent-hover"
-          >
-            К фазам
-          </Link>
+          <TextLink asChild>
+            <Link
+              to={pathWithSearchParams('/phases', searchParams)}
+              className="inline-flex min-h-10 items-center text-sm"
+            >
+              К фазам
+            </Link>
+          </TextLink>
           <PageHeader
             title={phase.title ?? phase.phase_key}
             context={
@@ -256,10 +268,12 @@ export function PhaseDossierPage() {
             }
           />
         </div>
-        <div className="flex flex-wrap gap-x-5 gap-y-1 border-y border-border py-2 text-sm text-text-muted">
-          <span>Документы: {phase.document_count}</span>
-          <span>Материалы: {phase.evidence_count}</span>
-        </div>
+        <ContentSection asChild dividers="both" density="compact">
+          <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-text-muted">
+            <span>Документы: {phase.document_count}</span>
+            <span>Материалы: {phase.evidence_count}</span>
+          </div>
+        </ContentSection>
       </section>
 
       {spacesQuery.isError && (
@@ -275,41 +289,47 @@ export function PhaseDossierPage() {
       >
         <section className="min-w-0 space-y-3" aria-labelledby="phase-documents-title">
           <SectionHeader headingId="phase-documents-title" title={<>Документы фазы</>} />
-          <form
-            onSubmit={handleLinkDocument}
-            className="border-y border-border bg-surface-raised p-3"
-            aria-label="Привязать документ к фазе"
-          >
-            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-              <div className="space-y-1.5">
-                <Label htmlFor="phase-document-link">Документ для фазы</Label>
-                <Input
-                  id="phase-document-link"
+          <Card asChild surface="raised">
+            <form
+              onSubmit={handleLinkDocument}
 
-                  value={documentId}
-                  onChange={(event) => setDocumentId(event.target.value)}
-                  placeholder="product-requirements"
-                  disabled={linkDocument.isPending}
-                />
-              </div>
-              <Button
-                type="submit"
+              aria-label="Привязать документ к фазе"
+            >
+              <CardContent density="compact">
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                  <FormField id="phase-document-link" label={'Документ для фазы'}>
+                    {(baseFieldAttrs) => (
+                      <Input
+                        {...baseFieldAttrs}
+                        value={documentId}
+                        onChange={(event) => setDocumentId(event.target.value)}
+                        placeholder="product-requirements"
+                        disabled={linkDocument.isPending}
+                      />
+                    )}
+                  </FormField>
+                  <Button
+                    type="submit"
 
-                disabled={linkDocument.isPending || !documentId.trim()}
-              >
-                <Link2 className="h-4 w-4" />
-                {linkDocument.isPending ? 'Привязываем' : 'Привязать'}
-              </Button>
-            </div>
-            {linkDocument.isError && (
-              <Notice className="mt-2" role="alert" appearance="inline" tone="danger">
-                {formatApiErrorForUser(linkDocument.error, 'Не удалось привязать документ')}
-              </Notice>
-            )}
-            {linkMessage && !linkDocument.isError && (
-              <p className="mt-2 text-sm text-success">{linkMessage}</p>
-            )}
-          </form>
+                    disabled={linkDocument.isPending || !documentId.trim()}
+                  >
+                    <Link2 className="h-4 w-4" />
+                    {linkDocument.isPending ? 'Привязываем' : 'Привязать'}
+                  </Button>
+                </div>
+                {linkDocument.isError && (
+                  <Notice className="mt-2" role="alert" appearance="inline" tone="danger">
+                    {formatApiErrorForUser(linkDocument.error, 'Не удалось привязать документ')}
+                  </Notice>
+                )}
+                {linkMessage && !linkDocument.isError && (
+                  <Notice tone="success" appearance="inline" className="mt-2">
+                    {linkMessage}
+                  </Notice>
+                )}
+              </CardContent>
+            </form>
+          </Card>
           {phase.documents.length === 0 ? (
             <EmptyState message="С фазой пока не связан ни один документ" />
           ) : (
@@ -324,13 +344,15 @@ export function PhaseDossierPage() {
                       >
                         <FileText className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
                         <span className="min-w-0">
-                          <span className="block break-words text-sm font-medium text-text-primary">
-                            {document.title}
-                          </span>
-                          <span className="block text-xs text-text-muted">
-                            {formatDocumentType(document.document_type)} ·{' '}
-                            {formatDocumentStatus(document.status)}
-                          </span>
+                          <ResourceListTitle asChild className="block break-words">
+                            <span>{document.title}</span>
+                          </ResourceListTitle>
+                          <ResourceListDescription asChild className="block">
+                            <span>
+                              {formatDocumentType(document.document_type)} ·{' '}
+                              {formatDocumentStatus(document.status)}
+                            </span>
+                          </ResourceListDescription>
                         </span>
                       </Link>
                     </ResourceListRow>
@@ -357,13 +379,15 @@ export function PhaseDossierPage() {
                       >
                         <FileCheck2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
                         <span className="min-w-0">
-                          <span className="block break-words text-sm font-medium text-text-primary">
-                            {item.title}
-                          </span>
-                          <span className="block text-xs text-text-muted">
-                            {formatEvidenceType(item.evidence_type)} ·{' '}
-                            {formatDateTime(item.created_at)}
-                          </span>
+                          <ResourceListTitle asChild className="block break-words">
+                            <span>{item.title}</span>
+                          </ResourceListTitle>
+                          <ResourceListDescription asChild className="block">
+                            <span>
+                              {formatEvidenceType(item.evidence_type)} ·{' '}
+                              {formatDateTime(item.created_at)}
+                            </span>
+                          </ResourceListDescription>
                         </span>
                       </Link>
                     </ResourceListRow>

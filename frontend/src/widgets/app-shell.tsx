@@ -1,19 +1,17 @@
 import { useApplicationAccess } from '@pdlc/ui/auth'
 import {
+  SidebarList,
+  AccountMenu,
   AppShell as BaseAppShell,
   SidebarNavigationGroup,
   useSidebarDisclosure,
+  SidebarItemLabel,
   SidebarItem,
   NamespaceLink as Link,
   NamespaceNavLink as NavLink,
   Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
   PlatformHeader,
   PlatformMark,
-  ThemeMenuItems,
 } from '@pdlc/ui/ui'
 
 import { NamespaceShellContext } from './namespace-context'
@@ -24,17 +22,7 @@ import { Outlet, useLocation } from 'react-router'
 import { useProjectDisclosures } from '@pdlc/ui/lib'
 import { WorkspaceNavigation, useDocumentDisclosures } from './workspace-navigation'
 import { ProjectBoundary } from './project-boundary'
-import {
-  FileCheck2,
-  FilePlus2,
-  FileText,
-  Home,
-  Library,
-  LogOut,
-  Search,
-  ShieldCheck,
-  User,
-} from 'lucide-react'
+import { FileCheck2, FilePlus2, FileText, Home, Library, Search, ShieldCheck } from 'lucide-react'
 
 import { useCurrentUser, useLogout } from '@/shared/api/hooks'
 
@@ -53,29 +41,6 @@ const baseNavItems: NavItem[] = [
 
 const adminNavItems: NavItem[] = [{ to: '/admin', icon: ShieldCheck, label: 'Администрирование' }]
 
-function SidebarLink({
-  to,
-  icon: Icon,
-  label,
-  onClick,
-  compact = false,
-}: {
-  to: string
-  icon: ElementType
-  label: string
-  onClick?: () => void
-  compact?: boolean
-}) {
-  return (
-    <SidebarItem asChild compact={compact}>
-      <NavLink to={to} end={to === '/'} onClick={onClick} aria-label={label} title={label}>
-        <Icon aria-hidden />
-        <span className="base-sidebar-item-label">{label}</span>
-      </NavLink>
-    </SidebarItem>
-  )
-}
-
 function NavigationList({
   items,
   onNavigate,
@@ -86,11 +51,18 @@ function NavigationList({
   compact?: boolean
 }) {
   return (
-    <nav className="flex flex-col gap-1" aria-label="Основная навигация">
-      {items.map((item) => (
-        <SidebarLink key={item.to} {...item} onClick={onNavigate} compact={compact} />
-      ))}
-    </nav>
+    <SidebarList asChild>
+      <nav aria-label="Основная навигация">
+        {items.map(({ to, icon: Icon, label }) => (
+          <SidebarItem key={to} asChild compact={compact}>
+            <NavLink to={to} end={to === '/'} onClick={onNavigate} aria-label={label} title={label}>
+              <Icon aria-hidden />
+              <SidebarItemLabel>{label}</SidebarItemLabel>
+            </NavLink>
+          </SidebarItem>
+        ))}
+      </nav>
+    </SidebarList>
   )
 }
 
@@ -188,42 +160,19 @@ export function AppShell() {
           }
           actions={
             <>
-              <Button asChild size="sm" className="hidden min-w-10 gap-2 px-3 md:inline-flex">
+              <Button asChild size="sm" className="hidden min-w-10 gap-2 md:inline-flex">
                 <Link to="/documents/new" aria-label="Новый документ">
                   <FilePlus2 className="h-4 w-4" aria-hidden />
                   <span>Новый документ</span>
                 </Link>
               </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-
-                    aria-label="Аккаунт"
-                  >
-                    <User className="h-5 w-5" aria-hidden />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-64 max-w-[calc(100vw-2rem)]">
-                  <div className="break-words px-2 py-1.5 text-sm font-medium text-text-primary">
-                    {identity}
-                  </div>
-                  {user?.email && user.email !== identity && (
-                    <div className="break-words px-2 pb-2 text-xs text-text-muted">
-                      {user.email}
-                    </div>
-                  )}
-                  <ThemeMenuItems />
-                  <DropdownMenuItem
-                    onSelect={() => logout.mutate()}
-                    className="min-h-11 gap-2 text-text-secondary md:min-h-10"
-                  >
-                    <LogOut className="h-4 w-4" aria-hidden />
-                    <span>Выйти</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <AccountMenu
+                account={{
+                  label: identity,
+                  secondary: user?.email && user.email !== identity ? user.email : undefined,
+                  onLogout: () => logout.mutate(),
+                }}
+              />
             </>
           }
         />

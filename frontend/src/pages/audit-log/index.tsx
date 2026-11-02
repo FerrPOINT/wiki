@@ -1,4 +1,10 @@
+import { ContentSection } from '@pdlc/ui/ui'
 import {
+  ActionGroup,
+  ResourceListTitle,
+  DescriptionItem,
+  PageNavigation,
+  Label,
   PageHeader,
   Disclosure,
   Select,
@@ -16,10 +22,11 @@ import {
   TableHeader,
   TableRow,
   Notice,
+  FormField,
 } from '@pdlc/ui/ui'
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
-import { ChevronLeft, ChevronRight, ListFilter, RefreshCw } from 'lucide-react'
+import { ListFilter, RefreshCw } from 'lucide-react'
 import { useAuditLog, useUsers } from '@/shared/api/hooks'
 
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
@@ -294,190 +301,185 @@ export function AuditLogPage() {
           Фильтры{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
         </Button>
         {showFilters && (
-          <form
-            aria-label="Фильтры аудита"
-            onSubmit={applyFilters}
-            className="space-y-3 border-y border-border py-3"
-          >
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              <div className="space-y-1">
-                <label htmlFor="audit-action" className="text-sm font-medium">
-                  Действие
-                </label>
-                <Select
-                  id="audit-action"
-                  className="w-full"
-                  value={draftFilters.action}
-                  onValueChange={(nextValue) => updateDraft('action', nextValue)}
-                  options={[
-                    { value: '', label: 'Все действия' },
-                    ...(draftFilters.action && !actionLabels[draftFilters.action]
-                      ? [{ value: String(draftFilters.action), label: String(draftFilters.action) }]
-                      : []),
-                    ...(Object.entries(actionLabels).map(([value, label]) => ({
-                      value: String(value),
-                      label: String(label),
-                    })) ?? []),
-                  ]}
-                />
-              </div>
-              <div className="space-y-1">
-                <label htmlFor="audit-entity-type" className="text-sm font-medium">
-                  Тип объекта
-                </label>
-                <Select
-                  id="audit-entity-type"
-                  className="w-full"
-                  value={draftFilters.entity_type}
-                  onValueChange={(nextValue) => updateDraft('entity_type', nextValue)}
-                  options={[
-                    { value: '', label: 'Все типы' },
-                    ...(draftFilters.entity_type &&
-                    !entityTypes.some(([value]) => value === draftFilters.entity_type)
-                      ? [
-                          {
-                            value: String(draftFilters.entity_type),
-                            label: String(draftFilters.entity_type),
-                          },
-                        ]
-                      : []),
-                    ...(entityTypes.map(([value, label]) => ({
-                      value: String(value),
-                      label: String(label),
-                    })) ?? []),
-                  ]}
-                />
-              </div>
-              <div className="space-y-1">
-                <label htmlFor="audit-actor" className="text-sm font-medium">
-                  Участник
-                </label>
-                {manualActorId ||
-                usersQuery.isError ||
-                (!usersQuery.isLoading && users.length === 0) ? (
-                  <div className="space-y-1">
-                    <div className="flex gap-2">
-                      <Input
-                        id="audit-actor"
-                        className="min-w-0"
-                        placeholder="UUID участника"
-                        value={draftFilters.actor_id}
-                        onChange={(event) => updateDraft('actor_id', event.target.value)}
-                      />
+          <ContentSection asChild dividers="both" density="compact">
+            <form aria-label="Фильтры аудита" onSubmit={applyFilters} className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <FormField id="audit-action" label={'Действие'}>
+                  {(baseFieldAttrs) => (
+                    <Select
+                      {...baseFieldAttrs}
+                      className="w-full"
+                      value={draftFilters.action}
+                      onValueChange={(nextValue) => updateDraft('action', nextValue)}
+                      options={[
+                        { value: '', label: 'Все действия' },
+                        ...(draftFilters.action && !actionLabels[draftFilters.action]
+                          ? [
+                              {
+                                value: String(draftFilters.action),
+                                label: String(draftFilters.action),
+                              },
+                            ]
+                          : []),
+                        ...(Object.entries(actionLabels).map(([value, label]) => ({
+                          value: String(value),
+                          label: String(label),
+                        })) ?? []),
+                      ]}
+                    />
+                  )}
+                </FormField>
+                <FormField id="audit-entity-type" label={'Тип объекта'}>
+                  {(baseFieldAttrs) => (
+                    <Select
+                      {...baseFieldAttrs}
+                      className="w-full"
+                      value={draftFilters.entity_type}
+                      onValueChange={(nextValue) => updateDraft('entity_type', nextValue)}
+                      options={[
+                        { value: '', label: 'Все типы' },
+                        ...(draftFilters.entity_type &&
+                        !entityTypes.some(([value]) => value === draftFilters.entity_type)
+                          ? [
+                              {
+                                value: String(draftFilters.entity_type),
+                                label: String(draftFilters.entity_type),
+                              },
+                            ]
+                          : []),
+                        ...(entityTypes.map(([value, label]) => ({
+                          value: String(value),
+                          label: String(label),
+                        })) ?? []),
+                      ]}
+                    />
+                  )}
+                </FormField>
+                <div className="space-y-1">
+                  <Label htmlFor="audit-actor">Участник</Label>
+                  {manualActorId ||
+                  usersQuery.isError ||
+                  (!usersQuery.isLoading && users.length === 0) ? (
+                    <div className="space-y-1">
+                      <div className="flex gap-2">
+                        <Input
+                          id="audit-actor"
+                          className="min-w-0"
+                          placeholder="UUID участника"
+                          value={draftFilters.actor_id}
+                          onChange={(event) => updateDraft('actor_id', event.target.value)}
+                        />
+                        {usersQuery.isError && (
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="outline"
+
+                            title="Повторить загрузку пользователей"
+                            aria-label="Повторить загрузку пользователей"
+                            onClick={() => usersQuery.refetch()}
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                       {usersQuery.isError && (
+                        <p className="text-xs text-text-muted">
+                          Каталог пользователей недоступен; укажите UUID
+                        </p>
+                      )}
+                      {!usersQuery.isError && users.length > 0 && (
                         <Button
                           type="button"
-                          size="icon"
-                          variant="outline"
-
-                          title="Повторить загрузку пользователей"
-                          aria-label="Повторить загрузку пользователей"
-                          onClick={() => usersQuery.refetch()}
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setManualActorId(false)}
                         >
-                          <RefreshCw className="h-4 w-4" />
+                          Выбрать из списка
                         </Button>
                       )}
                     </div>
-                    {usersQuery.isError && (
-                      <p className="text-xs text-text-muted">
-                        Каталог пользователей недоступен; укажите UUID
-                      </p>
-                    )}
-                    {!usersQuery.isError && users.length > 0 && (
+                  ) : (
+                    <div className="space-y-1">
+                      <Select
+                        id="audit-actor"
+                        className="w-full"
+                        value={draftFilters.actor_id}
+                        disabled={usersQuery.isLoading}
+                        onValueChange={(nextValue) => updateDraft('actor_id', nextValue)}
+                        options={[
+                          {
+                            value: '',
+                            label: String(
+                              usersQuery.isLoading ? 'Загружаем пользователей' : 'Все участники',
+                            ),
+                          },
+                          ...(draftFilters.actor_id &&
+                          !users.some((user) => user.id === draftFilters.actor_id)
+                            ? [
+                                {
+                                  value: String(draftFilters.actor_id),
+                                  label: String(draftFilters.actor_id),
+                                },
+                              ]
+                            : []),
+                          ...(users.map((user) => ({
+                            value: String(user.id),
+                            label: [
+                              user.display_name ?? user.username ?? user.email,
+                              ' · ',
+                              user.email,
+                            ].join(''),
+                          })) ?? []),
+                        ]}
+                      />
                       <Button
                         type="button"
                         size="sm"
                         variant="ghost"
-                        className="px-0"
-                        onClick={() => setManualActorId(false)}
+                        onClick={() => setManualActorId(true)}
                       >
-                        Выбрать из списка
+                        Ввести UUID
                       </Button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    <Select
-                      id="audit-actor"
-                      className="w-full"
-                      value={draftFilters.actor_id}
-                      disabled={usersQuery.isLoading}
-                      onValueChange={(nextValue) => updateDraft('actor_id', nextValue)}
-                      options={[
-                        {
-                          value: '',
-                          label: String(
-                            usersQuery.isLoading ? 'Загружаем пользователей' : 'Все участники',
-                          ),
-                        },
-                        ...(draftFilters.actor_id &&
-                        !users.some((user) => user.id === draftFilters.actor_id)
-                          ? [
-                              {
-                                value: String(draftFilters.actor_id),
-                                label: String(draftFilters.actor_id),
-                              },
-                            ]
-                          : []),
-                        ...(users.map((user) => ({
-                          value: String(user.id),
-                          label: [
-                            user.display_name ?? user.username ?? user.email,
-                            ' · ',
-                            user.email,
-                          ].join(''),
-                        })) ?? []),
-                      ]}
+                    </div>
+                  )}
+                </div>
+                <FormField id="audit-from" label={'С даты (местное время)'}>
+                  {(baseFieldAttrs) => (
+                    <Input
+                      {...baseFieldAttrs}
+                      type="datetime-local"
+
+                      value={draftFilters.from}
+                      onChange={(event) => updateDraft('from', event.target.value)}
                     />
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="px-0"
-                      onClick={() => setManualActorId(true)}
-                    >
-                      Ввести UUID
-                    </Button>
-                  </div>
-                )}
-              </div>
-              <div className="space-y-1">
-                <label htmlFor="audit-from" className="text-sm font-medium">
-                  С даты (местное время)
-                </label>
-                <Input
-                  id="audit-from"
-                  type="datetime-local"
+                  )}
+                </FormField>
+                <FormField id="audit-to" label={'До даты (не включая)'}>
+                  {(baseFieldAttrs) => (
+                    <Input
+                      {...baseFieldAttrs}
+                      type="datetime-local"
 
-                  value={draftFilters.from}
-                  onChange={(event) => updateDraft('from', event.target.value)}
-                />
+                      value={draftFilters.to}
+                      onChange={(event) => updateDraft('to', event.target.value)}
+                    />
+                  )}
+                </FormField>
               </div>
-              <div className="space-y-1">
-                <label htmlFor="audit-to" className="text-sm font-medium">
-                  До даты (не включая)
-                </label>
-                <Input
-                  id="audit-to"
-                  type="datetime-local"
-
-                  value={draftFilters.to}
-                  onChange={(event) => updateDraft('to', event.target.value)}
-                />
-              </div>
-            </div>
-            {filterError && (
-              <Notice role="alert" appearance="inline" tone="danger">
-                {filterError}
-              </Notice>
-            )}
-            <div className="flex flex-wrap justify-end gap-2">
-              <Button type="button" variant="outline" onClick={clearFilters}>
-                Сбросить
-              </Button>
-              <Button type="submit">Применить</Button>
-            </div>
-          </form>
+              {filterError && (
+                <Notice role="alert" appearance="inline" tone="danger">
+                  {filterError}
+                </Notice>
+              )}
+              <ActionGroup align="end">
+                <Button type="button" variant="outline" onClick={clearFilters}>
+                  Сбросить
+                </Button>
+                <Button type="submit">Применить</Button>
+              </ActionGroup>
+            </form>
+          </ContentSection>
         )}
       </div>
 
@@ -513,27 +515,29 @@ export function AuditLogPage() {
                   <ResourceListRow asChild key={event.id}>
                     <li>
                       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                        <span className="min-w-0 break-words text-sm font-medium">
-                          {actionLabels[event.action] ?? event.action}
-                        </span>
+                        <ResourceListTitle asChild className="min-w-0 break-words">
+                          <span>{actionLabels[event.action] ?? event.action}</span>
+                        </ResourceListTitle>
                         <time dateTime={event.created_at} className="text-xs text-text-muted">
                           {formatDateTime(event.created_at)}
                         </time>
                       </div>
-                      <dl className="mt-1 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
-                        <dt className="text-text-muted">Участник</dt>
-                        <dd className="min-w-0 break-all">{event.actor_id}</dd>
-                        <dt className="text-text-muted">Объект</dt>
-                        <dd className="min-w-0 break-all">
+                      <dl className="mt-1 space-y-1">
+                        <DescriptionItem label={<>Участник</>} layout="inline">
+                          {event.actor_id}
+                        </DescriptionItem>
+                        <DescriptionItem label={<>Объект</>} layout="inline">
                           {event.entity_type}: {event.entity_id}
-                        </dd>
+                        </DescriptionItem>
                       </dl>
-                      <Disclosure className="mt-1 text-xs" summary={<>Технические данные</>}>
-                        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 pb-2">
-                          <dt className="text-text-muted">Действие</dt>
-                          <dd className="min-w-0 break-all font-mono">{event.action}</dd>
-                          <dt className="text-text-muted">Запрос</dt>
-                          <dd className="min-w-0 break-all font-mono">{event.request_id}</dd>
+                      <Disclosure className="mt-1" size="sm" summary={<>Технические данные</>}>
+                        <dl className="space-y-1 pb-2">
+                          <DescriptionItem label={<>Действие</>} layout="inline" technical>
+                            {event.action}
+                          </DescriptionItem>
+                          <DescriptionItem label={<>Запрос</>} layout="inline" technical>
+                            {event.request_id}
+                          </DescriptionItem>
                         </dl>
                       </Disclosure>
                     </li>
@@ -568,10 +572,10 @@ export function AuditLogPage() {
                         <span className="block text-xs text-text-muted">{event.entity_type}</span>
                         {event.entity_id}
                       </TableCell>
-                      <TableCell className="break-all font-mono text-xs">
+                      <TableCell className="break-all" technical size="sm">
                         {event.request_id}
                       </TableCell>
-                      <TableCell className="whitespace-nowrap text-xs text-text-muted">
+                      <TableCell className="whitespace-nowrap text-text-muted" size="sm">
                         {formatDateTime(event.created_at)}
                       </TableCell>
                     </TableRow>
@@ -582,34 +586,23 @@ export function AuditLogPage() {
           </>
         )}
         {(hasPreviousPage || nextCursor) && (
-          <nav
-            aria-label="Страницы аудита"
-            className="mt-4 flex flex-wrap items-center gap-3 border-t border-border pt-3"
-          >
-            <span className="mr-auto text-sm text-text-secondary">Страница {currentPage}</span>
-            <Button
-              type="button"
-              variant="outline"
-
-              disabled={!hasPreviousPage || auditQuery.isLoading || auditQuery.isFetching}
-              onClick={() => changePage('previous')}
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Назад
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-
-              disabled={
-                !nextCursor || auditQuery.isLoading || auditQuery.isFetching || auditQuery.isError
-              }
-              onClick={() => nextCursor && changePage('next', nextCursor)}
-            >
-              Далее
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </nav>
+          <PageNavigation
+            page={currentPage}
+            hasNext={
+              !!nextCursor && !auditQuery.isLoading && !auditQuery.isFetching && !auditQuery.isError
+            }
+            onPageChange={(nextPage) => {
+              if (nextPage < currentPage) changePage('previous')
+              else if (nextCursor) changePage('next', nextCursor)
+            }}
+            label="Страницы аудита"
+            previousLabel="Назад"
+            nextLabel="Далее"
+            pending={auditQuery.isLoading || auditQuery.isFetching}
+            summary={<>Страница {currentPage}</>}
+            separated
+            className="mt-4"
+          />
         )}
       </section>
     </div>

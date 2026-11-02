@@ -5,6 +5,7 @@ import {
   LoadingState,
   usePlatformServices,
   ErrorState,
+  TextLink,
 } from '@pdlc/ui/ui'
 import type { components } from '@/api/generated'
 import { Link, useLocation, useParams } from 'react-router'
@@ -51,27 +52,23 @@ export function ManagedTaskPage() {
     <div className="space-y-5">
       <PageHeader title={`Документы задачи ${query.data[0]?.task_key ?? taskId}`} />
       {tracker && (
-        <a
-          className="text-accent"
-          href={withNamespaceLocation(`${tracker}/issues/${taskId}`, ref, search)}
-        >
+        <TextLink href={withNamespaceLocation(`${tracker}/issues/${taskId}`, ref, search)}>
           Открыть задачу в Tracker
-        </a>
+        </TextLink>
       )}
       <ResourceList asChild>
         <ul>
           {query.data.map((link) => (
             <ResourceListRow asChild key={link.revision_id}>
               <li>
-                <Link
-                  className="text-accent"
+                <TextLink asChild><Link
                   to={withNamespaceLocation(
                     `/documents/${link.document_id}/revisions/${link.revision_id}`,
                     null,
                   )}
                 >
                   {link.title} · ревизия {link.version}
-                </Link>
+                </Link></TextLink>
               </li>
             </ResourceListRow>
           ))}

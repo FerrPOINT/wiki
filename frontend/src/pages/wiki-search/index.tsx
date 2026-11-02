@@ -1,3 +1,4 @@
+import { ContentSection } from '@pdlc/ui/ui'
 import { useProjectRouteRef } from '@/widgets/namespace-context'
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router'
@@ -6,6 +7,8 @@ import { SearchResultLink } from '@/widgets/search-result-link'
 import { FileCheck2, FileText, GitBranch, ListFilter } from 'lucide-react'
 import { useWikiSearch } from '@/shared/api/hooks'
 import {
+  ActionGroup,
+  PageNavigation,
   PageHeader,
   SectionHeader,
   Select,
@@ -13,10 +16,10 @@ import {
   EmptyState,
   ErrorState,
   Input,
-  Label,
   LoadingState,
   ResourceList,
   SearchInput,
+  FormField,
 } from '@pdlc/ui/ui'
 import { formatApiErrorForUser } from '@/shared/lib/api-error'
 import { formatDateTime, formatDocumentType } from '@/shared/lib/wiki-format'
@@ -252,19 +255,20 @@ export function WikiSearchPage() {
   return (
     <div className="space-y-4">
       <PageHeader title={'Поиск'} />
-      <div className="space-y-1">
-        <Label htmlFor="search-scope">Область поиска</Label>
-        <Select
-          id="search-scope"
-          className="w-full"
-          value={searchScope.scope}
-          onValueChange={(nextValue) => changeScope(nextValue)}
-          options={[
-            { value: 'project', label: 'Текущий проект', disabled: !namespace.ref },
-            { value: 'all', label: 'Все доступные пространства' },
-          ]}
-        />
-      </div>
+      <FormField id="search-scope" label={'Область поиска'}>
+        {(baseFieldAttrs) => (
+          <Select
+            {...baseFieldAttrs}
+            className="w-full"
+            value={searchScope.scope}
+            onValueChange={(nextValue) => changeScope(nextValue)}
+            options={[
+              { value: 'project', label: 'Текущий проект', disabled: !namespace.ref },
+              { value: 'all', label: 'Все доступные пространства' },
+            ]}
+          />
+        )}
+      </FormField>
 
       <section aria-label="Параметры поиска" className="space-y-3">
         <form role="search" onSubmit={submitSearch} className="flex min-w-0 gap-2">
@@ -293,104 +297,108 @@ export function WikiSearchPage() {
         </form>
 
         {showFilters && (
-          <form
-            id="search-filters"
-            onSubmit={applyFilters}
-            className="grid gap-3 border-y border-border py-3 sm:grid-cols-2 xl:grid-cols-4"
-          >
-            <div className="space-y-1.5">
-              <Label htmlFor="search-space">Пространство</Label>
-              <Input
-                id="search-space"
-                readOnly={projectSearch}
+          <ContentSection asChild dividers="both" density="compact">
+            <form
+              id="search-filters"
+              onSubmit={applyFilters}
+              className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+            >
+              <FormField id="search-space" label={'Пространство'}>
+                {(baseFieldAttrs) => (
+                  <Input
+                    {...baseFieldAttrs}
+                    readOnly={projectSearch}
 
-                value={spaceFilter}
-                onChange={(event) => {
-                  setSpaceFilter(event.target.value.toUpperCase())
-                }}
-                placeholder="BASE"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="search-task">Задача</Label>
-              <Input
-                id="search-task"
+                    value={spaceFilter}
+                    onChange={(event) => {
+                      setSpaceFilter(event.target.value.toUpperCase())
+                    }}
+                    placeholder="BASE"
+                  />
+                )}
+              </FormField>
+              <FormField id="search-task" label={'Задача'}>
+                {(baseFieldAttrs) => (
+                  <Input
+                    {...baseFieldAttrs}
+                    value={taskFilter}
+                    onChange={(event) => {
+                      setTaskFilter(event.target.value)
+                    }}
+                    placeholder="BASE-42"
+                  />
+                )}
+              </FormField>
+              <FormField id="search-phase" label={'Фаза'}>
+                {(baseFieldAttrs) => (
+                  <Input
+                    {...baseFieldAttrs}
+                    value={phaseFilter}
+                    onChange={(event) => {
+                      setPhaseFilter(event.target.value)
+                    }}
+                    placeholder="implementation"
+                  />
+                )}
+              </FormField>
+              <FormField id="search-document-type" label={'Тип документа'}>
+                {(baseFieldAttrs) => (
+                  <Select
+                    {...baseFieldAttrs}
+                    className="w-full"
+                    value={documentTypeDraft}
+                    onValueChange={(nextValue) => {
+                      setDocumentTypeDraft(nextValue as DocumentTypeFilter)
+                    }}
+                    options={[
+                      ...(documentTypes.map((type) => ({
+                        value: String(type),
+                        label: String(type === 'all' ? 'Любой тип' : formatDocumentType(type)),
+                      })) ?? []),
+                    ]}
+                  />
+                )}
+              </FormField>
+              <ActionGroup align="end" className="sm:col-span-2 xl:col-span-4">
+                {(activeFilterCount > 0 ||
+                  spaceFilter ||
+                  taskFilter ||
+                  phaseFilter ||
+                  documentTypeDraft !== 'all') && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
 
-                value={taskFilter}
-                onChange={(event) => {
-                  setTaskFilter(event.target.value)
-                }}
-                placeholder="BASE-42"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="search-phase">Фаза</Label>
-              <Input
-                id="search-phase"
-
-                value={phaseFilter}
-                onChange={(event) => {
-                  setPhaseFilter(event.target.value)
-                }}
-                placeholder="implementation"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="search-document-type">Тип документа</Label>
-              <Select
-                id="search-document-type"
-                className="w-full"
-                value={documentTypeDraft}
-                onValueChange={(nextValue) => {
-                  setDocumentTypeDraft(nextValue as DocumentTypeFilter)
-                }}
-                options={[
-                  ...(documentTypes.map((type) => ({
-                    value: String(type),
-                    label: String(type === 'all' ? 'Любой тип' : formatDocumentType(type)),
-                  })) ?? []),
-                ]}
-              />
-            </div>
-            <div className="flex flex-wrap justify-end gap-2 sm:col-span-2 xl:col-span-4">
-              {(activeFilterCount > 0 ||
-                spaceFilter ||
-                taskFilter ||
-                phaseFilter ||
-                documentTypeDraft !== 'all') && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-
-                  onClick={() => {
-                    setSpaceFilter('')
-                    setTaskFilter('')
-                    setPhaseFilter('')
-                    setDocumentTypeDraft('all')
-                    setSearchParams((current) => {
-                      const next = new URLSearchParams(current)
-                      for (const key of [
-                        'space',
-                        'task_key',
-                        'phase_key',
-                        'document_type',
-                        'result_type',
-                      ]) {
-                        next.delete(key)
-                      }
-                      return next
-                    })
-                  }}
-                >
-                  Сбросить фильтры
+                    onClick={() => {
+                      setSpaceFilter('')
+                      setTaskFilter('')
+                      setPhaseFilter('')
+                      setDocumentTypeDraft('all')
+                      setSearchParams((current) => {
+                        const next = new URLSearchParams(current)
+                        for (const key of [
+                          'space',
+                          'task_key',
+                          'phase_key',
+                          'document_type',
+                          'result_type',
+                        ]) {
+                          next.delete(key)
+                        }
+                        return next
+                      })
+                    }}
+                  >
+                    Сбросить фильтры
+                  </Button>
+                )}
+                <Button type="submit" size="sm">
+                  Применить
                 </Button>
-              )}
-              <Button type="submit" size="sm">
-                Применить
-              </Button>
-            </div>
-          </form>
+              </ActionGroup>
+            </form>
+          </ContentSection>
         )}
       </section>
 
@@ -473,29 +481,15 @@ export function WikiSearchPage() {
           </ResourceList>
         )}
         {(currentPage > 1 || nextCursor) && !searchQuery.isLoading && !searchQuery.isError && (
-          <nav aria-label="Страницы результатов" className="flex items-center justify-end gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-
-              disabled={currentPage === 1}
-              onClick={() => changePage('previous')}
-            >
-              Назад
-            </Button>
-            <span className="text-sm text-text-muted">Страница {currentPage}</span>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-
-              disabled={!nextCursor}
-              onClick={() => changePage('next')}
-            >
-              Далее
-            </Button>
-          </nav>
+          <PageNavigation
+            page={currentPage}
+            hasNext={!!nextCursor}
+            onPageChange={(nextPage) => changePage(nextPage < currentPage ? 'previous' : 'next')}
+            label="Страницы результатов"
+            previousLabel="Назад"
+            nextLabel="Далее"
+            summary={<>Страница {currentPage}</>}
+          />
         )}
       </section>
     </div>
