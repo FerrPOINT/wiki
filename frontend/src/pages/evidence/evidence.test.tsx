@@ -393,7 +393,9 @@ describe('EvidencePage', () => {
     expect(screen.getByLabelText('Файл материала')).toBeInTheDocument()
     expect(screen.getByLabelText('Название')).toHaveValue('Проверка сборки')
     await user.click(within(group).getByRole('radio', { name: 'Ссылка' }))
-    expect(screen.getByLabelText('URL материала')).toHaveValue('https://ci.local/jobs/retained-draft')
+    expect(screen.getByLabelText('URL материала')).toHaveValue(
+      'https://ci.local/jobs/retained-draft',
+    )
     expect(createLinkMutate).not.toHaveBeenCalled()
     expect(createFileMutate).not.toHaveBeenCalled()
   })

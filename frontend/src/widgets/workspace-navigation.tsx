@@ -285,9 +285,7 @@ export function WorkspaceNavigation({
                                           title={space.name}
                                         >
                                           <FileText aria-hidden />
-                                          <SidebarItemLabel>
-                                            {space.name}
-                                          </SidebarItemLabel>
+                                          <SidebarItemLabel>{space.name}</SidebarItemLabel>
                                         </NamespaceNavLink>
                                       </SidebarItem>
                                       <Button
