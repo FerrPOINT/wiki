@@ -61,7 +61,8 @@ export function SpaceProjectsEditor({
         <CardContent className="space-y-3">
           <SectionHeader title={<>Проекты пространства</>} />
           <CardDescription tone="muted">
-            Пространство может быть общим для нескольких проектов. Отвязка сохраняет документы и их историю.
+            Пространство может быть общим для нескольких проектов. Отвязка сохраняет документы и их
+            историю.
           </CardDescription>
           {projects.isPending ? (
             <LoadingState message="Загружаем связи" />
@@ -78,20 +79,26 @@ export function SpaceProjectsEditor({
                     <li className="flex min-w-0 flex-wrap items-center justify-between gap-3">
                       <div className="min-w-0 flex-1 break-words">
                         {project.name ? (
-                          <TextLink asChild><Link
-                            to={withNamespaceLocation(
-                              workspacePath(project.namespace),
-                              project.namespace,
-                            )}
-                          >
-                            {project.name} · {project.project_key}
-                          </Link></TextLink>
+                          <TextLink asChild>
+                            <Link
+                              to={withNamespaceLocation(
+                                workspacePath(project.namespace),
+                                project.namespace,
+                              )}
+                            >
+                              {project.name} · {project.project_key}
+                            </Link>
+                          </TextLink>
                         ) : (
                           <span>Проект {project.namespace.namespace_id}</span>
                         )}
                         {(!project.available || project.state === 'archived') && (
                           <ResourceListDescription asChild>
-                            <p>{project.state === 'archived' ? 'Проект в архиве' : 'Сведения о проекте недоступны'}</p>
+                            <p>
+                              {project.state === 'archived'
+                                ? 'Проект в архиве'
+                                : 'Сведения о проекте недоступны'}
+                            </p>
                           </ResourceListDescription>
                         )}
                       </div>

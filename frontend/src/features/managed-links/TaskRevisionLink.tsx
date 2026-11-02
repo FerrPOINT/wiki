@@ -1,6 +1,15 @@
 import { useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router'
-import { ActionGroup, SectionHeader, Card, CardContent, Select, Button, Notice, FormField } from '@pdlc/ui/ui'
+import {
+  ActionGroup,
+  SectionHeader,
+  Card,
+  CardContent,
+  Select,
+  Button,
+  Notice,
+  FormField,
+} from '@pdlc/ui/ui'
 import { useQuery } from '@tanstack/react-query'
 import { apiRequest } from '@/api/client'
 import { useNamespaceContext } from '@/widgets/namespace-context'

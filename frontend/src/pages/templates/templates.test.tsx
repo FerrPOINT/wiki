@@ -117,9 +117,7 @@ describe('TemplatesPage', () => {
       'href',
       '/documents/new?template=requirements',
     )
-    expect(
-      screen.queryByRole('textbox', { name: 'Название шаблона' }),
-    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Название шаблона' })).not.toBeInTheDocument()
     expect(screen.queryByText('# Требования')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Показать содержимое шаблона Требования' }))
     expect(screen.getByText(/# Требования/)).toBeInTheDocument()
@@ -134,9 +132,7 @@ describe('TemplatesPage', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Markdown шаблона' }), {
       target: { value: '# Релиз\n\n## Проверки\n' },
     })
-    fireEvent.submit(
-      screen.getByRole('textbox', { name: 'Markdown шаблона' }).closest('form')!,
-    )
+    fireEvent.submit(screen.getByRole('textbox', { name: 'Markdown шаблона' }).closest('form')!)
 
     expect(createTemplateMutate).toHaveBeenCalledWith(
       {
@@ -154,9 +150,7 @@ describe('TemplatesPage', () => {
         body_markdown: '# Релиз',
       }),
     )
-    expect(
-      screen.queryByRole('textbox', { name: 'Название шаблона' }),
-    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Название шаблона' })).not.toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('Шаблон «План релиза» создан')
     expect(screen.getByRole('link', { name: 'Использовать' })).toHaveAttribute(
       'href',
@@ -298,12 +292,8 @@ describe('TemplatesPage', () => {
     fireEvent.change(screen.getByRole('searchbox', { name: 'Найти шаблон' }), {
       target: { value: 'after error' },
     })
-    expect(screen.getByRole('textbox', { name: 'Название шаблона' })).toHaveValue(
-      'Мой шаблон',
-    )
-    expect(screen.getByRole('textbox', { name: 'Markdown шаблона' })).toHaveValue(
-      '# Текст',
-    )
+    expect(screen.getByRole('textbox', { name: 'Название шаблона' })).toHaveValue('Мой шаблон')
+    expect(screen.getByRole('textbox', { name: 'Markdown шаблона' })).toHaveValue('# Текст')
     expect(screen.getByRole('alert')).toBeInTheDocument()
   })
 

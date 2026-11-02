@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { ExternalLink } from 'lucide-react'
 import { useSearchParams } from 'react-router'
-import { ResourceListTitle, ResourceListDescription,
+import {
+  ResourceListTitle,
+  ResourceListDescription,
   PageNavigation,
   PageHeader,
   Button,
@@ -179,12 +181,14 @@ export function UsersPage() {
                 <ResourceListRow asChild key={user.id}>
                   <div className="min-w-0 space-y-1">
                     <div className="flex items-start justify-between gap-3">
-                      <ResourceListTitle asChild className="min-w-0 break-words"><span >
-                        {user.display_name ?? user.username ?? user.email}
-                      </span></ResourceListTitle>
-                      <ResourceListDescription asChild className="shrink-0"><span >
-                        {user.active === false ? 'Профиль отключён' : 'Профиль доступен'}
-                      </span></ResourceListDescription>
+                      <ResourceListTitle asChild className="min-w-0 break-words">
+                        <span>{user.display_name ?? user.username ?? user.email}</span>
+                      </ResourceListTitle>
+                      <ResourceListDescription asChild className="shrink-0">
+                        <span>
+                          {user.active === false ? 'Профиль отключён' : 'Профиль доступен'}
+                        </span>
+                      </ResourceListDescription>
                     </div>
                     <div className="break-all text-sm text-text-muted">{user.email}</div>
                   </div>

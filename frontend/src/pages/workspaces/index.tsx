@@ -170,7 +170,9 @@ export function WorkspacePage({ documents = false }: { documents?: boolean }) {
                         </span>
                       </ResourceListTitle>
                       <ResourceListDescription asChild>
-                        <span>{space.status === 'archived' ? 'Пространство в архиве' : 'Документы'}</span>
+                        <span>
+                          {space.status === 'archived' ? 'Пространство в архиве' : 'Документы'}
+                        </span>
                       </ResourceListDescription>
                     </Link>
                   </ResourceListRow>
