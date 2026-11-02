@@ -410,14 +410,34 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
             let space = self.backend.document_space_id(command.document_id).await?;
             let mut tx = self
                 .backend
-                .begin_content_write(
-                    actor_id,
-                    self.claims.admission.as_ref(),
-                    &[space],
-                    SpaceAccess::Edit,
-                )
+                .begin_tree_write(actor_id, self.claims.admission.as_ref(), &[space])
                 .await?;
             ensure_document_accepts_writes_tx(&mut tx, command.document_id).await?;
+            if let Some(parent) = command.parent_id {
+                let parent_space: Uuid =
+                    sqlx::query_scalar("SELECT space_id FROM documents WHERE id=$1")
+                        .bind(parent)
+                        .fetch_optional(&mut *tx)
+                        .await
+                        .map_err(database_error)?
+                        .ok_or_else(|| shared::AppError::not_found("document", parent))?;
+                if parent_space != space {
+                    return Err(shared::AppError::invalid_input(
+                        "parent document belongs to another space",
+                    ));
+                }
+                if PostgresWikiBackend::document_parent_chain_contains(
+                    &mut tx,
+                    parent,
+                    command.document_id,
+                )
+                .await?
+                {
+                    return Err(shared::AppError::invalid_input(
+                        "document cannot be moved under its descendant",
+                    ));
+                }
+            }
             let row = sqlx::query(
                 r#"
                 UPDATE documents
@@ -638,8 +658,7 @@ impl PostgresWikiBackend {
         body: MoveDocumentRequest,
     ) -> Result<DocumentResponse, shared::AppError> {
         let document_id = self.resolve_document_id(document_id).await?;
-        let document_space_id = self
-            .ensure_document_access(claims, document_id, SpaceAccess::Edit)
+        self.ensure_document_access(claims, document_id, SpaceAccess::Edit)
             .await?;
         let actor_id = parse_uuid(&claims.user_id, "user")?;
         let parent_id = match body.parent_id {
@@ -648,20 +667,6 @@ impl PostgresWikiBackend {
                 if parent_id == document_id {
                     return Err(shared::AppError::invalid_input(
                         "document cannot be moved under itself",
-                    ));
-                }
-                let parent_space_id = self.document_space_id(parent_id).await?;
-                if parent_space_id != document_space_id {
-                    return Err(shared::AppError::invalid_input(
-                        "parent document belongs to another space",
-                    ));
-                }
-                if self
-                    .document_parent_chain_contains(parent_id, document_id)
-                    .await?
-                {
-                    return Err(shared::AppError::invalid_input(
-                        "document cannot be moved under its descendant",
                     ));
                 }
                 Some(parent_id)
@@ -733,7 +738,7 @@ impl PostgresWikiBackend {
     }
 
     async fn document_parent_chain_contains(
-        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
         parent_id: Uuid,
         document_id: Uuid,
     ) -> Result<bool, shared::AppError> {
@@ -748,7 +753,7 @@ impl PostgresWikiBackend {
             }
             current_id = sqlx::query_scalar("SELECT parent_id FROM documents WHERE id = $1")
                 .bind(id)
-                .fetch_optional(&self.pool)
+                .fetch_optional(&mut **tx)
                 .await
                 .map_err(database_error)?
                 .ok_or_else(|| shared::AppError::not_found("document", id))?;

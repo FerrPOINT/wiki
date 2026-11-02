@@ -15,6 +15,28 @@ impl PostgresWikiBackend {
         spaces: &[Uuid],
         required: SpaceAccess,
     ) -> Result<Transaction<'_, Postgres>, AppError> {
+        self.begin_content_write_locked(actor, admission, spaces, required, false)
+            .await
+    }
+
+    pub(super) async fn begin_tree_write(
+        &self,
+        actor: Uuid,
+        admission: Option<&Arc<WikiSpaceAdmission>>,
+        spaces: &[Uuid],
+    ) -> Result<Transaction<'_, Postgres>, AppError> {
+        self.begin_content_write_locked(actor, admission, spaces, SpaceAccess::Edit, true)
+            .await
+    }
+
+    async fn begin_content_write_locked(
+        &self,
+        actor: Uuid,
+        admission: Option<&Arc<WikiSpaceAdmission>>,
+        spaces: &[Uuid],
+        required: SpaceAccess,
+        tree_write: bool,
+    ) -> Result<Transaction<'_, Postgres>, AppError> {
         if required == SpaceAccess::View {
             return Err(AppError::Forbidden);
         }
@@ -57,7 +79,8 @@ impl PostgresWikiBackend {
                     return Err(AppError::conflict("space_confirmation_changed"));
                 }
             }
-            let target_lock = if required == SpaceAccess::Admin {
+            // Tree changes serialize before reading ancestry, without requiring admin rights.
+            let target_lock = if tree_write || required == SpaceAccess::Admin {
                 "SELECT archived_at IS NULL FROM spaces WHERE id=$1 FOR UPDATE"
             } else {
                 "SELECT archived_at IS NULL FROM spaces WHERE id=$1 FOR SHARE"

@@ -142,20 +142,33 @@ pub(super) fn search_result_from_row(row: &PgRow) -> SearchResultResponse {
 }
 
 pub(super) fn build_db_tree(rows: &[PgRow], parent_id: Option<Uuid>) -> Vec<SpaceTreeNodeResponse> {
-    rows.iter()
-        .filter(|row| row.get::<Option<Uuid>, _>("parent_id") == parent_id)
-        .map(|row| {
-            let id: Uuid = row.get("id");
-            SpaceTreeNodeResponse {
-                id: id.to_string(),
-                slug: row.get("slug"),
-                title: row.get("title"),
-                document_type: row.get("document_type"),
-                status: row.get("status"),
-                children: build_db_tree(rows, Some(id)),
-            }
-        })
-        .collect()
+    let mut children: std::collections::HashMap<Option<Uuid>, Vec<&PgRow>> =
+        std::collections::HashMap::new();
+    for row in rows {
+        children.entry(row.get("parent_id")).or_default().push(row);
+    }
+    fn build(
+        children: &std::collections::HashMap<Option<Uuid>, Vec<&PgRow>>,
+        parent: Option<Uuid>,
+    ) -> Vec<SpaceTreeNodeResponse> {
+        children
+            .get(&parent)
+            .into_iter()
+            .flatten()
+            .map(|row| {
+                let id: Uuid = row.get("id");
+                SpaceTreeNodeResponse {
+                    id: id.to_string(),
+                    slug: row.get("slug"),
+                    title: row.get("title"),
+                    document_type: row.get("document_type"),
+                    status: row.get("status"),
+                    children: build(children, Some(id)),
+                }
+            })
+            .collect()
+    }
+    build(&children, parent_id)
 }
 
 pub(super) fn to_iso(value: DateTime<Utc>) -> String {
