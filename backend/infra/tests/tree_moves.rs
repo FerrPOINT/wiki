@@ -158,23 +158,13 @@ async fn opposite_moves_cannot_cycle_and_editors_keep_independent_space_access()
     let claims = actor(editor, central, &spaces);
     let (a, b) = (docs[0], docs[1]);
     let mut barrier = pool.begin().await.unwrap();
-    sqlx::query("SELECT id FROM spaces WHERE id=$1 FOR SHARE")
-        .bind(spaces[0].0)
+    // Delay B's publication without blocking the FK key-share acquired by
+    // A->B. Both callers have passed the old, external ancestor preflight.
+    sqlx::query("SELECT id FROM documents WHERE id=$1 FOR NO KEY UPDATE")
+        .bind(b)
         .execute(&mut *barrier)
         .await
         .unwrap();
-    let left = backend.clone();
-    let c = claims.clone();
-    let first = tokio::spawn(async move {
-        left.move_document(
-            &c,
-            &a.to_string(),
-            MoveDocumentRequest {
-                parent_id: Some(b.to_string()),
-            },
-        )
-        .await
-    });
     let right = backend.clone();
     let c = claims.clone();
     let second = tokio::spawn(async move {
@@ -188,18 +178,36 @@ async fn opposite_moves_cannot_cycle_and_editors_keep_independent_space_access()
             )
             .await
     });
-    waiting(&pool, 2).await;
+    waiting(&pool, 1).await;
+    let left = backend.clone();
+    let c = claims.clone();
+    let first = tokio::spawn(async move {
+        left.move_document(
+            &c,
+            &a.to_string(),
+            MoveDocumentRequest {
+                parent_id: Some(b.to_string()),
+            },
+        )
+        .await
+    });
+    tokio::time::timeout(std::time::Duration::from_secs(2),async {
+        loop {
+            // Baseline A publishes while B waits; fixed A waits for B's space
+            // lock. Either observable point makes releasing B deterministic.
+            if first.is_finished() {break;}
+            let blocked:i64=sqlx::query_scalar("SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND pid<>pg_backend_pid()")
+                .fetch_one(&pool).await.unwrap();
+            if blocked>=2 {break;}
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    }).await.unwrap();
     barrier.commit().await.unwrap();
     let (first, second) = tokio::time::timeout(std::time::Duration::from_secs(3), async {
         (first.await.unwrap(), second.await.unwrap())
     })
     .await
     .unwrap();
-    assert_eq!(usize::from(first.is_ok()) + usize::from(second.is_ok()), 1);
-    assert!(
-        matches!(first, Err(shared::AppError::InvalidInput(_)))
-            || matches!(second, Err(shared::AppError::InvalidInput(_)))
-    );
     let parents: Vec<(Uuid, Option<Uuid>)> =
         sqlx::query_as("SELECT id,parent_id FROM documents WHERE space_id=$1 ORDER BY id")
             .bind(spaces[0].0)
@@ -211,6 +219,12 @@ async fn opposite_moves_cannot_cycle_and_editors_keep_independent_space_access()
             .iter()
             .all(|(id, parent)| *parent == Some(if *id == a { b } else { a })),
         "cycle survived serialized validation"
+    );
+    assert_eq!(usize::from(first.is_ok()) + usize::from(second.is_ok()), 1);
+    assert!(
+        matches!(first, Err(shared::AppError::InvalidInput(_)))
+            || matches!(second, Err(shared::AppError::InvalidInput(_))),
+        "unexpected move outcomes: {first:?}; {second:?}"
     );
     sqlx::query("UPDATE documents SET parent_id=NULL WHERE space_id=$1")
         .bind(spaces[0].0)
