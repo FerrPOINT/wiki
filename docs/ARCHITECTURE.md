@@ -1,5 +1,14 @@
 # Архитектура Wiki
 
+## Входы серверного Docker image
+
+Server image сохраняет `cli/Cargo.toml` для общей Cargo workspace/lock metadata,
+но не копирует CLI-исходники и тесты. Вместо CLI target используется
+`compile_error!`: случайный consumer CLI в серверном графе завершает сборку
+ошибкой. Собираются прежние domain units и `server --bin server`; официальный
+HTTP CLI сохраняет отдельный source/build/test маршрут. Source-проверки и
+оставшаяся native qualification описаны в [TESTING](TESTING.md#серверный-docker-context-и-cli).
+
 Согласованная цель единого Space отделяет общий SpaceRef от 0…N проектов.
 Admin владеет Space, Tracker — M:N, Wiki — знаниями и подтверждённой проекцией.
 [Контракты и переход](PROJECT_SPACES_PROJECTION.md) требуют compatible cohort

@@ -79,6 +79,7 @@
         ".quality-gate.json",
         ".quality-tooling-revision",
         ".github/**",
+        "backend/Dockerfile*",
         "frontend/Dockerfile*",
         "frontend/package.json",
         "frontend/pnpm-workspace.yaml",
@@ -687,6 +688,7 @@
     "backend/**/tests/**"
   ],
   "impacts": [
+    {"paths": ["backend/Dockerfile*"], "components": ["tooling"]},
     {
       "paths": [
         "backend/Cargo.*",

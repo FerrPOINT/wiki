@@ -1,9 +1,12 @@
 """Product selection only: no preparation, compiler, Docker or application calls."""
 import json
 import re
+import shlex
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+
+import tomllib
 
 from scripts import select_ci
 from scripts.vendor import base_quality_selection as selector
@@ -12,6 +15,55 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class CliSelectionTests(unittest.TestCase):
+    def test_server_images_consume_only_cli_workspace_metadata(self):
+        manifest = tomllib.loads((ROOT / 'backend/cli/Cargo.toml').read_text())
+        self.assertEqual(manifest['bin'], [{'name': 'wiki', 'path': 'src/main.rs'}])
+        for name in ('Dockerfile', 'Dockerfile.umbrella'):
+            with self.subTest(recipe=name):
+                lines = (ROOT / 'backend' / name).read_text().splitlines()
+                sources = [source for line in lines if line.startswith('COPY ')
+                           for source in shlex.split(line)[1:-1] if source.startswith('wiki/backend/cli')]
+                self.assertEqual(sources, ['wiki/backend/cli/Cargo.toml'])
+                self.assertTrue(any(line.startswith('RUN ') and 'compile_error!' in line
+                                    and '> cli/src/main.rs' in line for line in lines))
+                candidate = self.plan(['backend/' + name])
+                self.assertIn('tooling:quality-routes', [gate['id'] for gate in candidate['gates']])
+                self.assertFalse(any(gate.get('kind') == 'artifact' for gate in candidate['gates']))
+
+    def test_server_context_keeps_cli_manifest_after_excluding_other_cli_children(self):
+        for name in ('Dockerfile.dockerignore', 'Dockerfile.umbrella.dockerignore'):
+            with self.subTest(ignore=name):
+                rules = [line.strip() for line in (ROOT / 'backend' / name).read_text().splitlines()
+                         if line.strip() and not line.lstrip().startswith('#')]
+                self.assertIn('wiki/backend/cli/*', rules)
+                self.assertLess(rules.index('!wiki/backend/**'), rules.index('wiki/backend/cli/*'))
+                self.assertEqual(rules[-2:], ['wiki/backend/cli/*', '!wiki/backend/cli/Cargo.toml'])
+
+    def test_server_and_domain_unit_path_graph_excludes_product_cli(self):
+        backend = ROOT / 'backend'
+        workspace = tomllib.loads((backend / 'Cargo.toml').read_text())['workspace']['dependencies']
+        pending, visited = [('server', False), ('domain', True)], set()
+        while pending:
+            crate, include_dev = pending.pop()
+            if (crate, include_dev) in visited:
+                continue
+            visited.add((crate, include_dev))
+            value = tomllib.loads((backend / crate / 'Cargo.toml').read_text())
+            tables = [value, *value.get('target', {}).values()]
+            for table in tables:
+                for section in ('dependencies', 'build-dependencies', *(['dev-dependencies'] if include_dev else [])):
+                    for alias, declaration in table.get(section, {}).items():
+                        if not isinstance(declaration, dict):
+                            continue
+                        owner = backend if declaration.get('workspace') else backend / crate
+                        dependency = workspace.get(alias, {}) if declaration.get('workspace') else declaration
+                        if not isinstance(dependency, dict) or 'path' not in dependency:
+                            continue
+                        path = (owner / dependency['path']).resolve()
+                        self.assertNotEqual(path, (backend / 'cli').resolve())
+                        if path.is_relative_to(backend.resolve()):
+                            pending.append((path.relative_to(backend.resolve()).as_posix(), False))
+
     def plan(self, paths, profile='build', components=None):
         with patch.object(selector, 'git', return_value='a' * 40):
             return selector.plan(ROOT, profile=profile, changed=paths, components=components)

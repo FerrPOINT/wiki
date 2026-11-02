@@ -44,3 +44,6 @@
 **/.workflow.db*
 **/data/workflow.db*
 **/data/state
+# Retain workspace lock metadata without transferring the separate CLI payload.
+wiki/backend/cli/*
+!wiki/backend/cli/Cargo.toml

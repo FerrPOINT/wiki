@@ -1,5 +1,28 @@
 # Testing Strategy - Wiki
 
+## Серверный Docker context и CLI
+
+Оба backend Dockerfile используют только Cargo manifest CLI и fail-closed
+`compile_error!` target, как существующие server recipes Tracker/Fleet. Их
+Docker-specific ignore исключает остальные CLI children, сохраняя manifest.
+CLI-only code/tests больше не являются входами серверного COPY/compile layer;
+изменение Cargo manifest/lock по-прежнему учитывается. Отдельные CLI producers,
+полные source tests и shipped server/runtime payload не меняются.
+
+Scoped command: `python -B -m unittest scripts.tests.test_cli_selection scripts.tests.test_quality_routes -q`.
+34 cases PASS, включая три новых: COPY/guard, ignore order и product path graph
+для server build/domain unit. Negative controls отвергают broad CLI COPY,
+удалённый ignore и normal CLI consumer; server-dev-only consumer не относится
+к production build. Старые selection/CLI cases сохранены. Recipe changes также
+выбирают `tooling:quality-routes`, без production binary из-за packaging inputs.
+
+Git source accounting: CLI COPY 6 files → 1 manifest, исключены 5 files/138500
+bytes. Это не замер transferred Docker bytes, cache hit, build time или RAM.
+Native Cargo/Docker domain/server/отдельный CLI и cold/warm квалификация этого
+recipe tuple остаются NOT_RUN на отдельной ручной вехе. Не запускать новую
+сборку ради документации; общий [стандарт Base](https://github.com/FerrPOINT/services-base/blob/chore/build-performance-20261015/docs/BUILD_PERFORMANCE.md)
+сохраняет reuse, admission, source freshness и независимые SDK/UI/skills pins.
+
 ## Текущий Source candidate PDLC2
 
 Перенос выполнен от main `87102c2b` без смены SDK/UI/skills pins и

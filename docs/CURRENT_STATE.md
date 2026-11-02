@@ -1,5 +1,14 @@
 # Current State - Wiki
 
+> **Server image Source, 2026-11-02:** Docker recipes копируют CLI manifest,
+> остальные CLI inputs исключены из server context; `compile_error!` защищает
+> от accidental CLI compilation. Scoped selection/graph checks: 34 PASS,
+> process/network attempts 0; три отрицательных и один соседний control
+> подтверждают границу. CLI COPY inputs 6 → 1, прежние SDK/UI/skills/lock и
+> CLI/runtime source сохранены. Native Cargo/Docker/cache/resource/runtime
+> qualification этого изменения NOT_RUN; Source не означает новый image.
+> [Команды, измерения и ограничения](TESTING.md#серверный-docker-context-и-cli).
+
 > **Source recovery 2026-10-20:** unpublished workspace variants and historical
 > commit diffs are preserved under `handoff/workspace-recovery-20261020`.
 > SHA-256/index verification passed; these inert payloads are not a runtime

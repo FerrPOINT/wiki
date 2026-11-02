@@ -24,7 +24,9 @@ COPY wiki/backend/migrations ./migrations
 COPY wiki/backend/app ./app
 COPY wiki/backend/api ./api
 COPY wiki/backend/server ./server
-COPY wiki/backend/cli ./cli
+# Cargo resolves every workspace member; server images do not compile the CLI.
+COPY wiki/backend/cli/Cargo.toml ./cli/Cargo.toml
+RUN mkdir -p cli/src && printf '%s\n' 'compile_error!("Wiki CLI source is excluded from server images");' > cli/src/main.rs
 
 ARG PDLC_CARGO_BUILD_JOBS=2
 ENV CARGO_BUILD_JOBS=${PDLC_CARGO_BUILD_JOBS}
