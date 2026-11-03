@@ -15,8 +15,15 @@ impl PostgresWikiBackend {
         spaces: &[Uuid],
         required: SpaceAccess,
     ) -> Result<Transaction<'_, Postgres>, AppError> {
-        self.begin_content_write_locked(actor, admission, spaces, required, false)
-            .await
+        let (tx, archived) = self
+            .begin_content_write_locked(actor, admission, spaces, required, false)
+            .await?;
+        if archived {
+            return Err(AppError::invalid_input(
+                "archived space does not accept write commands",
+            ));
+        }
+        Ok(tx)
     }
 
     pub(super) async fn begin_tree_write(
@@ -25,8 +32,28 @@ impl PostgresWikiBackend {
         admission: Option<&Arc<WikiSpaceAdmission>>,
         spaces: &[Uuid],
     ) -> Result<Transaction<'_, Postgres>, AppError> {
-        self.begin_content_write_locked(actor, admission, spaces, SpaceAccess::Edit, true)
+        let (tx, archived) = self
+            .begin_content_write_locked(actor, admission, spaces, SpaceAccess::Edit, true)
+            .await?;
+        if archived {
+            return Err(AppError::invalid_input(
+                "archived space does not accept write commands",
+            ));
+        }
+        Ok(tx)
+    }
+
+    /// A replay reads an already committed outcome after the same current role checks.
+    pub(super) async fn begin_replay_read(
+        &self,
+        actor: Uuid,
+        admission: Option<&Arc<WikiSpaceAdmission>>,
+        spaces: &[Uuid],
+        required: SpaceAccess,
+    ) -> Result<Transaction<'_, Postgres>, AppError> {
+        self.begin_content_write_locked(actor, admission, spaces, required, false)
             .await
+            .map(|(tx, _)| tx)
     }
 
     async fn begin_content_write_locked(
@@ -36,7 +63,7 @@ impl PostgresWikiBackend {
         spaces: &[Uuid],
         required: SpaceAccess,
         tree_write: bool,
-    ) -> Result<Transaction<'_, Postgres>, AppError> {
+    ) -> Result<(Transaction<'_, Postgres>, bool), AppError> {
         if required == SpaceAccess::View {
             return Err(AppError::Forbidden);
         }
@@ -141,14 +168,7 @@ impl PostgresWikiBackend {
         if let Some(scope) = admission {
             scope.require_current()?;
         }
-        // Native writers retain the public validation error. Unauthorized callers
-        // are rejected above; admitted central writes remain fenced by the scope.
-        if archived {
-            return Err(AppError::invalid_input(
-                "archived space does not accept write commands",
-            ));
-        }
-        Ok(tx)
+        Ok((tx, archived))
     }
 }
 
@@ -166,6 +186,7 @@ pub(super) async fn commit(
             .map_err(|_| AppError::Forbidden)?
             .ok_or(AppError::Forbidden)?;
     }
+    super::idempotency::mark_commit_attempt();
     tx.commit().await.map_err(database_error)
 }
 

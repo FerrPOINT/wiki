@@ -23,9 +23,17 @@ async fn fetch_space_by_key(
     backend: &PostgresWikiBackend,
     key: &str,
 ) -> Result<SpaceResponse, shared::AppError> {
+    let mut connection = backend.pool.acquire().await.map_err(database_error)?;
+    fetch_space_by_key_on(&mut connection, key).await
+}
+
+async fn fetch_space_by_key_on(
+    connection: &mut sqlx::PgConnection,
+    key: &str,
+) -> Result<SpaceResponse, shared::AppError> {
     let row = sqlx::query(SPACE_ONE_SQL)
         .bind(key)
-        .fetch_optional(&backend.pool)
+        .fetch_optional(&mut *connection)
         .await
         .map_err(database_error)?
         .ok_or_else(|| shared::AppError::not_found("space", key))?;
@@ -64,6 +72,11 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
                 .backend
                 .begin_content_write(actor_id, self.admission.as_ref(), &[], SpaceAccess::Admin)
                 .await?;
+            if let Some(response) =
+                super::idempotency::replay::<SpaceResponse>(&mut tx, actor_id).await?
+            {
+                return Ok(response);
+            }
 
             sqlx::query(
                 r#"
@@ -102,9 +115,11 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
                     self.request_id,
                 )
                 .await?;
-            super::write_authorization::commit(tx, self.admission.as_ref()).await?;
-
-            fetch_space_by_key(self.backend, &command.key).await
+            let response = fetch_space_by_key_on(&mut tx, &command.key).await?;
+            self.backend
+                .finish_command(tx, self.admission.as_ref(), 201, &response)
+                .await?;
+            Ok(response)
         })
     }
 
@@ -127,6 +142,11 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
                     SpaceAccess::Admin,
                 )
                 .await?;
+            if let Some(response) =
+                super::idempotency::replay::<SpaceResponse>(&mut tx, actor_id).await?
+            {
+                return Ok(response);
+            }
 
             let row = sqlx::query(
                 r#"
@@ -159,9 +179,11 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
                     self.request_id,
                 )
                 .await?;
-            super::write_authorization::commit(tx, self.admission.as_ref()).await?;
-
-            fetch_space_by_key(self.backend, &command.key).await
+            let response = fetch_space_by_key_on(&mut tx, &command.key).await?;
+            self.backend
+                .finish_command(tx, self.admission.as_ref(), 200, &response)
+                .await?;
+            Ok(response)
         })
     }
 
@@ -180,6 +202,11 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
                     SpaceAccess::Admin,
                 )
                 .await?;
+            if let Some(response) =
+                super::idempotency::replay::<SpaceResponse>(&mut tx, actor_id).await?
+            {
+                return Ok(response);
+            }
 
             let row = sqlx::query(
                 r#"
@@ -208,9 +235,11 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
                     self.request_id,
                 )
                 .await?;
-            super::write_authorization::commit(tx, self.admission.as_ref()).await?;
-
-            fetch_space_by_key(self.backend, &command.key).await
+            let response = fetch_space_by_key_on(&mut tx, &command.key).await?;
+            self.backend
+                .finish_command(tx, self.admission.as_ref(), 200, &response)
+                .await?;
+            Ok(response)
         })
     }
 
@@ -251,6 +280,11 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
                     SpaceAccess::Admin,
                 )
                 .await?;
+            if let Some(response) =
+                super::idempotency::replay::<SpaceMemberResponse>(&mut tx, actor_id).await?
+            {
+                return Ok(response);
+            }
 
             let row = sqlx::query(
                 r#"
@@ -295,9 +329,11 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
                     self.request_id,
                 )
                 .await?;
-            super::write_authorization::commit(tx, self.admission.as_ref()).await?;
-
-            Ok(space_member_response_from_row(&row))
+            let response = space_member_response_from_row(&row);
+            self.backend
+                .finish_command(tx, self.admission.as_ref(), 200, &response)
+                .await?;
+            Ok(response)
         })
     }
 
@@ -316,6 +352,9 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
                     SpaceAccess::Admin,
                 )
                 .await?;
+            if let Some(response) = super::idempotency::replay::<()>(&mut tx, actor_id).await? {
+                return Ok(response);
+            }
 
             let result =
                 sqlx::query("DELETE FROM space_members WHERE space_id = $1 AND user_id = $2")
@@ -338,7 +377,9 @@ impl WikiSpaceRepository for PostgresWikiSpaceRepository<'_> {
                     self.request_id,
                 )
                 .await?;
-            super::write_authorization::commit(tx, self.admission.as_ref()).await?;
+            self.backend
+                .finish_command(tx, self.admission.as_ref(), 204, &())
+                .await?;
             Ok(())
         })
     }
@@ -388,6 +429,13 @@ impl PostgresWikiBackend {
             return Err(shared::AppError::conflict("space_metadata_owned_by_admin"));
         }
         let actor_id = self.ensure_admin(claims).await?;
+
+        if let Some(response) = self
+            .replay_command::<SpaceResponse>(claims, &[], super::SpaceAccess::Admin)
+            .await?
+        {
+            return Ok(response);
+        }
         let repository = PostgresWikiSpaceRepository {
             backend: self,
             request_id: claims.request_id.as_deref(),
@@ -426,6 +474,13 @@ impl PostgresWikiBackend {
             .ensure_space_access(claims, space_key, SpaceAccess::Admin)
             .await?;
         let actor_id = parse_uuid(&claims.user_id, "user")?;
+
+        if let Some(response) = self
+            .replay_command::<SpaceResponse>(claims, &[space_id], super::SpaceAccess::Admin)
+            .await?
+        {
+            return Ok(response);
+        }
         let repository = PostgresWikiSpaceRepository {
             backend: self,
             request_id: claims.request_id.as_deref(),
@@ -448,6 +503,13 @@ impl PostgresWikiBackend {
             .ensure_space_access(claims, space_key, SpaceAccess::Admin)
             .await?;
         let actor_id = parse_uuid(&claims.user_id, "user")?;
+
+        if let Some(response) = self
+            .replay_command::<SpaceResponse>(claims, &[space_id], super::SpaceAccess::Admin)
+            .await?
+        {
+            return Ok(response);
+        }
         let repository = PostgresWikiSpaceRepository {
             backend: self,
             request_id: claims.request_id.as_deref(),
@@ -487,6 +549,13 @@ impl PostgresWikiBackend {
             .ensure_space_access(claims, space_key, SpaceAccess::Admin)
             .await?;
         let actor_id = parse_uuid(&claims.user_id, "user")?;
+
+        if let Some(response) = self
+            .replay_command::<SpaceMemberResponse>(claims, &[space_id], super::SpaceAccess::Admin)
+            .await?
+        {
+            return Ok(response);
+        }
         let user_id = parse_uuid(user_id, "user")?;
         let repository = PostgresWikiSpaceRepository {
             backend: self,
@@ -508,6 +577,13 @@ impl PostgresWikiBackend {
             .ensure_space_access(claims, space_key, SpaceAccess::Admin)
             .await?;
         let actor_id = parse_uuid(&claims.user_id, "user")?;
+
+        if let Some(response) = self
+            .replay_command::<()>(claims, &[space_id], super::SpaceAccess::Admin)
+            .await?
+        {
+            return Ok(response);
+        }
         let user_id = parse_uuid(user_id, "user")?;
         let repository = PostgresWikiSpaceRepository {
             backend: self,

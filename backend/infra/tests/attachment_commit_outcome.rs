@@ -1,97 +1,12 @@
 //! Manual PostgreSQL wire-fault regression through the actual attachment backend port.
 use shared::wiki_contract::WikiClaims;
 use sqlx::{PgPool, postgres::PgPoolOptions};
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, Ordering},
-};
-use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    net::{TcpListener, UnixStream},
-};
+use std::sync::{Arc, atomic::Ordering};
 use uuid::Uuid;
 
-struct FaultProxy {
-    port: u16,
-    lost: Arc<AtomicBool>,
-    armed: Arc<AtomicBool>,
-    task: tokio::task::JoinHandle<()>,
-}
-impl Drop for FaultProxy {
-    fn drop(&mut self) {
-        self.task.abort();
-    }
-}
-impl FaultProxy {
-    async fn start(socket: String, refuse_readback: bool, drop_commit_failure: bool) -> Self {
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let port = listener.local_addr().unwrap().port();
-        let lost = Arc::new(AtomicBool::new(false));
-        let state = lost.clone();
-        let armed = Arc::new(AtomicBool::new(false));
-        let enabled = armed.clone();
-        let task = tokio::spawn(async move {
-            loop {
-                let (client, _) = listener.accept().await.unwrap();
-                let lost = state.clone();
-                let socket = socket.clone();
-                let armed = enabled.clone();
-                tokio::spawn(async move {
-                    if refuse_readback && lost.load(Ordering::SeqCst) {
-                        return;
-                    }
-                    let server = UnixStream::connect(socket).await.unwrap();
-                    let (mut cr, mut cw) = client.into_split();
-                    let (mut sr, mut sw) = server.into_split();
-                    let forward = async {
-                        let _ = tokio::io::copy(&mut cr, &mut sw).await;
-                    };
-                    let reply = async {
-                        loop {
-                            let mut tag = [0];
-                            if sr.read_exact(&mut tag).await.is_err() {
-                                break;
-                            }
-                            let mut length = [0; 4];
-                            if sr.read_exact(&mut length).await.is_err() {
-                                break;
-                            }
-                            let length_value = u32::from_be_bytes(length) as usize;
-                            assert!((4..=16 * 1024 * 1024).contains(&length_value));
-                            let mut body = vec![0; length_value - 4];
-                            if sr.read_exact(&mut body).await.is_err() {
-                                break;
-                            }
-                            let commit_reply = tag[0] == b'C' && body == b"COMMIT\0";
-                            let deferred_fk_failure = drop_commit_failure
-                                && tag[0] == b'E'
-                                && body.windows(7).any(|field| field == b"C23503\0");
-                            if armed.load(Ordering::SeqCst)
-                                && (commit_reply || deferred_fk_failure)
-                                && !lost.swap(true, Ordering::SeqCst)
-                            {
-                                break;
-                            }
-                            if cw.write_all(&tag).await.is_err()
-                                || cw.write_all(&length).await.is_err()
-                                || cw.write_all(&body).await.is_err()
-                            {
-                                break;
-                            }
-                        }
-                    };
-                    tokio::select! {_=forward=>{},_=reply=>{}}
-                });
-            }
-        });
-        Self {
-            port,
-            lost,
-            armed,
-            task,
-        }
-    }
-}
+#[path = "support/commit_loss.rs"]
+mod commit_loss;
+use commit_loss::FaultProxy;
 
 #[tokio::test]
 #[ignore = "manual owned wiki_space_test PostgreSQL wire-fault regression"]
