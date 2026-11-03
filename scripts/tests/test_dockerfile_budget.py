@@ -10,4 +10,11 @@ class DockerfileBudgetTests(unittest.TestCase):
                 self.assertIn("ARG CARGO_BUILD_JOBS=1",builder.splitlines())
                 self.assertLess(builder.index("ARG CARGO_BUILD_JOBS=1"),builder.index("cargo build"))
                 self.assertNotIn("CARGO_BUILD_JOBS",runtime)
+    def test_retained_target_refreshes_first_party_and_sdk_before_cargo(self):
+        builder, runtime = (ROOT / "backend/Dockerfile.umbrella").read_text().split("FROM debian:bookworm-slim", 1)
+        refresh = "find /app /services-base/base-modules/rust -name '*.rs' -exec touch {} +"
+        self.assertIn(refresh, builder)
+        self.assertLess(builder.index(refresh), builder.index("CARGO_TARGET_DIR=/cargo-target cargo"))
+        self.assertNotIn(refresh, runtime)
+
 if __name__=="__main__":unittest.main()
