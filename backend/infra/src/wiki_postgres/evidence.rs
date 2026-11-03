@@ -226,8 +226,40 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
             let row = match insert_result {
                 Ok(row) => row,
                 Err(err) => {
-                    let _ = self.backend.storage.delete(&command.storage_key).await;
-                    return Err(err);
+                    // COMMIT may have succeeded even though its reply was lost. Resolve
+                    // the original ID after the writer's user lock has been released.
+                    match self
+                        .backend
+                        .attachment_upload_readback(
+                            actor_id,
+                            command.attachment_id,
+                            &command.storage_key,
+                        )
+                        .await
+                    {
+                        Ok(Some(row)) => row,
+                        Ok(None) => {
+                            if self
+                                .backend
+                                .storage
+                                .delete(&command.storage_key)
+                                .await
+                                .is_err()
+                            {
+                                tracing::warn!(attachment_id = %command.attachment_id,
+                                    "confirmed absent attachment could not be removed from storage");
+                            }
+                            return Err(err);
+                        }
+                        Err(_) => {
+                            tracing::warn!(attachment_id = %command.attachment_id,
+                                "attachment outcome unknown; bytes retained for original-ID readback");
+                            return Err(shared::AppError::Unavailable(format!(
+                                "attachment outcome unknown: {}",
+                                command.attachment_id
+                            )));
+                        }
+                    }
                 }
             };
 
@@ -292,6 +324,59 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
 }
 
 impl PostgresWikiBackend {
+    async fn attachment_upload_readback(
+        &self,
+        actor_id: Uuid,
+        attachment_id: Uuid,
+        storage_key: &str,
+    ) -> Result<Option<sqlx::postgres::PgRow>, shared::AppError> {
+        // Never reuse the failed writer's physical protocol state.
+        let fresh = self.pool.options().clone().max_connections(1).min_connections(0)
+            .connect_with((*self.pool.connect_options()).clone())
+            .await.map_err(database_error)?;
+        let result = async {
+        let mut tx = fresh.begin().await.map_err(database_error)?;
+        // A deployment default of REPEATABLE READ must not freeze the absence
+        // snapshot before waiting for the original writer.
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL READ COMMITTED")
+            .execute(&mut *tx).await.map_err(database_error)?;
+        // begin_content_write holds FOR SHARE on this same user through COMMIT.
+        // A separate transaction's conflicting lock waits for that outcome, unlike
+        // a plain EXISTS snapshot which could precede the original COMMIT.
+        let owner: Option<Uuid> = sqlx::query_scalar("SELECT id FROM users WHERE id=$1 FOR UPDATE")
+            .bind(actor_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(database_error)?;
+        if owner.is_none() {
+            return Err(shared::AppError::Unavailable(
+                "attachment owner unavailable".into(),
+            ));
+        }
+        let row = sqlx::query(
+            "SELECT id,file_name,content_type,size_bytes,checksum,uploaded_by,uploaded_at,storage_key FROM attachments WHERE id=$1",
+        )
+        .bind(attachment_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(database_error)?;
+        if let Some(row) = row.as_ref() {
+            if row.get::<Uuid, _>("uploaded_by") != actor_id
+                || row.get::<String, _>("storage_key") != storage_key
+            {
+                return Err(shared::AppError::Unavailable(
+                    "attachment outcome conflicts with original upload".into(),
+                ));
+            }
+        }
+        // Read-only resolution: never renew admission or authorize a new write.
+        tx.rollback().await.map_err(database_error)?;
+        Ok(row)
+        }.await;
+        fresh.close().await;
+        result
+    }
+
     /// Internal snapshot for a document whose owner admission was checked by its caller.
     /// Filtering uses the exact document FK, never an unscoped public search.
     pub(super) async fn evidence_for_document_result(
