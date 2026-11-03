@@ -11,7 +11,10 @@ impl PostgresWikiBackend {
         request: WikiIdempotencyRequest,
     ) -> Result<WikiIdempotencyStatus, shared::AppError> {
         let actor_id = parse_uuid(&request.actor_id, "user")?;
-        let _ = self.delete_expired_idempotency_records().await?;
+        // Reuse only this expired, confirmed-completed key. Unknown processing
+        // outcomes belong to inventory/readback, never to time-based retry.
+        sqlx::query("DELETE FROM idempotency_records WHERE actor_id=$1 AND idempotency_key=$2 AND state='completed' AND expires_at<now()")
+            .bind(actor_id).bind(&request.key).execute(&self.pool).await.map_err(database_error)?;
 
         let inserted = sqlx::query_scalar::<_, Uuid>(
             r#"
@@ -172,11 +175,17 @@ impl PostgresWikiBackend {
     }
 
     pub(super) async fn delete_expired_idempotency_records(&self) -> Result<u64, shared::AppError> {
-        let rows = sqlx::query("DELETE FROM idempotency_records WHERE expires_at < now()")
-            .execute(&self.pool)
-            .await
-            .map_err(database_error)?
-            .rows_affected();
+        let rows = sqlx::query(
+            "WITH expired AS (
+                SELECT id FROM idempotency_records WHERE state='completed' AND expires_at<now()
+                ORDER BY expires_at,id LIMIT $1 FOR UPDATE SKIP LOCKED
+            ) DELETE FROM idempotency_records WHERE id IN(SELECT id FROM expired)",
+        )
+        .bind(i64::from(self.maintenance_batch_size))
+        .execute(&self.pool)
+        .await
+        .map_err(database_error)?
+        .rows_affected();
         Ok(rows)
     }
 }

@@ -331,9 +331,15 @@ impl PostgresWikiBackend {
         storage_key: &str,
     ) -> Result<Option<sqlx::postgres::PgRow>, shared::AppError> {
         // Never reuse the failed writer's physical protocol state.
-        let fresh = self.pool.options().clone().max_connections(1).min_connections(0)
+        let fresh = self
+            .pool
+            .options()
+            .clone()
+            .max_connections(1)
+            .min_connections(0)
             .connect_with((*self.pool.connect_options()).clone())
-            .await.map_err(database_error)?;
+            .await
+            .map_err(database_error)?;
         let result = async {
         let mut tx = fresh.begin().await.map_err(database_error)?;
         // A deployment default of REPEATABLE READ must not freeze the absence
