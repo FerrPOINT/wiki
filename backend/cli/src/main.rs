@@ -115,6 +115,14 @@ enum SpaceCommands {
     Projects {
         key: String,
     },
+    /// Read canonical project links in the shared Space admission mode.
+    ProjectContexts {
+        key: String,
+        #[arg(long, default_value_t = 50, value_parser = clap::value_parser!(u32).range(1..=100))]
+        limit: u32,
+        #[arg(long, default_value_t = 0)]
+        offset: u32,
+    },
     ProjectLink {
         key: String,
         #[arg(long)]
@@ -621,6 +629,10 @@ impl ApiClient {
 
     fn request(&self, method: Method, path: &str) -> reqwest::RequestBuilder {
         let url = format!("{}{}", self.base_url, path);
+        self.request_url(method, url)
+    }
+
+    fn request_url(&self, method: Method, url: String) -> reqwest::RequestBuilder {
         let request = self
             .client
             .request(method, url)
@@ -731,6 +743,17 @@ async fn execute_space(api: &ApiClient, command: SpaceCommands) -> Result<Value>
         SpaceCommands::List => api.get("/spaces").await,
         SpaceCommands::Projects { key } => {
             api.get(&format!("/spaces/{}/projects", enc(&key))).await
+        }
+        SpaceCommands::ProjectContexts { key, limit, offset } => {
+            let prefix = api
+                .base_url
+                .strip_suffix("/api/v1")
+                .context("canonical project context requires WIKI_API_URL ending /api/v1")?;
+            let url = format!(
+                "{prefix}/api/v2/spaces/{}/projects?limit={limit}&offset={offset}",
+                enc(&key)
+            );
+            support::json_response(api.request_url(Method::GET, url), &api.secrets()).await
         }
         SpaceCommands::ProjectLink {
             key,
@@ -1730,6 +1753,51 @@ mod tests {
                 Some("Bearer secret-token")
             );
         }
+    }
+
+    #[tokio::test]
+    async fn canonical_project_context_is_an_explicit_paged_read_on_the_same_origin() {
+        let server = spawn_mock_server().await;
+        let api = ApiClient::new(server.api_url.clone(), Some("reader-secret".into()));
+        execute_space(
+            &api,
+            SpaceCommands::ProjectContexts {
+                key: "SHARED".into(),
+                limit: 7,
+                offset: 14,
+            },
+        )
+        .await
+        .unwrap();
+        let requests = server.requests();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].method, Method::GET);
+        assert_eq!(
+            requests[0].path,
+            "/api/v2/spaces/SHARED/projects?limit=7&offset=14"
+        );
+        assert_eq!(
+            requests[0].authorization.as_deref(),
+            Some("Bearer reader-secret")
+        );
+        assert!(requests[0].idempotency_key.is_none());
+        let api = ApiClient::new(
+            server.api_url.trim_end_matches("/api/v1").into(),
+            Some("reader-secret".into()),
+        );
+        assert!(
+            execute_space(
+                &api,
+                SpaceCommands::ProjectContexts {
+                    key: "SHARED".into(),
+                    limit: 7,
+                    offset: 14
+                }
+            )
+            .await
+            .is_err()
+        );
+        assert_eq!(server.requests().len(), 1);
     }
 
     #[tokio::test]

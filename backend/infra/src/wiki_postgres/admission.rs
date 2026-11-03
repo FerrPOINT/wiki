@@ -66,6 +66,11 @@ impl PostgresWikiBackend {
         claims: &WikiClaims,
         admission: Option<&Arc<WikiSpaceAdmission>>,
     ) -> Result<Option<Vec<Uuid>>, AppError> {
+        if super::machine_read::current(
+            Uuid::parse_str(&claims.user_id).map_err(|_| AppError::Unauthorized)?,
+        )? {
+            return Ok(Some(Vec::new()));
+        }
         let Some(scope) = admission else {
             return Ok(None);
         };
@@ -81,6 +86,11 @@ impl PostgresWikiBackend {
         claims: &WikiClaims,
         space_id: Uuid,
     ) -> Result<bool, AppError> {
+        if super::machine_read::current(
+            Uuid::parse_str(&claims.user_id).map_err(|_| AppError::Unauthorized)?,
+        )? {
+            return Ok(false);
+        }
         let admission = self.read_admission(Some(claims)).await?;
         if let Some(scope) = admission.as_ref() {
             if !scope.allows_draft_read(space_id) {
@@ -112,8 +122,9 @@ impl PostgresWikiBackend {
             false,
         )
         .to_string();
-        let rows:Vec<(Uuid,Uuid,Uuid,Option<String>)>=sqlx::query_as("SELECT c.local_space_id,c.registry_instance_id,c.space_id,sm.role FROM wiki_space_catalog c LEFT JOIN space_members sm ON sm.space_id=c.local_space_id AND sm.user_id=$1 ORDER BY c.registry_instance_id,c.space_id LIMIT 10001")
-            .bind(user_id).fetch_all(&self.pool).await.map_err(database_error)?;
+        let machine = actor.subject_role.as_deref() == Some("service_account");
+        let rows:Vec<(Uuid,Uuid,Uuid,Option<String>)>=sqlx::query_as("SELECT c.local_space_id,c.registry_instance_id,c.space_id,sm.role FROM wiki_space_catalog c LEFT JOIN space_members sm ON sm.space_id=c.local_space_id AND sm.user_id=$1 WHERE (NOT $2::boolean OR sm.role IS NOT NULL) ORDER BY c.registry_instance_id,c.space_id LIMIT 10001")
+            .bind(user_id).bind(machine).fetch_all(&self.pool).await.map_err(database_error)?;
         if rows.len() > 10000 {
             return Err(AppError::Unavailable(
                 "space_admission_catalog_too_large".into(),
@@ -128,9 +139,10 @@ impl PostgresWikiBackend {
                         registry_instance_id,
                         space_id,
                     },
-                    may_edit: global_role == "admin"
-                        || matches!(role.as_deref(), Some("admin" | "editor")),
-                    may_admin: global_role == "admin",
+                    may_edit: !machine
+                        && (global_role == "admin"
+                            || matches!(role.as_deref(), Some("admin" | "editor"))),
+                    may_admin: !machine && global_role == "admin",
                 },
             )
             .collect();

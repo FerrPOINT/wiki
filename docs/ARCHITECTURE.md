@@ -380,3 +380,12 @@ Wiki реализует private owner protocol через общий storage por
 неизменяемая issuer/alias привязка, правила shared/exclusive lock и квалификация
 описаны в [Identity deletion](IDENTITY_DELETION.md). Наличие source не означает
 установленный или квалифицированный runtime. UI и прежний admission не меняются.
+
+## Служебный читатель
+
+Аналитик использует собственный зарегистрированный Central subject и текущие
+Wiki memberships. Узкий GET-классификатор не открывает общие human/owner routes.
+PostgreSQL adapter сохраняет проверенную identity в ограниченном request context;
+он даёт только user read ceiling, без human session и без private drafts. Общий
+Space admission сужается пересечением с явными memberships читателя. Новых таблиц,
+API DTO, индекса знаний или отдельного поискового сервиса не вводится.

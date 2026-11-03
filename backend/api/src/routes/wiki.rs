@@ -315,10 +315,19 @@ pub async fn require_wiki_auth(
         Err(_) => return Err(shared::AppError::Unauthorized),
     };
     if let Some(actor) = verified.as_ref() {
-        if actor.subject_role.as_deref() == Some("service_account")
-            || actor.context.role.as_deref() == Some("service_account")
-            || !actor.context.allows_service("wiki", req.method().as_str())
-        {
+        let machine = actor.subject_role.as_deref() == Some("service_account")
+            || actor.context.role.as_deref() == Some("service_account");
+        if machine {
+            infra::wiki_postgres::machine_read::authorize(actor)?;
+            if !super::machine_read::allowed(
+                req.method(),
+                req.extensions()
+                    .get::<axum::extract::MatchedPath>()
+                    .map(|p| p.as_str()),
+            ) {
+                return Err(shared::AppError::Forbidden);
+            }
+        } else if !actor.context.allows_service("wiki", req.method().as_str()) {
             return Err(shared::AppError::Forbidden);
         }
     }
@@ -346,19 +355,30 @@ pub async fn require_wiki_auth(
     let work = run_idempotent_request(backend, actor_id.clone(), req, next);
     let mut response = if let Some(actor) = verified {
         let local_id = Uuid::parse_str(&actor_id).map_err(|_| shared::AppError::Unauthorized)?;
-        let response = tokio::time::timeout_at(
-            actor.lifetime.monotonic_deadline().into(),
-            pdlc_auth_core::human_request::with_human_request(
-                local_id,
-                &actor.context,
-                actor.application_access.clone(),
-                work,
-            ),
-        )
-        .await
-        .map_err(|_| shared::AppError::Forbidden)?
-        .map_err(|_| shared::AppError::Forbidden)??;
-        super::space_response::guard_identity(response, actor.lifetime)?
+        let machine = actor.subject_role.as_deref() == Some("service_account");
+        if machine {
+            let response = tokio::time::timeout_at(
+                actor.lifetime.monotonic_deadline().into(),
+                infra::wiki_postgres::machine_read::with_request(local_id, actor.clone(), work),
+            )
+            .await
+            .map_err(|_| shared::AppError::Forbidden)???;
+            super::space_response::guard_identity(response, actor.lifetime)?
+        } else {
+            let response = tokio::time::timeout_at(
+                actor.lifetime.monotonic_deadline().into(),
+                pdlc_auth_core::human_request::with_human_request(
+                    local_id,
+                    &actor.context,
+                    actor.application_access.clone(),
+                    work,
+                ),
+            )
+            .await
+            .map_err(|_| shared::AppError::Forbidden)?
+            .map_err(|_| shared::AppError::Forbidden)??;
+            super::space_response::guard_identity(response, actor.lifetime)?
+        }
     } else {
         work.await?
     };
