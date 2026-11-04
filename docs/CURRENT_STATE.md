@@ -1,7 +1,7 @@
 # Current State - Wiki
 
 > **Source recovery 2026-10-20:** unpublished workspace variants and historical
-> commit diffs are preserved under `handoff/workspace-recovery-20261020`.
+> commit diffs are preserved under [историческом recovery-пакете](https://github.com/FerrPOINT/wiki/tree/09f127b24c015cded0b8c31663074ddfc6a2e73f/handoff/workspace-recovery-20261020).
 > SHA-256/index verification passed; these inert payloads are not a runtime
 > installation or a fresh backend/frontend acceptance result.
 
