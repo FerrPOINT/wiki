@@ -21,7 +21,7 @@ jobs:
           path: wiki
       - name: README validator tests
         working-directory: wiki
-        run: python3 -m unittest scripts.tests.test_verify_readme scripts.tests.test_ci_contract_checks
+        run: python3 -m unittest scripts.tests.test_verify_readme scripts.tests.test_ci_contract_checks scripts.tests.test_dockerfile_budget
       - name: README structural validation
         working-directory: wiki
         run: python3 scripts/verify_readme.py

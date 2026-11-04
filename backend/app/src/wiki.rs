@@ -2136,13 +2136,17 @@ pub fn slugify(value: &str) -> String {
 }
 
 pub fn snippet(markdown: &str) -> String {
-    let normalized = markdown
+    let mut lines = markdown
         .lines()
         .map(str::trim)
-        .filter(|line| !line.is_empty())
-        .collect::<Vec<_>>()
-        .join(" ");
-    normalized.chars().take(180).collect()
+        .filter(|line| !line.is_empty());
+    lines
+        .next()
+        .unwrap_or_default()
+        .chars()
+        .chain(lines.flat_map(|line| std::iter::once(' ').chain(line.chars())))
+        .take(180)
+        .collect()
 }
 
 pub fn checksum(bytes: &[u8]) -> String {
@@ -4781,6 +4785,25 @@ mod tests {
         assert!(!html.contains("alert(1)"));
         assert_eq!(slugify("Wiki MVP!"), "wiki-mvp");
         assert_eq!(snippet("a\n\nb"), "a b");
+        for input in [
+            "",
+            "  \r\n\t",
+            "  Привет  мир \r\n\n 😀 конец  ",
+            "a\rb",
+            "\u{2003}текст\u{2003}",
+        ] {
+            let expected: String = input
+                .lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty())
+                .collect::<Vec<_>>()
+                .join(" ")
+                .chars()
+                .take(180)
+                .collect();
+            assert_eq!(snippet(input), expected);
+        }
+        assert_eq!(snippet(&"я".repeat(10_000)), "я".repeat(180));
         assert_eq!(
             checksum(b"wiki"),
             "sha256:12a435ec8454c6d1c90a1d92812b09af11bee711fbe524d56a8f26ea7c5ccee8"

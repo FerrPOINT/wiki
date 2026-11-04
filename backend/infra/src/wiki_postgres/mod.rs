@@ -11,6 +11,7 @@ mod documents;
 mod dossiers;
 mod evidence;
 mod idempotency;
+pub use idempotency::with_idempotent_command;
 mod identity;
 mod identity_deletion;
 #[cfg(test)]

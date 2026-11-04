@@ -418,19 +418,27 @@ async fn run_idempotent_request(
         request_hash,
     };
 
-    match backend
+    let replaying = match backend
         .begin_idempotent_request(idempotency_request.clone())
         .await?
     {
-        WikiIdempotencyStatus::Started => {}
+        WikiIdempotencyStatus::Started => false,
         WikiIdempotencyStatus::Replay(replay) => {
-            return idempotency_replay_response(replay);
+            if backend.persistent_backend().is_none() {
+                return idempotency_replay_response(replay);
+            }
+            // A persistent replay reaches the owner again for fresh resource authorization.
+            true
         }
-    }
+    };
 
-    let response = next
-        .run(Request::from_parts(parts, Body::from(request_body)))
-        .await;
+    let work = next.run(Request::from_parts(parts, Body::from(request_body)));
+    let (response, commit_attempted) = if backend.persistent_backend().is_some() {
+        infra::wiki_postgres::with_idempotent_command(idempotency_request.clone(), replaying, work)
+            .await
+    } else {
+        (work.await, false)
+    };
     let (parts, body) = response.into_parts();
     let response_body = to_bytes(body, idempotency_body_limit(&backend))
         .await
@@ -447,7 +455,7 @@ async fn run_idempotent_request(
                 },
             )
             .await?;
-    } else {
+    } else if !commit_attempted {
         backend
             .abandon_idempotent_request(idempotency_request)
             .await?;

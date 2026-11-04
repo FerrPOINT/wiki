@@ -379,10 +379,22 @@ impl PostgresWikiBackend {
         self.ensure_space_id_access(claims, space, app::wiki::WikiSpaceAccess::Edit)
             .await?;
         self.namespace_binding(space).await?;
+        let actor: Uuid = claims.user_id.parse().map_err(|_| AppError::Unauthorized)?;
+
+        if let Some(response) = self
+            .replay_command::<serde_json::Value>(claims, &[space], super::SpaceAccess::Edit)
+            .await?
+        {
+            return Ok(response);
+        }
         if let Some(old)=sqlx::query("SELECT l.id,l.dossier_id,l.registry_instance_id,l.namespace_id FROM managed_task_document_links l JOIN task_dossiers t ON t.id=l.dossier_id WHERE l.space_id=$1 AND t.tracker_instance_id=$2 AND t.task_id=$3 AND l.document_id=$4 AND l.revision_id=$5").bind(space).bind(input.task.tracker_instance_id).bind(input.task.task_id).bind(input.document_id).bind(input.revision_id).fetch_optional(&self.pool).await.map_err(database_error)? {
             let namespace = NamespaceRef { registry_instance_id: old.get("registry_instance_id"), namespace_id: old.get("namespace_id") };
             if input.namespace.as_ref().is_some_and(|selected| selected != &namespace) { return Err(AppError::conflict("task_ref_namespace_mismatch")); }
-            return Ok(serde_json::json!({"id":old.get::<Uuid,_>("id"),"dossier_id":old.get::<Uuid,_>("dossier_id"),"task":input.task,"document_id":input.document_id,"revision_id":input.revision_id}));
+            let mut tx=self.begin_content_write(actor,claims.admission.as_ref(),&[space],app::wiki::WikiSpaceAccess::Edit).await?;
+            if let Some(response)=super::idempotency::replay::<serde_json::Value>(&mut tx,actor).await? {return Ok(response);}
+            let response=serde_json::json!({"id":old.get::<Uuid,_>("id"),"dossier_id":old.get::<Uuid,_>("dossier_id"),"task":input.task,"document_id":input.document_id,"revision_id":input.revision_id});
+            self.finish_command(tx,claims.admission.as_ref(),200,&response).await?;
+            return Ok(response);
         }
         self.project_catalog_actor(claims).await?;
         let namespace = self.task_project(space, input.namespace.as_ref()).await?;
@@ -391,7 +403,7 @@ impl PostgresWikiBackend {
             .as_ref()
             .ok_or_else(|| AppError::Unavailable("tracker_reader_not_configured".into()))?;
         let task_key = reader.verify(&namespace, &input.task).await?;
-        let actor: Uuid = claims.user_id.parse().map_err(|_| AppError::Unauthorized)?;
+
         let mut tx = self
             .begin_content_write(
                 actor,
@@ -400,6 +412,11 @@ impl PostgresWikiBackend {
                 app::wiki::WikiSpaceAccess::Edit,
             )
             .await?;
+        if let Some(response) =
+            super::idempotency::replay::<serde_json::Value>(&mut tx, actor).await?
+        {
+            return Ok(response);
+        }
         ensure_document_accepts_writes_tx(&mut tx, input.document_id).await?;
         let linked: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM wiki_space_projects WHERE space_id=$1 AND registry_instance_id=$2 AND namespace_id=$3)")
             .bind(space).bind(namespace.registry_instance_id).bind(namespace.namespace_id)
@@ -415,10 +432,19 @@ impl PostgresWikiBackend {
             .bind(Uuid::now_v7()).bind(space).bind(task_key).bind(input.task.tracker_instance_id).bind(input.task.task_id).fetch_one(&mut *tx).await.map_err(database_error)?;
         let link: Uuid = sqlx::query_scalar("INSERT INTO managed_task_document_links(id,space_id,dossier_id,document_id,revision_id,created_by,registry_instance_id,namespace_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(dossier_id,document_id,revision_id) DO UPDATE SET dossier_id=EXCLUDED.dossier_id RETURNING id")
             .bind(Uuid::now_v7()).bind(space).bind(dossier).bind(input.document_id).bind(input.revision_id).bind(actor).bind(namespace.registry_instance_id).bind(namespace.namespace_id).fetch_one(&mut *tx).await.map_err(database_error)?;
-        super::write_authorization::commit(tx, claims.admission.as_ref()).await?;
-        Ok(
-            serde_json::json!({"id":link,"dossier_id":dossier,"task":input.task,"document_id":input.document_id,"revision_id":input.revision_id}),
+        self.insert_audit(
+            &mut tx,
+            Some(actor),
+            "task.link_revision",
+            "task",
+            dossier,
+            claims.request_id.as_deref(),
         )
+        .await?;
+        let response = serde_json::json!({"id":link,"dossier_id":dossier,"task":input.task,"document_id":input.document_id,"revision_id":input.revision_id});
+        self.finish_command(tx, claims.admission.as_ref(), 200, &response)
+            .await?;
+        Ok(response)
     }
     pub(super) async fn task_revision_links(
         &self,
