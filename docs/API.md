@@ -316,6 +316,14 @@ Wiki реализует private owner protocol через общий storage por
 
 ## Служебное чтение материалов аналитиком
 
+На 2026-11-05 разрешённое чтение Wiki проверено прямым CLI и оригинальным Hermes
+в отдельной PDLC1 QA: связь с проектом, поиск, опубликованная редакция, история,
+точная версия и вложение. Подтверждены пустая выдача, ошибка сервиса, отказ чужому
+пространству и отзыв/восстановление viewer membership теми же credentials.
+Версии, команды и доказательства — в
+[сводке Base](https://github.com/FerrPOINT/services-base/blob/e147727ae53b8752ea09edf70233e5d9f8f07a0a/docs/plans/analyst-tools-standalone-20261104.md).
+Workflow, Fleet и изменение установленного окружения в эту приёмку не входят.
+
 `WIKI_READERS__SUBJECTS` явно регистрирует отдельные Central Auth service accounts.
 Их PAT имеет только `wiki:read`, без browser session; owner/projection identities
 не могут использовать этот доступ. Профиль заранее подготавливается операторской
