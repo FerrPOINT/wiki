@@ -156,7 +156,7 @@ test('Wiki global header preserves navigation, runtime services, focus and centr
       'aria-disabled',
       'true',
     )
-    await expect(menu.getByRole('menuitem', { name: /Central Auth|Java Agent|Pulse/ })).toHaveCount(
+    await expect(menu.getByRole('menuitem', { name: /Central Auth|Java Agent/ })).toHaveCount(
       0,
     )
     await page.keyboard.press('ArrowDown')

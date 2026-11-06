@@ -12,7 +12,7 @@ Production nginx и реальные Wiki/Central Auth API в собственн
   сужения, sidebar 264 px.
 - [Меню сервисов 375 px](services-menu-dark-375.png): непрозрачная поверхность,
   шесть healthy UI в продуктовом порядке, текущий Wiki отмечен;
-  Central Auth, Java Agent и Pulse отсутствуют.
+  Central Auth, Java Agent отсутствуют.
 
 [Измерения](results.json) содержат 99 Header сочетаний: три страницы,
 три темы и 11 ширин 320-2560 px. Keyboard/touch/outside/Escape/focus,
