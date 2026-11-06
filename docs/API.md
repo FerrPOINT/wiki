@@ -313,3 +313,49 @@ Wiki реализует private owner protocol через общий storage por
 неизменяемая issuer/alias привязка, правила shared/exclusive lock и квалификация
 описаны в [Identity deletion](IDENTITY_DELETION.md). Наличие source не означает
 установленный или квалифицированный runtime. UI и прежний admission не меняются.
+
+## Служебное чтение материалов аналитиком
+
+На 2026-11-05 разрешённое чтение Wiki проверено прямым CLI и оригинальным Hermes
+в отдельной PDLC1 QA: связь с проектом, поиск, опубликованная редакция, история,
+точная версия и вложение. Подтверждены пустая выдача, ошибка сервиса, отказ чужому
+пространству и отзыв/восстановление viewer membership теми же credentials.
+Версии, команды и доказательства — в
+[сводке Base](https://github.com/FerrPOINT/services-base/blob/e147727ae53b8752ea09edf70233e5d9f8f07a0a/docs/plans/analyst-tools-standalone-20261104.md).
+Workflow, Fleet и изменение установленного окружения в эту приёмку не входят.
+
+`WIKI_READERS__SUBJECTS` явно регистрирует отдельные Central Auth service accounts.
+Их PAT имеет только `wiki:read`, без browser session; owner/projection identities
+не могут использовать этот доступ. Профиль заранее подготавливается операторской
+командой, viewer membership выдаётся обычным API только нужных пространств проекта.
+Чтение не создаёт профиль и не выдаёт membership. Удаление membership, блокировка
+профиля либо отзыв PAT закрывают последующие запросы.
+
+Официальный CLI использует прежние GET: spaces/tree/projects, documents/revisions,
+task documents/evidence, evidence/attachments/download и search. Классификация идёт
+по маршруту сервера; остальные GET и все mutations для reader запрещены. Машина
+сохраняет собственную identity и не получает human/admin context. Даже историческая
+admin/editor роль не открывает write или private draft. В режиме общего admission
+чтение ограничено одновременно текущей политикой Space и явными memberships;
+политика All сама по себе не открывает другое пространство. Источник и срок proof
+остаются исходными, body/download ограничены существующим response guard.
+
+Docker/Compose и Kubernetes передают один и тот же `WIKI_READERS__SUBJECTS` и
+отдельный read PAT через штатную конфигурацию. Изменение источников не активирует
+этот доступ на существующей установке; отсутствующая регистрация сохраняет запрет.
+
+Общий `/auth/directory` содержит людей, поэтому machine-профиль подготавливается
+отдельно после обычного применения миграций:
+`wiki-server prepare-reader <subject-uuid> --token-file <private-read-pat-file>`.
+Команда запускается оператором с обычной Wiki-конфигурацией БД/Auth и регистрацией
+subject. Она проверяет именно этот service account и его exact `wiki:read` PAT
+через Auth, использует существующую проекцию профиля, печатает только local UUID и
+не выдаёт membership. Повтор сохраняет UUID и локальную блокировку; совпадение email
+с другим subject не привязывает профиль. Файл PAT принадлежит Secret/configuration
+среды и не передаётся агенту как admin credential. Команда одинакова для Compose
+и Kubernetes; сервер без аргументов запускается как прежде.
+
+CLI `wiki space project-contexts KEY --limit 50 --offset 0` явно читает
+существующий canonical `/api/v2/spaces/{space_key}/projects`; API base оканчивается
+на `/api/v1`. Прежний `space projects` сохраняет legacy V1. Команда не меняет
+режим автоматически после 403/503 и не обходит общий admission.

@@ -15,6 +15,8 @@ mod identity;
 mod identity_deletion;
 #[cfg(test)]
 mod identity_deletion_tests;
+pub mod machine_read;
+pub use identity::prepare_registered_reader;
 mod maintenance;
 mod managed_links;
 mod mapping;
@@ -137,6 +139,9 @@ impl PostgresWikiBackend {
     }
 
     async fn active_global_role(&self, user_id: Uuid) -> Result<String, shared::AppError> {
+        if machine_read::current(user_id)? {
+            return Ok("user".into());
+        }
         if central_mode() {
             return central_role(user_id).map(|role| match role {
                 pdlc_auth_core::application_access::HumanRole::Admin => "admin".into(),
@@ -189,6 +194,9 @@ impl PostgresWikiBackend {
     ) -> Result<Uuid, shared::AppError> {
         let admission = self.read_admission(Some(claims)).await?;
         let user_id = parse_uuid(&claims.user_id, "user")?;
+        if machine_read::current(user_id)? && required != SpaceAccess::View {
+            return Err(shared::AppError::Forbidden);
+        }
         if let Some(scope) = admission.as_ref() {
             if !scope.allows(space_id, required != SpaceAccess::View) {
                 return Err(shared::AppError::Forbidden);

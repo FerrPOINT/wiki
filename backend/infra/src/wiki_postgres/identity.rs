@@ -77,6 +77,57 @@ async fn persist_central_directory_user(
     Ok(())
 }
 
+/// Explicit operator preparation; reads never provision a service profile.
+pub async fn prepare_registered_reader(
+    config: &shared::AppConfig,
+    token: &str,
+    expected_subject: &str,
+) -> Result<Uuid, shared::AppError> {
+    let subject = Uuid::parse_str(expected_subject).map_err(|_| shared::AppError::Forbidden)?;
+    if subject.is_nil() || subject.to_string() != expected_subject {
+        return Err(shared::AppError::Forbidden);
+    }
+    let actor = super::central_auth::verified_for_request(token)
+        .await
+        .map_err(super::admission::auth_error)?;
+    super::machine_read::authorize(&actor)?;
+    if actor.context.user_id != expected_subject {
+        return Err(shared::AppError::Forbidden);
+    }
+    let entry = CentralDirectoryUser {
+        id: actor.context.user_id.clone(),
+        email: actor
+            .context
+            .email
+            .clone()
+            .filter(|v| !v.trim().is_empty())
+            .ok_or(shared::AppError::Unauthorized)?,
+        username: String::new(),
+        display_name: actor
+            .display_name
+            .clone()
+            .filter(|v| !v.trim().is_empty())
+            .ok_or(shared::AppError::Unauthorized)?,
+        status: "active".into(),
+    };
+    if !actor.lifetime.is_current() {
+        return Err(shared::AppError::Forbidden);
+    }
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(1)
+        .connect(&config.database.url)
+        .await
+        .map_err(database_error)?;
+    persist_central_directory_user(&pool, &entry).await?;
+    // The existing directory projection preserves local disable and role state.
+    sqlx::query_scalar("SELECT id FROM users WHERE central_sub=$1 AND is_active")
+        .bind(expected_subject)
+        .fetch_optional(&pool)
+        .await
+        .map_err(database_error)?
+        .ok_or(shared::AppError::Forbidden)
+}
+
 impl PostgresWikiBackend {
     pub async fn sync_central_users(&self, token: &str) -> Result<(), shared::AppError> {
         let jwks = std::env::var("WIKI_AUTH__CENTRAL_JWKS_URI")
@@ -689,6 +740,47 @@ impl PostgresWikiBackend {
     }
 
     pub(super) async fn authenticate_access_token(
+        &self,
+        token: &str,
+    ) -> Result<WikiClaims, shared::AppError> {
+        let actor = match super::central_auth::verified_for_request(token).await {
+            Ok(actor) => actor,
+            Err(
+                pdlc_auth_core::service_bridge::VerifiedBridgeError::NotConfigured
+                | pdlc_auth_core::service_bridge::VerifiedBridgeError::NotOurs,
+            ) if std::env::var_os("WIKI_AUTH__CENTRAL_JWKS_URI").is_none() => {
+                return self.authenticate_human_access_token(token).await;
+            }
+            Err(error) => return Err(super::admission::auth_error(error)),
+        };
+        if actor.subject_role.as_deref() == Some("service_account") {
+            super::machine_read::authorize(&actor)?;
+            let repository = PostgresWikiAuthRepository {
+                backend: self,
+                request_id: None,
+            };
+            // Provision through the existing Central directory and member API first.
+            // A read never creates a profile or grants membership.
+            let record = repository
+                .existing_central_user(&actor.context.user_id)
+                .await?;
+            let mut claims = super::central_auth::claims_for(&actor.context, record.id.to_string());
+            if self.admission_active().await? {
+                claims.admission = Some(
+                    self.confirmed_admission(&actor, record.id, "user".into())
+                        .await?,
+                );
+            }
+            return Ok(claims);
+        }
+        super::central_auth::with_verified_request(
+            actor,
+            self.authenticate_human_access_token(token),
+        )
+        .await
+    }
+
+    async fn authenticate_human_access_token(
         &self,
         token: &str,
     ) -> Result<WikiClaims, shared::AppError> {

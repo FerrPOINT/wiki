@@ -6,6 +6,14 @@ use sqlx::Row;
 use uuid::Uuid;
 
 pub fn registered_machine(subject: &str) -> bool {
+    registered_owner(subject)
+        || std::env::var("WIKI_READERS__SUBJECTS")
+            .unwrap_or_default()
+            .split(',')
+            .any(|value| !value.trim().is_empty() && value.trim() == subject)
+}
+
+pub(super) fn registered_owner(subject: &str) -> bool {
     [
         "WIKI_NAMESPACE__OWNER_SUBJECTS",
         "WIKI_NAMESPACE__READER_SUBJECTS",

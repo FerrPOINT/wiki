@@ -251,6 +251,7 @@ wiki/
 - [docs/SECURITY.md](docs/SECURITY.md), [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) — безопасность.
 - [docs/ARCHITECTURE_INDEX.md](docs/ARCHITECTURE_INDEX.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/contracts](docs/contracts) — архитектура и контракты.
 - [docs/API.md](docs/API.md), [docs/DATA_MODEL.md](docs/DATA_MODEL.md), [docs/ENV.md](docs/ENV.md), [docs/CLI.md](docs/CLI.md) — справочники.
+- [Служебное чтение аналитиком](docs/API.md#служебное-чтение-материалов-аналитиком) — reader, проектные права, версии, вложения и отдельная приёмка без Workflow/Fleet.
 - [docs/TEST_PLAN.md](docs/TEST_PLAN.md), [docs/TRACEABILITY.md](docs/TRACEABILITY.md), [docs/RISK_REGISTER.md](docs/RISK_REGISTER.md) — качество.
 
 Скриншоты и параметры пересъёмки: [docs/assets/screens/manifest.md](docs/assets/screens/manifest.md).
