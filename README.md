@@ -221,7 +221,7 @@ flowchart TD
 | Compose contract | `docker compose config -q` |
 | Runtime probes | `curl -fsS http://127.0.0.1:3456/api/v1/health` и `.../health/ready` |
 
-GitHub Actions прогоняет docs-гейт, backend fmt/clippy/tests, OpenAPI drift и frontend gates; тяжёлые проверки (coverage, dependency-audit, browser E2E) выполняются локально по необходимости.
+GitHub Actions workflows удалены. Docs, backend fmt/clippy/tests, OpenAPI drift и frontend gates выполняются локально по выбранной области. Coverage, dependency audit и browser E2E остаются отдельными gates; команды — в [CI/CD](docs/CI_CD.md).
 
 Архивирование сохраняет клавиатурный контекст: после успеха фокус возвращается
 на строку пространства или заголовок документа, после отмены — на кнопку действия.
