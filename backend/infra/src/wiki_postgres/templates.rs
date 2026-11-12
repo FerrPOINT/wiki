@@ -38,6 +38,12 @@ impl WikiTemplateRepository for PostgresWikiTemplateRepository<'_> {
         Box::pin(async move {
             let mut tx = self.backend.pool.begin().await.map_err(database_error)?;
             super::write_authorization::bind_current_clock(&mut tx).await?;
+            if let Some(response) =
+                super::idempotency::replay::<TemplateResponse>(&mut tx, actor_id).await?
+            {
+                return Ok(response);
+            }
+
             let id = Uuid::now_v7();
             let row = sqlx::query(
                 r#"
@@ -65,8 +71,11 @@ impl WikiTemplateRepository for PostgresWikiTemplateRepository<'_> {
                     self.request_id,
                 )
                 .await?;
-            tx.commit().await.map_err(database_error)?;
-            Ok(template_response_from_row(&row))
+            let response = template_response_from_row(&row);
+            self.backend
+                .finish_command(tx, None, 201, &response)
+                .await?;
+            Ok(response)
         })
     }
 }
@@ -86,6 +95,13 @@ impl PostgresWikiBackend {
         body: CreateTemplateRequest,
     ) -> Result<TemplateResponse, shared::AppError> {
         let actor_id = self.ensure_admin(claims).await?;
+
+        if let Some(response) = self
+            .replay_command::<TemplateResponse>(claims, &[], super::SpaceAccess::Admin)
+            .await?
+        {
+            return Ok(response);
+        }
         let repository = PostgresWikiTemplateRepository {
             backend: self,
             request_id: claims.request_id.as_deref(),

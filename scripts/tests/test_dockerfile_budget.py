@@ -1,0 +1,20 @@
+"""Cargo worker arguments must reach the builder, not only the CLI."""
+from pathlib import Path
+import unittest
+ROOT=Path(__file__).resolve().parents[2]
+class DockerfileBudgetTests(unittest.TestCase):
+    def test_each_rust_recipe_consumes_worker_budget_before_cargo(self):
+        for name in ("Dockerfile", "Dockerfile.umbrella"):
+            with self.subTest(recipe=name):
+                builder, runtime=(ROOT/"backend"/name).read_text().split("FROM debian:bookworm-slim",1)
+                self.assertIn("ARG CARGO_BUILD_JOBS=1",builder.splitlines())
+                self.assertLess(builder.index("ARG CARGO_BUILD_JOBS=1"),builder.index("cargo build"))
+                self.assertNotIn("CARGO_BUILD_JOBS",runtime)
+    def test_retained_target_refreshes_first_party_and_sdk_before_cargo(self):
+        builder, runtime = (ROOT / "backend/Dockerfile.umbrella").read_text().split("FROM debian:bookworm-slim", 1)
+        refresh = "find /app /services-base/base-modules/rust -name '*.rs' -exec touch {} +"
+        self.assertIn(refresh, builder)
+        self.assertLess(builder.index(refresh), builder.index("CARGO_TARGET_DIR=/cargo-target cargo"))
+        self.assertNotIn(refresh, runtime)
+
+if __name__=="__main__":unittest.main()

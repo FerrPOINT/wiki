@@ -20,5 +20,4 @@ hex = "0.4"
 ammonia.workspace = true
 comrak.workspace = true
 
-[dev-dependencies]
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio.workspace = true

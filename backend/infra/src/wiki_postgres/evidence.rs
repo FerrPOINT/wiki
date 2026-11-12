@@ -24,13 +24,52 @@ impl PostgresWikiEvidenceRepository<'_> {
         &self,
         evidence_id: Uuid,
     ) -> Result<EvidenceResponse, shared::AppError> {
+        let mut connection = self.backend.pool.acquire().await.map_err(database_error)?;
+        self.get_evidence_by_id_on(&mut connection, evidence_id)
+            .await
+    }
+
+    async fn get_evidence_by_id_on(
+        &self,
+        connection: &mut sqlx::PgConnection,
+        evidence_id: Uuid,
+    ) -> Result<EvidenceResponse, shared::AppError> {
         let row = sqlx::query(EVIDENCE_ONE_SQL)
             .bind(evidence_id)
-            .fetch_optional(&self.backend.pool)
+            .fetch_optional(&mut *connection)
             .await
             .map_err(database_error)?
             .ok_or_else(|| shared::AppError::not_found("evidence", evidence_id))?;
         Ok(evidence_response_from_row(&row))
+    }
+    async fn list_evidence_on(
+        &self,
+        connection: &mut sqlx::PgConnection,
+        criteria: &WikiEvidenceQueryCriteria,
+    ) -> Result<Vec<EvidenceResponse>, shared::AppError> {
+        let rows = sqlx::query(EVIDENCE_LIST_SQL)
+            .bind(criteria.space_key.as_deref())
+            .bind(criteria.document_id)
+            .bind(criteria.task_key.as_deref())
+            .bind(criteria.phase_key.as_deref())
+            .bind(criteria.access_user_id)
+            .bind(criteria.query.as_deref())
+            .bind(criteria.cursor.as_ref().map(|cursor| cursor.created_at))
+            .bind(criteria.cursor.as_ref().map(|cursor| cursor.id))
+            .bind(criteria.limit)
+            .bind(
+                self.admission
+                    .as_ref()
+                    .map(|scope| scope.readable_ids())
+                    .transpose()?,
+            )
+            .fetch_all(&mut *connection)
+            .await
+            .map_err(database_error)?;
+        if let Some(scope) = self.admission.as_ref() {
+            scope.require_current()?;
+        }
+        Ok(rows.iter().map(evidence_response_from_row).collect())
     }
 }
 
@@ -50,6 +89,12 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
                     SpaceAccess::Edit,
                 )
                 .await?;
+            if let Some(response) =
+                super::idempotency::replay::<EvidenceResponse>(&mut tx, actor_id).await?
+            {
+                return Ok(response);
+            }
+
             if let Some(document_id) = command.document_id {
                 ensure_document_accepts_writes_tx(&mut tx, document_id).await?;
             }
@@ -132,8 +177,11 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
                     self.request_id,
                 )
                 .await?;
-            super::write_authorization::commit(tx, self.admission.as_ref()).await?;
-            self.get_evidence_by_id(evidence_id).await
+            let response = self.get_evidence_by_id_on(&mut tx, evidence_id).await?;
+            self.backend
+                .finish_command(tx, self.admission.as_ref(), 201, &response)
+                .await?;
+            Ok(response)
         })
     }
 
@@ -142,29 +190,8 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
         criteria: &'a WikiEvidenceQueryCriteria,
     ) -> WikiEvidenceRepositoryFuture<'a, Vec<EvidenceResponse>> {
         Box::pin(async move {
-            let rows = sqlx::query(EVIDENCE_LIST_SQL)
-                .bind(criteria.space_key.as_deref())
-                .bind(criteria.document_id)
-                .bind(criteria.task_key.as_deref())
-                .bind(criteria.phase_key.as_deref())
-                .bind(criteria.access_user_id)
-                .bind(criteria.query.as_deref())
-                .bind(criteria.cursor.as_ref().map(|cursor| cursor.created_at))
-                .bind(criteria.cursor.as_ref().map(|cursor| cursor.id))
-                .bind(criteria.limit)
-                .bind(
-                    self.admission
-                        .as_ref()
-                        .map(|scope| scope.readable_ids())
-                        .transpose()?,
-                )
-                .fetch_all(&self.backend.pool)
-                .await
-                .map_err(database_error)?;
-            if let Some(scope) = self.admission.as_ref() {
-                scope.require_current()?;
-            }
-            Ok(rows.iter().map(evidence_response_from_row).collect())
+            let mut connection = self.backend.pool.acquire().await.map_err(database_error)?;
+            self.list_evidence_on(&mut connection, criteria).await
         })
     }
 
@@ -181,6 +208,19 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
         command: WikiUploadAttachmentCommand,
     ) -> WikiEvidenceRepositoryFuture<'_, AttachmentResponse> {
         Box::pin(async move {
+            if super::idempotency::has_command() {
+                let mut preflight = self
+                    .backend
+                    .begin_content_write(actor_id, self.admission.as_ref(), &[], SpaceAccess::Edit)
+                    .await?;
+                if let Some(response) =
+                    super::idempotency::replay::<AttachmentResponse>(&mut preflight, actor_id)
+                        .await?
+                {
+                    return Ok(response);
+                }
+                preflight.rollback().await.map_err(database_error)?;
+            }
             self.backend
                 .storage
                 .put(&command.storage_key, &command.bytes)
@@ -218,7 +258,7 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
                         self.request_id,
                     )
                     .await?;
-                super::write_authorization::commit(tx, self.admission.as_ref()).await?;
+                self.backend.finish_command(tx,self.admission.as_ref(),201,&attachment_response_from_row(&row)).await?;
                 Ok::<_, shared::AppError>(row)
             }
             .await;
@@ -226,8 +266,40 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
             let row = match insert_result {
                 Ok(row) => row,
                 Err(err) => {
-                    let _ = self.backend.storage.delete(&command.storage_key).await;
-                    return Err(err);
+                    // COMMIT may have succeeded even though its reply was lost. Resolve
+                    // the original ID after the writer's user lock has been released.
+                    match self
+                        .backend
+                        .attachment_upload_readback(
+                            actor_id,
+                            command.attachment_id,
+                            &command.storage_key,
+                        )
+                        .await
+                    {
+                        Ok(Some(row)) => row,
+                        Ok(None) => {
+                            if self
+                                .backend
+                                .storage
+                                .delete(&command.storage_key)
+                                .await
+                                .is_err()
+                            {
+                                tracing::warn!(attachment_id = %command.attachment_id,
+                                    "confirmed absent attachment could not be removed from storage");
+                            }
+                            return Err(err);
+                        }
+                        Err(_) => {
+                            tracing::warn!(attachment_id = %command.attachment_id,
+                                "attachment outcome unknown; bytes retained for original-ID readback");
+                            return Err(shared::AppError::Unavailable(format!(
+                                "attachment outcome unknown: {}",
+                                command.attachment_id
+                            )));
+                        }
+                    }
                 }
             };
 
@@ -292,10 +364,70 @@ impl WikiEvidenceRepository for PostgresWikiEvidenceRepository<'_> {
 }
 
 impl PostgresWikiBackend {
+    async fn attachment_upload_readback(
+        &self,
+        actor_id: Uuid,
+        attachment_id: Uuid,
+        storage_key: &str,
+    ) -> Result<Option<sqlx::postgres::PgRow>, shared::AppError> {
+        // Never reuse the failed writer's physical protocol state.
+        let fresh = self
+            .pool
+            .options()
+            .clone()
+            .max_connections(1)
+            .min_connections(0)
+            .connect_with((*self.pool.connect_options()).clone())
+            .await
+            .map_err(database_error)?;
+        let result = async {
+        let mut tx = fresh.begin().await.map_err(database_error)?;
+        // A deployment default of REPEATABLE READ must not freeze the absence
+        // snapshot before waiting for the original writer.
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL READ COMMITTED")
+            .execute(&mut *tx).await.map_err(database_error)?;
+        // begin_content_write holds FOR SHARE on this same user through COMMIT.
+        // A separate transaction's conflicting lock waits for that outcome, unlike
+        // a plain EXISTS snapshot which could precede the original COMMIT.
+        let owner: Option<Uuid> = sqlx::query_scalar("SELECT id FROM users WHERE id=$1 FOR UPDATE")
+            .bind(actor_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(database_error)?;
+        if owner.is_none() {
+            return Err(shared::AppError::Unavailable(
+                "attachment owner unavailable".into(),
+            ));
+        }
+        let row = sqlx::query(
+            "SELECT id,file_name,content_type,size_bytes,checksum,uploaded_by,uploaded_at,storage_key FROM attachments WHERE id=$1",
+        )
+        .bind(attachment_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(database_error)?;
+        if let Some(row) = row.as_ref() {
+            if row.get::<Uuid, _>("uploaded_by") != actor_id
+                || row.get::<String, _>("storage_key") != storage_key
+            {
+                return Err(shared::AppError::Unavailable(
+                    "attachment outcome conflicts with original upload".into(),
+                ));
+            }
+        }
+        // Read-only resolution: never renew admission or authorize a new write.
+        tx.rollback().await.map_err(database_error)?;
+        Ok(row)
+        }.await;
+        fresh.close().await;
+        result
+    }
+
     /// Internal snapshot for a document whose owner admission was checked by its caller.
     /// Filtering uses the exact document FK, never an unscoped public search.
-    pub(super) async fn evidence_for_document_result(
+    pub(super) async fn evidence_for_document_result_on(
         &self,
+        connection: &mut sqlx::PgConnection,
         document_id: Uuid,
     ) -> Result<Vec<EvidenceResponse>, shared::AppError> {
         let repository = PostgresWikiEvidenceRepository {
@@ -303,19 +435,21 @@ impl PostgresWikiBackend {
             request_id: None,
             admission: None,
         };
-        let query = EvidenceQuery {
-            space: None,
-            document_id: Some(document_id.to_string()),
+        let criteria = WikiEvidenceQueryCriteria {
+            space_key: None,
+            document_id: Some(document_id),
             task_key: None,
             phase_key: None,
-            q: None,
+            access_user_id: None,
+            query: None,
             cursor: None,
-            limit: Some(100),
+            limit: 101,
         };
-        Ok(WikiEvidenceUseCase::new(&repository)
-            .list(query, Some(document_id), None)
-            .await?
-            .evidence)
+        Ok(app::wiki::evidence_page(
+            repository.list_evidence_on(connection, &criteria).await?,
+            100,
+        )?
+        .evidence)
     }
     pub(super) async fn create_evidence(
         &self,
@@ -342,6 +476,13 @@ impl PostgresWikiBackend {
 
         self.ensure_space_id_access(claims, space_id, SpaceAccess::Edit)
             .await?;
+        if let Some(response) = self
+            .replay_command::<EvidenceResponse>(claims, &[space_id], super::SpaceAccess::Edit)
+            .await?
+        {
+            return Ok(response);
+        }
+
         self.ensure_space_accepts_writes(space_id).await?;
         let repository = PostgresWikiEvidenceRepository {
             backend: self,
@@ -418,6 +559,13 @@ impl PostgresWikiBackend {
         bytes: Vec<u8>,
     ) -> Result<AttachmentResponse, shared::AppError> {
         let actor_id = parse_uuid(&claims.user_id, "user")?;
+
+        if let Some(response) = self
+            .replay_command::<AttachmentResponse>(claims, &[], super::SpaceAccess::Edit)
+            .await?
+        {
+            return Ok(response);
+        }
         let repository = PostgresWikiEvidenceRepository {
             backend: self,
             request_id: claims.request_id.as_deref(),
