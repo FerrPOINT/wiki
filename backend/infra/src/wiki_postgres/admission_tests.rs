@@ -22,6 +22,7 @@ fn claims_with_write_scope(
         subject: central.to_string(),
     };
     let admission = SpaceAdmission {
+        inheritance: None,
         schema_version: 1,
         identity: identity.clone(),
         identity_active: true,

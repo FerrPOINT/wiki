@@ -44,3 +44,13 @@ Source/tests/publication/images/migration/live — отдельные gates. П�
 планы исторические; новая модель не меняет смысл технических receipts.
 Production, PDLC1/2/3, Hermes и соседи исключены. Не смешивать с прежними Workflow
 исправлениями профессий. Зависимые PR без автоматического merge.
+
+### Confirmed native role provenance (2026-10-21)
+
+Historical central SSO shadow administrator rows are not confirmed native grants.
+With the policy enabled, the admission ceiling requires either the current
+verified central administrator role or the new explicit role provenance record,
+written only by the authenticated native role-assignment port. Existing local
+space editor/admin grants remain additional requirements for writes. Migration
+adds the provenance table without changing historical users or inferring grants.
+Known automatic assignments are reviewed separately during filled-data migration.

@@ -291,3 +291,12 @@ OpenAPI генерируется из Rust; установка требует п
 Без подтверждённой роли редактора title/status берутся из опубликованной версии;
 search/count/page фильтруются до pagination. Прямой draft-only read —404.
 Read PAT редактора сохраняет чтение черновика без can_edit/права записи.
+
+### Freshness of displayed human data
+
+Authenticated GET /api/v1/space-admission returns the shared UI display descriptor
+(schema_version1, enforced, remaining_millis, scope_revision) from the original
+WikiClaims admission. It never grants a subsequent operation. The client anchors
+the remaining clock before I/O, closes retired generations and clears caches and
+forms on source/role changes. An unavailable renewal cannot extend the old clock.
+Activated storage still checks each resource's actual owning namespace.

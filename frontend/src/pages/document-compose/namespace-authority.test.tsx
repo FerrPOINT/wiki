@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -26,11 +27,15 @@ function mount(
     },
   })
   render(
-    <RouterProvider
-      router={createMemoryRouter([{ path: '/documents/new', element: <DocumentComposePage /> }], {
-        initialEntries: ['/documents/new?space=OTHER'],
-      })}
-    />,
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <RouterProvider
+        router={createMemoryRouter([{ path: '/documents/new', element: <DocumentComposePage /> }], {
+          initialEntries: ['/documents/new?space=OTHER'],
+        })}
+      />
+    </QueryClientProvider>,
   )
   fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Keep this draft' } })
   fireEvent.change(screen.getByLabelText('Markdown документа'), {

@@ -143,6 +143,7 @@ pub use routes::*;
         routes::wiki::refresh,
         routes::wiki::logout,
         routes::wiki::get_current_user,
+        routes::wiki::human_admission_window,
         routes::wiki::get_settings,
         routes::wiki::list_users,
         routes::wiki::create_user,
@@ -188,6 +189,7 @@ pub use routes::*;
         routes::wiki::search
     ),
     components(schemas(
+        routes::wiki::HumanAdmissionWindowV1,
         shared::wiki_contract::WorkspaceProject,
         shared::wiki_contract::WorkspaceProjectPage,
         shared::wiki_contract::ProjectResourceStatus,
@@ -339,6 +341,7 @@ pub fn router_with_wiki(
     };
 
     let protected = Router::<Arc<app::WikiAppContext>>::new()
+        .route("/space-admission",get(routes::wiki::human_admission_window))
         .route(
             "/documents/{id}/space-context",
             get(routes::space_projects::document_context),

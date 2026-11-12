@@ -99,6 +99,7 @@ pub(super) async fn verify(
                     may_write: true,
                 },
                 SpaceAdmission {
+                    inheritance: None,
                     schema_version: 1,
                     identity,
                     identity_active: true,
