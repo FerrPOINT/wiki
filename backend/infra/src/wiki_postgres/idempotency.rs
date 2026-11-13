@@ -1,11 +1,11 @@
 use super::PostgresWikiBackend;
 use super::database_error;
 use super::mapping::parse_uuid;
+use app::wiki::WIKI_COMMAND;
 use shared::wiki_contract::{WikiIdempotencyReplay, WikiIdempotencyRequest, WikiIdempotencyStatus};
 use shared::{AppError, wiki_space_access::WikiSpaceAdmission};
 use sqlx::{Postgres, Row, Transaction};
 use std::sync::{Arc, atomic::Ordering};
-use app::wiki::WIKI_COMMAND;
 use uuid::Uuid;
 
 impl PostgresWikiBackend {
@@ -181,7 +181,6 @@ impl PostgresWikiBackend {
         Ok(rows)
     }
 }
-
 
 pub(super) fn has_command() -> bool {
     WIKI_COMMAND.try_with(|_| ()).is_ok()

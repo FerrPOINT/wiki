@@ -454,8 +454,7 @@ async fn run_idempotent_request(
 
     let work = next.run(Request::from_parts(parts, Body::from(request_body)));
     let (response, commit_attempted) = if backend.persistent_backend().is_some() {
-        app::wiki::with_idempotent_command(idempotency_request.clone(), replaying, work)
-            .await
+        app::wiki::with_idempotent_command(idempotency_request.clone(), replaying, work).await
     } else {
         (work.await, false)
     };
