@@ -93,3 +93,67 @@ pub fn claims_for(ctx: &pdlc_auth_core::AuthContext, wiki_user_id: String) -> Wi
         admission: None,
     }
 }
+
+#[cfg(test)]
+pub(super) async fn verified_test_identity(
+    prefix: &'static str,
+    context: &pdlc_auth_core::AuthContext,
+    access: Option<pdlc_auth_core::application_access::VerifiedApplicationAccess>,
+) -> pdlc_auth_core::service_bridge::VerifiedCentralToken {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    struct Fixture {
+        server: tokio::task::JoinHandle<()>,
+        environment: Vec<(String, Option<std::ffi::OsString>)>,
+    }
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            self.server.abort();
+            for (key, previous) in &self.environment {
+                // Each caller owns its test-only prefix; production settings are never read.
+                unsafe { match previous {
+                    Some(value) => std::env::set_var(key, value),
+                    None => std::env::remove_var(key),
+                } }
+            }
+        }
+    }
+    let issuer = access.as_ref().map_or("http://wiki-owner.example.test", |proof| proof.decision.issuer.as_str()).to_owned();
+    let now = chrono::Utc::now();
+    let mut body = serde_json::json!({"sub":context.user_id,
+        "email":context.email.as_deref().unwrap_or("fixture@example.test"),
+        "subject_role":context.role.as_deref().unwrap_or("user"), "scopes":context.scopes,
+        "observed_at":now,"expires_at":now + chrono::Duration::minutes(2)});
+    if let Some(access) = access { body["application_access"] = serde_json::to_value(access.decision).unwrap(); }
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        loop {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request = Vec::new();
+            while !request.windows(4).any(|part| part == b"\r\n\r\n") {
+                let mut buffer = [0; 1024];
+                let size = stream.read(&mut buffer).await.unwrap();
+                assert_ne!(size, 0);
+                request.extend_from_slice(&buffer[..size]);
+            }
+            let request = String::from_utf8(request).unwrap();
+            let value = if request.starts_with("GET /oidc/jwks ") { serde_json::json!({"keys":[]}) } else {
+                assert!(request.starts_with("GET /auth/tokens/introspect?include_lifetime=true "));
+                assert!(request.to_lowercase().contains("authorization: bearer sdlc_pat_wiki-fixture"));
+                body.clone()
+            };
+            let body = value.to_string();
+            let response = format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", body.len(), body);
+            stream.write_all(response.as_bytes()).await.unwrap();
+        }
+    });
+    let environment = [(format!("{prefix}_JWKS_URI"), format!("http://{address}/oidc/jwks")),
+        (format!("{prefix}_ISSUER"), issuer), (format!("{prefix}_APPLICATION_ACCESS_REQUIRED"), "false".into())]
+        .into_iter().map(|(key, value)| {
+            let previous = std::env::var_os(&key);
+            unsafe { std::env::set_var(&key, value) };
+            (key, previous)
+        }).collect();
+    let _fixture = Fixture { server, environment };
+    ServiceBridge::for_application(prefix, "wiki").try_verified_token("sdlc_pat_wiki-fixture").await.unwrap()
+}

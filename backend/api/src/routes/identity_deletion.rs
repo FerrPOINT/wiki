@@ -45,12 +45,7 @@ impl RegisteredCoordinator {
         {
             return Err(AppError::Forbidden);
         }
-        let validity = pdlc_shared::space_access::AdmissionValidity::confirmed(
-            verified.lifetime.source_observed_at,
-            verified.lifetime.local_valid_until(),
-            i64::MAX,
-        )
-        .ok_or(AppError::Unauthorized)?;
+        let validity = verified.confirmation_validity().map_err(|_| AppError::Unauthorized)?;
         let remaining = chrono::DateTime::from_timestamp(validity.valid_until, 0)
             .ok_or(AppError::Unauthorized)?
             .signed_duration_since(chrono::Utc::now())
@@ -58,8 +53,8 @@ impl RegisteredCoordinator {
             .map_err(|_| AppError::Unauthorized)?;
         let deadline = std::time::Instant::now()
             .checked_add(remaining)
-            .ok_or(AppError::Unauthorized)?
-            .min(verified.lifetime.monotonic_deadline());
+            .ok_or(AppError::Unauthorized)?;
+        let deadline = verified.lifetime.monotonic_deadline().map_or(deadline, |token| deadline.min(token));
         let window = IdentityDeletionWindow::restricted(deadline, validity.valid_until);
         window.require_current()?;
         Ok(Self { window })

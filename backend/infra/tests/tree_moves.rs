@@ -42,7 +42,7 @@ fn actor(user: Uuid, central: Uuid, spaces: &[(Uuid, SpaceRef)]) -> WikiClaims {
                 WikiSpaceSubject {
                     user_id: user,
                     identity,
-                    token_expiry: now + 60,
+                    authority_valid_until: now + 60,
                     global_role: "user".into(),
                     may_read: true,
                     may_write: true,

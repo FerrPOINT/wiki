@@ -9,7 +9,7 @@ use uuid::Uuid;
 pub struct WikiSpaceSubject {
     pub user_id: Uuid,
     pub identity: CentralIdentity,
-    pub token_expiry: i64,
+    pub authority_valid_until: i64,
     pub global_role: String,
     pub may_read: bool,
     pub may_write: bool,
@@ -41,7 +41,7 @@ impl WikiSpaceAdmission {
         let now = chrono::Utc::now();
         admission.validity = admission
             .validity
-            .attenuate(subject.token_expiry)
+            .attenuate(subject.authority_valid_until)
             .ok_or(AppError::Forbidden)?;
         if subject.user_id.is_nil()
             || admission.identity != subject.identity
@@ -49,7 +49,7 @@ impl WikiSpaceAdmission {
             || !admission.valid()
             || !admission
                 .validity
-                .valid_at(now.timestamp(), subject.token_expiry)
+                .valid_at(now.timestamp(), subject.authority_valid_until)
         {
             return Err(AppError::Forbidden);
         }
@@ -305,7 +305,7 @@ mod tests {
         let subject = WikiSpaceSubject {
             user_id: Uuid::new_v4(),
             identity: identity.clone(),
-            token_expiry: now + 60,
+            authority_valid_until: now + 60,
             global_role: "admin".into(),
             may_read: true,
             may_write: true,
