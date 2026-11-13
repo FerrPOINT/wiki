@@ -36,12 +36,20 @@ pub(super) fn guard(
     guard_until(response, until, deadline, move || scope.is_current())
 }
 
+pub(super) fn guard_confirmation(
+    response: Response,
+    confirmation: pdlc_shared::space_lifecycle::SpaceOwnerAuthority,
+) -> Result<Response, AppError> {
+    guard_until(response, confirmation.valid_until(), confirmation.monotonic_deadline(),
+        move || confirmation.is_current())
+}
+
 pub(super) fn guard_identity(
     response: Response,
     lifetime: pdlc_auth_core::service_bridge::VerifiedTokenLifetime,
 ) -> Result<Response, AppError> {
-    let until = lifetime.local_valid_until();
-    let deadline = lifetime.monotonic_deadline();
+    let until = lifetime.local_valid_until().ok_or(AppError::Unauthorized)?;
+    let deadline = lifetime.monotonic_deadline().ok_or(AppError::Unauthorized)?;
     guard_until(response, until, deadline, move || lifetime.is_current())
 }
 
@@ -114,7 +122,7 @@ mod tests {
                 WikiSpaceSubject {
                     user_id: Uuid::new_v4(),
                     identity: identity.clone(),
-                    token_expiry: now + 60,
+                    authority_valid_until: now + 60,
                     global_role: "user".into(),
                     may_read: true,
                     may_write: false,

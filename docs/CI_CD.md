@@ -2,22 +2,25 @@
 
 ## 1. Overview
 
-Current Wiki CI is the pre-development quality gate for the MVP baseline. It verifies Rust backend, OpenAPI parity, SQLx migrations, dependency audit, React frontend and Chromium smoke E2E.
+GitHub Actions workflows have been removed. Quality checks run locally or in an
+explicitly configured Forge pipeline. A missing hosted job is not a test result.
+Rust, OpenAPI parity, SQLx migrations, dependency audit, frontend and browser
+checks remain required for their relevant change scope.
 
 Release packaging, registry publishing, multi-browser E2E, mutation testing and production deployment automation are deferred release-hardening items.
 
 ## 2. Platform
 
-- **GitHub Actions** is the active CI provider.
 - **PostgreSQL 17.6-alpine** is used for migration checks and Docker-backed E2E.
 - **pnpm 10** and **Node.js 22** are used for frontend checks.
 - **Rust stable** is used for backend checks.
 
-## 3. Active Workflow
+## 3. Quality Gates
 
-The active workflow is `.github/workflows/ci.yml` and runs on pushes and pull requests to `main`.
+There are no GitHub push/PR build triggers. Select the affected gates explicitly
+and record the exact source, commands and observed results.
 
-| Job | Purpose | Blocking |
+| Gate | Purpose | Required when applicable |
 | --- | ------- | -------- |
 | `backend` | Rust formatting, clippy and serial workspace tests | Yes |
 | `openapi-check` | Regenerate OpenAPI from Rust handlers and compare with committed spec | Yes |
@@ -29,7 +32,7 @@ The active workflow is `.github/workflows/ci.yml` and runs on pushes and pull re
 
 ## 4. Backend Gate
 
-The backend job runs from `backend/`:
+Run backend checks from `backend/`:
 
 ```bash
 cargo fmt --all -- --check
@@ -41,7 +44,7 @@ Serial tests are intentional because current integration coverage shares in-memo
 
 ## 5. OpenAPI Gate
 
-The OpenAPI job regenerates `backend/openapi/openapi.json` from Rust route/DTO definitions and compares it with the repository-level contract:
+Regenerate `backend/openapi/openapi.json` from Rust route/DTO definitions and compare it with the repository-level contract:
 
 ```bash
 mkdir -p openapi
@@ -53,28 +56,25 @@ Any endpoint, DTO or schema change must update the generated root `openapi/opena
 
 ## 6. Migration Gate
 
-The migration job starts a clean PostgreSQL service and runs:
-
-```bash
-cargo run -p migration -- up
-cargo run -p migration -- status
-```
+Use the SQLx migration checks and isolated database procedure in
+[MIGRATIONS](MIGRATIONS.md) and [TESTING](TESTING.md). Existing applied migration
+checksums and valid application data must be preserved.
 
 The runtime migrator loads migrations from `WIKI_MIGRATIONS_DIR` when set, otherwise from the repository `backend/migrations` directory. Docker images copy this directory into `/app/migrations`.
 
 ## 7. Coverage Gate
 
-The coverage job uses `cargo llvm-cov`:
+Coverage uses `cargo llvm-cov`:
 
 ```bash
 cargo llvm-cov --workspace --summary-only -- --test-threads=1
 ```
 
-The active CI threshold is **60% total backend coverage**. Higher layer-specific targets remain release-hardening goals, not MVP pre-development blockers.
+The documented baseline is **60% total backend coverage**. Higher layer-specific targets remain release-hardening goals.
 
 ## 8. Audit Gate
 
-The audit job runs:
+The dependency audit runs:
 
 ```bash
 cargo audit --ignore RUSTSEC-2023-0071
@@ -86,7 +86,7 @@ Frontend dependency audit is a release-hardening backlog item until the dependen
 
 ## 9. Frontend Gate
 
-The frontend job runs from `frontend/`:
+Run frontend checks from `frontend/`:
 
 ```bash
 pnpm install
@@ -100,11 +100,11 @@ pnpm format:check
 pnpm build
 ```
 
-`pnpm generate:api` must keep `frontend/src/api/generated.ts` aligned with `openapi/openapi.json`. `pnpm openapi:compat` compares the current public contract with `origin/main`; checkout uses complete Git history so removing an existing path, operation, response, parameter or compatible schema surface blocks the workflow.
+`pnpm generate:api` must keep `frontend/src/api/generated.ts` aligned with `openapi/openapi.json`. `pnpm openapi:compat` compares the current public contract with `origin/main`; use complete Git history. An incompatible path, operation, response, parameter or schema removal fails this check.
 
 ## 10. E2E Gate
 
-The E2E job:
+An isolated E2E run:
 
 1. Installs frontend dependencies.
 2. Builds the Vite app.

@@ -942,7 +942,8 @@ mod central_authority_tests {
                 email: None,
                 token: String::new(),
             };
-            pdlc_auth_core::human_request::with_human_request(local, &context, None, async {
+            let verified = central_auth::verified_test_identity("WIKI_ROLE_OWNER_FIXTURE", &context, None).await;
+            pdlc_auth_core::human_request::with_human_request(local, &verified, async {
                 assert_eq!(
                     central_role(local).unwrap()
                         == pdlc_auth_core::application_access::HumanRole::Admin,

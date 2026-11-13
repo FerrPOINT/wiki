@@ -37,6 +37,12 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
                     SpaceAccess::Edit,
                 )
                 .await?;
+            if let Some(response) =
+                super::idempotency::replay::<DocumentResponse>(&mut tx, actor_id).await?
+            {
+                return Ok(response);
+            }
+
             let position: i64 = sqlx::query_scalar(
                 r#"
                 SELECT COUNT(*)::bigint
@@ -139,10 +145,14 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
             if let Some(scope) = self.claims.admission.as_ref() {
                 scope.require_current()?;
             }
-            super::write_authorization::commit(tx, self.claims.admission.as_ref()).await?;
+            let response = self
+                .backend
+                .document_response_on(&mut tx, command.document_id, self.include_draft)
+                .await?;
             self.backend
-                .document_response(command.document_id, self.include_draft)
-                .await
+                .finish_command(tx, self.claims.admission.as_ref(), 201, &response)
+                .await?;
+            Ok(response)
         })
     }
 
@@ -173,6 +183,12 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
                     SpaceAccess::Edit,
                 )
                 .await?;
+            if let Some(response) =
+                super::idempotency::replay::<DocumentResponse>(&mut tx, actor_id).await?
+            {
+                return Ok(response);
+            }
+
             ensure_document_accepts_writes_tx(&mut tx, command.document_id).await?;
             sqlx::query(
                 r#"
@@ -217,10 +233,14 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
             if let Some(scope) = self.claims.admission.as_ref() {
                 scope.require_current()?;
             }
-            super::write_authorization::commit(tx, self.claims.admission.as_ref()).await?;
+            let response = self
+                .backend
+                .document_response_on(&mut tx, command.document_id, self.include_draft)
+                .await?;
             self.backend
-                .document_response(command.document_id, self.include_draft)
-                .await
+                .finish_command(tx, self.claims.admission.as_ref(), 200, &response)
+                .await?;
+            Ok(response)
         })
     }
 
@@ -240,6 +260,12 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
                     SpaceAccess::Edit,
                 )
                 .await?;
+            if let Some(response) =
+                super::idempotency::replay::<DocumentRevisionResponse>(&mut tx, actor_id).await?
+            {
+                return Ok(response);
+            }
+
             ensure_document_accepts_writes_tx(&mut tx, command.document_id).await?;
             let row = sqlx::query(
                 r#"
@@ -345,8 +371,11 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
             if let Some(scope) = self.claims.admission.as_ref() {
                 scope.require_current()?;
             }
-            super::write_authorization::commit(tx, self.claims.admission.as_ref()).await?;
-            Ok(revision_response_from_row(&revision_row))
+            let response = revision_response_from_row(&revision_row);
+            self.backend
+                .finish_command(tx, self.claims.admission.as_ref(), 200, &response)
+                .await?;
+            Ok(response)
         })
     }
 
@@ -366,6 +395,12 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
                     SpaceAccess::Edit,
                 )
                 .await?;
+            if let Some(response) =
+                super::idempotency::replay::<DocumentResponse>(&mut tx, actor_id).await?
+            {
+                return Ok(response);
+            }
+
             ensure_document_accepts_writes_tx(&mut tx, command.document_id).await?;
             let row = sqlx::query(
                 r#"
@@ -394,10 +429,14 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
             if let Some(scope) = self.claims.admission.as_ref() {
                 scope.require_current()?;
             }
-            super::write_authorization::commit(tx, self.claims.admission.as_ref()).await?;
+            let response = self
+                .backend
+                .document_response_on(&mut tx, document_id, self.include_draft)
+                .await?;
             self.backend
-                .document_response(document_id, self.include_draft)
-                .await
+                .finish_command(tx, self.claims.admission.as_ref(), 200, &response)
+                .await?;
+            Ok(response)
         })
     }
 
@@ -410,14 +449,40 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
             let space = self.backend.document_space_id(command.document_id).await?;
             let mut tx = self
                 .backend
-                .begin_content_write(
-                    actor_id,
-                    self.claims.admission.as_ref(),
-                    &[space],
-                    SpaceAccess::Edit,
-                )
+                .begin_tree_write(actor_id, self.claims.admission.as_ref(), &[space])
                 .await?;
+            if let Some(response) =
+                super::idempotency::replay::<DocumentResponse>(&mut tx, actor_id).await?
+            {
+                return Ok(response);
+            }
+
             ensure_document_accepts_writes_tx(&mut tx, command.document_id).await?;
+            if let Some(parent) = command.parent_id {
+                let parent_space: Uuid =
+                    sqlx::query_scalar("SELECT space_id FROM documents WHERE id=$1")
+                        .bind(parent)
+                        .fetch_optional(&mut *tx)
+                        .await
+                        .map_err(database_error)?
+                        .ok_or_else(|| shared::AppError::not_found("document", parent))?;
+                if parent_space != space {
+                    return Err(shared::AppError::invalid_input(
+                        "parent document belongs to another space",
+                    ));
+                }
+                if PostgresWikiBackend::document_parent_chain_contains(
+                    &mut tx,
+                    parent,
+                    command.document_id,
+                )
+                .await?
+                {
+                    return Err(shared::AppError::invalid_input(
+                        "document cannot be moved under its descendant",
+                    ));
+                }
+            }
             let row = sqlx::query(
                 r#"
                 UPDATE documents
@@ -446,10 +511,14 @@ impl WikiDocumentRepository for PostgresWikiDocumentRepository<'_> {
             if let Some(scope) = self.claims.admission.as_ref() {
                 scope.require_current()?;
             }
-            super::write_authorization::commit(tx, self.claims.admission.as_ref()).await?;
+            let response = self
+                .backend
+                .document_response_on(&mut tx, document_id, self.include_draft)
+                .await?;
             self.backend
-                .document_response(document_id, self.include_draft)
-                .await
+                .finish_command(tx, self.claims.admission.as_ref(), 200, &response)
+                .await?;
+            Ok(response)
         })
     }
 
@@ -515,8 +584,15 @@ impl PostgresWikiBackend {
         let space_id = self
             .ensure_space_access(claims, &key, SpaceAccess::Edit)
             .await?;
-        self.ensure_space_accepts_writes(space_id).await?;
         let actor_id = parse_uuid(&claims.user_id, "user")?;
+
+        if let Some(response) = self
+            .replay_command::<DocumentResponse>(claims, &[space_id], super::SpaceAccess::Edit)
+            .await?
+        {
+            return Ok(response);
+        }
+        self.ensure_space_accepts_writes(space_id).await?;
 
         let parent_id = match body.parent_id.as_deref() {
             Some(parent_id) => {
@@ -579,6 +655,20 @@ impl PostgresWikiBackend {
         self.ensure_document_access(claims, document_id, SpaceAccess::Edit)
             .await?;
         let actor_id = parse_uuid(&claims.user_id, "user")?;
+
+        if super::idempotency::is_replay() {
+            let replay_space = self.document_space_id(document_id).await?;
+            if let Some(response) = self
+                .replay_command::<DocumentResponse>(
+                    claims,
+                    &[replay_space],
+                    super::SpaceAccess::Edit,
+                )
+                .await?
+            {
+                return Ok(response);
+            }
+        }
         let repository = PostgresWikiDocumentRepository {
             backend: self,
             request_id: claims.request_id.as_deref(),
@@ -600,6 +690,20 @@ impl PostgresWikiBackend {
         self.ensure_document_access(claims, document_id, SpaceAccess::Edit)
             .await?;
         let actor_id = parse_uuid(&claims.user_id, "user")?;
+
+        if super::idempotency::is_replay() {
+            let replay_space = self.document_space_id(document_id).await?;
+            if let Some(response) = self
+                .replay_command::<DocumentRevisionResponse>(
+                    claims,
+                    &[replay_space],
+                    super::SpaceAccess::Edit,
+                )
+                .await?
+            {
+                return Ok(response);
+            }
+        }
         let repository = PostgresWikiDocumentRepository {
             backend: self,
             request_id: claims.request_id.as_deref(),
@@ -620,6 +724,20 @@ impl PostgresWikiBackend {
         self.ensure_document_access(claims, document_id, SpaceAccess::Edit)
             .await?;
         let actor_id = parse_uuid(&claims.user_id, "user")?;
+
+        if super::idempotency::is_replay() {
+            let replay_space = self.document_space_id(document_id).await?;
+            if let Some(response) = self
+                .replay_command::<DocumentResponse>(
+                    claims,
+                    &[replay_space],
+                    super::SpaceAccess::Edit,
+                )
+                .await?
+            {
+                return Ok(response);
+            }
+        }
         let repository = PostgresWikiDocumentRepository {
             backend: self,
             request_id: claims.request_id.as_deref(),
@@ -638,30 +756,29 @@ impl PostgresWikiBackend {
         body: MoveDocumentRequest,
     ) -> Result<DocumentResponse, shared::AppError> {
         let document_id = self.resolve_document_id(document_id).await?;
-        let document_space_id = self
-            .ensure_document_access(claims, document_id, SpaceAccess::Edit)
+        self.ensure_document_access(claims, document_id, SpaceAccess::Edit)
             .await?;
         let actor_id = parse_uuid(&claims.user_id, "user")?;
+
+        if super::idempotency::is_replay() {
+            let replay_space = self.document_space_id(document_id).await?;
+            if let Some(response) = self
+                .replay_command::<DocumentResponse>(
+                    claims,
+                    &[replay_space],
+                    super::SpaceAccess::Edit,
+                )
+                .await?
+            {
+                return Ok(response);
+            }
+        }
         let parent_id = match body.parent_id {
             Some(parent_id) => {
                 let parent_id = self.resolve_document_id(&parent_id).await?;
                 if parent_id == document_id {
                     return Err(shared::AppError::invalid_input(
                         "document cannot be moved under itself",
-                    ));
-                }
-                let parent_space_id = self.document_space_id(parent_id).await?;
-                if parent_space_id != document_space_id {
-                    return Err(shared::AppError::invalid_input(
-                        "parent document belongs to another space",
-                    ));
-                }
-                if self
-                    .document_parent_chain_contains(parent_id, document_id)
-                    .await?
-                {
-                    return Err(shared::AppError::invalid_input(
-                        "document cannot be moved under its descendant",
                     ));
                 }
                 Some(parent_id)
@@ -733,7 +850,7 @@ impl PostgresWikiBackend {
     }
 
     async fn document_parent_chain_contains(
-        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
         parent_id: Uuid,
         document_id: Uuid,
     ) -> Result<bool, shared::AppError> {
@@ -748,7 +865,7 @@ impl PostgresWikiBackend {
             }
             current_id = sqlx::query_scalar("SELECT parent_id FROM documents WHERE id = $1")
                 .bind(id)
-                .fetch_optional(&self.pool)
+                .fetch_optional(&mut **tx)
                 .await
                 .map_err(database_error)?
                 .ok_or_else(|| shared::AppError::not_found("document", id))?;
@@ -793,6 +910,17 @@ impl PostgresWikiBackend {
         document_id: Uuid,
         include_draft: bool,
     ) -> Result<DocumentResponse, shared::AppError> {
+        let mut connection = self.pool.acquire().await.map_err(database_error)?;
+        self.document_response_on(&mut connection, document_id, include_draft)
+            .await
+    }
+
+    pub(super) async fn document_response_on(
+        &self,
+        connection: &mut sqlx::PgConnection,
+        document_id: Uuid,
+        include_draft: bool,
+    ) -> Result<DocumentResponse, shared::AppError> {
         let row = sqlx::query(
             r#"
             SELECT d.id, s.key AS space_key, d.parent_id, d.slug, d.title,
@@ -807,24 +935,29 @@ impl PostgresWikiBackend {
             "#,
         )
         .bind(document_id)
-        .fetch_optional(&self.pool)
+        .fetch_optional(&mut *connection)
         .await
         .map_err(database_error)?
         .ok_or_else(|| shared::AppError::not_found("document", document_id))?;
 
         let current_revision_id: Option<Uuid> = row.get("current_revision_id");
         let current_revision = match current_revision_id {
-            Some(revision_id) => Some(self.revision_response(document_id, revision_id).await?),
+            Some(revision_id) => Some(
+                self.revision_response_on(connection, document_id, revision_id)
+                    .await?,
+            ),
             None => None,
         };
         if !include_draft && current_revision.is_none() {
             return Err(shared::AppError::not_found("document", document_id));
         }
-        let task_keys = self.document_task_keys(document_id).await?;
-        let phase_keys = self.document_phase_keys(document_id).await?;
+        let task_keys = self.document_task_keys_on(connection, document_id).await?;
+        let phase_keys = self.document_phase_keys_on(connection, document_id).await?;
         // The document caller has already checked its space. This exact-document
         // result snapshot is not the public, optionally authenticated evidence list.
-        let evidence = self.evidence_for_document_result(document_id).await?;
+        let evidence = self
+            .evidence_for_document_result_on(connection, document_id)
+            .await?;
         let owner_id: Uuid = row.get("owner_id");
         let status: String = row.get("status");
         let space_active: bool = row.get("space_active");
@@ -882,8 +1015,9 @@ impl PostgresWikiBackend {
         })
     }
 
-    async fn revision_response(
+    async fn revision_response_on(
         &self,
+        connection: &mut sqlx::PgConnection,
         document_id: Uuid,
         revision_id: Uuid,
     ) -> Result<DocumentRevisionResponse, shared::AppError> {
@@ -896,14 +1030,18 @@ impl PostgresWikiBackend {
         )
         .bind(document_id)
         .bind(revision_id)
-        .fetch_optional(&self.pool)
+        .fetch_optional(&mut *connection)
         .await
         .map_err(database_error)?
         .ok_or_else(|| shared::AppError::not_found("revision", revision_id))?;
         Ok(revision_response_from_row(&row))
     }
 
-    async fn document_task_keys(&self, document_id: Uuid) -> Result<Vec<String>, shared::AppError> {
+    async fn document_task_keys_on(
+        &self,
+        connection: &mut sqlx::PgConnection,
+        document_id: Uuid,
+    ) -> Result<Vec<String>, shared::AppError> {
         let rows = sqlx::query(
             r#"
             SELECT td.task_key
@@ -914,14 +1052,15 @@ impl PostgresWikiBackend {
             "#,
         )
         .bind(document_id)
-        .fetch_all(&self.pool)
+        .fetch_all(&mut *connection)
         .await
         .map_err(database_error)?;
         Ok(rows.iter().map(|row| row.get("task_key")).collect())
     }
 
-    async fn document_phase_keys(
+    async fn document_phase_keys_on(
         &self,
+        connection: &mut sqlx::PgConnection,
         document_id: Uuid,
     ) -> Result<Vec<String>, shared::AppError> {
         let rows = sqlx::query(
@@ -934,7 +1073,7 @@ impl PostgresWikiBackend {
             "#,
         )
         .bind(document_id)
-        .fetch_all(&self.pool)
+        .fetch_all(&mut *connection)
         .await
         .map_err(database_error)?;
         Ok(rows.iter().map(|row| row.get("phase_key")).collect())

@@ -27,12 +27,24 @@ impl PostgresWikiDossierRepository<'_> {
         space_key: &str,
         task_key: &str,
     ) -> Result<TaskPageResponse, shared::AppError> {
+        let mut connection = self.backend.pool.acquire().await.map_err(database_error)?;
+        self.task_page_on(&mut connection, space_id, space_key, task_key)
+            .await
+    }
+
+    async fn task_page_on(
+        &self,
+        connection: &mut sqlx::PgConnection,
+        space_id: Uuid,
+        space_key: &str,
+        task_key: &str,
+    ) -> Result<TaskPageResponse, shared::AppError> {
         let mut task_rows = sqlx::query(
             "SELECT id, title_snapshot,tracker_instance_id,task_id FROM task_dossiers WHERE space_id = $1 AND task_key = $2",
         )
         .bind(space_id)
         .bind(task_key)
-        .fetch_all(&self.backend.pool)
+        .fetch_all(&mut *connection)
         .await
         .map_err(database_error)?;
         if task_rows.len() > 1 {
@@ -69,14 +81,16 @@ impl PostgresWikiDossierRepository<'_> {
         )
         .bind(task_id)
         .bind(self.include_document_drafts)
-        .fetch_all(&self.backend.pool)
+        .fetch_all(&mut *connection)
         .await
         .map_err(database_error)?;
         let documents: Vec<_> = document_rows
             .iter()
             .map(document_summary_from_row)
             .collect();
-        let evidence = self.evidence_for_target(Some(task_id), None).await?;
+        let evidence = self
+            .evidence_for_target_on(connection, Some(task_id), None)
+            .await?;
         let title_snapshot: Option<String> = task_row.get("title_snapshot");
         let title =
             title_snapshot.or_else(|| documents.first().map(|document| document.title.clone()));
@@ -107,12 +121,24 @@ impl PostgresWikiDossierRepository<'_> {
         space_key: &str,
         phase_key: &str,
     ) -> Result<PhasePageResponse, shared::AppError> {
+        let mut connection = self.backend.pool.acquire().await.map_err(database_error)?;
+        self.phase_page_on(&mut connection, space_id, space_key, phase_key)
+            .await
+    }
+
+    async fn phase_page_on(
+        &self,
+        connection: &mut sqlx::PgConnection,
+        space_id: Uuid,
+        space_key: &str,
+        phase_key: &str,
+    ) -> Result<PhasePageResponse, shared::AppError> {
         let phase_row = sqlx::query(
             "SELECT id, phase_name FROM phase_dossiers WHERE space_id = $1 AND phase_key = $2",
         )
         .bind(space_id)
         .bind(phase_key)
-        .fetch_optional(&self.backend.pool)
+        .fetch_optional(&mut *connection)
         .await
         .map_err(database_error)?;
         let Some(phase_row) = phase_row else {
@@ -142,14 +168,16 @@ impl PostgresWikiDossierRepository<'_> {
         )
         .bind(phase_id)
         .bind(self.include_document_drafts)
-        .fetch_all(&self.backend.pool)
+        .fetch_all(&mut *connection)
         .await
         .map_err(database_error)?;
         let documents: Vec<_> = document_rows
             .iter()
             .map(document_summary_from_row)
             .collect();
-        let evidence = self.evidence_for_target(None, Some(phase_id)).await?;
+        let evidence = self
+            .evidence_for_target_on(connection, None, Some(phase_id))
+            .await?;
         let phase_name: Option<String> = phase_row.get("phase_name");
 
         Ok(PhasePageResponse {
@@ -163,15 +191,16 @@ impl PostgresWikiDossierRepository<'_> {
         })
     }
 
-    async fn evidence_for_target(
+    async fn evidence_for_target_on(
         &self,
+        connection: &mut sqlx::PgConnection,
         task_dossier_id: Option<Uuid>,
         phase_dossier_id: Option<Uuid>,
     ) -> Result<Vec<EvidenceResponse>, shared::AppError> {
         let rows = sqlx::query(EVIDENCE_TARGET_SQL)
             .bind(task_dossier_id)
             .bind(phase_dossier_id)
-            .fetch_all(&self.backend.pool)
+            .fetch_all(&mut *connection)
             .await
             .map_err(database_error)?;
         Ok(rows.iter().map(evidence_response_from_row).collect())
@@ -329,6 +358,12 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
                     SpaceAccess::Edit,
                 )
                 .await?;
+            if let Some(response) =
+                super::idempotency::replay::<TaskPageResponse>(&mut tx, actor_id).await?
+            {
+                return Ok(response);
+            }
+
             ensure_document_accepts_writes_tx(&mut tx, command.document_id).await?;
             let task_id = self
                 .backend
@@ -359,10 +394,18 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
                     self.request_id,
                 )
                 .await?;
-            super::write_authorization::commit(tx, self.claims.admission.as_ref()).await?;
-
-            self.task_page(command.space_id, &command.space_key, &command.task_key)
-                .await
+            let response = self
+                .task_page_on(
+                    &mut tx,
+                    command.space_id,
+                    &command.space_key,
+                    &command.task_key,
+                )
+                .await?;
+            self.backend
+                .finish_command(tx, self.claims.admission.as_ref(), 200, &response)
+                .await?;
+            Ok(response)
         })
     }
 
@@ -545,6 +588,12 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
                     SpaceAccess::Edit,
                 )
                 .await?;
+            if let Some(response) =
+                super::idempotency::replay::<PhasePageResponse>(&mut tx, actor_id).await?
+            {
+                return Ok(response);
+            }
+
             ensure_document_accepts_writes_tx(&mut tx, command.document_id).await?;
             let phase_id = self
                 .backend
@@ -575,10 +624,18 @@ impl WikiDossierRepository for PostgresWikiDossierRepository<'_> {
                     self.request_id,
                 )
                 .await?;
-            super::write_authorization::commit(tx, self.claims.admission.as_ref()).await?;
-
-            self.phase_page(command.space_id, &command.space_key, &command.phase_key)
-                .await
+            let response = self
+                .phase_page_on(
+                    &mut tx,
+                    command.space_id,
+                    &command.space_key,
+                    &command.phase_key,
+                )
+                .await?;
+            self.backend
+                .finish_command(tx, self.claims.admission.as_ref(), 200, &response)
+                .await?;
+            Ok(response)
         })
     }
 
@@ -695,6 +752,13 @@ impl PostgresWikiBackend {
             .ensure_space_access(claims, &key, SpaceAccess::Edit)
             .await?;
         let actor_id = parse_uuid(&claims.user_id, "user")?;
+
+        if let Some(response) = self
+            .replay_command::<TaskPageResponse>(claims, &[space_id], super::SpaceAccess::Edit)
+            .await?
+        {
+            return Ok(response);
+        }
         let document_id = self.resolve_document_id(&body.document_id).await?;
         if self.document_space_id(document_id).await? != space_id {
             return Err(shared::AppError::invalid_input(
@@ -837,6 +901,13 @@ impl PostgresWikiBackend {
             .ensure_space_access(claims, &key, SpaceAccess::Edit)
             .await?;
         let actor_id = parse_uuid(&claims.user_id, "user")?;
+
+        if let Some(response) = self
+            .replay_command::<PhasePageResponse>(claims, &[space_id], super::SpaceAccess::Edit)
+            .await?
+        {
+            return Ok(response);
+        }
         let document_id = self.resolve_document_id(&body.document_id).await?;
         if self.document_space_id(document_id).await? != space_id {
             return Err(shared::AppError::invalid_input(

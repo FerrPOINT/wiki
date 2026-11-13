@@ -213,7 +213,7 @@ flowchart TD
 
 | Проверка | Команда |
 |---|---|
-| README contract tests | `python3 -m unittest scripts.tests.test_verify_readme -v` |
+| README contract tests | `python3 -m unittest scripts.tests.test_verify_readme scripts.tests.test_dockerfile_budget -v` |
 | README assets и anchors | `python3 scripts/verify_readme.py` |
 | Backend | `cd backend && cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace -- --test-threads=1` |
 | Frontend | `cd frontend && pnpm openapi:check && pnpm typecheck && pnpm test -- --run && pnpm lint && pnpm build` |
@@ -221,7 +221,7 @@ flowchart TD
 | Compose contract | `docker compose config -q` |
 | Runtime probes | `curl -fsS http://127.0.0.1:3456/api/v1/health` и `.../health/ready` |
 
-GitHub Actions прогоняет docs-гейт, backend fmt/clippy/tests, OpenAPI drift и frontend gates; тяжёлые проверки (coverage, dependency-audit, browser E2E) выполняются локально по необходимости.
+GitHub Actions workflows удалены. Docs, backend fmt/clippy/tests, OpenAPI drift и frontend gates выполняются локально по выбранной области. Coverage, dependency audit и browser E2E остаются отдельными gates; команды — в [CI/CD](docs/CI_CD.md).
 
 Архивирование сохраняет клавиатурный контекст: после успеха фокус возвращается
 на строку пространства или заголовок документа, после отмены — на кнопку действия.

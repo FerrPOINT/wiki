@@ -63,7 +63,7 @@ fn machine_reader_is_read_only_project_limited_revocable_and_never_jits() {
                     if !active.load(Ordering::SeqCst) { return (StatusCode::UNAUTHORIZED, Json(json!({}))); }
                     let (subject, role, scopes) = match token {
                         "Bearer sdlc_pat_analyst-owner" => (OWNER.to_owned(), "admin", vec!["wiki:read", "wiki:write"]),
-                        "Bearer sdlc_pat_analyst-reader" => (SUBJECT.to_owned(), "service_account", vec!["wiki:read"]),
+                        "Bearer sdlc_pat_analyst-reader" | "Bearer sdlc_pat_analyst-reader-finite" | "Bearer sdlc_pat_analyst-reader-expired" => (SUBJECT.to_owned(), "service_account", vec!["wiki:read"]),
                         "Bearer sdlc_pat_analyst-unregistered" => (Uuid::new_v4().to_string(), "service_account", vec!["wiki:read"]),
                         "Bearer sdlc_pat_analyst-writer" => (SUBJECT.to_owned(), "service_account", vec!["wiki:read", "wiki:write"]),
                         "Bearer sdlc_pat_analyst-human" => (SUBJECT.to_owned(), "user", vec!["wiki:read"]),
@@ -73,7 +73,9 @@ fn machine_reader_is_read_only_project_limited_revocable_and_never_jits() {
                     let email = if subject == OWNER { "owner@example.test" } else { "reader@example.test" };
                     (StatusCode::OK, Json(json!({"sub":subject,"role":role,"subject_role":role,
                         "email":email,"display_name":"Synthetic reader","scopes":scopes,
-                        "observed_at":now,"expires_at":now+chrono::Duration::seconds(60)})))
+                        "observed_at":now,"expires_at":if token.ends_with("-expired") {Some(now-chrono::Duration::seconds(1))}
+                            else if role=="service_account" && !token.ends_with("-finite") {None}
+                            else {Some(now+chrono::Duration::seconds(60))}})))
                 }
             }))
             .route("/admission", post(|headers: HeaderMap, Json(query): Json<Value>| async move {
@@ -157,6 +159,10 @@ fn machine_reader_is_read_only_project_limited_revocable_and_never_jits() {
         let (status,doc)=request(&app,token,Method::GET,&format!("/api/v1/documents/{}",documents[0].1)).await;
         assert_eq!(status,StatusCode::OK);assert!(!doc.to_string().contains("PRIVATE DRAFT"));assert_eq!(doc["can_edit"],false);
         assert_eq!(request(&app,token,Method::GET,&format!("/api/v1/documents/{}",documents[1].1)).await.0,StatusCode::FORBIDDEN);
+        assert_eq!(request(&app,"sdlc_pat_analyst-reader-finite",Method::GET,
+            &format!("/api/v1/documents/{}",documents[0].1)).await.0,StatusCode::OK);
+        assert_eq!(request(&app,"sdlc_pat_analyst-reader-expired",Method::GET,
+            &format!("/api/v1/documents/{}",documents[0].1)).await.0,StatusCode::UNAUTHORIZED);
         // A genuine human administrator revokes through the normal protected API.
         assert_eq!(request(&app,"sdlc_pat_analyst-owner",Method::DELETE,
             &format!("/api/v1/spaces/ALLOWED/members/{user}")).await.0,StatusCode::NO_CONTENT);

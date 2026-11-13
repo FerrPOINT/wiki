@@ -43,7 +43,7 @@ fn claims_with_write_scope(
     let subject = WikiSpaceSubject {
         user_id: user,
         identity,
-        token_expiry: now + 60,
+        authority_valid_until: now + 60,
         global_role: role.into(),
         may_read: true,
         may_write,

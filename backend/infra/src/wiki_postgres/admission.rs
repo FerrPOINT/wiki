@@ -4,7 +4,7 @@ use super::{PostgresWikiBackend, central_auth::BRIDGE};
 use pdlc_auth_core::service_bridge::{
     SpaceAdmissionClient, VerifiedBridgeError, VerifiedCentralToken,
 };
-use pdlc_shared::space_access::{AdmissionValidity, CentralIdentity, SpaceRef};
+use pdlc_shared::space_access::{CentralIdentity, SpaceRef};
 use shared::{
     AppError, WikiClaims,
     wiki_space_access::{WikiSpaceAdmission, WikiSpaceMapping, WikiSpaceSubject},
@@ -159,29 +159,24 @@ impl PostgresWikiBackend {
         if !actor.lifetime.is_current() {
             return Err(AppError::Unauthorized);
         }
-        let token_expiry = actor.lifetime.local_valid_until().min(
-            actor
-                .lifetime
-                .source_observed_at
-                .checked_add(AdmissionValidity::MAX_AGE_SECONDS)
-                .ok_or(AppError::Unauthorized)?,
-        );
+        let confirmation = actor.confirmation_validity().map_err(|_| AppError::Unauthorized)?;
         let subject = WikiSpaceSubject {
             user_id,
             identity: CentralIdentity {
                 issuer: actor.issuer.clone(),
                 subject: actor.context.user_id.clone(),
             },
-            token_expiry,
+            authority_valid_until: confirmation.valid_until,
             global_role,
             may_read: actor.context.allows_service("wiki", "GET"),
             may_write: actor.context.allows_service("wiki", "PUT"),
         };
-        Ok(Arc::new(
-            WikiSpaceAdmission::confirmed(subject, admission, mappings)?
-                .restrict_deadline(actor.lifetime.monotonic_deadline())
-                .restrict_deadline(proof.monotonic_deadline()),
-        ))
+        let mut admission = WikiSpaceAdmission::confirmed(subject, admission, mappings)?
+            .restrict_deadline(proof.monotonic_deadline());
+        if let Some(deadline) = actor.lifetime.monotonic_deadline() {
+            admission = admission.restrict_deadline(deadline);
+        }
+        Ok(Arc::new(admission))
     }
 }
 

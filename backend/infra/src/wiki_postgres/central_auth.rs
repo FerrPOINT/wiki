@@ -93,3 +93,91 @@ pub fn claims_for(ctx: &pdlc_auth_core::AuthContext, wiki_user_id: String) -> Wi
         admission: None,
     }
 }
+
+#[cfg(test)]
+pub(super) async fn verified_test_identity(
+    prefix: &'static str,
+    context: &pdlc_auth_core::AuthContext,
+    access: Option<(pdlc_auth_core::application_access::HumanRole, i64)>,
+) -> pdlc_auth_core::service_bridge::VerifiedCentralToken {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    struct Fixture {
+        server: tokio::task::JoinHandle<()>,
+        environment: Vec<(String, Option<std::ffi::OsString>)>,
+    }
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            self.server.abort();
+            for (key, previous) in &self.environment {
+                // Each caller owns its test-only prefix; production settings are never read.
+                unsafe { match previous {
+                    Some(value) => std::env::set_var(key, value),
+                    None => std::env::remove_var(key),
+                } }
+            }
+        }
+    }
+    let issuer = if access.is_some() { "https://clock.test" } else { "http://wiki-owner.example.test" }.to_owned();
+    let now = chrono::Utc::now();
+    let body = serde_json::json!({"sub":context.user_id,
+        "email":context.email.as_deref().unwrap_or("fixture@example.test"),
+        "subject_role":context.role.as_deref().unwrap_or("user"), "scopes":context.scopes,
+        "observed_at":now,"expires_at":now + chrono::Duration::minutes(2)});
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let response_issuer = issuer.clone();
+    let server = tokio::spawn(async move {
+        loop {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request = Vec::new();
+            while !request.windows(4).any(|part| part == b"\r\n\r\n") {
+                let mut buffer = [0; 1024];
+                let size = stream.read(&mut buffer).await.unwrap();
+                assert_ne!(size, 0);
+                request.extend_from_slice(&buffer[..size]);
+            }
+            let request = String::from_utf8(request).unwrap();
+            let value = if request.starts_with("GET /oidc/jwks ") { serde_json::json!({"keys":[]}) } else {
+                assert!(request.starts_with("GET /auth/tokens/introspect?include_lifetime=true "));
+                assert!(request.to_lowercase().contains("authorization: bearer sdlc_pat_wiki-fixture"));
+                let mut response = body.clone();
+                if let Some((role, millis)) = access {
+                    // The Auth responder first issues its grant here, after client/JWKS setup.
+                    let issued_at = chrono::Utc::now();
+                    let decision = pdlc_auth_core::application_access::ApplicationAccessV1 {
+                        schema_version: 1,
+                        issuer: response_issuer.clone(),
+                        subject: response["sub"].as_str().unwrap().to_owned(),
+                        role,
+                        applications: vec!["wiki".into()],
+                        revision: 1,
+                        enforced: true,
+                        observed_at: issued_at,
+                        expires_at: issued_at + chrono::Duration::milliseconds(millis),
+                    };
+                    response["application_access"] = serde_json::to_value(decision).unwrap();
+                }
+                response
+            };
+            let body = value.to_string();
+            let response = format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", body.len(), body);
+            stream.write_all(response.as_bytes()).await.unwrap();
+        }
+    });
+    let environment = [(format!("{prefix}_JWKS_URI"), format!("http://{address}/oidc/jwks")),
+        (format!("{prefix}_ISSUER"), issuer), (format!("{prefix}_APPLICATION_ACCESS_REQUIRED"), "false".into())]
+        .into_iter().map(|(key, value)| {
+            let previous = std::env::var_os(&key);
+            unsafe { std::env::set_var(&key, value) };
+            (key, previous)
+        }).collect();
+    let _fixture = Fixture { server, environment };
+    let verified = ServiceBridge::for_application(prefix, "wiki")
+        .try_verified_token("sdlc_pat_wiki-fixture").await.unwrap();
+    if let Some((role, millis)) = access {
+        let decision = &verified.application_access.as_ref().unwrap().decision;
+        assert_eq!(decision.role, role);
+        assert_eq!((decision.expires_at - decision.observed_at).num_milliseconds(), millis);
+    }
+    verified
+}

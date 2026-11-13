@@ -25,6 +25,7 @@ COPY wiki/backend/api ./api
 COPY wiki/backend/server ./server
 COPY wiki/backend/cli ./cli
 
+ARG CARGO_BUILD_JOBS=1
 RUN cargo build --locked --release --bin server
 
 FROM debian:bookworm-slim

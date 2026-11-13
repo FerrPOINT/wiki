@@ -481,3 +481,16 @@ Base qualification: 17 hook tests, 69 primitive checks и 37 search assertions.
 IAB Base/Forge source-compositions: 24 theme/width cases плюс три intent/error
 cases; это не полная authenticated-приёмка продуктов. Полный интеграционный gate,
 Rust search transport, hosted CI и публикация остаются отдельными стадиями.
+
+
+Backend namespace/Auth SDK закреплён в `.namespace-base-revision`; исходные
+`.base-revision` и UI pin
+сохраняются. Постоянный service-account root PAT передаёт явный
+`expires_at: null`, а finite human PAT и явно заданные даты сохраняются.
+`confirmation_validity()` относится к исходному наблюдению Auth, а не к сроку
+credential или принятой задачи. Wiki сохраняет конечные space/application proofs
+и ограничивает ими чтение/ответ; token Some может только сузить их. Регистрация
+machine subject, точные read scopes, локальное членство и отзыв не меняются.
+Тесты human request используют реальный публичный ServiceBridge с локальным
+контролируемым Auth-ответом; фиктивный verified lifetime не конструируется.
+Source adoption требует отдельной native/PG/runtime-приёмки.

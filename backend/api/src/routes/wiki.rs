@@ -357,26 +357,28 @@ pub async fn require_wiki_auth(
         let local_id = Uuid::parse_str(&actor_id).map_err(|_| shared::AppError::Unauthorized)?;
         let machine = actor.subject_role.as_deref() == Some("service_account");
         if machine {
-            let response = tokio::time::timeout_at(
-                actor.lifetime.monotonic_deadline().into(),
-                infra::wiki_postgres::machine_read::with_request(local_id, actor.clone(), work),
-            )
-            .await
-            .map_err(|_| shared::AppError::Forbidden)???;
-            super::space_response::guard_identity(response, actor.lifetime)?
+            let validity = actor.confirmation_validity().map_err(|_| shared::AppError::Unauthorized)?;
+            let confirmation = pdlc_shared::space_lifecycle::SpaceOwnerAuthority::confirmed(
+                pdlc_shared::space_access::CentralIdentity {
+                    issuer: actor.issuer.clone(), subject: actor.context.user_id.clone(),
+                }, validity,
+            ).ok_or(shared::AppError::Unauthorized)?;
+            let owner_deadline = scope.as_ref().map(|scope| scope.response_deadline(i64::MAX))
+                .transpose()?.map(|(_, deadline)| deadline);
+            let deadline = actor.lifetime.monotonic_deadline().map_or(confirmation.monotonic_deadline(),
+                |token| token.min(confirmation.monotonic_deadline()));
+            let deadline = owner_deadline.map_or(deadline, |owner| owner.min(deadline));
+            let work = infra::wiki_postgres::machine_read::with_request(local_id, actor.clone(), work);
+            let response = tokio::time::timeout_at(deadline.into(), work).await
+                .map_err(|_| shared::AppError::Forbidden)???;
+            super::space_response::guard_confirmation(response, confirmation)?
         } else {
+            let deadline = actor.lifetime.monotonic_deadline().ok_or(shared::AppError::Unauthorized)?;
             let response = tokio::time::timeout_at(
-                actor.lifetime.monotonic_deadline().into(),
-                pdlc_auth_core::human_request::with_human_request(
-                    local_id,
-                    &actor.context,
-                    actor.application_access.clone(),
-                    work,
-                ),
-            )
-            .await
-            .map_err(|_| shared::AppError::Forbidden)?
-            .map_err(|_| shared::AppError::Forbidden)??;
+                deadline.into(),
+                pdlc_auth_core::human_request::with_human_request(local_id, &actor, work),
+            ).await.map_err(|_| shared::AppError::Forbidden)?
+                .map_err(|_| shared::AppError::Forbidden)??;
             super::space_response::guard_identity(response, actor.lifetime)?
         }
     } else {
@@ -438,19 +440,26 @@ async fn run_idempotent_request(
         request_hash,
     };
 
-    match backend
+    let replaying = match backend
         .begin_idempotent_request(idempotency_request.clone())
         .await?
     {
-        WikiIdempotencyStatus::Started => {}
+        WikiIdempotencyStatus::Started => false,
         WikiIdempotencyStatus::Replay(replay) => {
-            return idempotency_replay_response(replay);
+            if backend.persistent_backend().is_none() {
+                return idempotency_replay_response(replay);
+            }
+            // A persistent replay reaches the owner again for fresh resource authorization.
+            true
         }
-    }
+    };
 
-    let response = next
-        .run(Request::from_parts(parts, Body::from(request_body)))
-        .await;
+    let work = next.run(Request::from_parts(parts, Body::from(request_body)));
+    let (response, commit_attempted) = if backend.persistent_backend().is_some() {
+        app::wiki::with_idempotent_command(idempotency_request.clone(), replaying, work).await
+    } else {
+        (work.await, false)
+    };
     let (parts, body) = response.into_parts();
     let response_body = to_bytes(body, idempotency_body_limit(&backend))
         .await
@@ -467,7 +476,7 @@ async fn run_idempotent_request(
                 },
             )
             .await?;
-    } else {
+    } else if !commit_attempted {
         backend
             .abandon_idempotent_request(idempotency_request)
             .await?;
