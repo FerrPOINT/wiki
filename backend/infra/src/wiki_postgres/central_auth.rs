@@ -98,7 +98,7 @@ pub fn claims_for(ctx: &pdlc_auth_core::AuthContext, wiki_user_id: String) -> Wi
 pub(super) async fn verified_test_identity(
     prefix: &'static str,
     context: &pdlc_auth_core::AuthContext,
-    access: Option<pdlc_auth_core::application_access::VerifiedApplicationAccess>,
+    access: Option<(pdlc_auth_core::application_access::HumanRole, i64)>,
 ) -> pdlc_auth_core::service_bridge::VerifiedCentralToken {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     struct Fixture {
@@ -117,15 +117,15 @@ pub(super) async fn verified_test_identity(
             }
         }
     }
-    let issuer = access.as_ref().map_or("http://wiki-owner.example.test", |proof| proof.decision.issuer.as_str()).to_owned();
+    let issuer = if access.is_some() { "https://clock.test" } else { "http://wiki-owner.example.test" }.to_owned();
     let now = chrono::Utc::now();
-    let mut body = serde_json::json!({"sub":context.user_id,
+    let body = serde_json::json!({"sub":context.user_id,
         "email":context.email.as_deref().unwrap_or("fixture@example.test"),
         "subject_role":context.role.as_deref().unwrap_or("user"), "scopes":context.scopes,
         "observed_at":now,"expires_at":now + chrono::Duration::minutes(2)});
-    if let Some(access) = access { body["application_access"] = serde_json::to_value(access.decision).unwrap(); }
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
+    let response_issuer = issuer.clone();
     let server = tokio::spawn(async move {
         loop {
             let (mut stream, _) = listener.accept().await.unwrap();
@@ -140,7 +140,24 @@ pub(super) async fn verified_test_identity(
             let value = if request.starts_with("GET /oidc/jwks ") { serde_json::json!({"keys":[]}) } else {
                 assert!(request.starts_with("GET /auth/tokens/introspect?include_lifetime=true "));
                 assert!(request.to_lowercase().contains("authorization: bearer sdlc_pat_wiki-fixture"));
-                body.clone()
+                let mut response = body.clone();
+                if let Some((role, millis)) = access {
+                    // The Auth responder first issues its grant here, after client/JWKS setup.
+                    let issued_at = chrono::Utc::now();
+                    let decision = pdlc_auth_core::application_access::ApplicationAccessV1 {
+                        schema_version: 1,
+                        issuer: response_issuer.clone(),
+                        subject: response["sub"].as_str().unwrap().to_owned(),
+                        role,
+                        applications: vec!["wiki".into()],
+                        revision: 1,
+                        enforced: true,
+                        observed_at: issued_at,
+                        expires_at: issued_at + chrono::Duration::milliseconds(millis),
+                    };
+                    response["application_access"] = serde_json::to_value(decision).unwrap();
+                }
+                response
             };
             let body = value.to_string();
             let response = format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", body.len(), body);
@@ -155,5 +172,12 @@ pub(super) async fn verified_test_identity(
             (key, previous)
         }).collect();
     let _fixture = Fixture { server, environment };
-    ServiceBridge::for_application(prefix, "wiki").try_verified_token("sdlc_pat_wiki-fixture").await.unwrap()
+    let verified = ServiceBridge::for_application(prefix, "wiki")
+        .try_verified_token("sdlc_pat_wiki-fixture").await.unwrap();
+    if let Some((role, millis)) = access {
+        let decision = &verified.application_access.as_ref().unwrap().decision;
+        assert_eq!(decision.role, role);
+        assert_eq!((decision.expires_at - decision.observed_at).num_milliseconds(), millis);
+    }
+    verified
 }
