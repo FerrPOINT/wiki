@@ -366,21 +366,18 @@ pub async fn owner_v2_auth(mut req: Request, next: Next) -> Result<Response, App
     ) {
         return Err(AppError::Forbidden);
     }
-    let validity = pdlc_shared::space_access::AdmissionValidity::confirmed(
-        verified.lifetime.source_observed_at,
-        verified.lifetime.local_valid_until(),
-        i64::MAX,
-    )
-    .ok_or(AppError::Unauthorized)?;
-    let authority = shared::space_owner::WikiSpaceOwnerAuthority::confirmed(
+    let validity = verified.confirmation_validity().map_err(|_| AppError::Unauthorized)?;
+    let mut authority = shared::space_owner::WikiSpaceOwnerAuthority::confirmed(
         pdlc_shared::space_access::CentralIdentity {
             issuer: verified.issuer,
             subject: verified.context.user_id,
         },
         token,
         validity,
-    )?
-    .restrict_deadline(verified.lifetime.monotonic_deadline());
+    )?;
+    if let Some(deadline) = verified.lifetime.monotonic_deadline() {
+        authority = authority.restrict_deadline(deadline);
+    }
     req.extensions_mut().insert(authority);
     Ok(next.run(req).await)
 }
@@ -485,21 +482,18 @@ pub async fn project_projection_auth(mut req: Request, next: Next) -> Result<Res
     ) {
         return Err(AppError::Forbidden);
     }
-    let validity = pdlc_shared::space_access::AdmissionValidity::confirmed(
-        verified.lifetime.source_observed_at,
-        verified.lifetime.local_valid_until(),
-        i64::MAX,
-    )
-    .ok_or(AppError::Unauthorized)?;
-    let proof = pdlc_shared::space_lifecycle::SpaceOwnerAuthority::confirmed(
+    let validity = verified.confirmation_validity().map_err(|_| AppError::Unauthorized)?;
+    let mut proof = pdlc_shared::space_lifecycle::SpaceOwnerAuthority::confirmed(
         pdlc_shared::space_access::CentralIdentity {
             issuer: verified.issuer,
             subject: verified.context.user_id,
         },
         validity,
     )
-    .ok_or(AppError::Unauthorized)?
-    .restrict_deadline(verified.lifetime.monotonic_deadline());
+    .ok_or(AppError::Unauthorized)?;
+    if let Some(deadline) = verified.lifetime.monotonic_deadline() {
+        proof = proof.restrict_deadline(deadline);
+    }
     req.extensions_mut().insert(proof);
     Ok(next.run(req).await)
 }

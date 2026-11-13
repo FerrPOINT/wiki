@@ -93,7 +93,7 @@ pub(super) async fn verify(
                 WikiSpaceSubject {
                     user_id: user,
                     identity: identity.clone(),
-                    token_expiry: now + 2,
+                    authority_valid_until: now + 2,
                     global_role: "user".into(),
                     may_read: true,
                     may_write: true,

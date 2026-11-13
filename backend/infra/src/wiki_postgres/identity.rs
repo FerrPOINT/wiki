@@ -1082,7 +1082,8 @@ mod central_directory_tests {
         let mut actor = context(&format!("{local}@example.test"));
         actor.user_id = local.to_string();
         actor.role = Some("user".into());
-        pdlc_auth_core::human_request::with_human_request(local, &actor, None, async {
+        let verified = super::super::central_auth::verified_test_identity("WIKI_ROLE_WRITE_FIXTURE", &actor, None).await;
+        pdlc_auth_core::human_request::with_human_request(local, &verified, async {
             assert!(matches!(
                 backend.ensure_admin(&claims).await,
                 Err(shared::AppError::Forbidden)
@@ -1107,7 +1108,8 @@ mod central_directory_tests {
             .await
             .unwrap();
         actor.role = Some("admin".into());
-        pdlc_auth_core::human_request::with_human_request(local, &actor, None, async {
+        let verified = super::super::central_auth::verified_test_identity("WIKI_ROLE_WRITE_FIXTURE", &actor, None).await;
+        pdlc_auth_core::human_request::with_human_request(local, &verified, async {
             assert_eq!(backend.ensure_admin(&claims).await.unwrap(), local);
             let tx = backend
                 .begin_content_write(local, None, &[space], super::super::SpaceAccess::Admin)
@@ -1132,9 +1134,7 @@ mod central_directory_tests {
     #[tokio::test]
     #[ignore = "requires a disposable PostgreSQL database in WIKI_TEST_DATABASE_URL"]
     async fn app_only_clock_rejects_content_and_template_effects_inside_commit() {
-        use pdlc_auth_core::application_access::{
-            ApplicationAccessV1, HumanRole, VerifiedApplicationAccess,
-        };
+        use pdlc_auth_core::application_access::HumanRole;
         let backend = profile_backend().await;
         let local = Uuid::now_v7();
         let space = Uuid::now_v7();
@@ -1179,27 +1179,6 @@ mod central_directory_tests {
             request_id: None,
             admission: None,
         };
-        let proof = |role, millis| {
-            let now = chrono::Utc::now();
-            VerifiedApplicationAccess::confirm(
-                ApplicationAccessV1 {
-                    schema_version: 1,
-                    issuer: "https://clock.test".into(),
-                    subject: local.to_string(),
-                    role,
-                    applications: vec!["wiki".into()],
-                    revision: 1,
-                    enforced: true,
-                    observed_at: now,
-                    expires_at: now + chrono::Duration::milliseconds(millis),
-                },
-                "https://clock.test",
-                &local.to_string(),
-                std::time::Instant::now(),
-                now,
-            )
-            .unwrap()
-        };
         let mut actor = context(&format!("{local}@example.test"));
         actor.user_id = local.to_string();
         actor.role = Some("user".into());
@@ -1214,8 +1193,8 @@ mod central_directory_tests {
         };
         let document = pdlc_auth_core::human_request::with_human_request(
             local,
-            &actor,
-            Some(proof(HumanRole::User, 300)),
+            &super::super::central_auth::verified_test_identity("WIKI_COMMIT_OWNER_FIXTURE", &actor,
+                Some((HumanRole::User, 300))).await,
             backend.create_document(&claims, &key, doc_body()),
         )
         .await
@@ -1223,8 +1202,8 @@ mod central_directory_tests {
         actor.role = Some("admin".into());
         let template = pdlc_auth_core::human_request::with_human_request(
             local,
-            &actor,
-            Some(proof(HumanRole::Admin, 300)),
+            &super::super::central_auth::verified_test_identity("WIKI_COMMIT_OWNER_FIXTURE", &actor,
+                Some((HumanRole::Admin, 300))).await,
             backend.create_template(&claims, template_body()),
         )
         .await
@@ -1265,8 +1244,8 @@ mod central_directory_tests {
         actor.role = Some("user".into());
         pdlc_auth_core::human_request::with_human_request(
             local,
-            &actor,
-            Some(proof(HumanRole::User, 2000)),
+            &super::super::central_auth::verified_test_identity("WIKI_COMMIT_OWNER_FIXTURE", &actor,
+                Some((HumanRole::User, 2000))).await,
             backend.create_document(&claims, &key, doc_body()),
         )
         .await
@@ -1275,8 +1254,8 @@ mod central_directory_tests {
         actor.role = Some("admin".into());
         pdlc_auth_core::human_request::with_human_request(
             local,
-            &actor,
-            Some(proof(HumanRole::Admin, 2000)),
+            &super::super::central_auth::verified_test_identity("WIKI_COMMIT_OWNER_FIXTURE", &actor,
+                Some((HumanRole::Admin, 2000))).await,
             backend.create_template(&claims, template_body()),
         )
         .await
