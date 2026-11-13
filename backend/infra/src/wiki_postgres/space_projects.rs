@@ -186,6 +186,13 @@ impl PostgresWikiBackend {
             .await?;
         self.namespace_binding(space).await?;
         let actor = super::mapping::parse_uuid(&claims.user_id, "user")?;
+
+        if let Some(response) = self
+            .replay_command::<()>(claims, &[space], super::SpaceAccess::Admin)
+            .await?
+        {
+            return Ok(response);
+        }
         let catalog_visible = match self.project_catalog_actor(claims).await {
             Ok(_) => true,
             Err(AppError::Forbidden) => false,
@@ -235,11 +242,14 @@ impl PostgresWikiBackend {
                 "archived space does not accept write commands",
             ));
         }
+        if let Some(response) = super::idempotency::replay::<()>(&mut tx, actor).await? {
+            return Ok(response);
+        }
         if attach && sqlx::query_scalar::<_, bool>(
             "SELECT EXISTS(SELECT 1 FROM wiki_space_projects WHERE space_id=$1 AND registry_instance_id=$2 AND namespace_id=$3)",
         ).bind(space).bind(project.registry_instance_id).bind(project.namespace_id)
             .fetch_one(&mut *tx).await.map_err(database_error)? {
-            tx.commit().await.map_err(database_error)?;
+            self.finish_command(tx,claims.admission.as_ref(),204,&()).await?;
             return Ok(());
         }
         let changed = if attach {
@@ -294,7 +304,8 @@ impl PostgresWikiBackend {
                 .bind(super::audit::audit_request_id(claims.request_id.as_deref()))
                 .execute(&mut *tx).await.map_err(database_error)?;
         }
-        tx.commit().await.map_err(database_error)?;
+        self.finish_command(tx, claims.admission.as_ref(), 204, &())
+            .await?;
         Ok(())
     }
 }

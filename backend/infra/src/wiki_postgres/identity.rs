@@ -209,6 +209,12 @@ impl WikiUserRepository for PostgresWikiUserRepository<'_> {
                     super::SpaceAccess::Admin,
                 )
                 .await?;
+            if let Some(response) =
+                super::idempotency::replay::<WikiUserResponse>(&mut tx, actor_id).await?
+            {
+                return Ok(response);
+            }
+
             let user_id = Uuid::now_v7();
 
             let row = sqlx::query(
@@ -245,9 +251,11 @@ impl WikiUserRepository for PostgresWikiUserRepository<'_> {
                     self.request_id,
                 )
                 .await?;
-            super::write_authorization::commit(tx, self.admission.as_ref()).await?;
-
-            Ok(user_response_from_row(&row))
+            let response = user_response_from_row(&row);
+            self.backend
+                .finish_command(tx, self.admission.as_ref(), 201, &response)
+                .await?;
+            Ok(response)
         })
     }
 
@@ -266,6 +274,11 @@ impl WikiUserRepository for PostgresWikiUserRepository<'_> {
                     super::SpaceAccess::Admin,
                 )
                 .await?;
+            if let Some(response) =
+                super::idempotency::replay::<WikiUserResponse>(&mut tx, actor_id).await?
+            {
+                return Ok(response);
+            }
 
             let row = sqlx::query(
                 r#"
@@ -322,9 +335,11 @@ impl WikiUserRepository for PostgresWikiUserRepository<'_> {
                     self.request_id,
                 )
                 .await?;
-            super::write_authorization::commit(tx, self.admission.as_ref()).await?;
-
-            Ok(user_response_from_row(&row))
+            let response = user_response_from_row(&row);
+            self.backend
+                .finish_command(tx, self.admission.as_ref(), 200, &response)
+                .await?;
+            Ok(response)
         })
     }
 }
@@ -957,6 +972,13 @@ impl PostgresWikiBackend {
         body: WikiCreateUserRequest,
     ) -> Result<WikiUserResponse, shared::AppError> {
         let actor_id = self.ensure_admin(claims).await?;
+
+        if let Some(response) = self
+            .replay_command::<WikiUserResponse>(claims, &[], super::SpaceAccess::Admin)
+            .await?
+        {
+            return Ok(response);
+        }
         let repository = PostgresWikiUserRepository {
             backend: self,
             request_id: claims.request_id.as_deref(),
@@ -974,6 +996,13 @@ impl PostgresWikiBackend {
         body: WikiUpdateUserRequest,
     ) -> Result<WikiUserResponse, shared::AppError> {
         let actor_id = self.ensure_admin(claims).await?;
+
+        if let Some(response) = self
+            .replay_command::<WikiUserResponse>(claims, &[], super::SpaceAccess::Admin)
+            .await?
+        {
+            return Ok(response);
+        }
         let user_id = parse_uuid(user_id, "user")?;
         let repository = PostgresWikiUserRepository {
             backend: self,
