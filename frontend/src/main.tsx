@@ -5,7 +5,6 @@ import { Toaster } from '@pdlc/ui/ui'
 import i18n from './shared/i18n/config'
 import { RouterProvider } from 'react-router'
 import { router } from './app/router'
-import { AuthBoundary } from './app/auth-boundary'
 import { ThemeProvider, PlatformProvider, PlatformServicesProvider } from '@pdlc/ui/lib'
 import './index.css'
 import { relaySsoCallback, ssoNamespace } from '@pdlc/ui/sso'
@@ -18,18 +17,14 @@ function Boot() {
   if (!ready) return null
   return (
     <I18nextProvider i18n={i18n}>
-      <AuthBoundary>
-        <ThemeProvider>
-          <PlatformProvider configUrl={import.meta.env.VITE_PLATFORM_BRANDING_URL ?? null}>
-            <PlatformServicesProvider
-              catalogUrl={import.meta.env.VITE_PLATFORM_SERVICES_URL ?? null}
-            >
-              <RouterProvider router={router} />
-            </PlatformServicesProvider>
-          </PlatformProvider>
-          <Toaster />
-        </ThemeProvider>
-      </AuthBoundary>
+      <ThemeProvider>
+        <PlatformProvider configUrl={import.meta.env.VITE_PLATFORM_BRANDING_URL ?? null}>
+          <PlatformServicesProvider catalogUrl={import.meta.env.VITE_PLATFORM_SERVICES_URL ?? null}>
+            <RouterProvider router={router} />
+          </PlatformServicesProvider>
+        </PlatformProvider>
+        <Toaster />
+      </ThemeProvider>
     </I18nextProvider>
   )
 }

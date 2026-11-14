@@ -208,6 +208,7 @@ async function installWikiApiMocks(page: Page) {
   const jwk = await exportJWK(publicKey)
   const oidcValue = Buffer.alloc(32, 7).toString('base64url')
   const issuer = 'http://localhost:7701'
+  const accessToken = `fixture.${Buffer.from(JSON.stringify({ sub: user.id, exp: Math.floor(Date.now() / 1000) + 300 })).toString('base64url')}.fixture`
 
   // Use a real redirect: synthetic redirect fulfillment is unsupported by
   // WebKit, while an inline script creates a public-to-loopback navigation.
@@ -244,7 +245,11 @@ async function installWikiApiMocks(page: Page) {
     if (url.pathname === '/oidc/authorize') {
       return route.continue({ url: `http://127.0.0.1:${address.port}${url.pathname}${url.search}` })
     }
-    if (url.pathname === '/oidc/jwks') return routeJson(route, { keys: [jwk] })
+    if (url.pathname === '/oidc/jwks')
+      return route.fulfill({
+        json: { keys: [jwk] },
+        headers: { 'access-control-allow-origin': '*' },
+      })
     if (url.pathname === '/oidc/token') {
       const idToken = await new SignJWT({
         email: user.email,
@@ -258,9 +263,34 @@ async function installWikiApiMocks(page: Page) {
         .setIssuedAt()
         .setExpirationTime('5m')
         .sign(privateKey)
-      return routeJson(route, { access_token: 'demo-token', id_token: idToken, expires_in: 300 })
+      return route.fulfill({
+        json: { access_token: accessToken, id_token: idToken, expires_in: 300 },
+        headers: { 'access-control-allow-origin': '*' },
+      })
     }
     return route.fulfill({ status: 404 })
+  })
+
+  await page.route(`${issuer}/auth/access`, (route) => {
+    const authorized =
+      route.request().method() === 'GET' &&
+      route.request().headers().authorization === `Bearer ${accessToken}`
+    const observed = Date.now()
+    return route.fulfill({
+      status: authorized ? 200 : 401,
+      headers: { 'access-control-allow-origin': '*', 'cache-control': 'no-store' },
+      json: {
+        schema_version: 1,
+        issuer,
+        subject: user.id,
+        role: 'admin',
+        applications: ['wiki'],
+        revision: 1,
+        enforced: true,
+        observed_at: new Date(observed).toISOString(),
+        expires_at: new Date(observed + 60000).toISOString(),
+      },
+    })
   })
 
   let currentDocument = { ...document }
@@ -291,9 +321,19 @@ async function installWikiApiMocks(page: Page) {
     const path = url.pathname.replace('/api/v1', '')
     const method = request.method()
 
+    if (method === 'GET' && path === '/space-admission')
+      return route.fulfill({
+        headers: { 'cache-control': 'no-store' },
+        json: {
+          schema_version: 1,
+          enforced: true,
+          remaining_millis: 60000,
+          scope_revision: 'a'.repeat(64),
+        },
+      })
     if (method === 'POST' && path === '/auth/login') {
       return routeJson(route, {
-        access_token: 'demo-token',
+        access_token: accessToken,
         refresh_token: 'demo-refresh',
         token_type: 'Bearer',
         user_id: user.id,
@@ -303,7 +343,7 @@ async function installWikiApiMocks(page: Page) {
       })
     }
     if (method === 'POST' && path === '/auth/refresh') {
-      return routeJson(route, { access_token: 'demo-token', refresh_token: 'demo-refresh' })
+      return routeJson(route, { access_token: accessToken, refresh_token: 'demo-refresh' })
     }
     if (method === 'POST' && path === '/auth/logout') return route.fulfill({ status: 204 })
     if (
@@ -613,6 +653,41 @@ async function gotoWiki(page: Page, path = '/') {
   await page.goto(target)
   await expect(page).toHaveURL(target, { timeout: 10_000 })
 }
+
+test('foreground SSO callback survives accepting the session', async ({ page }, testInfo) => {
+  await installWikiApiMocks(page)
+  let interactiveMainFrame = false
+  let exchanges = 0
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname === '/oidc/token' && request.method() === 'POST')
+      exchanges++
+  })
+  await page.route('**/oidc/authorize**', async (route) => {
+    const url = new URL(route.request().url())
+    if (url.searchParams.get('prompt') !== 'none') {
+      interactiveMainFrame = route.request().frame() === page.mainFrame()
+      return route.fallback()
+    }
+    const callback = new URL(url.searchParams.get('redirect_uri')!)
+    callback.searchParams.set('error', 'login_required')
+    callback.searchParams.set('state', url.searchParams.get('state') ?? '')
+    return route.fulfill({ status: 302, headers: { location: callback.toString() } })
+  })
+  await page.goto('/spaces')
+  await expect(page.getByRole('heading', { name: 'Пространства', exact: true })).toBeVisible()
+  expect(new URL(page.url()).pathname).toBe('/spaces')
+  expect(interactiveMainFrame).toBe(true)
+  expect(exchanges).toBe(1)
+  expect(page.url()).not.toMatch(/(?:code|state|access_token)=/)
+  for (const width of [375, 1920, 2560]) {
+    await page.setViewportSize({ width, height: width === 375 ? 812 : 1440 })
+    await expect(page.getByRole('heading', { name: 'Пространства', exact: true })).toBeVisible()
+    await page.screenshot({
+      path: testInfo.outputPath(`sso-completed-${width}.png`),
+      fullPage: true,
+    })
+  }
+})
 
 test.describe('wiki smoke', () => {
   for (const outcome of ['success', 'failure'] as const) {
