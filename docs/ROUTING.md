@@ -17,9 +17,14 @@ Frontend-роуты объявлены в `frontend/src/app/router.tsx`. На п
 | Route | Page | Notes |
 |---|---|---|
 | `/login` | `pages/login` | Вход |
-| `/register` | `pages/register` | Регистрация |
+| `/register` | Redirect | Переход на `/login` |
+| `/sso/callback` | `pages/sso-callback` | Публичное завершение PKCE и возврат на исходный маршрут |
 
 ## 4. Protected Routes
+
+`AuthBoundary` с общим `PlatformQuerySession` и проверкой свежести доступа
+охватывает только защищённую группу. Принятие сессии не перемонтирует публичный
+SSO callback; смена аккаунта и выход очищают приватные формы и query cache.
 
 | Route | Page | Notes |
 |---|---|---|

@@ -1,3 +1,4 @@
+import { AuthBoundary } from './auth-boundary'
 import { RequireAdministrator } from '@pdlc/ui/auth'
 import { LoadingState } from '@pdlc/ui/ui'
 import { createProductRouter, PlatformRoute } from '@pdlc/ui/platform'
@@ -110,7 +111,11 @@ export function createWikiRoutes(namespaceEnabled: boolean): RouteObject[] {
 
   return [
     {
-      element: <RequireAuth />,
+      element: (
+        <AuthBoundary>
+          <RequireAuth />
+        </AuthBoundary>
+      ),
       children: [
         {
           element: <AppShell />,
