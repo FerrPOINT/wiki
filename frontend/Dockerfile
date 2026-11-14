@@ -32,6 +32,7 @@ ENV VITE_PLATFORM_ORIGIN=${VITE_PLATFORM_ORIGIN}
 RUN pnpm generate:api && pnpm build
 
 FROM nginx:alpine
+ENV NGINX_ENTRYPOINT_WORKER_PROCESSES_AUTOTUNE=1
 ARG VITE_NAMESPACE_ENABLED="false"
 LABEL io.pdlc.namespace-ui.enabled=${VITE_NAMESPACE_ENABLED}
 COPY --from=builder /workspace/wiki/frontend/dist /usr/share/nginx/html
