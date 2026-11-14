@@ -37,7 +37,7 @@ mod workspace_catalog_tests;
 mod write_authorization;
 #[cfg(test)]
 mod write_tests;
-pub use connection::connect_postgres_wiki_backend;
+pub use connection::{connect_postgres_wiki_backend, migrate_postgres_wiki_database};
 
 use app::wiki::{WikiSpaceAccess as SpaceAccess, normalize_space_key, space_role_allows};
 use mapping::parse_uuid;

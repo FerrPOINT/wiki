@@ -14,15 +14,40 @@ pub async fn connect_postgres_wiki_backend(
     config: &AppConfig,
     storage: Arc<dyn domain::wiki::WikiAttachmentStorage>,
 ) -> Result<(Arc<dyn WikiBackendPort>, WikiSettingsSnapshot), AppError> {
+    let backend = PostgresWikiBackend::connect(config, storage).await?;
+    let settings = backend.settings.clone();
+    Ok((Arc::new(backend), settings))
+}
+
+/// Apply the same database migrations as startup, without application bootstrap.
+pub async fn migrate_postgres_wiki_database(config: &AppConfig) -> Result<(), AppError> {
+    let pool = connect_migrated_database(config).await?;
+    pool.close().await;
+    Ok(())
+}
+
+async fn connect_migrated_database(config: &AppConfig) -> Result<sqlx::PgPool, AppError> {
     if config.database.url.trim().is_empty() {
         return Err(AppError::invalid_input(
             "WIKI_DATABASE__URL is required for PostgreSQL Wiki runtime",
         ));
     }
 
-    let backend = PostgresWikiBackend::connect(config, storage).await?;
-    let settings = backend.settings.clone();
-    Ok((Arc::new(backend), settings))
+    let pool = PgPoolOptions::new()
+        .max_connections(config.database.max_connections)
+        .min_connections(config.database.min_connections)
+        .acquire_timeout(Duration::from_secs(config.database.connect_timeout_seconds))
+        .idle_timeout(Duration::from_secs(config.database.idle_timeout_seconds))
+        .connect(&config.database.url)
+        .await
+        .map_err(AppError::database)?;
+
+    let migrator = sqlx::migrate::Migrator::new(migrations_dir())
+        .await
+        .map_err(AppError::database)?;
+    migrator.run(&pool).await.map_err(AppError::database)?;
+
+    Ok(pool)
 }
 
 impl PostgresWikiBackend {
@@ -30,19 +55,7 @@ impl PostgresWikiBackend {
         config: &AppConfig,
         storage: Arc<dyn domain::wiki::WikiAttachmentStorage>,
     ) -> Result<Self, AppError> {
-        let pool = PgPoolOptions::new()
-            .max_connections(config.database.max_connections)
-            .min_connections(config.database.min_connections)
-            .acquire_timeout(Duration::from_secs(config.database.connect_timeout_seconds))
-            .idle_timeout(Duration::from_secs(config.database.idle_timeout_seconds))
-            .connect(&config.database.url)
-            .await
-            .map_err(AppError::database)?;
-
-        let migrator = sqlx::migrate::Migrator::new(migrations_dir())
-            .await
-            .map_err(AppError::database)?;
-        migrator.run(&pool).await.map_err(AppError::database)?;
+        let pool = connect_migrated_database(config).await?;
 
         let backend = Self {
             task_reader: super::managed_links::TaskReader::from_deployment()?
