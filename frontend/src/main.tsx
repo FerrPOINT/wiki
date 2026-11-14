@@ -1,3 +1,4 @@
+import { ssoConfig } from '@/shared/auth/store'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { I18nextProvider, useTranslation } from 'react-i18next'
@@ -8,7 +9,7 @@ import { router } from './app/router'
 import { AuthBoundary } from './app/auth-boundary'
 import { ThemeProvider, PlatformProvider, PlatformServicesProvider } from '@pdlc/ui/lib'
 import './index.css'
-import { relaySsoCallback, ssoNamespace } from '@pdlc/ui/sso'
+import { relaySsoCallback } from '@pdlc/ui/sso'
 import { capturePlatformReturn, getPlatformProduct } from '@pdlc/ui/platform'
 
 capturePlatformReturn(import.meta.env.VITE_PLATFORM_ORIGIN)
@@ -34,7 +35,7 @@ function Boot() {
   )
 }
 
-if (!relaySsoCallback(ssoNamespace(import.meta.env.VITE_AUTH_NAMESPACE))) {
+if (!relaySsoCallback(ssoConfig.namespace, ssoConfig.callbackPath)) {
   const root = createRoot(document.getElementById('root')!)
   getPlatformProduct()?.onRetire(() => {
     root.unmount()

@@ -20,7 +20,8 @@ afterEach(() => {
   vi.unstubAllEnvs()
 })
 
-describe('deployment-owned SSO client', () => {
+describe.each(['/', '/wiki/'])('deployment-owned SSO client below %s', (basePath) => {
+  beforeEach(() => vi.stubEnv('BASE_URL', basePath))
   it.each([
     { configured: undefined, expected: 'wiki', namespace: undefined },
     { configured: 'wiki-dev', expected: 'wiki-dev', namespace: undefined },
@@ -34,6 +35,7 @@ describe('deployment-owned SSO client', () => {
       issuer: 'http://localhost:8701',
       clientId: expected,
       namespace: namespace ?? 'sdlc',
+      callbackPath: `${basePath}sso/callback`,
     })
   })
 
@@ -58,6 +60,7 @@ describe('deployment-owned SSO client', () => {
           issuer: 'http://localhost:8701',
           clientId: 'wiki-dev',
           namespace: namespace ?? 'sdlc',
+          callbackPath: `${basePath}sso/callback`,
         })
       } finally {
         cleanup()
